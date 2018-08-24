@@ -1,0 +1,10 @@
+/*
+!/.gitignore
+!/modules/
+/modules/*/admin
+/modules/*/install
+/modules/*/lang
+/modules/*.log
+/modules/.htaccess
+!/LICENSE
+!/README.md
