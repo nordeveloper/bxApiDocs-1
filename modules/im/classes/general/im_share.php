@@ -302,7 +302,14 @@ class CIMShare
 		if (empty($sonetRights))
 		{
 			$relations = CIMChat::GetRelationById($message['CHAT_ID']);
-			$sonetRights = array_map(function($value){ return "U".$value['USER_ID']; }, $relations);
+			$sonetRights = [];
+			foreach ($relations as $userId)
+			{
+				if (\Bitrix\Im\User::getInstance($userId)->isActive())
+				{
+					$sonetRights[] = "U".$userId;
+				}
+			}
 		}
 
 		$postFields = array(

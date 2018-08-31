@@ -11,8 +11,10 @@ class CIMRestService extends IRestService
 				'im.revision.get' => array(__CLASS__, 'revisionGet'),
 
 				'im.user.get' => array(__CLASS__, 'userGet'),
-				'im.user.list' => array(__CLASS__, 'userList'),
-				'im.user.business.get' => array(__CLASS__, 'userBusinessGet'),
+				'im.user.list.get' => array(__CLASS__, 'userList'),
+				'im.user.business.list' => array(__CLASS__, 'userBusinessList'),
+				'im.user.business.get' =>  array('callback' => array(__CLASS__, 'userBusinessList'), 'options' => array('private' => true)),
+
 
 				'im.user.status.get' => array(__CLASS__, 'userStatusGet'),
 				'im.user.status.set' => array(__CLASS__, 'userStatusSet'),
@@ -24,7 +26,8 @@ class CIMRestService extends IRestService
 				'im.recent.hide' => array(__CLASS__, 'recentHide'),
 
 				'im.department.get' => array(__CLASS__, 'departmentGet'),
-				'im.department.colleagues.get' => array(__CLASS__, 'departmentColleaguesGet'),
+				'im.department.colleagues.list' => array(__CLASS__, 'departmentColleaguesList'),
+				'im.department.colleagues.get' =>  array('callback' => array(__CLASS__, 'departmentColleaguesList'), 'options' => array('private' => true)),
 				'im.department.managers.get' => array(__CLASS__, 'departmentManagersGet'),
 				'im.department.employees.get' => array(__CLASS__, 'departmentEmployeesGet'),
 
@@ -62,9 +65,12 @@ class CIMRestService extends IRestService
 
 				'im.counters.get' =>  array(__CLASS__, 'counterGet'),
 
-				'im.search.user' => array(__CLASS__, 'searchUser'),
-				'im.search.chat' => array(__CLASS__, 'notImplemented'),
-				'im.search.department' => array(__CLASS__, 'searchDepartment'),
+				'im.search.user.list' => array(__CLASS__, 'searchUser'),
+				'im.search.user' =>  array('callback' => array(__CLASS__, 'searchUser'), 'options' => array('private' => true)),
+				'im.search.chat.list' => array(__CLASS__, 'searchChat'),
+				'im.search.chat' =>  array('callback' => array(__CLASS__, 'searchChat'), 'options' => array('private' => true)),
+				'im.search.department.list' => array(__CLASS__, 'searchDepartment'),
+				'im.search.department' =>  array('callback' => array(__CLASS__, 'searchDepartment'), 'options' => array('private' => true)),
 
 				'im.search.last.get' => array(__CLASS__, 'searchLastGet'),
 				'im.search.last.add' => array(__CLASS__, 'searchLastAdd'),
@@ -176,7 +182,7 @@ class CIMRestService extends IRestService
 			throw new Bitrix\Rest\RestException("You can request only users who consist of your extranet group", "ACCESS_DENIED", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
-		$result = $user->getArray(Array('JSON' => 'Y'));
+		$result = $user->getArray(Array('JSON' => 'Y', 'HR_PHOTO' => isset($arParams['AVATAR_HR']) && $arParams['AVATAR_HR'] == 'Y'));
 
 		$result['desktop_last_date'] = \CIMMessenger::GetDesktopStatusOnline($userId);
 		$result['desktop_last_date'] = $result['desktop_last_date']? date('c', $result['desktop_last_date']): false;
@@ -238,20 +244,20 @@ class CIMRestService extends IRestService
 			}
 			else
 			{
-				$result[$userId] = \Bitrix\Im\User::getInstance($userId)->getArray(Array('JSON' => 'Y'));
+				$result[$userId] = \Bitrix\Im\User::getInstance($userId)->getArray(Array('JSON' => 'Y', 'HR_PHOTO' => isset($arParams['AVATAR_HR']) && $arParams['AVATAR_HR'] == 'Y'));
 			}
 		}
 
 		return $result;
 	}
 
-	public static function userBusinessGet($arParams, $offset, CRestServer $server)
+	public static function userBusinessList($arParams, $offset, CRestServer $server)
 	{
 		$arParams = array_change_key_case($arParams, CASE_UPPER);
 
 		$withUserData = $arParams['USER_DATA'] == 'Y';
 
-		$params['OFFSET'] = isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): intval($offset);
+		$params['OFFSET'] = intval($offset) > 0? intval($offset): (isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): 0);
 		$params['LIMIT'] = isset($arParams['LIMIT'])? (intval($arParams['LIMIT']) > 50? 50: intval($arParams['LIMIT'])): 10;
 
 		$result = \Bitrix\Im\User::getBusiness(null, array('JSON' => 'Y', 'USER_DATA' => $withUserData? 'Y': 'N', 'LIST' => $params));
@@ -392,23 +398,23 @@ class CIMRestService extends IRestService
 			$params['FILTER']['BUSINESS'] = 'Y';
 		}
 
-		$filter = \Bitrix\Im\User::getListFilter($params);
-		if (is_null($filter))
+		$ormParams = \Bitrix\Im\User::getListParams($params);
+		if (is_null($ormParams))
 		{
 			throw new Bitrix\Rest\RestException("Too short a search phrase.", "FIND_SHORT", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
-		$counter = \Bitrix\Main\UserTable::getList(array(
-			'filter' => $filter,
-			'select' => array("CNT" => new \Bitrix\Main\Entity\ExpressionField('CNT', 'COUNT(1)')),
-		))->fetch();
+		$ormParams['select'] = array("CNT" => new \Bitrix\Main\Entity\ExpressionField('CNT', 'COUNT(1)'));
+
+		$counter = \Bitrix\Main\UserTable::getList($ormParams)->fetch();
 
 		$result = Array();
 		if ($counter && $counter["CNT"] > 0)
 		{
-			$params['OFFSET'] = isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): intval($offset);
+			$params['OFFSET'] = intval($offset) > 0? intval($offset): (isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): 0);
 			$params['LIMIT'] = isset($arParams['LIMIT'])? (intval($arParams['LIMIT']) > 50? 50: intval($arParams['LIMIT'])): 10;
-			$params['JSON'] = 'Y';
+			$params['HR_PHOTO'] = isset($arParams['AVATAR_HR']) && $arParams['AVATAR_HR'] == 'Y';
+			$params['JSON'] = true;
 
 			$result = \Bitrix\Im\User::getList($params);
 
@@ -436,7 +442,7 @@ class CIMRestService extends IRestService
 		$options = Array(
 			'FILTER' => Array('SEARCH' => $arParams['FIND']),
 			'LIST' => Array(
-				'OFFSET' => isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): intval($offset),
+				'OFFSET' => intval($offset) > 0? $offset: (isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): 0),
 				'LIMIT' => isset($arParams['LIMIT'])? (intval($arParams['LIMIT']) > 50? 50: intval($arParams['LIMIT'])): 10,
 			),
 			'USER_DATA' => $arParams['USER_DATA'] == 'Y'? 'Y': 'N',
@@ -452,6 +458,52 @@ class CIMRestService extends IRestService
 				"offset" => $options['OFFSET']
 			)
 		);
+	}
+
+	public static function searchChat($arParams, $offset, CRestServer $server)
+	{
+		$arParams = array_change_key_case($arParams, CASE_UPPER);
+
+		if (!isset($arParams['FIND']))
+		{
+			throw new Bitrix\Rest\RestException("Too short a search phrase.", "FIND_SHORT", CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$params = Array(
+			'FILTER' => Array('SEARCH' => $arParams['FIND']),
+			'JSON' => 'Y'
+		);
+
+		$ormParams = \Bitrix\Im\Chat::getListParams($params);
+		if (is_null($ormParams))
+		{
+			throw new Bitrix\Rest\RestException("Too short a search phrase.", "FIND_SHORT", CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$ormParams['select'] = array("CNT" => new \Bitrix\Main\Entity\ExpressionField('CNT', 'COUNT(1)'));
+
+		$counter = \Bitrix\Im\Model\ChatTable::getList($ormParams)->fetch();
+
+		$result = Array();
+		if ($counter && $counter["CNT"] > 0)
+		{
+			$params['OFFSET'] = intval($offset) > 0? intval($offset): (isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): 0);
+			$params['LIMIT'] = isset($arParams['LIMIT'])? (intval($arParams['LIMIT']) > 50? 50: intval($arParams['LIMIT'])): 10;
+			$params['ORDER'] = Array('ID' => 'DESC');
+			$params['JSON'] = 'Y';
+
+			$result = \Bitrix\Im\Chat::getList($params);
+
+			return self::setNavData(
+				$result,
+				array(
+					"count" => $counter['CNT'],
+					"offset" => $params['OFFSET']
+				)
+			);
+		}
+
+		return $result;
 	}
 
 	public static function searchLastGet($arParams, $n, CRestServer $server)
@@ -530,7 +582,12 @@ class CIMRestService extends IRestService
 			throw new Bitrix\Rest\RestException("Dialog ID can't be empty", "DIALOG_ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
-		return \Bitrix\Im\Recent::pin($arParams['DIALOG_ID'], $arParams['ACTION'] != 'N');
+		if (isset($arParams['ACTION']))
+		{
+			$arParams['PIN'] = $arParams['ACTION'];
+		}
+
+		return \Bitrix\Im\Recent::pin($arParams['DIALOG_ID'], $arParams['PIN'] != 'N');
 	}
 
 	public static function recentHide($arParams, $n, CRestServer $server)
@@ -547,7 +604,7 @@ class CIMRestService extends IRestService
 
 	/* Department api */
 
-	public static function departmentGet($arParams, $n, CRestServer $server)
+	public static function departmentGet($arParams, $offset, CRestServer $server)
 	{
 		$arParams = array_change_key_case($arParams, CASE_UPPER);
 
@@ -575,22 +632,12 @@ class CIMRestService extends IRestService
 
 		$options = Array(
 			'FILTER' => Array('ID' => $ids),
-			'LIST' => Array(
-				'OFFSET' => isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): intval($offset),
-				'LIMIT' => isset($arParams['LIMIT'])? (intval($arParams['LIMIT']) > 50? 50: intval($arParams['LIMIT'])): 10,
-			),
 			'USER_DATA' => $arParams['USER_DATA'] == 'Y'? 'Y': 'N',
 			'JSON' => 'Y',
 		);
 		$result = \Bitrix\Im\Department::getStructure($options);
 
-		return self::setNavData(
-			$result['result'],
-			array(
-				"count" => $result['total'],
-				"offset" => $options['OFFSET']
-			)
-		);
+		return $result;
 	}
 
 	public static function departmentManagersGet($arParams, $n, CRestServer $server)
@@ -616,7 +663,12 @@ class CIMRestService extends IRestService
 			}
 		}
 
-		return \Bitrix\Im\Department::getManagers(empty($ids)? null: $ids, array('JSON' => 'Y', 'USER_DATA' => $withUserData? 'Y': 'N'));
+		if (empty($ids))
+		{
+			throw new Bitrix\Rest\RestException("Department ID can't be empty", "ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		return \Bitrix\Im\Department::getManagers($ids, array('JSON' => 'Y', 'USER_DATA' => $withUserData? 'Y': 'N'));
 	}
 
 	public static function departmentEmployeesGet($arParams, $n, CRestServer $server)
@@ -641,6 +693,7 @@ class CIMRestService extends IRestService
 				}
 			}
 		}
+
 		if (empty($ids))
 		{
 			throw new Bitrix\Rest\RestException("Department ID can't be empty", "ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
@@ -649,13 +702,13 @@ class CIMRestService extends IRestService
 		return \Bitrix\Im\Department::getEmployees($ids, array('JSON' => 'Y', 'USER_DATA' => $withUserData? 'Y': 'N'));
 	}
 
-	public static function departmentColleaguesGet($arParams, $offset, CRestServer $server)
+	public static function departmentColleaguesList($arParams, $offset, CRestServer $server)
 	{
 		$arParams = array_change_key_case($arParams, CASE_UPPER);
 
 		$withUserData = $arParams['USER_DATA'] == 'Y';
 
-		$params['OFFSET'] = isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): intval($offset);
+		$params['OFFSET'] = intval($offset) > 0? intval($offset): (isset($arParams['OFFSET']) && intval($arParams['OFFSET']) > 0? intval($arParams['OFFSET']): 0);
 		$params['LIMIT'] = isset($arParams['LIMIT'])? (intval($arParams['LIMIT']) > 50? 50: intval($arParams['LIMIT'])): 10;
 
 		$result = \Bitrix\Im\Department::getColleagues(null, array('JSON' => 'Y', 'USER_DATA' => $withUserData? 'Y': 'N', 'LIST' => $params));
@@ -1233,7 +1286,12 @@ class CIMRestService extends IRestService
 			throw new Bitrix\Rest\RestException("Chat ID can't be empty", "CHAT_ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
-		return \Bitrix\Im\Chat::mute($arParams['CHAT_ID'], $arParams['ACTION'] != 'N');
+		if (isset($arParams['ACTION']))
+		{
+			$arParams['MUTE'] = $arParams['ACTION'];
+		}
+
+		return \Bitrix\Im\Chat::mute($arParams['CHAT_ID'], $arParams['MUTE'] != 'N');
 	}
 
 	public static function botList($arParams, $n, CRestServer $server)
@@ -2010,9 +2068,9 @@ class CIMRestService extends IRestService
 		}
 
 		$fileId = intval($arParams['DISK_ID']);
-		if ($chatId <= 0)
+		if ($fileId <= 0)
 		{
-			throw new Bitrix\Rest\RestException("Chat ID can't be empty", "CHAT_ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
+			throw new Bitrix\Rest\RestException("Disk ID can't be empty", "DISK_ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		return CIMDisk::DeleteFile($chatId, $fileId);
@@ -2059,8 +2117,15 @@ class CIMRestService extends IRestService
 			}
 		}
 
-		$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
-		$arApp = $dbRes->fetch();
+		if ($customClientId)
+		{
+			$arApp = ['ID' => '', 'CLIENT_ID' => $arParams['CLIENT_ID']];
+		}
+		else
+		{
+			$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
+			$arApp = $dbRes->fetch();
+		}
 
 		if (isset($arParams['EVENT_HANDLER']) && !empty($arParams['EVENT_HANDLER']))
 		{
@@ -2240,25 +2305,25 @@ class CIMRestService extends IRestService
 		if ($botId)
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageAdd', 'OnImBotMessageAdd', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotMessageAdd', 'OnImBotMessageAdd', $arParams['EVENT_MESSAGE_ADD']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageAdd', 'OnImBotMessageAdd', $arParams['EVENT_MESSAGE_ADD']);
 
 			if ($arParams['EVENT_MESSAGE_UPDATE'])
 			{
 				self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageUpdate', 'OnImBotMessageUpdate', true);
-				self::bindEvent($arApp['ID'], 'im', 'onImBotMessageUpdate', 'OnImBotMessageUpdate', $arParams['EVENT_MESSAGE_UPDATE']);
+				self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageUpdate', 'OnImBotMessageUpdate', $arParams['EVENT_MESSAGE_UPDATE']);
 			}
 
 			if ($arParams['EVENT_MESSAGE_DELETE'])
 			{
 				self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageDelete', 'OnImBotMessageDelete', true);
-				self::bindEvent($arApp['ID'], 'im', 'onImBotMessageDelete', 'OnImBotMessageDelete', $arParams['EVENT_MESSAGE_UPDATE']);
+				self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageDelete', 'OnImBotMessageDelete', $arParams['EVENT_MESSAGE_UPDATE']);
 			}
 
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotJoinChat', 'OnImBotJoinChat', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotJoinChat', 'OnImBotJoinChat', $arParams['EVENT_WELCOME_MESSAGE']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotJoinChat', 'OnImBotJoinChat', $arParams['EVENT_WELCOME_MESSAGE']);
 
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotDelete', 'OnImBotDelete', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotDelete', 'OnImBotDelete', $arParams['EVENT_BOT_DELETE']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotDelete', 'OnImBotDelete', $arParams['EVENT_BOT_DELETE']);
 		}
 		else
 		{
@@ -2277,11 +2342,13 @@ class CIMRestService extends IRestService
 
 		$arParams = array_change_key_case($arParams, CASE_UPPER);
 
+		$customClientId = false;
 		$clientId = $server->getClientId();
 		if (!$clientId)
 		{
 			if (!empty($arParams['CLIENT_ID']))
 			{
+				$customClientId = true;
 				$clientId = 'custom'.$arParams['CLIENT_ID'];
 			}
 			else
@@ -2304,6 +2371,15 @@ class CIMRestService extends IRestService
 		if (!$result)
 		{
 			throw new Bitrix\Rest\RestException("Bot can't be deleted", "WRONG_REQUEST", CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		if ($customClientId)
+		{
+			self::unbindEvent("", $arParams['CLIENT_ID'], 'im', 'onImBotMessageAdd', 'OnImBotMessageAdd', true);
+			self::unbindEvent("", $arParams['CLIENT_ID'], 'im', 'onImBotMessageUpdate', 'OnImBotMessageUpdate', true);
+			self::unbindEvent("", $arParams['CLIENT_ID'], 'im', 'onImBotMessageDelete', 'OnImBotMessageDelete', true);
+			self::unbindEvent("", $arParams['CLIENT_ID'], 'im', 'onImBotJoinChat', 'OnImBotJoinChat', true);
+			self::unbindEvent("", $arParams['CLIENT_ID'], 'im', 'onImBotDelete', 'OnImBotDelete', true);
 		}
 
 		return true;
@@ -2342,8 +2418,15 @@ class CIMRestService extends IRestService
 			throw new Bitrix\Rest\RestException("Bot was installed by another rest application", "APP_ID_ERROR", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
-		$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
-		$arApp = $dbRes->fetch();
+		if ($customClientId)
+		{
+			$arApp = ['ID' => '', 'CLIENT_ID' => $arParams['CLIENT_ID']];
+		}
+		else
+		{
+			$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
+			$arApp = $dbRes->fetch();
+		}
 
 		$updateEvents = Array();
 
@@ -2529,27 +2612,27 @@ class CIMRestService extends IRestService
 		if (isset($updateEvents['EVENT_MESSAGE_ADD']))
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageAdd', 'OnImBotMessageAdd', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotMessageAdd', 'OnImBotMessageAdd', $updateEvents['EVENT_MESSAGE_ADD']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageAdd', 'OnImBotMessageAdd', $updateEvents['EVENT_MESSAGE_ADD']);
 		}
 		if (isset($updateEvents['EVENT_MESSAGE_UPDATE']))
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageUpdate', 'OnImBotMessageUpdate', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotMessageUpdate', 'OnImBotMessageUpdate', $updateEvents['EVENT_MESSAGE_UPDATE']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageUpdate', 'OnImBotMessageUpdate', $updateEvents['EVENT_MESSAGE_UPDATE']);
 		}
 		if (isset($updateEvents['EVENT_MESSAGE_DELETE']))
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageDelete', 'OnImBotMessageDelete', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotMessageDelete', 'OnImBotMessageDelete', $updateEvents['EVENT_MESSAGE_DELETE']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotMessageDelete', 'OnImBotMessageDelete', $updateEvents['EVENT_MESSAGE_DELETE']);
 		}
 		if (isset($updateEvents['EVENT_WELCOME_MESSAGE']))
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotJoinChat', 'OnImBotJoinChat', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotJoinChat', 'OnImBotJoinChat', $updateEvents['EVENT_WELCOME_MESSAGE']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotJoinChat', 'OnImBotJoinChat', $updateEvents['EVENT_WELCOME_MESSAGE']);
 		}
 		if (isset($updateEvents['EVENT_BOT_DELETE']))
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotDelete', 'OnImBotDelete', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImBotDelete', 'OnImBotDelete', $updateEvents['EVENT_BOT_DELETE']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImBotDelete', 'OnImBotDelete', $updateEvents['EVENT_BOT_DELETE']);
 		}
 
 		return true;
@@ -3559,8 +3642,15 @@ class CIMRestService extends IRestService
 			}
 		}
 
-		$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
-		$arApp = $dbRes->fetch();
+		if ($customClientId)
+		{
+			$arApp = ['ID' => '', 'CLIENT_ID' => $arParams['CLIENT_ID']];
+		}
+		else
+		{
+			$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
+			$arApp = $dbRes->fetch();
+		}
 
 		if (isset($arParams['EVENT_COMMAND_ADD']) && !empty($arParams['EVENT_COMMAND_ADD']))
 		{
@@ -3627,7 +3717,7 @@ class CIMRestService extends IRestService
 		if ($commandId)
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImCommandAdd', 'onImCommandAdd', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImCommandAdd', 'onImCommandAdd', $arParams['EVENT_COMMAND_ADD']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImCommandAdd', 'onImCommandAdd', $arParams['EVENT_COMMAND_ADD']);
 		}
 		else
 		{
@@ -3710,8 +3800,15 @@ class CIMRestService extends IRestService
 			throw new Bitrix\Rest\RestException("Command was installed by another rest application", "APP_ID_ERROR", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
-		$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
-		$arApp = $dbRes->fetch();
+		if ($customClientId)
+		{
+			$arApp = ['ID' => '', 'CLIENT_ID' => $arParams['CLIENT_ID']];
+		}
+		else
+		{
+			$dbRes = \Bitrix\Rest\AppTable::getList(array('filter' => array('=CLIENT_ID' => $clientId)));
+			$arApp = $dbRes->fetch();
+		}
 
 		$updateEvents = Array();
 		if (isset($arParams['FIELDS']['EVENT_COMMAND_ADD']) && !empty($arParams['FIELDS']['EVENT_COMMAND_ADD']))
@@ -3772,7 +3869,7 @@ class CIMRestService extends IRestService
 		if (isset($updateEvents['EVENT_COMMAND_ADD']))
 		{
 			self::unbindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImCommandAdd', 'onImCommandAdd', true);
-			self::bindEvent($arApp['ID'], 'im', 'onImCommandAdd', 'onImCommandAdd', $updateEvents['EVENT_COMMAND_ADD']);
+			self::bindEvent($arApp['ID'], $arApp['CLIENT_ID'], 'im', 'onImCommandAdd', 'onImCommandAdd', $updateEvents['EVENT_COMMAND_ADD']);
 		}
 
 		return true;
@@ -4340,11 +4437,12 @@ class CIMRestService extends IRestService
 		return $auth? $auth: Array();
 	}
 
-	private static function bindEvent($appId, $bitrixEventModule, $bitrixEventName, $restEventName, $restEventHandler)
+	private static function bindEvent($appId, $appCode, $bitrixEventModule, $bitrixEventName, $restEventName, $restEventHandler)
 	{
 		$res = \Bitrix\Rest\EventTable::getList(array(
 			'filter' => array(
 				'=EVENT_NAME' => toUpper($restEventName),
+				"=APPLICATION_TOKEN" => $appCode,
 				'=APP_ID' => $appId,
 			),
 			'select' => array('ID')
@@ -4358,6 +4456,7 @@ class CIMRestService extends IRestService
 			"APP_ID" => $appId,
 			"EVENT_NAME" => toUpper($restEventName),
 			"EVENT_HANDLER" => $restEventHandler,
+			"APPLICATION_TOKEN" => $appCode,
 			"USER_ID" => 0,
 		));
 		if($result->isSuccess())
@@ -4388,18 +4487,13 @@ class CIMRestService extends IRestService
 			'filter' => array(
 				'=EVENT_NAME' => toUpper($restEventName),
 				'=APP_ID' => $appId,
+				'=APPLICATION_TOKEN' => $appCode,
 			),
-			'select' => array('ID')
+			'select' => array('ID', 'EVENT_HANDLER')
 		));
-		$eventFound = false;
 		while($handler = $res->fetch())
 		{
-			$eventFound = true;
 			\Bitrix\Rest\EventTable::delete($handler['ID']);
-		}
-		if ($eventFound)
-		{
-			\Bitrix\Rest\Event\Sender::unbind($bitrixEventModule, $bitrixEventName);
 		}
 
 		return true;

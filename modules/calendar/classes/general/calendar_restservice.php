@@ -17,29 +17,43 @@ IncludeModuleLangFile(__FILE__);
 final class CCalendarRestService extends IRestService
 {
 	const SCOPE_NAME = 'calendar';
+	const PLACEMENT_GRID_VIEW = 'CALENDAR_GRIDVIEW';
+	const PLACEMENT_VIEW_ENTRY = 'CALENDAR_VIEWENTRYFORM';
+	const PLACEMENT_EDIT_ENTRY = 'CALENDAR_EDITENTRYFORM';
 
 	public static function OnRestServiceBuildDescription()
 	{
-		$methods = array(
-			"calendar.event.get" => array(__CLASS__, "EventGet"),
-			"calendar.event.add" => array(__CLASS__, "EventAdd"),
-			"calendar.event.update" => array(__CLASS__, "EventUpdate"),
-			"calendar.event.delete" => array(__CLASS__, "EventDelete"),
-			"calendar.event.get.nearest" => array(__CLASS__, "EventGetNearest"),
+		$methods = [
+			//Methods list
+			"calendar.event.get" => [__CLASS__, "EventGet"],
+			"calendar.event.add" => [__CLASS__, "EventAdd"],
+			"calendar.event.update" => [__CLASS__, "EventUpdate"],
+			"calendar.event.delete" => [__CLASS__, "EventDelete"],
+			"calendar.event.get.nearest" => [__CLASS__, "EventGetNearest"],
 
-			"calendar.section.get" => array(__CLASS__, "SectionGet"),
-			"calendar.section.add" => array(__CLASS__, "SectionAdd"),
-			"calendar.section.update" => array(__CLASS__, "SectionUpdate"),
-			"calendar.section.delete" => array(__CLASS__, "SectionDelete"),
+			"calendar.section.get" => [__CLASS__, "SectionGet"],
+			"calendar.section.add" => [__CLASS__, "SectionAdd"],
+			"calendar.section.update" => [__CLASS__, "SectionUpdate"],
+			"calendar.section.delete" => [__CLASS__, "SectionDelete"],
 
-			"calendar.meeting.status.set" => array(__CLASS__, "MeetingStatusSet"),
-			"calendar.meeting.status.get" => array(__CLASS__, "MeetingStatusGet"),
-			"calendar.meeting.params.set" => array(__CLASS__, "MeetingParamsSet"),
-			"calendar.accessibility.get" => array(__CLASS__, "MeetingAccessibilityGet"),
-			"calendar.settings.get" => array(__CLASS__, "SettingsGet"),
-			"calendar.user.settings.get" => array(__CLASS__, "UserSettingsGet"),
-			"calendar.user.settings.set" => array(__CLASS__, "UserSettingsSet")
-		);
+			"calendar.meeting.status.set" => [__CLASS__, "MeetingStatusSet"],
+			"calendar.meeting.status.get" => [__CLASS__, "MeetingStatusGet"],
+			"calendar.meeting.params.set" => [__CLASS__, "MeetingParamsSet"],
+			"calendar.accessibility.get" => [__CLASS__, "MeetingAccessibilityGet"],
+			"calendar.settings.get" => [__CLASS__, "SettingsGet"],
+			"calendar.user.settings.get" => [__CLASS__, "UserSettingsGet"],
+			"calendar.user.settings.set" => [__CLASS__, "UserSettingsSet"],
+			// End methods list
+
+			//Placements list
+			//\CRestUtil::PLACEMENTS => [
+			//	self::PLACEMENT_GRID_VIEW => [],
+			//	self::PLACEMENT_VIEW_ENTRY => [],
+			//	self::PLACEMENT_EDIT_ENTRY => []
+			//]
+
+			//End placements list
+		];
 
 		return array(self::SCOPE_NAME => $methods);
 	}
@@ -487,7 +501,7 @@ final class CCalendarRestService extends IRestService
 			$arFields["LOCATION"] = $arParams['LOCATION'];
 
 		if (isset($arParams['remind']))
-			$arFields["REMIND"] = $arParams['REMIND'];
+			$arFields["REMIND"] = $arParams['remind'];
 
 		$saveParams = array();
 		if ($arFields['IS_MEETING'])

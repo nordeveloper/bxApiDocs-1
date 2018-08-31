@@ -354,6 +354,11 @@ class CVoxImplantConfig
 		return COption::SetOptionInt("voximplant", "link_check_crm", $active);
 	}
 
+	public static function GetMelodyLanguages()
+	{
+		return array('EN', 'DE', 'RU', 'UA', 'ES', 'BR');
+	}
+
 	public static function GetDefaultMelodies($lang = 'EN')
 	{
 		if ($lang !== false)
@@ -363,7 +368,7 @@ class CVoxImplantConfig
 			{
 				$lang = 'RU';
 			}
-			else if (!in_array($lang, array('EN', 'DE', 'RU', 'UA')))
+			else if (!in_array($lang, static::GetMelodyLanguages()))
 			{
 				$lang = 'EN';
 			}
@@ -374,14 +379,15 @@ class CVoxImplantConfig
 		}
 
 		return array(
-			"MELODY_WELCOME" => "http://dl.bitrix24.com/vi/".$lang."01.mp3",
-			"MELODY_WAIT" => "http://dl.bitrix24.com/vi/MELODY.mp3",
-			"MELODY_HOLD" => "http://dl.bitrix24.com/vi/MELODY.mp3",
-			"MELODY_VOICEMAIL" => "http://dl.bitrix24.com/vi/".$lang."03.mp3",
-			"MELODY_VOTE" => "http://dl.bitrix24.com/vi/".$lang."04.mp3",
-			"MELODY_VOTE_END" => "http://dl.bitrix24.com/vi/".$lang."05.mp3",
-			"MELODY_RECORDING" => "http://dl.bitrix24.com/vi/".$lang."06.mp3",
-			"WORKTIME_DAYOFF_MELODY" => "http://dl.bitrix24.com/vi/".$lang."03.mp3",
+			"MELODY_WELCOME" => "http://dl.bitrix24.com/telephony/".$lang."01.mp3",
+			"MELODY_WAIT" => "http://dl.bitrix24.com/telephony/MELODY.mp3",
+			"MELODY_ENQUEUE" => "http://dl.bitrix24.com/telephony/".$lang."07.mp3",
+			"MELODY_HOLD" => "http://dl.bitrix24.com/telephony/MELODY.mp3",
+			"MELODY_VOICEMAIL" => "http://dl.bitrix24.com/telephony/".$lang."03.mp3",
+			"MELODY_VOTE" => "http://dl.bitrix24.com/telephony/".$lang."04.mp3",
+			"MELODY_VOTE_END" => "http://dl.bitrix24.com/telephony/".$lang."05.mp3",
+			"MELODY_RECORDING" => "http://dl.bitrix24.com/telephony/".$lang."06.mp3",
+			"WORKTIME_DAYOFF_MELODY" => "http://dl.bitrix24.com/telephony/".$lang."03.mp3",
 		);
 	}
 
@@ -579,6 +585,7 @@ class CVoxImplantConfig
 		$result['MELODY_VOICEMAIL'] =  CVoxImplantConfig::GetMelody('MELODY_VOICEMAIL', $config['MELODY_LANG'], $config['MELODY_VOICEMAIL']);
 		$result['MELODY_HOLD'] =  CVoxImplantConfig::GetMelody('MELODY_HOLD', $config['MELODY_LANG'], $config['MELODY_HOLD']);
 		$result['MELODY_WAIT'] =  CVoxImplantConfig::GetMelody('MELODY_WAIT', $config['MELODY_LANG'], $config['MELODY_WAIT']);
+		$result['MELODY_ENQUEUE'] =  CVoxImplantConfig::GetMelody('MELODY_ENQUEUE', $config['MELODY_LANG'], $config['MELODY_ENQUEUE']);
 		$result['MELODY_RECORDING'] =  CVoxImplantConfig::GetMelody('MELODY_RECORDING', $config['MELODY_LANG'], $config['MELODY_RECORDING']);
 		$result['MELODY_VOTE'] =  CVoxImplantConfig::GetMelody('MELODY_VOTE', $config['MELODY_LANG'], $config['MELODY_VOTE']);
 		$result['MELODY_VOTE_END'] =  CVoxImplantConfig::GetMelody('MELODY_VOTE_END', $config['MELODY_LANG'], $config['MELODY_VOTE_END']);
@@ -764,7 +771,7 @@ class CVoxImplantConfig
 
 	public static function getConfigForPopup($callId)
 	{
-		$call = VI\CallTable::getByCallId($callId);
+		$call = VI\Model\CallTable::getByCallId($callId);
 		if(!$call)
 			return false;
 

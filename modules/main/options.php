@@ -1008,6 +1008,7 @@ if(COption::GetOptionString("main", "controller_member", "N")!="Y"):
 		{
 			$res = array("size" => COption::GetOptionString("main_size", "~".$name));
 		}
+		$res["size"] = (float)$res["size"];
 		$res["status"] = (($res["status"] == "d") && (intVal(time() - $res["time"]) < 86400)) ? "done" : ($res["status"] == "c" ? "c" : "");
 		$res["size_in_per"] = ($diskSpace > 0) ? round(($res["size"]/$diskSpace), 2) : 0;
 		$arParam[$name] = $res;

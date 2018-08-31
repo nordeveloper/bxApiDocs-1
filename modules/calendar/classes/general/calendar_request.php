@@ -811,6 +811,7 @@ class CCalendarRequest
 			'fromLimit' => $monthFrom ? CCalendar::Date(mktime(0, 0, 0, $monthFrom, 1, $yearFrom), false) : false,
 			'toLimit' => $monthTo ? CCalendar::Date(mktime(0, 0, 0, $monthTo, 1, $yearTo), false) : false,
 		);
+
 		$connections = false;
 
 		if (self::$request['loadNext'] == 'Y' || self::$request['loadPrevious'] == 'Y')
@@ -869,8 +870,6 @@ class CCalendarRequest
 					$arHiddenSect[] = intval($sectId);
 			}
 		}
-
-
 
 		$arAttendees = array(); // List of attendees for each event Array([ID] => Array(), ..,);
 		$entries = array();

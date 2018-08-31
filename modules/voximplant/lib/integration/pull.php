@@ -4,7 +4,7 @@ namespace Bitrix\Voximplant\Integration;
 
 use Bitrix\Main\Diag\Helper;
 use Bitrix\Main\Loader;
-use Bitrix\Voximplant\CallTable;
+use Bitrix\Voximplant\Model\CallTable;
 use Bitrix\Voximplant\ConfigTable;
 
 /**

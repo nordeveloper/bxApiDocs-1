@@ -1,6 +1,8 @@
 <?php
 namespace Bitrix\Im;
 
+use Bitrix\Main\Application;
+
 class Chat
 {
 	const TYPE_SYSTEM = 'S';
@@ -11,6 +13,8 @@ class Chat
 	const TYPE_OPEN_LINE = 'L';
 
 	const LIMIT_SEND_EVENT = 30;
+
+	const FILTER_LIMIT = 50;
 
 	public static function getChatTypes()
 	{
@@ -63,6 +67,8 @@ class Chat
 			}
 		}
 
+		$skipConnectorRelation = $params['SKIP_CONNECTOR'] == 'Y';
+
 		$whereFields = '';
 		if (isset($params['FILTER']))
 		{
@@ -107,7 +113,8 @@ class Chat
 		$sql = "
 			SELECT {$selectFields} {$sqlSelectCounter}
 			FROM b_im_relation R
-			".($withUserFields? "LEFT JOIN b_user U ON R.USER_ID = U.ID": "")."
+			".($withUserFields && !$skipConnectorRelation? "LEFT JOIN b_user U ON R.USER_ID = U.ID": "")."
+			".($skipConnectorRelation? "INNER JOIN b_user U ON R.USER_ID = U.ID AND (EXTERNAL_AUTH_ID != 'imconnector' OR EXTERNAL_AUTH_ID IS NULL)": "")."
 			WHERE R.CHAT_ID = {$chatId} {$whereFields}
 			".($skipUnmodifiedRecords? ' HAVING COUNTER <> PREVIOUS_COUNTER': '')."
 		";
@@ -367,6 +374,7 @@ class Chat
 		$files = \CIMDisk::GetFiles($chatId, $fileIds);
 
 		$result = Array(
+			'CHAT_ID' => (int)$chatId,
 			'MESSAGES' => $messages,
 			'USERS' => $users,
 			'FILES' => $files,
@@ -407,5 +415,227 @@ class Chat
 		}
 
 		return $result;
+	}
+
+	public static function getList($params = array())
+	{
+		$params = is_array($params)? $params: Array();
+
+		if (!isset($params['CURRENT_USER']) && is_object($GLOBALS['USER']))
+		{
+			$params['CURRENT_USER'] = $GLOBALS['USER']->GetID();
+		}
+
+		$params['CURRENT_USER'] = intval($params['CURRENT_USER']);
+
+		$userId = $params['CURRENT_USER'];
+		if ($userId <= 0)
+		{
+			return false;
+		}
+
+		$enableLimit = false;
+		if (isset($params['OFFSET']))
+		{
+			$filterLimit = intval($params['LIMIT']);
+			$filterLimit = $filterLimit <= 0? self::FILTER_LIMIT: $filterLimit;
+
+			$filterOffset = intval($params['OFFSET']);
+
+			$enableLimit = true;
+		}
+		else
+		{
+			$filterLimit = false;
+			$filterOffset = false;
+		}
+
+		$ormParams = self::getListParams($params);
+		if (!$ormParams)
+		{
+			return false;
+		}
+		if ($enableLimit)
+		{
+			$ormParams['offset'] = $filterOffset;
+			$ormParams['limit'] = $filterLimit;
+		}
+		if (isset($params['ORDER']))
+		{
+			$ormParams['order'] = $params['ORDER'];
+		}
+
+		$generalChatId = \CIMChat::GetGeneralChatId();
+
+		$orm = \Bitrix\Im\Model\ChatTable::getList($ormParams);
+		$chats = array();
+		while ($row = $orm->fetch())
+		{
+			$avatar = \CIMChat::GetAvatarImage($row['AVATAR'], 100, false);
+			$color = strlen($row['COLOR']) > 0? Color::getColor($row['COLOR']): Color::getColorByNumber($row['ID']);
+			if ($row["TYPE"] == IM_MESSAGE_PRIVATE)
+			{
+				$chatType = 'private';
+			}
+			else if ($row["ENTITY_TYPE"] == 'CALL')
+			{
+				$chatType = 'call';
+			}
+			else if ($row["ENTITY_TYPE"] == 'LINES')
+			{
+				$chatType = 'lines';
+			}
+			else if ($row["ENTITY_TYPE"] == 'LIVECHAT')
+			{
+				$chatType = 'livechat';
+			}
+			else
+			{
+				if ($generalChatId == $row['ID'])
+				{
+					$row["ENTITY_TYPE"] = 'GENERAL';
+				}
+				$chatType = $row["TYPE"] == IM_MESSAGE_OPEN? 'open': 'chat';
+			}
+
+			$muteList = Array();
+			if ($row['RELATION_NOTIFY_BLOCK'] == 'Y')
+			{
+				$muteList = Array($row['RELATION_USER_ID'] => true);
+			}
+
+
+			$chats[] = Array(
+				'ID' => (int)$row['ID'],
+				'NAME' => $row['TITLE'],
+				'OWNER' => (int)$row['AUTHOR_ID'],
+				'EXTRANET' => $row['EXTRANET'] == 'Y',
+				'AVATAR' => $avatar,
+				'COLOR' => $color,
+				'TYPE' => $chatType,
+				'ENTITY_TYPE' => (string)$row['ENTITY_TYPE'],
+				'ENTITY_ID' => (string)$row['ENTITY_ID'],
+				'ENTITY_DATA_1' => (string)$row['ENTITY_DATA_1'],
+				'ENTITY_DATA_2' => (string)$row['ENTITY_DATA_2'],
+				'ENTITY_DATA_3' => (string)$row['ENTITY_DATA_3'],
+				'MUTE_LIST' => $muteList,
+				'DATE_CREATE' => $row['DATE_CREATE'],
+				'MESSAGE_TYPE' => $row["TYPE"],
+			);
+
+		}
+
+		if ($params['JSON'])
+		{
+			foreach ($chats as $key => $chatData)
+			{
+				foreach ($chatData as $field => $value)
+				{
+					if ($value instanceof \Bitrix\Main\Type\DateTime)
+					{
+						$chats[$key][$field] = date('c', $value->getTimestamp());
+					}
+					else if (is_string($value) && $value && in_array($field, Array('AVATAR')) && strpos($value, 'http') !== 0)
+					{
+						$chats[$key][$field] = \Bitrix\Im\Common::getPublicDomain().$value;
+					}
+					else if (is_array($value))
+					{
+						$chats[$key][$field] = array_change_key_case($value, CASE_LOWER);
+					}
+				}
+				$chats[$key] = array_change_key_case($chats[$key], CASE_LOWER);;
+			}
+		}
+
+		return $chats;
+	}
+
+	public static function getListParams($params)
+	{
+		if (!isset($params['CURRENT_USER']) && is_object($GLOBALS['USER']))
+		{
+			$params['CURRENT_USER'] = $GLOBALS['USER']->GetID();
+		}
+
+		$params['CURRENT_USER'] = intval($params['CURRENT_USER']);
+
+		$userId = $params['CURRENT_USER'];
+		if ($userId <= 0)
+		{
+			return null;
+		}
+
+		$filter = [];
+		$runtime = [];
+
+		if (isset($params['FILTER']['SEARCH']))
+		{
+			$find = $params['FILTER']['SEARCH'];
+
+			$helper = Application::getConnection()->getSqlHelper();
+			if (Model\ChatIndexTable::getEntity()->fullTextIndexEnabled('SEARCH_CONTENT'))
+			{
+				$find = trim($find);
+				$find = \Bitrix\Main\Search\Content::prepareStringToken($find);
+
+				if (\Bitrix\Main\Search\Content::canUseFulltextSearch($find, \Bitrix\Main\Search\Content::TYPE_MIXED))
+				{
+					$filter['*INDEX.SEARCH_CONTENT'] = $find;
+				}
+				else
+				{
+					return null;
+				}
+			}
+			else
+			{
+				if (strlen($find) < 3)
+				{
+					return null;
+				}
+
+				$filter['%=INDEX.SEARCH_TITLE'] = $helper->forSql($find).'%';
+			}
+		}
+
+		if (User::getInstance($params['CURRENT_USER'])->isExtranet())
+		{
+			$filter['=TYPE'] = [self::TYPE_OPEN, self::TYPE_GROUP];
+			$filter['=RELATION.USER_ID'] = $params['CURRENT_USER'];
+		}
+		else
+		{
+			$filter[] = [
+				'LOGIC' => 'OR',
+				[
+					'=TYPE' => self::TYPE_OPEN,
+				],
+				[
+					'=TYPE' => self::TYPE_GROUP,
+					'=RELATION.USER_ID' => $params['CURRENT_USER']
+				]
+			];
+		}
+
+		$runtime[] = new \Bitrix\Main\Entity\ReferenceField(
+			'RELATION',
+			'Bitrix\Im\Model\RelationTable',
+			array(
+				"=ref.CHAT_ID" => "this.ID",
+				"=ref.USER_ID" => new \Bitrix\Main\DB\SqlExpression('?', $params['CURRENT_USER']),
+			),
+			array("join_type"=>"LEFT")
+		);
+
+		return [
+			'select' => [
+				'*',
+				'RELATION_USER_ID' => 'RELATION.USER_ID',
+				'RELATION_NOTIFY_BLOCK' => 'RELATION.NOTIFY_BLOCK',
+			],
+			'filter' => $filter,
+			'runtime' => $runtime
+		];
 	}
 }

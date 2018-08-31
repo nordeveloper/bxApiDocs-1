@@ -56,6 +56,8 @@ class Entity
 	/** @var bool */
 	protected $isClone = false;
 
+	const DEFAULT_OBJECT_PREFIX = 'EO_';
+
 	/**
 	 * Returns entity object
 	 *
@@ -220,8 +222,8 @@ class Entity
 		$this->isUtm = $className::isUtm();
 
 		// object & collection classes
-		Loader::registerObjectClass($className::getObjectClass(), $className);
-		Loader::registerCollectionClass($className::getCollectionClass(), $className);
+		// Loader::registerObjectClass($className::getObjectClass(), $className);
+		// Loader::registerCollectionClass($className::getCollectionClass(), $className);
 	}
 
 	/**
@@ -313,7 +315,7 @@ class Entity
 	public function getObjectClass()
 	{
 		$dataManagerClass = $this->className;
-		return $dataManagerClass::getObjectClass();
+		return static::normalizeName($dataManagerClass::getObjectClass());
 	}
 
 	/**
@@ -327,13 +329,28 @@ class Entity
 		return $dataManagerClass::getObjectClassName();
 	}
 
+	public static function getDefaultObjectClassName($entityName)
+	{
+		$className = $entityName;
+
+		if (!strlen($className))
+		{
+			// entity without name
+			$className = 'NNM_Object';
+		}
+
+		$className = static::DEFAULT_OBJECT_PREFIX.$className;
+
+		return $className;
+	}
+
 	/**
 	 * @return Collection|string
 	 */
 	public function getCollectionClass()
 	{
 		$dataClass = $this->getDataClass();
-		return $dataClass::getCollectionClass();
+		return static::normalizeName($dataClass::getCollectionClass());
 	}
 
 	/**
@@ -343,6 +360,13 @@ class Entity
 	{
 		$dataClass = $this->getDataClass();
 		return $dataClass::getCollectionClassName();
+	}
+
+	public static function getDefaultCollectionClassName($entityName)
+	{
+		$className = static::DEFAULT_OBJECT_PREFIX.$entityName.'Collection';
+
+		return $className;
 	}
 
 	/**
@@ -952,8 +976,16 @@ class Entity
 	 */
 	public function compileObjectClass()
 	{
-		$namespace = trim($this->getNamespace(), '\\');
 		$dataClass = $this->getDataClass();
+
+		if (class_exists($dataClass::getObjectClass(), false)
+			&& is_subclass_of($dataClass::getObjectClass(), EntityObject::class))
+		{
+			// class is already defined
+			return $dataClass::getObjectClass();
+		}
+
+		$namespace = trim($this->getNamespace(), '\\');
 		$baseObjectClass = '\\'.EntityObject::class;
 
 		$eval = "namespace {$namespace} {";
@@ -972,8 +1004,16 @@ class Entity
 	 */
 	public function compileCollectionClass()
 	{
-		$namespace = trim($this->getNamespace(), '\\');
 		$dataClass = $this->getDataClass();
+
+		if (class_exists($dataClass::getCollectionClass(), false)
+			&& is_subclass_of($dataClass::getCollectionClass(), Collection::class))
+		{
+			// class is already defined
+			return $dataClass::getCollectionClass();
+		}
+
+		$namespace = trim($this->getNamespace(), '\\');
 		$baseCollectionClass = '\\'.Collection::class;
 
 		$eval = "namespace {$namespace} {";

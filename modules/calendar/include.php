@@ -74,6 +74,10 @@ CJSCore::RegisterExt('event_calendar', array(
 	'js' => array(
 		$basePath.'calendar-core.js',
 		$basePath.'calendar-view.js',
+		$basePath.'calendar-view-day-week.js',
+		$basePath.'calendar-view-month.js',
+		$basePath.'calendar-view-list.js',
+		$basePath.'calendar-view-custom.js',
 		$basePath.'calendar-view-transition.js',
 		$basePath.'calendar-entry.js',
 		$basePath.'calendar-section.js',

@@ -3,7 +3,7 @@ class CVoxImplantHttp
 {
 	const TYPE_BITRIX24 = 'B24';
 	const TYPE_CP = 'CP';
-	const VERSION = 15;
+	const VERSION = 16;
 
 	private $controllerUrl = 'https://telephony.bitrix.info/telephony/portal.php';
 	private $licenceCode = '';
@@ -823,7 +823,7 @@ class CVoxImplantHttp
 
 		$params["BX_HASH"] = self::RequestSign($this->type, md5(implode("|", $params)));
 
-		$httpClient = new \Bitrix\Main\Web\HttpClient(array(
+		$httpClient = \Bitrix\Voximplant\HttpClientFactory::create(array(
 			"socketTimeout" => 10,
 			"streamTimeout" => 30,
 			"disableSslVerification" => true

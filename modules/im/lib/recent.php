@@ -351,7 +351,7 @@ class Recent
 		return $result;
 	}
 
-	public static function pin($dialogId, $action, $userId = null)
+	public static function pin($dialogId, $pin, $userId = null)
 	{
 		$userId = \Bitrix\Im\Common::getUserId($userId);
 		if (!$userId)
@@ -359,7 +359,7 @@ class Recent
 			return false;
 		}
 
-		$action = $action === true? 'Y': 'N';
+		$pin = $pin === true? 'Y': 'N';
 
 		$id = $dialogId;
 		if (substr($dialogId, 0, 4) == 'chat')
@@ -384,7 +384,7 @@ class Recent
 		{
 			return false;
 		}
-		if ($element['PINNED'] == $action)
+		if ($element['PINNED'] == $pin)
 		{
 			return true;
 		}
@@ -393,7 +393,7 @@ class Recent
 			'USER_ID' => $element['USER_ID'],
 			'ITEM_TYPE' => $element['ITEM_TYPE'],
 			'ITEM_ID' => $element['ITEM_ID'],
-		), array('PINNED' => $action));
+		), array('PINNED' => $pin));
 
 		self::clearCache($element['USER_ID']);
 
@@ -406,7 +406,7 @@ class Recent
 				'expiry' => 3600,
 				'params' => Array(
 					'dialogId' => $dialogId,
-					'active' => $action == 'Y'
+					'active' => $pin == 'Y'
 				),
 				'extra' => \Bitrix\Im\Common::getPullExtra()
 			));

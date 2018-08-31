@@ -15,7 +15,9 @@ use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\UserTable;
 use Bitrix\Rest\AppTable;
 use Bitrix\Rest\EventTable;
-use Bitrix\Voximplant\CallTable;
+use Bitrix\Voximplant\Call;
+use Bitrix\Voximplant\Model\CallTable;
+use Bitrix\Voximplant\HttpClientFactory;
 use Bitrix\Voximplant\Integration\Im;
 use Bitrix\Voximplant\Model\ExternalLineTable;
 use Bitrix\Voximplant\PhoneTable;
@@ -145,8 +147,34 @@ class Helper
 			$portalUserId = $userData['USER_ID'];
 		}
 
+		$duplicateFilter = [
+			'=USER_ID' => $fields['USER_ID'],
+			'=CALLER_ID' => $phoneNumber,
+			'=INCOMING' => $fields['TYPE'],
+			'>DATE_CREATE' => (new DateTime())->add('-T30M'),
+			'=REST_APP_ID' => $fields['REST_APP_ID'],
+		];
+		if($lineId)
+		{
+			$duplicateFilter['=EXTERNAL_LINE_ID'] = $lineId;
+		}
+
+		$duplicateCall = CallTable::getRow([
+			'filter' => $duplicateFilter
+		]);
+
+		if($duplicateCall)
+		{
+			return $result->setData([
+				'CALL_ID' => $duplicateCall['CALL_ID'],
+				'CRM_CREATED_LEAD' => $duplicateCall['CRM_LEAD'],
+				'CRM_ENTITY_TYPE' => $duplicateCall['CRM_ENTITY_TYPE'],
+				'CRM_ENTITY_ID' => $duplicateCall['CRM_ENTITY_ID'],
+			]);
+		}
+
 		$crmCreate = ($fields['CRM'] || $fields['CRM_CREATE']) && !$portalCall;
-		$newCall = array(
+		$callFields = array(
 			'USER_ID' => $fields['USER_ID'],
 			'CALL_ID' => $callId,
 			'INCOMING' => $fields['TYPE'],
@@ -161,50 +189,43 @@ class Helper
 
 		if(isset($fields['CRM_ENTITY_TYPE']) && isset($fields['CRM_ENTITY_ID']))
 		{
-			$newCall['CRM_ENTITY_TYPE'] = $fields['CRM_ENTITY_TYPE'];
-			$newCall['CRM_ENTITY_ID'] = $fields['CRM_ENTITY_ID'];
+			$callFields['CRM_ENTITY_TYPE'] = $fields['CRM_ENTITY_TYPE'];
+			$callFields['CRM_ENTITY_ID'] = $fields['CRM_ENTITY_ID'];
 		}
 		else
 		{
 			$crmEntity = \CVoxImplantCrmHelper::GetCrmEntity($fields['PHONE_NUMBER']);
 			if(is_array($crmEntity))
 			{
-				$newCall['CRM_ENTITY_TYPE'] = $crmEntity['ENTITY_TYPE_NAME'];
-				$newCall['CRM_ENTITY_ID'] = $crmEntity['ENTITY_ID'];
+				$callFields['CRM_ENTITY_TYPE'] = $crmEntity['ENTITY_TYPE_NAME'];
+				$callFields['CRM_ENTITY_ID'] = $crmEntity['ENTITY_ID'];
 			}
 		}
 
 		if($fields['CALL_LIST_ID'] > 0)
 		{
-			$newCall['CRM_CALL_LIST'] = (int)$fields['CALL_LIST_ID'];
+			$callFields['CRM_CALL_LIST'] = (int)$fields['CALL_LIST_ID'];
 		}
 		if($fields['CRM_ACTIVITY_ID'] > 0)
 		{
-			$newCall['CRM_ACTIVITY_ID'] = (int)$fields['CRM_ACTIVITY_ID'];
+			$callFields['CRM_ACTIVITY_ID'] = (int)$fields['CRM_ACTIVITY_ID'];
 		}
 		if(is_array($fields['CRM_BINDINGS']))
 		{
-			$newCall['CRM_BINDINGS'] = $fields['CRM_BINDINGS'];
+			$callFields['CRM_BINDINGS'] = $fields['CRM_BINDINGS'];
 		}
 
-		$insertResult = CallTable::add($newCall);
+		$call = Call::create($callFields);
 
-		if($insertResult->isSuccess())
+		if($callFields['INCOMING'] == \CVoxImplantMain::CALL_INCOMING)
 		{
-			$newCall['ID'] = $insertResult->getId();
+			\CVoxImplantCrmHelper::StartCallTrigger($callId);
 		}
-		else
-		{
-			$result->addError(new Error('Database error'));
-			return $result;
-		}
-
-		\CVoxImplantCrmHelper::StartCallTrigger($callId);
 
 		if($crmCreate)
 		{
-			\CVoxImplantCrmHelper::registerCallInCrm(
-				$newCall,
+			$createResult = \CVoxImplantCrmHelper::registerCallInCrm(
+				$call,
 				array(
 					'CRM' => 'Y',
 					'CRM_CREATE' => \CVoxImplantConfig::CRM_CREATE_LEAD,
@@ -212,13 +233,11 @@ class Helper
 					'CRM_SOURCE' => $fields['CRM_SOURCE']
 				)
 			);
-		}
 
-		if($fields['SHOW'])
-		{
-			self::showExternalCall(array(
-				'CALL_ID' => $callId
-			));
+			if($createResult)
+			{
+				$leadCreationError = \CVoxImplantCrmHelper::$lastError;
+			}
 		}
 
 		\CVoxImplantMain::sendCallStartEvent(array(
@@ -234,10 +253,10 @@ class Helper
 		}
 
 		$resultData = array(
-			'CALL_ID' => $newCall['CALL_ID'],
-			'CRM_CREATED_LEAD' => $newCall['CRM_LEAD'],
-			'CRM_ENTITY_TYPE' => $newCall['CRM_ENTITY_TYPE'],
-			'CRM_ENTITY_ID' => $newCall['CRM_ENTITY_ID'],
+			'CALL_ID' => $callFields['CALL_ID'],
+			'CRM_CREATED_LEAD' => $callFields['CRM_LEAD'],
+			'CRM_ENTITY_TYPE' => $callFields['CRM_ENTITY_TYPE'],
+			'CRM_ENTITY_ID' => $callFields['CRM_ENTITY_ID'],
 		);
 
 		if(isset($leadCreationError))
@@ -401,7 +420,10 @@ class Helper
 
 		if($call['CRM_LEAD'] > 0 && \CVoxImplantConfig::GetLeadWorkflowExecution() == \CVoxImplantConfig::WORKFLOW_START_DEFERRED)
 		{
-			\CVoxImplantCrmHelper::StartLeadWorkflow($call['CRM_LEAD']);
+			\CVoxImplantCrmHelper::StartLeadWorkflow($call['CRM_LEAD'], [
+				'LINE_NUMBER' => $call['PORTAL_NUMBER'],
+				'START_TRIGGER' => ($call['INCOMING'] == \CVoxImplantMain::CALL_INCOMING)
+			]);
 		}
 
 		\CVoxImplantHistory::sendCallEndEvent($statisticRecord);
@@ -811,7 +833,7 @@ class Helper
 			return $result;
 		}
 
-		$httpClient = new \Bitrix\Main\Web\HttpClient(array(
+		$httpClient = HttpClientFactory::create(array(
 			"disableSslVerification" => true
 		));
 		$queryResult = $httpClient->query('GET', $recordUrl);
@@ -1251,7 +1273,7 @@ class Helper
 	 * @throws \Bitrix\Main\LoaderException
 	 * @throws \Exception
 	 */
-	protected function attachFile($callId, $file)
+	protected static function attachFile($callId, $file)
 	{
 		$result = new Result();
 

@@ -1,238 +1,1023 @@
 <?php
+
 namespace Bitrix\Voximplant;
 
-use Bitrix\Main\Application;
-use Bitrix\Main\Entity;
-use Bitrix\Main\Localization\Loc;
-use Bitrix\Voximplant\Model\ExternalLineTable;
-use Bitrix\Voximplant\Model\QueueTable;
+use Bitrix\Main\ArgumentException;
+use Bitrix\Main\SystemException;
+use Bitrix\Main\Type\DateTime;
+use Bitrix\Voximplant\Model\CallTable;
+use Bitrix\Voximplant\Model\CallUserTable;
+use Bitrix\Voximplant\Routing\Node;
 
-Loc::loadMessages(__FILE__);
-
-/**
- * Class CallTable
- * 
- * Fields:
- * <ul>
- * <li> ID int mandatory
- * <li> USER_ID int optional
- * <li> SEARCH_ID string(255) mandatory
- * <li> CALL_ID string(255) mandatory
- * <li> CALLER_ID string(255) optional
- * <li> STATUS string(50) optional
- * <li> ACCESS_URL string(255) mandatory
- * <li> DATE_CREATE datetime optional
- * </ul>
- *
- * @package Bitrix\Voximplant
- **/
-
-class CallTable extends Entity\DataManager
+class Call
 {
-	const STATUS_WAITING = 'waiting';
-	const STATUS_CONNECTING = 'connecting';
-	const STATUS_CONNECTED = 'connected';
+	protected $id;
+	protected $configId;
+	protected $userId;
+	protected $portalUserId;
+	protected $callId;
+	protected $incoming;
+	protected $callerId;
+	protected $status;
+	protected $crm;
+	protected $crmLead;
+	protected $crmEntityType;
+	protected $crmEntityId;
+	protected $crmActivityId;
+	protected $crmCallList;
+	protected $crmBindings;
+	protected $accessUrl;
+	protected $dateCreate;
+	protected $restAppId;
+	protected $externalLineId;
+	protected $portalNumber;
+	protected $stage;
+	protected $ivrActionId;
+	protected $queueId;
+	protected $queueHistory = [];
+	protected $sessionId;
+	protected $callbackParameters;
+	protected $comment;
+	protected $worktimeSkipped = 'N';
+	protected $sipHeaders = [];
+	protected $gatheredDigits;
+	protected $parentCallId;
+	protected $lastPingDate;
+	protected $executionGraph;
 
-	public static function getFilePath()
-	{
-		return __FILE__;
-	}
+	protected $users = [];
 
-	public static function getTableName()
-	{
-		return 'b_voximplant_call';
-	}
+	protected $signaling;
+	protected $scenario;
+	protected static $instances = [];
 
-	public static function getMap()
+	protected $config;
+
+	/**
+	 * Call constructor. Do not use directly, use static constructor create or load instead.
+	 */
+	protected function __construct()
 	{
-		return array(
-			'ID' => array(
-				'data_type' => 'integer',
-				'primary' => true,
-				'autocomplete' => true,
-				'title' => Loc::getMessage('CALL_ENTITY_ID_FIELD'),
-			),
-			'CONFIG_ID' => array(
-				'data_type' => 'integer',
-				'title' => Loc::getMessage('CALL_ENTITY_CONFIG_ID_FIELD'),
-			),
-			'USER_ID' => array(
-				'data_type' => 'integer',
-				'title' => Loc::getMessage('CALL_ENTITY_USER_ID_FIELD'),
-			),
-			'TRANSFER_TYPE' => array(
-				'data_type' => 'string',
-			),
-			'TRANSFER_USER_ID' => array(
-				'data_type' => 'integer',
-				'title' => Loc::getMessage('CALL_ENTITY_TRANSFER_USER_ID_FIELD'),
-			),
-			'TRANSFER_PHONE' => array(
-				'data_type' => 'string',
-			),
-			'PORTAL_USER_ID' => array(
-				'data_type' => 'integer',
-				'title' => Loc::getMessage('CALL_ENTITY_PORTAL_USER_ID_FIELD'),
-			),
-			'CALL_ID' => array(
-				'data_type' => 'string',
-				'required' => true,
-				'validation' => array(__CLASS__, 'validateCallId'),
-				'title' => Loc::getMessage('CALL_ENTITY_CALL_ID_FIELD'),
-			),
-			'INCOMING' => array(
-				'data_type' => 'string',
-				'title' => '',
-			),
-			'CALLER_ID' => array(
-				'data_type' => 'string',
-				'validation' => array(__CLASS__, 'validateCallerId'),
-				'title' => Loc::getMessage('CALL_ENTITY_CALLER_ID_FIELD'),
-			),
-			'STATUS' => array(
-				'data_type' => 'string',
-				'validation' => array(__CLASS__, 'validateStatus'),
-				'title' => Loc::getMessage('CALL_ENTITY_STATUS_FIELD'),
-			),
-			'CRM' => array(
-				'data_type' => 'boolean',
-				'values' => array('N', 'Y'),
-				'title' => '',
-			),
-			'CRM_LEAD' => array(
-				'data_type' => 'integer',
-				'title' => '',
-			),
-			'CRM_ENTITY_TYPE' => array(
-				'data_type' => 'string',
-				'title' => '',
-			),
-			'CRM_ENTITY_ID' => array(
-				'data_type' => 'integer',
-				'title' => '',
-			),
-			'CRM_ACTIVITY_ID' => array(
-				'data_type' => 'integer',
-				'title' => '',
-			),
-			'CRM_CALL_LIST' => array(
-				'data_type' => 'integer',
-				'title' => '',
-			),
-			'CRM_BINDINGS' => array(
-				'data_type' => 'text',
-				'serialized' => true
-			),
-			'ACCESS_URL' => array(
-				'data_type' => 'string',
-				'required' => false,
-				'validation' => array(__CLASS__, 'validateAccessUrl'),
-				'title' => Loc::getMessage('CALL_ENTITY_ACCESS_URL_FIELD'),
-			),
-			'DATE_CREATE' => array(
-				'data_type' => 'datetime',
-				'title' => Loc::getMessage('CALL_ENTITY_DATE_CREATE_FIELD'),
-			),
-			'REST_APP_ID' => array(
-				'data_type' => 'integer',
-				'title' => ''
-			),
-			'EXTERNAL_LINE_ID' => array(
-				'data_type' => 'integer',
-			),
-			'PORTAL_NUMBER' => array(
-				'data_type' => 'string',
-			),
-			'QUEUE_ID' => array(
-				'data_type' => 'integer',
-				'title' => ''
-			),
-			'QUEUE_HISTORY' => array(
-				'data_type' => 'text',
-				'serialized' => true,
-				'default_value' => array()
-			),
-			'SESSION_ID' => array(
-				'data_type' => 'integer'
-			),
-			'CALLBACK_PARAMETERS' => array(
-				'data_type' => 'text',
-				'serialized' => true,
-				'default_value' => array()
-			),
-			'COMMENT' => array(
-				'data_type' => 'text',
-			),
-			'WORKTIME_SKIPPED' => array(
-				'data_type' => 'boolean',
-				'values' => array('N', 'Y'),
-				'title' => '',
-			),
-			'QUEUE' => new Entity\ReferenceField(
-				'QUEUE',
-				QueueTable::getEntity(),
-				array('=this.QUEUE_ID' => 'ref.ID'),
-				array('join_type' => 'left')
-			),
-			'CONFIG' => new Entity\ReferenceField(
-				'CONFIG',
-				ConfigTable::getEntity(),
-				array('=this.CONFIG_ID' => 'ref.ID'),
-				array('join_type' => 'left')
-			),
-			'EXTERNAL_LINE' => new Entity\ReferenceField(
-				'EXTERNAL_LINE',
-				ExternalLineTable::getEntity(),
-				array('=this.EXTERNAL_LINE_ID' => 'ref.ID'),
-				array('join_type' => 'left')
-			)
-		);
-	}
-	public static function validateCallId()
-	{
-		return array(
-			new Entity\Validator\Length(null, 255),
-		);
-	}
-	public static function validateCallerId()
-	{
-		return array(
-			new Entity\Validator\Length(null, 255),
-		);
-	}
-	public static function validateStatus()
-	{
-		return array(
-			new Entity\Validator\Length(null, 50),
-		);
-	}
-	public static function validateAccessUrl()
-	{
-		return array(
-			new Entity\Validator\Length(null, 255),
-		);
+		$this->signaling = new Signaling($this);
+		$this->scenario = new Scenario($this);
 	}
 
-	public static function getByCallId($callId)
+	/**
+	 * Loads call from database.
+	 *
+	 * @param string $callId Id of the call.
+	 * @return Call | false
+	 */
+	public static function load($callId)
 	{
-		return static::getList(array(
-			'filter' => array(
-				'=CALL_ID' => $callId
-			)
-		))->fetch();
-	}
+		if(static::$instances[$callId])
+		{
+			return static::$instances[$callId];
+		}
 
-	public static function updateWithCallId($callId, array $fields)
-	{
-		$callId = (string)$callId;
-		if($callId == '')
-			return;
+		$fields = CallTable::getByCallId($callId);
+		if(!$fields)
+		{
+			return false;
+		}
 
-		$row = static::getRow([
-			'select' => ['ID'],
+		$users = [];
+		$cursor = CallUserTable::getList([
+			'select' => ['USER_ID', 'ROLE', 'STATUS'],
 			'filter' => ['=CALL_ID' => $callId]
 		]);
 
-		static::update($row['ID'], $fields);
+		while ($row = $cursor->fetch())
+		{
+			$users[$row['USER_ID']] = $row;
+		}
+
+		$instance = new static();
+		static::$instances[$callId] = $instance;
+
+		$instance->fromArray($fields);
+		$instance->users = $users;
+		return $instance;
+	}
+
+	/**
+	 * Create new call with specified fields.
+	 *
+	 * @param array $fields
+	 * @return Call
+	 */
+	public static function create(array $fields)
+	{
+		static::checkFields($fields);
+
+		if($fields['CONFIG_ID'])
+		{
+			$config = \CVoxImplantConfig::GetConfig($fields['CONFIG_ID']);
+		}
+
+		if(!$fields['DATE_CREATE'])
+		{
+			$fields['DATE_CREATE'] = new DateTime();
+		}
+		if(!$fields['LAST_PING'])
+		{
+			$fields['LAST_PING'] = new DateTime();
+		}
+
+		if(isset($fields['CRM']))
+		{
+			$fields['CRM'] = ($fields['CRM'] == 'Y' ? 'Y' : 'N');
+		}
+		else if($config)
+		{
+			$fields['CRM'] = ($config['CRM'] == 'Y' ? 'Y' : 'N');
+		}
+		else
+		{
+			$fields['CRM'] = 'N';
+		}
+
+		if(!$fields['QUEUE_ID'])
+		{
+			if(isset($config['QUEUE_ID']))
+			{
+				$fields['QUEUE_ID'] = $config['QUEUE_ID'];
+			}
+			else
+			{
+				$fields['QUEUE_ID'] = \CVoxImplantMain::getDefaultGroupId();
+			}
+		}
+
+		$instance = new static();
+		$instance->config = $config;
+		$instance->fromArray($fields);
+		$instance->save();
+		static::$instances[$fields['CALL_ID']] = $instance;
+		return $instance;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getId()
+	{
+		return $this->id;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getCallId()
+	{
+		return $this->callId;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getParentCallId()
+	{
+		return $this->parentCallId;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getIncoming()
+	{
+		return $this->incoming;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getUserId()
+	{
+		return $this->userId;
+	}
+
+	/**
+	 * @param int $userId
+	 */
+	public function updateUserId($userId)
+	{
+		$this->update(['USER_ID' => $userId]);
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getPortalUserId()
+	{
+		return $this->portalUserId;
+	}
+
+	/**
+	 * @param int $portalUserId
+	 */
+	public function updatePortalUserId($portalUserId)
+	{
+		$this->update(['PORTAL_USER_ID' => $portalUserId]);
+	}
+
+	public function isInternalCall()
+	{
+		return $this->portalUserId != '';
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getStage()
+	{
+		return $this->stage;
+	}
+
+	/**
+	 * @param string $stage
+	 */
+	public function updateStage($stage)
+	{
+		$this->update(['STAGE' => $stage]);
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getQueueId()
+	{
+		return $this->queueId;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getIvrActionId()
+	{
+		return $this->ivrActionId;
+	}
+
+	/**
+	 * @param int $ivrActionId
+	 */
+	public function updateIvrActionId($ivrActionId)
+	{
+		$this->update(['IVR_ACTION_ID' => $ivrActionId]);
+	}
+
+	/**
+	 * @return Node|null
+	 */
+	public function getExecutionGraph()
+	{
+		return $this->executionGraph;
+	}
+
+	/**
+	 * @param Node $executionGraph
+	 */
+	public function updateExecutionGraph(Node $executionGraph)
+	{
+		$this->update(['EXECUTION_GRAPH' => $executionGraph]);
+	}
+
+	/**
+	 * @param int $queueId
+	 */
+	public function moveToQueue($queueId)
+	{
+		$this->update([
+			'QUEUE_ID' => $queueId,
+			'QUEUE_HISTORY' => []
+		]);
+	}
+
+	/**
+	 * @param $userId
+	 */
+	public function moveToUser($userId)
+	{
+		$invitedUsers = array_filter($this->users, function ($user)
+		{
+			return ($user['STATUS'] == CallUserTable::STATUS_INVITING);
+		});
+
+		if(count($invitedUsers) > 0)
+		{
+			$this->removeUsers(array_keys($invitedUsers));
+		}
+
+		$fields = [
+			'USER_ID' => $userId,
+		];
+		$queueHistory = $this->queueHistory;
+		if(!in_array($userId, $queueHistory))
+		{
+			$queueHistory[] = $userId;
+			$fields['QUEUE_HISTORY'] = $queueHistory;
+		}
+		$this->update($fields);
+		$this->addUsers([$userId], CallUserTable::ROLE_CALLEE);
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getSessionId()
+	{
+		return $this->sessionId;
+	}
+
+	/**
+	 * @param string $sessionId
+	 */
+	public function updateSessionId($sessionId)
+	{
+		$this->update(['SESSION_ID' => $sessionId]);
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getConfig()
+	{
+		return $this->config;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getCallerId()
+	{
+		return $this->callerId;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getPortalNumber()
+	{
+		return $this->portalNumber;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getAccessUrl()
+	{
+		return $this->accessUrl;
+	}
+
+	/**
+	 * Sets comment for the call.
+	 *
+	 * @param string $comment
+	 * @return void
+	 */
+	public function setComment($comment)
+	{
+		$this->update(['COMMENT' => $comment]);
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getStatus()
+	{
+		return $this->status;
+	}
+
+	/**
+	 * Updates call status.
+	 * @param string $status
+	 */
+	public function updateStatus($status)
+	{
+		$fields = ['STATUS' => $status];
+		if($status == CallTable::STATUS_ENQUEUED)
+		{
+			$fields['QUEUE_HISTORY'] = [];
+		}
+		$this->update($fields);
+	}
+
+	/**
+	 * Returns true if this call should be associated with crm.
+	 * @return bool
+	 */
+	public function isCrmEnabled()
+	{
+		return $this->crm === 'Y';
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getCrmActivityId()
+	{
+		return $this->crmActivityId;
+	}
+
+	/**
+	 * @param int $crmActivityId
+	 */
+	public function setCrmActivityId($crmActivityId)
+	{
+		$this->update(['CRM_ACTIVITY_ID' => $crmActivityId]);
+	}
+
+	/**
+	 * Returns associated crm entity type name.
+	 * @return string
+	 */
+	public function getCrmEntityType()
+	{
+		return $this->crmEntityType;
+	}
+
+	/**
+	 * Returns associated crm entity id.
+	 * @return int
+	 */
+	public function getCrmEntityId()
+	{
+		return $this->crmEntityId;
+	}
+
+	public function setCrmEntity($entityTypeName, $entityId)
+	{
+		if($this->crmEntityType == $entityTypeName && $this->crmEntityId == $entityId)
+		{
+			return;
+		}
+
+		$this->update([
+			'CRM_ENTITY_TYPE' => $entityTypeName,
+			'CRM_ENTITY_ID' => $entityId
+		]);
+
+		$users = array_keys($this->users);
+		if(count($users) > 0)
+		{
+			$this->signaling->sendUpdateCrm($users);
+		}
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getCrmLead()
+	{
+		return $this->crmLead;
+	}
+
+	public function updateCrmLead($leadId)
+	{
+		$fields = [
+			'CRM_LEAD' => $leadId
+		];
+
+		if(!$this->crmEntityId || !$this->crmEntityType)
+		{
+			$fields['CRM_ENTITY_TYPE'] = 'LEAD';
+			$fields['CRM_ENTITY_ID'] = $leadId;
+		}
+
+		$this->update($fields);
+
+		$users = array_keys($this->users);
+		if(count($users) > 0)
+		{
+			$this->signaling->sendUpdateCrm($users);
+		}
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getCrmBindings()
+	{
+		return $this->crmBindings;
+	}
+
+	/**
+	 * @param array $crmBindings
+	 */
+	public function updateCrmBindings(array $crmBindings)
+	{
+		$this->update(['CRM_BINDINGS' => $crmBindings]);
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getUsers()
+	{
+		return $this->users;
+	}
+
+	public function getUserIds()
+	{
+		return array_keys($this->users);
+	}
+
+	/**
+	 * Adds users to the call. Does not automatically sends invite to prevent synchronisation issues.
+	 * Invite will be sent late, with the scenario request.
+	 *
+	 * @param int[] $users Array of user ids.
+	 * @param string $role Role of users in the call.
+	 * @params string $status User connection status.
+	 * @return void
+	 */
+	public function addUsers(array $users, $role, $status = CallUserTable::STATUS_INVITING)
+	{
+		foreach ($users as $userId)
+		{
+			$userRecord = [
+				'USER_ID' => $userId,
+				'ROLE' => $role,
+				'STATUS' => $status,
+				'INSERTED' => new DateTime()
+			];
+			$this->users[$userId] = $userRecord;
+
+			$dbRecord = $userRecord;
+			$dbRecord['CALL_ID'] = $this->callId;
+			CallUserTable::merge($dbRecord);
+		}
+	}
+
+	/**
+	 * @param array $users
+	 * @throws \Exception
+	 */
+	public function removeUsers(array $users)
+	{
+		foreach ($users as $userId)
+		{
+			CallUserTable::delete([
+				'CALL_ID' => $this->callId,
+				'USER_ID' => $userId
+			]);
+
+			unset($this->users[$userId]);
+		}
+		if(count($users) > 0)
+		{
+			$this->signaling->sendTimeout($users);
+		}
+	}
+
+	public function removeAllInvitedUsers()
+	{
+		$usersToSendTimeout = [];
+		foreach ($this->users as $userId => $user)
+		{
+			if($user['STATUS'] == CallUserTable::STATUS_INVITING)
+			{
+				$usersToSendTimeout[] = $userId;
+				CallUserTable::delete([
+					'CALL_ID' => $this->callId,
+					'USER_ID' => $userId
+				]);
+				unset($this->users[$userId]);
+			}
+		}
+		if(count($usersToSendTimeout) > 0)
+		{
+			$this->signaling->sendTimeout($usersToSendTimeout);
+		}
+	}
+
+	public function updateUserStatus($userId, $status, $device = '')
+	{
+		if(!isset($this->users[$userId]))
+		{
+			throw new SystemException("User is not participant of the call");
+		}
+
+		$this->users[$userId]['STATUS'] = $status;
+		if($device)
+		{
+			$this->users[$userId]['DEVICE'] = $device;
+		}
+
+		CallUserTable::update(['CALL_ID' => $this->callId, 'USER_ID' => $userId], $this->users[$userId]);
+	}
+
+	public function updateUser($userId, array $fields)
+	{
+		if(!isset($this->users[$userId]))
+		{
+			throw new SystemException("User is not participant of the call");
+		}
+
+		foreach ($fields as $field => $value)
+		{
+			$this->users[$userId][$field] = $value;
+		}
+
+		CallUserTable::update(['CALL_ID' => $this->callId, 'USER_ID' => $userId], $this->users[$userId]);
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getQueueHistory()
+	{
+		return $this->queueHistory;
+	}
+
+	public function updateQueueHistory(array $queueHistory)
+	{
+		$this->update(['QUEUE_HISTORY' => $queueHistory]);
+	}
+
+	public function addToQueueHistory(array $users)
+	{
+		foreach ($users as $userId)
+		{
+			if(!in_array($userId, $this->queueHistory))
+			{
+				$this->queueHistory[] = $userId;
+			}
+		}
+		CallTable::update($this->id, ['QUEUE_HISTORY' => $this->queueHistory]);
+	}
+
+	public function clearQueueHistory()
+	{
+		$this->update(['QUEUE_HISTORY' => []]);
+	}
+
+	/**
+	 * @param string $headerName
+	 * @return mixed
+	 */
+	public function getSipHeader($headerName)
+	{
+		return isset($this->sipHeaders[$headerName]) ? $this->sipHeaders[$headerName] : null;
+	}
+
+	/**
+	 * @param array $sipHeaders
+	 */
+	public function updateSipHeaders(array $sipHeaders)
+	{
+		$this->update(['SIP_HEADERS' => $sipHeaders]);
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getGatheredDigits()
+	{
+		return $this->gatheredDigits;
+	}
+
+	/**
+	 * @param mixed $gatheredDigits
+	 */
+	public function updateGatheredDigits($gatheredDigits)
+	{
+		$this->update(['GATHERED_DIGITS' => $gatheredDigits]);
+	}
+
+	/**
+	 * @return Signaling
+	 */
+	public function getSignaling()
+	{
+		return $this->signaling;
+	}
+
+	/**
+	 * @return Scenario
+	 */
+	public function getScenario()
+	{
+		return $this->scenario;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getLastPingDate()
+	{
+		return $this->lastPingDate;
+	}
+
+	/**
+	 * @param DateTime $lastPingDate
+	 */
+	public function updateLastPingDate(DateTime $lastPingDate)
+	{
+		$this->update(['LAST_PING' => $lastPingDate]);
+	}
+
+	public function dequeue($userId)
+	{
+		$this->updateStatus(CallTable::STATUS_WAITING);
+		$this->addUsers([$userId], CallUserTable::ROLE_CALLEE);
+
+		$commandResult = $this->scenario->sendDequeue($userId, true);
+
+		if(!$commandResult) {
+			$this->finish();
+		}
+
+		return $commandResult;
+	}
+
+	public function handleUserAnswer($userId)
+	{
+		$this->updateUserStatus($userId, CallUserTable::STATUS_CONNECTING);
+		$this->updateStatus(Model\CallTable::STATUS_CONNECTING);
+
+		$this->signaling->sendAnswerSelf($userId);
+		$this->scenario->sendWait($userId);
+	}
+
+	public function handleUserConnected($userId, $device)
+	{
+		if(!isset($this->users[$userId]))
+		{
+			throw new SystemException("User is not participant of the call");
+		}
+
+		$this->updateUser($userId, [
+			'STATUS' => CallUserTable::STATUS_CONNECTED,
+			'DEVICE' => $device,
+		]);
+
+
+		$updatedFields = [
+			'STATUS' => Model\CallTable::STATUS_CONNECTED
+		];
+		if($this->incoming == \CVoxImplantMain::CALL_INCOMING || $this->incoming == \CVoxImplantMain::CALL_CALLBACK)
+		{
+			$updatedFields['USER_ID'] = $userId;
+			if ($this->getCrmLead() > 0)
+			{
+				\CVoxImplantCrmHelper::UpdateLead($this->getCrmLead(), Array('ASSIGNED_BY_ID' => $userId));
+			}
+		}
+		$this->update($updatedFields);
+
+		$userToRemove = [];
+		foreach ($this->users as $userId => $user)
+		{
+			if ($user['STATUS'] == CallUserTable::STATUS_INVITING || $user['STATUS'] == CallUserTable::STATUS_CONNECTING)
+			{
+				$userToRemove[] = $userId;
+			}
+			else if ($user['STATUS'] == CallUserTable::STATUS_CONNECTED)
+			{
+				$this->signaling->sendStart($userId, $user['DEVICE']);
+			}
+		}
+
+		$this->removeUsers($userToRemove);
+	}
+
+	/**
+	 * Finishes current call.
+	 *
+	 * @param array $additionalParams Additional params to pass to timeout event.
+	 * @return void
+	 */
+	public function finish(array $additionalParams = [])
+	{
+		$childCalls = static::getChildCalls($this->getCallId());
+		foreach ($childCalls as $childCallId)
+		{
+			$childCall = Call::load($childCallId);
+			if($childCall)
+			{
+				$childCall->finish();
+			}
+		}
+
+		if($this->status == CallTable::STATUS_FINISHED)
+		{
+			return;
+		}
+
+		if($additionalParams['externalHangup'])
+		{
+			static::delete($this->callId);
+		}
+		else
+		{
+			$this->update(['STATUS' => CallTable::STATUS_FINISHED]);
+		}
+
+		$users = array_keys($this->users);
+		if(count($users) > 0)
+		{
+			$this->signaling->sendTimeout($users, $additionalParams);
+		}
+
+		foreach ($users as $userId)
+		{
+			$userInfo = \CVoxImplantIncoming::getUserInfo($userId);
+			if($userInfo['AVAILABLE'] == 'Y')
+			{
+				CallQueue::dequeueFirstUserCall($userId);
+			}
+		}
+	}
+
+	/**
+	 * Stores call in the database
+	 *
+	 * @return void
+	 */
+	protected function save()
+	{
+		if($this->id)
+		{
+			CallTable::update($this->id, $this->toArray());
+		}
+		else
+		{
+			$insertResult = CallTable::add($this->toArray());
+			$this->id = $insertResult->getId();
+		}
+	}
+
+	/**
+	 * Performs update of the call fields.
+	 *
+	 * @param array $fields Call fields.
+	 * @internal
+	 * @throws \Exception
+	 */
+	public function update(array $fields)
+	{
+		$updateResult = CallTable::update($this->id, $fields);
+
+		if($updateResult->isSuccess())
+		{
+			$updateData = $updateResult->getData();
+			$this->fromArray($updateData);
+		}
+	}
+
+	public static function delete($callId)
+	{
+		$childCalls = static::getChildCalls($callId);
+		$callsToDelete = array_merge($childCalls, [$callId]);
+
+		CallUserTable::deleteBatch([
+			'=CALL_ID' => $callsToDelete
+		]);
+
+		foreach ($callsToDelete as $deletedCallId)
+		{
+			$callInstance = static::load($deletedCallId);
+			if($callInstance)
+			{
+				CallTable::delete($callInstance->getId());
+			}
+			unset(static::$instances[$deletedCallId]);
+		}
+	}
+
+	/**
+	 * Returns array of the child calls ids.
+	 * @param string $callId Id of the current call.
+	 * @return string[]
+	 * @throws ArgumentException
+	 * @throws SystemException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 */
+	public static function getChildCalls($callId)
+	{
+		$cursor = CallTable::getList([
+			'select' => ['CALL_ID'],
+			'filter' => [
+				'=PARENT_CALL_ID' => $callId
+			]
+		]);
+
+		$result = [];
+		while ($row = $cursor->fetch())
+		{
+			$result[] = $row['CALL_ID'];
+		}
+		return $result;
+	}
+
+	/**
+	 * Validates new call fields.
+	 *
+	 * @param array $fields Call fields.
+	 * @throws ArgumentException
+	 */
+	protected static function checkFields(array $fields)
+	{
+		if(!$fields['CALL_ID'])
+		{
+			throw new ArgumentException('CALL_ID is not specified');
+		}
+
+		if(!$fields['INCOMING'])
+		{
+			throw new ArgumentException('INCOMING is not specified');
+		}
+	}
+
+	/**
+	 * Converts call to array
+	 *
+	 * @return array
+	 */
+	public function toArray()
+	{
+		return [
+			'ID' => $this->id,
+			'CONFIG_ID' => $this->configId,
+			'USER_ID' => $this->userId,
+			'PORTAL_USER_ID' => $this->portalUserId,
+			'CALL_ID' => $this->callId,
+			'INCOMING' => $this->incoming,
+			'CALLER_ID' => $this->callerId,
+			'STATUS' => $this->status,
+			'CRM' => $this->crm,
+			'CRM_LEAD' => $this->crmLead,
+			'CRM_ENTITY_TYPE' => $this->crmEntityType,
+			'CRM_ENTITY_ID' => $this->crmEntityId,
+			'CRM_ACTIVITY_ID' => $this->crmActivityId,
+			'CRM_CALL_LIST' => $this->crmCallList,
+			'CRM_BINDINGS' => $this->crmBindings,
+			'ACCESS_URL' => $this->accessUrl,
+			'DATE_CREATE' => $this->dateCreate,
+			'REST_APP_ID' => $this->restAppId,
+			'EXTERNAL_LINE_ID' => $this->externalLineId,
+			'PORTAL_NUMBER' => $this->portalNumber,
+			'STAGE' => $this->stage,
+			'IVR_ACTION_ID' => $this->ivrActionId,
+			'QUEUE_ID' => $this->queueId,
+			'QUEUE_HISTORY' => $this->queueHistory,
+			'SESSION_ID' => $this->sessionId,
+			'CALLBACK_PARAMETERS' => $this->callbackParameters,
+			'COMMENT' => $this->comment,
+			'WORKTIME_SKIPPED' => $this->worktimeSkipped,
+			'SIP_HEADERS' => $this->sipHeaders,
+			'GATHERED_DIGITS' => $this->gatheredDigits,
+			'PARENT_CALL_ID' => $this->parentCallId,
+			'LAST_PING' => $this->lastPingDate,
+			'EXECUTION_GRAPH' => $this->executionGraph,
+		];
+	}
+
+	/**
+	 * @param array $fields
+	 * @return void
+	 */
+	protected function fromArray(array $fields)
+	{
+		$this->id = array_key_exists('ID', $fields) ? $fields['ID'] : $this->id;
+		$this->configId = array_key_exists('CONFIG_ID', $fields) ? $fields['CONFIG_ID'] : $this->configId;
+		$this->userId = array_key_exists('USER_ID', $fields) ? $fields['USER_ID'] : $this->userId;
+		$this->portalUserId = array_key_exists('PORTAL_USER_ID', $fields) ? $fields['PORTAL_USER_ID'] : $this->portalUserId;
+		$this->callId = array_key_exists('CALL_ID', $fields) ? $fields['CALL_ID'] : $this->callId;
+		$this->incoming = array_key_exists('INCOMING', $fields) ? $fields['INCOMING'] : $this->incoming;
+		$this->callerId = array_key_exists('CALLER_ID', $fields) ? $fields['CALLER_ID'] : $this->callerId;
+		$this->status = array_key_exists('STATUS', $fields) ? $fields['STATUS'] : $this->status;
+		$this->crm = array_key_exists('CRM', $fields) ? $fields['CRM'] : $this->crm;
+		$this->crmLead = array_key_exists('CRM_LEAD', $fields) ? $fields['CRM_LEAD'] : $this->crmLead;
+		$this->crmEntityType = array_key_exists('CRM_ENTITY_TYPE', $fields) ? $fields['CRM_ENTITY_TYPE'] : $this->crmEntityType;
+		$this->crmEntityId = array_key_exists('CRM_ENTITY_ID', $fields) ? $fields['CRM_ENTITY_ID'] : $this->crmEntityId;
+		$this->crmActivityId = array_key_exists('CRM_ACTIVITY_ID', $fields) ? $fields['CRM_ACTIVITY_ID'] : $this->crmActivityId;
+		$this->crmCallList = array_key_exists('CRM_CALL_LIST', $fields) ? $fields['CRM_CALL_LIST'] : $this->crmCallList;
+		$this->crmBindings = array_key_exists('CRM_BINDINGS', $fields) ? $fields['CRM_BINDINGS'] : $this->crmBindings;
+		$this->accessUrl = array_key_exists('ACCESS_URL', $fields) ? $fields['ACCESS_URL'] : $this->accessUrl;
+		$this->dateCreate = array_key_exists('DATE_CREATE', $fields) ? $fields['DATE_CREATE'] : $this->dateCreate;
+		$this->restAppId = array_key_exists('REST_APP_ID', $fields) ? $fields['REST_APP_ID'] : $this->restAppId;
+		$this->externalLineId = array_key_exists('EXTERNAL_LINE_ID', $fields) ? $fields['EXTERNAL_LINE_ID'] : $this->externalLineId;
+		$this->portalNumber = array_key_exists('PORTAL_NUMBER', $fields) ? $fields['PORTAL_NUMBER'] : $this->portalNumber;
+		$this->stage = array_key_exists('STAGE', $fields) ? $fields['STAGE'] : $this->stage;
+		$this->ivrActionId = array_key_exists('IVR_ACTION_ID', $fields) ? $fields['IVR_ACTION_ID'] : $this->ivrActionId;
+		$this->queueId = array_key_exists('QUEUE_ID', $fields) ? $fields['QUEUE_ID'] : $this->queueId;
+		$this->queueHistory = array_key_exists('QUEUE_HISTORY', $fields) ? $fields['QUEUE_HISTORY'] : $this->queueHistory;
+		$this->sessionId = array_key_exists('SESSION_ID', $fields) ? $fields['SESSION_ID'] : $this->sessionId;
+		$this->callbackParameters = array_key_exists('CALLBACK_PARAMETERS', $fields) ? $fields['CALLBACK_PARAMETERS'] : $this->callbackParameters;
+		$this->comment = array_key_exists('COMMENT', $fields) ? $fields['COMMENT'] : $this->comment;
+		$this->worktimeSkipped = array_key_exists('WORKTIME_SKIPPED', $fields) ? $fields['WORKTIME_SKIPPED'] : $this->worktimeSkipped;
+		$this->sipHeaders = array_key_exists('SIP_HEADERS', $fields) ? $fields['SIP_HEADERS'] : $this->sipHeaders;
+		$this->gatheredDigits = array_key_exists('GATHERED_DIGITS', $fields) ? $fields['GATHERED_DIGITS'] : $this->gatheredDigits;
+		$this->parentCallId = array_key_exists('PARENT_CALL_ID', $fields) ? $fields['PARENT_CALL_ID'] : $this->parentCallId;
+		$this->lastPingDate = array_key_exists('LAST_PING', $fields) ? $fields['LAST_PING'] : $this->lastPingDate;
+		$this->executionGraph = array_key_exists('EXECUTION_GRAPH', $fields) && ($fields['EXECUTION_GRAPH'] instanceof Node) ? $fields['EXECUTION_GRAPH'] : $this->executionGraph;
+
+		if($fields['CONFIG_ID'] && !$this->config)
+		{
+			$this->config = \CVoxImplantConfig::GetConfig($fields['CONFIG_ID']);
+		}
 	}
 }

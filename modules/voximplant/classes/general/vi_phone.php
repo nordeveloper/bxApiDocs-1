@@ -504,13 +504,15 @@ class CVoxImplantPhone
 		$resultData = array();
 		foreach ($arPhones as $phone => $phoneObj)
 		{
-			$melodyLang = 'EN';
-			if ($country == 'RU' || $country == 'KZ')
+			$melodyLang = ToUpper(LANGUAGE_ID);
+			if($melodyLang === 'KZ')
+			{
 				$melodyLang = 'RU';
-			else if ($country == 'DE')
-				$melodyLang = 'DE';
-			else if ($country == 'UA')
-				$melodyLang = 'UA';
+			}
+			else if(!in_array($melodyLang, CVoxImplantConfig::GetMelodyLanguages()))
+			{
+				$melodyLang = 'EN';
+			}
 
 			$arFields = Array(
 				'SEARCH_ID' => $phone,
@@ -518,7 +520,8 @@ class CVoxImplantPhone
 				'PHONE_VERIFIED' => $phoneObj['VERIFICATION_STATUS'] == 'VERIFIED'? 'Y': 'N',
 				'PHONE_COUNTRY_CODE' => $country,
 				'MELODY_LANG' => $melodyLang,
-				'QUEUE_ID' => CVoxImplantMain::getDefaultGroupId()
+				'QUEUE_ID' => CVoxImplantMain::getDefaultGroupId(),
+				'REDIRECT_WITH_CLIENT_NUMBER' => ($country == 'RU') ? 'Y' : 'N'
 			);
 
 			$insertResult = VI\ConfigTable::add($arFields);

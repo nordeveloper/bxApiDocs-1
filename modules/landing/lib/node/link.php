@@ -49,15 +49,20 @@ class Link extends \Bitrix\Landing\Node
 			$href = isset($value['href']) ? trim($value['href']) : '';
 			$target = isset($value['target']) ? trim(strtolower($value['target'])) : '';
 			$attrs = isset($value['attrs']) ? (array)$value['attrs'] : array();
+			$skipContent = isset($value['skipContent']) ? (boolean)$value['skipContent'] : false;
 
-			if ($text == '')
+			if (isset($value['text']) && !$text)
 			{
 				$text = '&nbsp;';
 			}
 
 			if (isset($resultList[$pos]))
 			{
-				if (trim($resultList[$pos]->getTextContent()) != '')
+				if (
+					$text &&
+					!$skipContent &&
+					trim($resultList[$pos]->getTextContent()) != ''
+				)
 				{
 					$text = \htmlspecialcharsbx($text);
 					$resultList[$pos]->setInnerHTML($text);

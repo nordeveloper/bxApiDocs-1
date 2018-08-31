@@ -45,6 +45,10 @@ class CAdminUiList extends CAdminList
 
 	public function SetNavigationParams(\CAdminUiResult $queryObject, $params = array())
 	{
+		if ($this->isPublicMode)
+		{
+			unset($params["BASE_LINK"]);
+		}
 		$queryObject->setNavigationParams($params);
 		$this->NavText($queryObject->GetNavPrint(""));
 		$this->totalRowCount = $queryObject->NavRecordCount;
@@ -336,7 +340,13 @@ class CAdminUiList extends CAdminList
 
 		$snippet = new Panel\Snippet();
 
-		$actionList = array(array("NAME" => GetMessage("admin_lib_list_actions"), "VALUE" => ""));
+		$actionList = array(
+			array(
+				"NAME" => GetMessage("admin_lib_list_actions"),
+				"VALUE" => "default",
+				"ONCHANGE" => array(array("ACTION" => Panel\Actions::RESET_CONTROLS))
+			)
+		);
 		$skipKey = array("edit", "delete", "for_all");
 		foreach ($this->arActions as $actionKey => $action)
 		{
@@ -354,12 +364,7 @@ class CAdminUiList extends CAdminList
 								"NAME" => $action["lable"],
 								"VALUE" => $actionKey,
 								"ONCHANGE" => array(
-									array(
-										"ACTION" => Panel\Actions::SHOW,
-										"DATA" => array(
-											array("ID" => "apply_button")
-										)
-									),
+									array("ACTION" => Panel\Actions::RESET_CONTROLS),
 									array(
 										"ACTION" => Panel\Actions::CREATE,
 										"DATA" => array(
@@ -368,26 +373,7 @@ class CAdminUiList extends CAdminList
 												"ID" => "selected_action_{$this->table_id}",
 												"NAME" => $action["name"],
 												"ITEMS" => $action["items"]
-											)
-										)
-									)
-								)
-							);
-							break;
-						case "customJs":
-							$actionList[] = array(
-								"NAME" => $action["lable"],
-								"VALUE" => $actionKey,
-								"ONCHANGE" => array(
-									array(
-										"ACTION" => Panel\Actions::HIDE,
-										"DATA" => array(
-											array("ID" => "apply_button")
-										)
-									),
-									array(
-										"ACTION" => Panel\Actions::CREATE,
-										"DATA" => array(
+											),
 											$snippet->getApplyButton(
 												array(
 													"ONCHANGE" => array(
@@ -395,7 +381,7 @@ class CAdminUiList extends CAdminList
 															"ACTION" => Panel\Actions::CALLBACK,
 															"DATA" => array(
 																array(
-																	"JS" => $action["js"]
+																	"JS" => "BX.adminList.SendSelected('{$this->table_id}')"
 																)
 															)
 														)
@@ -407,6 +393,16 @@ class CAdminUiList extends CAdminList
 								)
 							);
 							break;
+						case "customJs":
+							$actionList[] = array(
+								"NAME" => $action["lable"],
+								"VALUE" => $actionKey,
+								"ONCHANGE" => array(
+									array("ACTION" => Panel\Actions::RESET_CONTROLS),
+									$this->getActionApplyButton($action["js"])
+								)
+							);
+							break;
 					}
 				}
 			}
@@ -415,7 +411,10 @@ class CAdminUiList extends CAdminList
 				$actionList[] = array(
 					"NAME" => $action,
 					"VALUE" => $actionKey,
-					"ONCHANGE" => Panel\Actions::RESET_CONTROLS,
+					"ONCHANGE" => array(
+						array("ACTION" => Panel\Actions::RESET_CONTROLS),
+						$this->getActionApplyButton("BX.adminList.SendSelected('{$this->table_id}')")
+					)
 				);
 			}
 		}
@@ -437,21 +436,6 @@ class CAdminUiList extends CAdminList
 				"NAME" => "action_button_{$this->table_id}",
 				"ITEMS" => $actionList
 			);
-
-			$items[] = $snippet->getApplyButton(
-				array(
-					"ONCHANGE" => array(
-						array(
-							"ACTION" => Panel\Actions::CALLBACK,
-							"DATA" => array(
-								array(
-									"JS" => "BX.adminList.SendSelected('{$this->table_id}')"
-								)
-							)
-						)
-					)
-				)
-			);
 		}
 
 		if ($this->arActions["for_all"])
@@ -460,6 +444,31 @@ class CAdminUiList extends CAdminList
 		$actionPanel["GROUPS"][] = array("ITEMS" => $items);
 
 		return $actionPanel;
+	}
+
+	private function getActionApplyButton($action)
+	{
+		$snippet = new Panel\Snippet();
+
+		return array(
+			"ACTION" => Panel\Actions::CREATE,
+			"DATA" => array(
+				$snippet->getApplyButton(
+					array(
+						"ONCHANGE" => array(
+							array(
+								"ACTION" => Panel\Actions::CALLBACK,
+								"DATA" => array(
+									array(
+										"JS" => $action
+									)
+								)
+							)
+						)
+					)
+				)
+			)
+		);
 	}
 
 	public function &AddRow($id = false, $arRes = Array(), $link = false, $title = false)
@@ -815,11 +824,8 @@ class CAdminUiList extends CAdminList
 							$value = htmlspecialcharsex($field["edit"]["values"][$value]);
 						break;
 					case "file":
-						$arFile = CFile::getFileArray($value);
-						if (is_array($arFile))
-							$value = htmlspecialcharsex(CHTTP::URN2URI($arFile["SRC"]));
-						else
-							$value = "";
+						$value = $value ? CFileInput::Show("fileInput", $value,
+							$field["view"]["showInfo"], $field["view"]["inputs"]) : "";
 						break;
 					case "html":
 						$value = $field["view"]["value"];
@@ -891,6 +897,16 @@ class CAdminUiList extends CAdminList
 
 	private function SetHeaderEditType($headerId, $field)
 	{
+		if (!isset($this->aHeaders[$headerId]))
+		{
+			return;
+		}
+
+		if (isset($this->aHeaders[$headerId]["editable"]) && $this->aHeaders[$headerId]["editable"] === false)
+		{
+			return;
+		}
+
 		switch ($field["edit"]["type"])
 		{
 			case "input":
@@ -971,8 +987,6 @@ class CAdminUiResult extends CAdminResult
 
 	public function NavStart($nPageSize=20, $bShowAll=true, $iNumPage=false)
 	{
-		$nPageSize = $this->GetNavSize($this->table_id);
-
 		$nSize = $this->GetNavSize($this->table_id, $nPageSize);
 
 		if(!is_array($nPageSize))
@@ -1037,6 +1051,8 @@ class CAdminUiContextMenu extends CAdminContextMenu
 			return;
 		}
 
+		\Bitrix\Main\UI\Extension::load("ui.buttons");
+		\Bitrix\Main\UI\Extension::load("ui.buttons.icons");
 
 		if ($this->isPublicMode): ob_start(); ?>
 		<div class="pagetitle-container pagetitle-align-right-container" style="padding-right: 12px;">
@@ -1070,45 +1086,25 @@ class CAdminUiContextMenu extends CAdminContextMenu
 		}
 	}
 
-	private function showUpButton()
-	{
-		foreach ($this->items as $items)
-		{
-			if (isset($items["UP"]))
-			{
-				?>
-				<a href="<?=HtmlFilter::encode($items["LINK"])?>" class="adm-up-button">
-					<?=HtmlFilter::encode($items["TEXT"])?>
-				</a>
-				<?
-			}
-		}
-	}
-
 	private function showActionButton()
 	{
-		if ($this->isPublicMode)
+		if (!empty($this->additional_items))
 		{
-			if (!empty($this->additional_items)):
+			if ($this->isPublicMode)
+			{
 				$menuUrl = "BX.adminList.showPublicMenu(this, ".HtmlFilter::encode(
 					CAdminPopup::PhpToJavaScript($this->additional_items)).");";
-			?>
-			<div class="webform-small-button webform-small-button-transparent webform-cogwheel" onclick="<?=$menuUrl?>">
-				<span class="webform-button-icon"></span>
-			</div>
-			<?endif;
-		}
-		else
-		{
-			if (!empty($this->additional_items)):
+			}
+			else
+			{
 				$menuUrl = "BX.adminList.ShowMenu(this, ".HtmlFilter::encode(
-						CAdminPopup::PhpToJavaScript($this->additional_items)).");";
+					CAdminPopup::PhpToJavaScript($this->additional_items)).");";
+			}
+
 			?>
-			<div class="adm-toolbar-panel-button webform-small-button webform-small-button-transparent
-				webform-cogwheel" onclick="<?=$menuUrl?>">
-				<span class="webform-button-icon"></span>
-			</div>
-			<?endif;
+			<button class="ui-btn ui-btn-light-border ui-btn-themes ui-btn-icon-setting" onclick="
+				<?=$menuUrl?>"></button>
+			<?
 		}
 	}
 
@@ -1125,53 +1121,46 @@ class CAdminUiContextMenu extends CAdminContextMenu
 			if ($this->isPublicMode)
 			{
 				$menuUrl = "BX.adminList.showPublicMenu(this, ".HtmlFilter::encode(
-						CAdminPopup::PhpToJavaScript($items)).");";
+					CAdminPopup::PhpToJavaScript($items)).");";
 			}
 			else
 			{
 				$menuUrl = "BX.adminList.ShowMenu(this, ".HtmlFilter::encode(
-						CAdminPopup::PhpToJavaScript($items)).");";
+					CAdminPopup::PhpToJavaScript($items)).");";
 			}
 			if (count($items) > 0):?>
-			<span class="webform-small-button-separate-wrap adm-toolbar-panel-button">
 				<? if (!empty($firstItem["ONCLICK"])): ?>
-					<span onclick="<?=HtmlFilter::encode($firstItem["ONCLICK"])?>" class="
-						webform-small-button webform-small-button-blue">
-					<span class="webform-small-button-icon"></span>
-					<span class="webform-small-button-text"><?=HtmlFilter::encode($firstItem["TEXT"])?></span>
-					</span>
-					<span class="webform-small-button-right-part" onclick="<?=$menuUrl?>"></span>
+					<div class="ui-btn-double ui-btn-primary">
+						<button onclick="<?=HtmlFilter::encode($firstItem["ONCLICK"])?>" class="ui-btn-main">
+							<?=HtmlFilter::encode($firstItem["TEXT"])?>
+						</button>
+						<button onclick="<?=$menuUrl?>" class="ui-btn-extra"></button>
+					</div>
 				<? else: ?>
 					<? if (isset($firstItem["DISABLE"])): ?>
-					<span class="webform-small-button webform-small-button-blue" onclick="<?=$menuUrl?>">
-					<span class="webform-small-button-icon"></span>
-					<span class="webform-small-button-text"><?=HtmlFilter::encode($firstItem["TEXT"])?></span>
-					</span>
-					<span class="webform-small-button-right-part" onclick="<?=$menuUrl?>"></span>
+						<div class="ui-btn-double ui-btn-primary">
+							<button onclick="<?=$menuUrl?>" class="ui-btn-main">
+								<?=HtmlFilter::encode($firstItem["TEXT"])?>
+							</button>
+							<button onclick="<?=$menuUrl?>" class="ui-btn-extra"></button>
+						</div>
 					<? else: ?>
-					<a href="<?=HtmlFilter::encode($firstItem["LINK"])?>" class="
-					webform-small-button webform-small-button-blue">
-					<span class="webform-small-button-icon"></span>
-					<span class="webform-small-button-text"><?=HtmlFilter::encode($firstItem["TEXT"])?></span>
-					</a>
-					<span class="webform-small-button-right-part" onclick="<?=$menuUrl?>"></span>
+						<div class="ui-btn-double ui-btn-primary">
+							<a href="<?=HtmlFilter::encode($firstItem["LINK"])?>" class="ui-btn-main">
+								<?=HtmlFilter::encode($firstItem["TEXT"])?>
+							</a>
+							<button onclick="<?=$menuUrl?>" class="ui-btn-extra"></button>
+						</div>
 					<? endif; ?>
 				<? endif; ?>
-			</span>
 			<? else:?>
 				<? if (!empty($firstItem["ONCLICK"])): ?>
-					<span onclick="<?=HtmlFilter::encode($firstItem["ONCLICK"])?>">
-						<span class="webform-small-button webform-small-button-blue bx24-top-toolbar-add
-							adm-toolbar-panel-button">
-							<?=HtmlFilter::encode($firstItem["TEXT"])?>
-						</span>
-					</span>
+					<button class="ui-btn ui-btn-primary" href="<?=HtmlFilter::encode($firstItem["ONCLICK"])?>">
+						<?=HtmlFilter::encode($firstItem["TEXT"])?>
+					</button>
 				<? else: ?>
-					<a href="<?=HtmlFilter::encode($firstItem["LINK"])?>">
-						<span class="webform-small-button webform-small-button-blue bx24-top-toolbar-add
-							adm-toolbar-panel-button">
-							<?=HtmlFilter::encode($firstItem["TEXT"])?>
-						</span>
+					<a class="ui-btn ui-btn-primary" href="<?=HtmlFilter::encode($firstItem["LINK"])?>">
+						<?=HtmlFilter::encode($firstItem["TEXT"])?>
 					</a>
 				<? endif; ?>
 			<?endif;

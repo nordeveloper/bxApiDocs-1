@@ -431,7 +431,10 @@ class CIMStatus
 			return $result;
 		}
 
-		if (in_array($status['EXTERNAL_AUTH_ID'], array('bot', 'email', 'network', 'replica', 'controller', 'imconnector')))
+		$externalUser = \Bitrix\Main\UserTable::getExternalUserTypes();
+		$externalUser[] = 'network';
+
+		if (in_array($status['EXTERNAL_AUTH_ID'], $externalUser))
 		{
 			$result['STATUS'] = 'online';
 			$result['STATUS_TEXT'] = GetMessage('IM_STATUS_EAID_'.strtoupper($status['EXTERNAL_AUTH_ID']));

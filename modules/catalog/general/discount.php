@@ -160,7 +160,6 @@ class CAllCatalogDiscount
 			'UNPACK',
 			'~UNPACK',
 			'~CONDITIONS',
-			'USE_COUPONS',
 			'~USE_COUPONS',
 			'HANDLERS',
 			'~HANDLERS',
@@ -401,6 +400,8 @@ class CAllCatalogDiscount
 			{
 				$arFields['LAST_DISCOUNT'] = ($arFields['LAST_DISCOUNT'] != 'N' ? 'Y' : 'N');
 			}
+			if (isset($arFields['USE_COUPONS']))
+				$arFields['USE_COUPONS'] = ($arFields['USE_COUPONS'] != 'Y' ? 'N' : 'Y');
 		}
 		if ($boolResult)
 		{
@@ -569,7 +570,8 @@ class CAllCatalogDiscount
 				if (!empty($arOneCoupon['COUPON']))
 				{
 					$arOneCoupon['DISCOUNT_ID'] = $ID;
-					CCatalogDiscountCoupon::Add($arOneCoupon, false);
+					if (CCatalogDiscountCoupon::Add($arOneCoupon, false))
+						$arFields['USE_COUPONS'] = 'Y';
 				}
 				if (isset($arOneCoupon))
 					unset($arOneCoupon);
@@ -1141,7 +1143,7 @@ class CAllCatalogDiscount
 		static $eventOnResultExists = null;
 
 		/** @global CMain $APPLICATION */
-		global $DB, $APPLICATION;
+		global $APPLICATION;
 
 		self::initDiscountSettings();
 
@@ -1360,48 +1362,109 @@ class CAllCatalogDiscount
 				{
 					$arDiscountList = array();
 
-					$arSelect = array(
+					$couponsDiscount = array();
+					$couponsList = array();
+					if (!empty($arDiscountCoupons) && is_array($arDiscountCoupons))
+					{
+						$iterator = Catalog\DiscountCouponTable::getList(array(
+							'select' => array('DISCOUNT_ID', 'COUPON', 'ACTIVE', 'TYPE'),
+							'filter' => array('@DISCOUNT_ID' => $arDiscountIDs,'@COUPON' => $arDiscountCoupons),
+							'order' => array('DISCOUNT_ID' => 'ASC')
+						));
+						while ($row = $iterator->fetch())
+						{
+							$id = (int)$row['DISCOUNT_ID'];
+							$couponsList[$row['COUPON']] = $row;
+							if (isset($couponsDiscount[$id]))
+								continue;
+							$couponsDiscount[$id] = $row['COUPON'];
+						}
+						unset($id, $row, $iterator);
+					}
+
+					$select = array(
 						'ID', 'TYPE', 'SITE_ID', 'ACTIVE', 'ACTIVE_FROM', 'ACTIVE_TO',
 						'RENEWAL', 'NAME', 'SORT', 'MAX_DISCOUNT', 'VALUE_TYPE', 'VALUE', 'CURRENCY',
 						'PRIORITY', 'LAST_DISCOUNT',
-						'COUPON', 'COUPON_ONE_TIME', 'COUPON_ACTIVE', 'UNPACK', 'CONDITIONS'
+						'USE_COUPONS', 'UNPACK', 'CONDITIONS'
 					);
-					$strDate = date($DB->DateFormatToPHP(CSite::GetDateFormat("FULL")));
+					$currentDatetime = new Main\Type\DateTime();
 					$discountRows = array_chunk($arDiscountIDs, 500);
-					foreach ($discountRows as &$row)
+					foreach ($discountRows as $row)
 					{
-						$arFilter = array(
+						$discountFilter = array(
 							'@ID' => $row,
-							'SITE_ID' => $siteID,
-							'TYPE' => self::ENTITY_ID,
-							'RENEWAL' => $strRenewal,
-							'+<=ACTIVE_FROM' => $strDate,
-							'+>=ACTIVE_TO' => $strDate
+							'=SITE_ID' => $siteID,
+							'=TYPE' => Catalog\DiscountTable::TYPE_DISCOUNT,
+							array(
+								'LOGIC' => 'OR',
+								'ACTIVE_FROM' => '',
+								'<=ACTIVE_FROM' => $currentDatetime
+							),
+							array(
+								'LOGIC' => 'OR',
+								'ACTIVE_TO' => '',
+								'>=ACTIVE_TO' => $currentDatetime
+							)
 						);
-
-						if (is_array($arDiscountCoupons))
-							$arFilter['+COUPON'] = $arDiscountCoupons;
-
-						CTimeZone::Disable();
-						$rsPriceDiscounts = CCatalogDiscount::GetList(
-							array(),
-							$arFilter,
-							false,
-							false,
-							$arSelect
-						);
-						CTimeZone::Enable();
-						while ($arPriceDiscount = $rsPriceDiscounts->Fetch())
+						if (empty($couponsDiscount))
 						{
-							$arPriceDiscount['HANDLERS'] = array();
-							$arPriceDiscount['MODULE_ID'] = 'catalog';
-							$arPriceDiscount['TYPE'] = (int)$arPriceDiscount['TYPE'];
-							$arPriceDiscount['COUPON_ACTIVE'] = (string)$arPriceDiscount['COUPON_ACTIVE'];
-							$arPriceDiscount['COUPON'] = (string)$arPriceDiscount['COUPON'];
-							$arDiscountList[] = $arPriceDiscount;
+							$discountFilter['=USE_COUPONS'] = 'N';
 						}
+						else
+						{
+							$discountFilter[] = array(
+								'LOGIC' => 'OR',
+								'=USE_COUPONS' => 'N',
+								array(
+									'=USE_COUPONS' => 'Y',
+									'@ID' => array_keys($couponsDiscount)
+								)
+							);
+						}
+						CTimeZone::Disable();
+						$iterator = Catalog\DiscountTable::getList(array(
+							'select' => $select,
+							'filter' => $discountFilter
+						));
+						while ($row = $iterator->fetch())
+						{
+							$row['HANDLERS'] = array();
+							$row['MODULE_ID'] = 'catalog';
+							$row['TYPE'] = (int)$row['TYPE'];
+							if ($row['ACTIVE_FROM'] instanceof Main\Type\DateTime)
+								$row['ACTIVE_FROM'] = $row['ACTIVE_FROM']->toString();
+							if ($row['ACTIVE_TO'] instanceof Main\Type\DateTime)
+								$row['ACTIVE_TO'] = $row['ACTIVE_TO']->toString();
+							if ($row['USE_COUPONS'] == 'N')
+							{
+								$row['COUPON_ACTIVE'] = '';
+								$row['COUPON'] = '';
+								$row['COUPON_ONE_TIME'] = null;
+							}
+							else
+							{
+								$id = (int)$row['ID'];
+								if (isset($couponsDiscount[$id]))
+								{
+									$coupon = $couponsDiscount[$id];
+									$row['COUPON'] = $coupon;
+									$row['COUPON_ACTIVE'] = $couponsList[$coupon]['ACTIVE'];
+									$row['COUPON_ONE_TIME'] = $couponsList[$coupon]['TYPE'];
+									unset($coupon);
+								}
+								else
+								{
+									continue;
+								}
+							}
+							$arDiscountList[] = $row;
+						}
+						unset($row, $iterator);
+						CTimeZone::Enable();
 					}
 					unset($row, $discountRows);
+
 					self::$arCacheDiscountResult[$strCacheKey] = $arDiscountList;
 				}
 				else
@@ -1711,7 +1774,7 @@ class CAllCatalogDiscount
 				'RENEWAL' => $strRenewal,
 				'+<=ACTIVE_FROM' => $strDate,
 				'+>=ACTIVE_TO' => $strDate,
-				'COUPON' => ''
+				'USE_COUPONS' => 'N'
 			);
 			CTimeZone::Disable();
 			$rsPriceDiscounts = CCatalogDiscount::GetList(
@@ -1724,9 +1787,6 @@ class CAllCatalogDiscount
 			CTimeZone::Enable();
 			while ($arPriceDiscount = $rsPriceDiscounts->Fetch())
 			{
-				if ((string)$arPriceDiscount['COUPON_ACTIVE'] != '')
-					continue;
-
 				if (!$boolGenerate)
 				{
 					if (!isset(self::$arCacheProduct[$arProduct['ID']]))

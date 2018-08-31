@@ -64,13 +64,15 @@ class CVoxImplantSip
 			}
 		}
 
-		$melodyLang = 'EN';
-		if (LANGUAGE_ID == 'ru' || LANGUAGE_ID == 'kz')
+		$melodyLang = ToUpper(LANGUAGE_ID);
+		if($melodyLang === 'KZ')
+		{
 			$melodyLang = 'RU';
-		else if (LANGUAGE_ID == 'de')
-			$melodyLang = 'DE';
-		else if (LANGUAGE_ID == 'ua')
-			$melodyLang = 'UA';
+		}
+		else if(!in_array($melodyLang, CVoxImplantConfig::GetMelodyLanguages()))
+		{
+			$melodyLang = 'EN';
+		}
 
 		$result = VI\ConfigTable::add(Array(
 			'PORTAL_MODE' => 'SIP',

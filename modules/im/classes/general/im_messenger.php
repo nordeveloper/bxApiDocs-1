@@ -756,6 +756,7 @@ class CIMMessenger
 				$relations = \Bitrix\Im\Chat::getRelation($chatId, Array(
 					'REAL_COUNTERS' => 'Y',
 					'USER_DATA' => 'Y',
+					'SKIP_CONNECTOR' => $arRes['CHAT_ENTITY_TYPE'] == 'LINES'? 'Y': 'N'
 				));
 
 				$pullIncluded = CModule::IncludeModule("pull");
@@ -923,8 +924,6 @@ class CIMMessenger
 					{
 						CPullWatch::AddToStack('IM_PUBLIC_'.$chatId, $pullMessage);
 					}
-
-
 
 					$groups = self::GetEventByCounterGroup($events);
 					foreach ($groups as $group)

@@ -62,7 +62,7 @@ class CVoxImplantCrmHelper
 			$findParams = array('ENABLE_EXTENDED_MODE'=> false);
 		}
 
-		$call = VI\CallTable::getByCallId($callId);
+		$call = VI\Model\CallTable::getByCallId($callId);
 		$arResult = Array('FOUND' => 'N');
 		$found = false;
 		$entity = '';
@@ -228,60 +228,73 @@ class CVoxImplantCrmHelper
 
 	/**
 	 * Creates lead and activity for the call (if needed). Stores lead and activity id in the call record and the database.
-	 * @param array $call Current call record (as selected from the call table.
+	 * @param VI\Call $call Current call.
 	 * @param array $config
 	 * @return bool
 	 * @throws \Bitrix\Main\SystemException
-	 * @see \Bitrix\Voximplant\CallTable.
+	 * @see \Bitrix\Voximplant\Model\CallTable.
 	 */
-	public static function registerCallInCrm(array &$call, $config = null)
+	public static function registerCallInCrm(VI\Call $call, $config = null)
 	{
 		if(!\Bitrix\Main\Loader::includeModule('crm'))
+		{
+			static::$lastError = 'CRM module is not installed';
 			return false;
+		}
+
+
+		if($call->getCallerId() == '')
+		{
+			static::$lastError = 'Can not register in CRM call without caller id';
+			return false;
+		}
 
 		$shouldCreateLead = true;
-		if(!is_array($config) && isset($call['CONFIG_ID']))
+		if(!is_array($config))
 		{
-			$config = VI\ConfigTable::getRowById($call['CONFIG_ID']);
+			$config = $call->getConfig();
 		}
 
 		if(is_array($config))
 		{
-			$shouldCreateLead = static::shouldCreateLead($call, $config);
+			$shouldCreateLead = static::shouldCreateLead($call->toArray(), $config);
 		}
-
-		$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall($call);
-		if ($shouldCreateLead)
+		if(!$shouldCreateLead)
 		{
-			$leadId = static::AddLead(
-				array(
-					'USER_ID' => $call['USER_ID'],
-					'PHONE_NUMBER' => $call['CALLER_ID'],
-					'SEARCH_ID' => $config['SEARCH_ID'],
-					'CRM_SOURCE' => $config['CRM_SOURCE'],
-					'INCOMING' => ($call['INCOMING'] == CVoxImplantMain::CALL_INCOMING || $call['INCOMING'] == CVoxImplantMain::CALL_CALLBACK),
-				),
-				$entityManager
-			);
-
-			if($leadId)
-			{
-				$call['CRM_LEAD'] = $leadId;
-			}
-
-			if(!$call['CRM_ENTITY_ID'] && !$call['CRM_ENTITY_TYPE'])
-			{
-				$call['CRM_ENTITY_ID'] = $leadId;
-				$call['CRM_ENTITY_TYPE'] = CCrmOwnerType::LeadName;
-			}
-
-			if(!is_array($call['CRM_BINDINGS']) || count($call['CRM_BINDINGS']) == 0)
-			{
-				$call['CRM_BINDINGS'] = $entityManager->getActivityBindings();
-			}
+			return true;
 		}
 
-		VI\CallTable::update($call['ID'], $call);
+		$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall($call->toArray());
+		$leadId = static::AddLead(
+			array(
+				'USER_ID' => $call->getUserId(),
+				'PHONE_NUMBER' => $call->getCallerId(),
+				'SEARCH_ID' => $config['SEARCH_ID'],
+				'CRM_SOURCE' => $config['CRM_SOURCE'],
+				'INCOMING' => $call->getIncoming(),
+			),
+			$entityManager
+		);
+
+		if(!$leadId)
+		{
+			return false;
+		}
+
+		$call->updateCrmLead($leadId);
+		if(!is_array($call->getCrmBindings()) || count($call->getCrmBindings()) == 0)
+		{
+			$call->updateCrmBindings($entityManager->getActivityBindings());
+		}
+
+		if(CVoxImplantConfig::GetLeadWorkflowExecution() == CVoxImplantConfig::WORKFLOW_START_IMMEDIATE)
+		{
+			self::StartLeadWorkflow($leadId, [
+				'LINE_NUMBER' => $call->getPortalNumber(),
+				'START_TRIGGER' => ($call->getIncoming() == CVoxImplantMain::CALL_INCOMING)
+			]);
+		}
+		return true;
 	}
 
 	/**
@@ -301,6 +314,11 @@ class CVoxImplantCrmHelper
 		if (!CModule::IncludeModule('crm'))
 		{
 			static::$lastError = 'CRM is not installed';
+			return false;
+		}
+		if ($callFields['PHONE_NUMBER'] == '')
+		{
+			static::$lastError = 'Can not create activity for call without caller id';
 			return false;
 		}
 		CVoxImplantHistory::WriteToLog($callFields, 'CRM ADD CALL');
@@ -373,10 +391,6 @@ class CVoxImplantCrmHelper
 			$activityFields['DIRECTION'] = $direction;
 		}
 
-		$activityFields['RESPONSIBLE_ID'] = $callFields['PORTAL_USER_ID'];
-		$activityFields['ORIGIN_ID'] = 'VI_'.$callFields['CALL_ID'];
-
-
 		$activityFields['COMMUNICATIONS'] = array(
 			array(
 				'ID' => 0,
@@ -424,11 +438,6 @@ class CVoxImplantCrmHelper
 		else
 		{
 			$activityFields['COMPLETED'] = 'Y';
-		}
-
-		if (isset($callFields['PORTAL_USER_ID']))
-		{
-			$callFields['RESPONSIBLE_ID'] = $callFields['PORTAL_USER_ID'];
 		}
 
 		if($callFields['CALL_FAILED_CODE'] == '200')
@@ -486,6 +495,10 @@ class CVoxImplantCrmHelper
 		if(!\Bitrix\Main\Loader::includeModule('crm'))
 			return false;
 
+		if($call['PARENT_CALL_ID'] != '')
+		{
+			return false;
+		}
 		if($call['CRM_ENTITY_TYPE'] == CCrmOwnerType::LeadName && $call['CRM_ENTITY_ID'] > 0)
 		{
 			return false;
@@ -666,64 +679,23 @@ class CVoxImplantCrmHelper
 			return false;
 		}
 
-		$callId = $params['ORIGIN_ID'];
-		$callerId = '';
-
-		if (substr($callId, 0, 3) == 'VI_')
-			$callId = substr($callId, 3);
-		else
-			return false;
-
-		$res = VI\CallTable::getList(array(
-			'select' => array('*', 'CONFIG_SEARCH_ID' => 'CONFIG.SEARCH_ID'),
-			'filter' => array('=CALL_ID' => $callId),
-		));
-		if ($call = $res->fetch())
+		$originId = $params['ORIGIN_ID'];
+		if (substr($originId, 0, 3) == 'VI_')
 		{
-			$callerId = $call['CALLER_ID'];
-			$crmData = CVoxImplantCrmHelper::GetCrmEntity($call['CALLER_ID']);
+			$callId = substr($originId, 3);
+		}
+		else
+		{
+			return false;
+		}
+
+		$call = VI\Call::load($callId);
+		if ($call)
+		{
+			$crmData = CVoxImplantCrmHelper::GetCrmEntity($call->getCallerId());
 			if(is_array($crmData))
 			{
-				$call['CRM_ENTITY_TYPE'] = $crmData['ENTITY_TYPE_NAME'];
-				$call['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
-				$callCrmFields = array(
-					'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE_NAME'],
-					'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
-				);
-
-				VI\CallTable::update($call['ID'], $callCrmFields);
-			}
-
-			$activityId = static::AddCall(Array(
-				'CALL_ID' => $call['CALL_ID'],
-				'PHONE_NUMBER' => $call['CALLER_ID'],
-				'CALLER_ID' => $call['CONFIG_SEARCH_ID'],
-				'INCOMING' => $call['INCOMING'],
-				'USER_ID' => $call['USER_ID'],
-				'DATE_CREATE' => $call['DATE_CREATE'],
-				'CRM_ENTITY_TYPE' => $call['CRM_ENTITY_TYPE'],
-				'CRM_ENTITY_ID' => $call['CRM_ENTITY_ID'],
-			));
-
-			if($activityId > 0)
-			{
-				$call['CRM_ACTIVITY_ID'] = $activityId;
-				VI\CallTable::update($call['ID'], array(
-					'CRM_ACTIVITY_ID' => $activityId,
-				));
-			}
-
-			if ($call['USER_ID'] > 0)
-			{
-				$crmData = static::GetDataForPopup($callId, $call['CALLER_ID'], $call['USER_ID']);
-
-				$pullResult = CVoxImplantIncoming::SendPullEvent(Array(
-					'COMMAND' => 'update_crm',
-					'USER_ID' => $call['USER_ID'],
-					'CALL_ID' => $callId,
-					'CALLER_ID' => $callerId,
-					'CRM' => $crmData,
-				));
+				$call->setCrmEntity($crmData['ENTITY_TYPE_NAME'], $crmData['ENTITY_ID']);
 			}
 
 			CVoxImplantHistory::WriteToLog(Array($callId, $call), 'CRM ATTACH INIT CALL');
@@ -851,11 +823,6 @@ class CVoxImplantCrmHelper
 		if($leadId)
 		{
 			CVoxImplantHistory::WriteToLog($arFields, 'LEAD '.$leadId.' CREATED');
-			if(CVoxImplantConfig::GetLeadWorkflowExecution() == CVoxImplantConfig::WORKFLOW_START_IMMEDIATE)
-			{
-				self::StartLeadWorkflow($leadId);
-			}
-
 			Bitrix\Crm\Integration\Channel\VoxImplantTracker::getInstance()->registerLead($leadId);
 		}
 		else if ($entityManageFacility->hasErrors())
@@ -890,7 +857,7 @@ class CVoxImplantCrmHelper
 		return true;
 	}
 
-	public static function StartLeadWorkflow($leadId)
+	public static function StartLeadWorkflow($leadId, array $params = array())
 	{
 		if (!CModule::IncludeModule('crm'))
 			return;
@@ -902,12 +869,24 @@ class CVoxImplantCrmHelper
 			$arErrors
 		);
 
-		\Bitrix\Crm\Automation\Trigger\CallTrigger::execute([
-			[
-				'OWNER_TYPE_ID' => CCrmOwnerType::Lead,
-				'OWNER_ID' => $leadId
-			]
-		]);
+		if ($params['START_TRIGGER'])
+		{
+			$inputData = array();
+			if($params['LINE_NUMBER'])
+			{
+				$inputData['LINE_NUMBER'] = $params['LINE_NUMBER'];
+			}
+
+			\Bitrix\Crm\Automation\Trigger\CallTrigger::execute(
+				[
+					[
+						'OWNER_TYPE_ID' => CCrmOwnerType::Lead,
+						'OWNER_ID' => $leadId
+					]
+				],
+				$inputData
+			);
+		}
 		Bitrix\Crm\Automation\Factory::runOnAdd(\CCrmOwnerType::Lead, $leadId);
 	}
 
@@ -915,19 +894,25 @@ class CVoxImplantCrmHelper
 	public static function StartCallTrigger($callId)
 	{
 		if(!\Bitrix\Main\Loader::includeModule('crm'))
+		{
 			return;
-
-		if (!class_exists('\Bitrix\Crm\Automation\Trigger\CallTrigger'))
-			return;
-
-		$call = VI\CallTable::getByCallId($callId);
+		}
+		$call = VI\Model\CallTable::getByCallId($callId);
 		if(!$call)
+		{
 			return;
+		}
+		if($call['CALLER_ID'] == '')
+		{
+			return;
+		}
 
 		$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall($call);
 		$bindings = $entityManager->getActivityBindings();
 		if(is_array($bindings) && count($bindings) > 0)
-			\Bitrix\Crm\Automation\Trigger\CallTrigger::execute($bindings);
+		{
+			\Bitrix\Crm\Automation\Trigger\CallTrigger::execute($bindings, ['LINE_NUMBER' => $call['PORTAL_NUMBER']]);
+		}
 	}
 
 	public static function findDealsByPhone($phone)
@@ -1212,16 +1197,20 @@ class CVoxImplantCrmHelper
 		return CCrmOwnerType::GetResponsibleID(CCrmOwnerType::ResolveID($entityType), $entityId, false);
 	}
 
-	public static function attachLeadToCall($callId, $leadId)
+	public static function getResponsibleWithCall(VI\Call $call)
 	{
 		if(!\Bitrix\Main\Loader::includeModule('crm'))
 			return false;
 
-		VI\CallTable::updateWithCallId($callId, array(
-			'CRM_ENTITY_TYPE' => \CCrmOwnerType::LeadName,
-			'CRM_ENTITY_ID' => $leadId,
-			'CRM_LEAD' => $leadId
-		));
+		$crmEntityType = $call->getCrmEntityType();
+		$crmEntityId = $call->getCrmEntityId();
+
+		if(!$crmEntityType || !$crmEntityId)
+		{
+			return false;
+		}
+
+		return (int)\CVoxImplantCrmHelper::getResponsible($crmEntityType, $crmEntityId);
 	}
 
 	public static function createActivityBindings(array $params)

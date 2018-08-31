@@ -73,40 +73,12 @@ class CVoxImplantRestService extends IRestService
 					'callback' => array('CVoxImplantRestService', 'skipCall'),
 					'options' => array('private' => true)
 				),
-				'voximplant.call.start' => array( // Not sure if this is still needed
-					'callback' => array('CVoxImplantRestService', 'startCall'),
-					'options' => array('private' => true)
-				),
 				'voximplant.call.hold' => array(
 					'callback' => array('CVoxImplantRestService', 'holdCall'),
 					'options' => array('private' => true)
 				),
 				'voximplant.call.unhold' => array(
 					'callback' => array('CVoxImplantRestService', 'unholdCall'),
-					'options' => array('private' => true)
-				),
-				'voximplant.call.inviteTransfer' => array(
-					'callback' => array('CVoxImplantRestService', 'inviteCallTransfer'),
-					'options' => array('private' => true)
-				),
-				'voximplant.call.readyTransfer' => array(
-					'callback' => array('CVoxImplantRestService', 'readyCallTransfer'),
-					'options' => array('private' => true)
-				),
-				'voximplant.call.answerTransfer' => array(
-					'callback' => array('CVoxImplantRestService', 'answerCallTransfer'),
-					'options' => array('private' => true)
-				),
-				'voximplant.call.waitTransfer' => array(
-					'callback' => array('CVoxImplantRestService', 'waitCallTransfer'),
-					'options' => array('private' => true)
-				),
-				'voximplant.call.declineTransfer' => array(
-					'callback' => array('CVoxImplantRestService', 'declineCallTransfer'),
-					'options' => array('private' => true)
-				),
-				'voximplant.call.cancelTransfer' => array(
-					'callback' => array('CVoxImplantRestService', 'cancelCallTransfer'),
 					'options' => array('private' => true)
 				),
 				'voximplant.call.startViaRest' => array(
@@ -913,11 +885,11 @@ class CVoxImplantRestService extends IRestService
 		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
 			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
 
-		$call = \Bitrix\Voximplant\CallTable::getByCallId($params['CALL_ID']);
+		$call = \Bitrix\Voximplant\Model\CallTable::getByCallId($params['CALL_ID']);
 		if (!$call)
 			throw new Bitrix\Rest\RestException("Call is not found, or already finished", Bitrix\Rest\RestException::ERROR_NOT_FOUND, CRestServer::STATUS_NOT_FOUND);
 
-		if($call['STATUS'] !== \Bitrix\Voximplant\CallTable::STATUS_WAITING)
+		if($call['STATUS'] !== \Bitrix\Voximplant\Model\CallTable::STATUS_WAITING)
 			throw new Bitrix\Rest\RestException("Call is already answered", "ERROR_WRONG_STATE");
 
 		$result = CVoxImplantIncoming::SendCommand(
@@ -949,12 +921,12 @@ class CVoxImplantRestService extends IRestService
 		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
 			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
 
-		$call = \Bitrix\Voximplant\CallTable::getByCallId($params['CALL_ID']);
+		$call = \Bitrix\Voximplant\Model\CallTable::getByCallId($params['CALL_ID']);
 
 		if($call)
 		{
-			\Bitrix\Voximplant\CallTable::update($call['ID'], array(
-				'STATUS' => \Bitrix\Voximplant\CallTable::STATUS_CONNECTING
+			\Bitrix\Voximplant\Model\CallTable::update($call['ID'], array(
+				'STATUS' => \Bitrix\Voximplant\Model\CallTable::STATUS_CONNECTING
 			));
 		}
 
@@ -977,11 +949,11 @@ class CVoxImplantRestService extends IRestService
 
 		$callId = $params['CALL_ID'];
 		$userId = static::getCurrentUserId();
-		$call = \Bitrix\Voximplant\CallTable::getByCallId($callId);
+		$call = \Bitrix\Voximplant\Model\CallTable::getByCallId($callId);
 		if (!$call)
 			throw new Bitrix\Rest\RestException("Call is not found, or already finished", Bitrix\Rest\RestException::ERROR_NOT_FOUND, CRestServer::STATUS_NOT_FOUND);
 
-		if($call['STATUS'] !== \Bitrix\Voximplant\CallTable::STATUS_WAITING)
+		if($call['STATUS'] !== \Bitrix\Voximplant\Model\CallTable::STATUS_WAITING)
 			throw new Bitrix\Rest\RestException("Call is already answered", "ERROR_WRONG_STATE");
 
 		$result = CVoxImplantIncoming::SendCommand(
@@ -1003,9 +975,6 @@ class CVoxImplantRestService extends IRestService
 			'USER_ID' => $userId,
 			'CALL_ID' => $callId,
 		));
-
-		if (CModule::IncludeModule('im'))
-			CIMStatus::SetIdle($userId, false);
 
 		return array(
 			"SUCCESS" => true
@@ -1033,25 +1002,18 @@ class CVoxImplantRestService extends IRestService
 	 * @param ? $n
 	 * @param \CRestServer $server
 	 */
-	public static function startCall($params, $n, $server)
-	{
-		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
-			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
-
-		return CVoxImplantMain::CallStart($params['CALL_ID'], static::getCurrentUserId());
-	}
-
-	/**
-	 * @param array $params
-	 * @param ? $n
-	 * @param \CRestServer $server
-	 */
 	public static function holdCall($params, $n, $server)
 	{
 		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
 			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
 
-		return CVoxImplantMain::CallHold($params['CALL_ID'], true);
+		$userId = static::getCurrentUserId();
+		$call = \Bitrix\Voximplant\Call::load($params['CALL_ID']);
+		if($call)
+		{
+			$call->getSignaling()->sendHold($userId);
+			$call->getScenario()->sendHold($userId);
+		}
 	}
 
 	/**
@@ -1064,99 +1026,13 @@ class CVoxImplantRestService extends IRestService
 		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
 			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
 
-		return CVoxImplantMain::CallHold($params['CALL_ID'], false);
-	}
-
-	/**
-	 * @param array $params
-	 * @param ? $n
-	 * @param \CRestServer $server
-	 */
-	public static function inviteCallTransfer($params, $n, $server)
-	{
-		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
-			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
-
-		return CVoxImplantTransfer::Invite(
-			$params['CALL_ID'],
-			$params['TRANSFER_TYPE'],
-			$params['USER_ID'],
-			$params['TRANSFER_PHONE']
-		);
-	}
-
-	/**
-	 * @param array $params
-	 * @param ? $n
-	 * @param \CRestServer $server
-	 */
-	public static function readyCallTransfer($params, $n, $server)
-	{
-		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
-			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
-
-		return CVoxImplantTransfer::Ready($params['CALL_ID']);
-	}
-
-	/**
-	 * @param array $params
-	 * @param ? $n
-	 * @param \CRestServer $server
-	 */
-	public static function answerCallTransfer($params, $n, $server)
-	{
-		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
-			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
-
-		return CVoxImplantTransfer::Answer($params['CALL_ID']);
-	}
-
-	/**
-	 * @param array $params
-	 * @param ? $n
-	 * @param \CRestServer $server
-	 */
-	public static function waitCallTransfer($params, $n, $server)
-	{
-		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
-			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
-
-		$result = CVoxImplantTransfer::Wait($params['CALL_ID']);
-		if(!$result->isSuccess())
+		$userId = static::getCurrentUserId();
+		$call = \Bitrix\Voximplant\Call::load($params['CALL_ID']);
+		if($call)
 		{
-			$errors = $result->getErrors();
-			throw new Bitrix\Rest\RestException($errors[0]->getMessage(), $errors[0]->getCode());
+			$call->getSignaling()->sendUnHold($userId);
+			$call->getScenario()->sendUnHold($userId);
 		}
-		return array(
-			"SUCCESS" => true
-		);
-
-	}
-
-	/**
-	 * @param array $params
-	 * @param ? $n
-	 * @param \CRestServer $server
-	 */
-	public static function declineCallTransfer($params, $n, $server)
-	{
-		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
-			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
-
-		CVoxImplantTransfer::Decline($params['CALL_ID']);
-	}
-
-	/**
-	 * @param array $params
-	 * @param ? $n
-	 * @param \CRestServer $server
-	 */
-	public static function cancelCallTransfer($params, $n, $server)
-	{
-		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
-			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
-
-		return CVoxImplantTransfer::Cancel($params['CALL_ID']);
 	}
 
 	/**
@@ -1206,7 +1082,7 @@ class CVoxImplantRestService extends IRestService
 		if ($server->getAuthType() !== \Bitrix\Rest\SessionAuth\Auth::AUTH_TYPE)
 			throw new \Bitrix\Rest\RestException("This method is only available for internal usage.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
 
-		$call = \Bitrix\Voximplant\CallTable::getByCallId($params['CALL_ID']);
+		$call = \Bitrix\Voximplant\Model\CallTable::getByCallId($params['CALL_ID']);
 
 		if(!$call)
 			throw new \Bitrix\Rest\RestException("Call is not found, or finished", "NOT_FOUND", \CRestServer::STATUS_NOT_FOUND);
@@ -1254,11 +1130,11 @@ class CVoxImplantRestService extends IRestService
 
 		$callId = $params['CALL_ID'];
 		$comment = $params['COMMENT'];
-		$call = \Bitrix\Voximplant\CallTable::getByCallId($callId);
+		$call = \Bitrix\Voximplant\Model\CallTable::getByCallId($callId);
 		if(!$call)
 			throw new \Bitrix\Rest\RestException("Call is not found, or finished", "NOT_FOUND", \CRestServer::STATUS_NOT_FOUND);
 
-		\Bitrix\Voximplant\CallTable::update($call['ID'], array(
+		\Bitrix\Voximplant\Model\CallTable::update($call['ID'], array(
 			'COMMENT' => $comment
 		));
 		return 1;
@@ -1606,6 +1482,12 @@ class CVoxImplantRestService extends IRestService
 	public static function onCallInit($arParams)
 	{
 		$arResult = $arParams[0];
+
+		if($arResult instanceof \Bitrix\Main\Event)
+		{
+			return $arResult->getParameters();
+		}
+
 		return $arResult;
 	}
 

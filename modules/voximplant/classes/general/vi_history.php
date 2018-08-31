@@ -29,7 +29,7 @@ class CVoxImplantHistory
 			return false;
 		}
 
-		$call = VI\CallTable::getByCallId($params['CALL_ID']);
+		$call = VI\Model\CallTable::getByCallId($params['CALL_ID']);
 
 		$statisticRecord = VI\StatisticTable::getByCallId($params['CALL_ID']);
 		if($statisticRecord)
@@ -113,7 +113,7 @@ class CVoxImplantHistory
 			$arFields['CRM_ENTITY_TYPE'] = $params['CRM_ENTITY_TYPE'];
 			$arFields['CRM_ENTITY_ID'] = $params['CRM_ENTITY_ID'];
 		}
-		else if(!$isPortalCall)
+		else if(!$isPortalCall && $params['PHONE_NUMBER'] != '')
 		{
 			$crmData = CVoxImplantCrmHelper::GetCrmEntity($params['PHONE_NUMBER']);
 			if(is_array($crmData))
@@ -123,7 +123,8 @@ class CVoxImplantHistory
 			}
 		}
 
-		if((!$call || !$call['CRM_LEAD']) && CVoxImplantCrmHelper::shouldCreateLead($arFields, $config))
+		// Workaround to register call, somehow missing in b_voximplant_call table.
+		if((!$call || !$call['CRM_LEAD']) && CVoxImplantCrmHelper::shouldCreateLead($arFields, $config) && $arFields['PHONE_NUMBER'] != '')
 		{
 			$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall(array(
 				'CRM_ENTITY_TYPE' => $arFields['CRM_ENTITY_TYPE'],
@@ -144,6 +145,11 @@ class CVoxImplantHistory
 			{
 				$arFields['CRM_ENTITY_TYPE'] = CCrmOwnerType::LeadName;
 				$arFields['CRM_ENTITY_ID'] = $leadId;
+
+				CVoxImplantCrmHelper::StartLeadWorkflow($leadId, [
+					'LINE_NUMBER' => $arFields['PORTAL_NUMBER'],
+					'START_TRIGGER' => ($arFields['INCOMING'] == CVoxImplantMain::CALL_INCOMING)
+				]);
 			}
 		}
 
@@ -285,7 +291,10 @@ class CVoxImplantHistory
 
 		if($call && $call['CRM_LEAD'] > 0 && CVoxImplantConfig::GetLeadWorkflowExecution() == CVoxImplantConfig::WORKFLOW_START_DEFERRED)
 		{
-			CVoxImplantCrmHelper::StartLeadWorkflow($call['CRM_LEAD']);
+			CVoxImplantCrmHelper::StartLeadWorkflow($call['CRM_LEAD'], [
+				'LINE_NUMBER' => $arFields['PORTAL_NUMBER'],
+				'START_TRIGGER' => ($arFields['INCOMING'] == CVoxImplantMain::CALL_INCOMING)
+			]);
 		}
 
 		if($call && $call['CRM_CALL_LIST'])
@@ -320,11 +329,7 @@ class CVoxImplantHistory
 			EventManager::getInstance()->send($callEvent);
 		}
 
-		if ($call)
-		{
-			VI\CallTable::delete($call['ID']);
-		}
-
+		VI\Call::delete($callId);
 		static::releaseLock($callId);
 		return true;
 	}
@@ -339,7 +344,7 @@ class CVoxImplantHistory
 			return false;
 		}
 
-		$http = new \Bitrix\Main\Web\HttpClient(array(
+		$http = VI\HttpClientFactory::create(array(
 			"disableSslVerification" => true
 		));
 		$http->query('GET', $recordUrl);

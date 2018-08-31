@@ -517,13 +517,18 @@ class Options
 
 	protected function trySetFilterFromRequest($fields = array())
 	{
-		if (self::isSetFromRequest($this->getRequest()))
+		$request = $this->getRequest();
+
+		if (self::isSetFromRequest($request))
 		{
 			$settings = self::fetchSettingsFromQuery($fields, $this->getRequest());
+			$clear = strtoupper($request->get("clear_filter")) == "Y";
 
-			if ($settings !== null)
+			if ($settings !== null || $clear)
 			{
-				$this->setFilterSettings(self::TMP_FILTER, $settings);
+				$presetId = $clear ? self::DEFAULT_FILTER : self::TMP_FILTER;
+
+				$this->setFilterSettings($presetId, $settings);
 				$this->save();
 			}
 		}
@@ -645,14 +650,24 @@ class Options
 	}
 
 
-	public static function fetchFieldValuesFromFilterSettings($filterSettings = array(), $additionalFields = array())
+	public static function fetchFieldValuesFromFilterSettings($filterSettings = array(), $additionalFields = array(), $sourceFields = array())
 	{
 		$filterFields = self::fetchFieldsFromFilterSettings($filterSettings, $additionalFields);
 		$resultFields = array();
 
 		foreach ($filterFields as $key => $field)
 		{
-			if ($field !== "" && strpos($key, -6) !== "_label")
+			$isStrictField = false;
+
+			foreach ($sourceFields as $sourceKey => $sourceField)
+			{
+				if ($key === $sourceField["id"] && $sourceField["strict"])
+				{
+					$isStrictField = true;
+				}
+			}
+
+			if (($field !== "" && strpos($key, -6) !== "_label") || $isStrictField)
 			{
 				if (self::isDateField($key))
 				{
@@ -702,7 +717,7 @@ class Options
 		{
 			$filterSettings = $this->getFilterSettings($currentPresetId);
 			$additionalFields = $this->getAdditionalPresetFields($currentPresetId);
-			$fieldsValues = self::fetchFieldValuesFromFilterSettings($filterSettings, $additionalFields);
+			$fieldsValues = self::fetchFieldValuesFromFilterSettings($filterSettings, $additionalFields, $sourceFields);
 
 			$result = $fieldsValues;
 			$searchString = $this->getSearchString();
@@ -797,30 +812,41 @@ class Options
 		if (self::isCurrentUserEditOtherSettings())
 		{
 			$allUserOptions = $this->getAllUserOptions();
-			$currentOptions = $this->options;
 
-			$forAllPresets = array();
-
-			foreach ($currentOptions["filters"] as $key => $preset)
+			if ($allUserOptions)
 			{
-				if ($preset["for_all"])
-				{
-					$forAllPresets[$key] = $preset;
-				}
-			}
+				$currentOptions = $this->options;
 
-			while ($allUserOptions && $userOptions = $allUserOptions->fetch())
-			{
-				if (!self::isCommon($userOptions))
+				$forAllPresets = array();
+
+				foreach ($currentOptions["filters"] as $key => $preset)
 				{
-					$currentOptions["default_presets"] = $forAllPresets;
-					$currentOptions["filters"] = $forAllPresets;
+					if ($preset["for_all"])
+					{
+						$forAllPresets[$key] = $preset;
+					}
 				}
 
-				$this->saveOptionsForUser($currentOptions, $userOptions["USER_ID"]);
+				while ($userOptions = $allUserOptions->fetch())
+				{
+					$currentUserOptions = unserialize($userOptions["VALUE"]);
+
+					if (is_array($currentUserOptions))
+					{
+						if (!self::isCommon($userOptions))
+						{
+							$currentUserOptions["deleted_presets"] = $currentOptions["deleted_presets"];
+							$currentUserOptions["default_presets"] = $forAllPresets;
+							$currentUserOptions["filters"] = $forAllPresets;
+						}
+
+						$this->saveOptionsForUser($currentUserOptions, $userOptions["USER_ID"]);
+					}
+				}
+
+				$this->saveCommon();
 			}
 
-			$this->saveCommon();
 		}
 	}
 
@@ -854,6 +880,18 @@ class Options
 		}
 
 		$userOptions = \CUserOptions::GetOption("main.ui.filter", $this->getId(), array("filters" => array(), "default_presets" => array()), $userId);
+
+		if (is_array($options["deleted_presets"]))
+		{
+			foreach ($options["deleted_presets"] as $key => $isDeleted)
+			{
+				if (array_key_exists($key, $userOptions["filters"]))
+				{
+					unset($userOptions["filters"][$key]);
+				}
+			}
+		}
+
 		$options["filters"] = array_merge($userOptions["filters"], $options["filters"]);
 		\CUserOptions::SetOption("main.ui.filter", $this->getId(), $options, null, $userId);
 	}
@@ -965,8 +1003,7 @@ class Options
 			if ($currentPreset)
 			{
 				$request = $this->getRequest();
-				$isApplyFilter = (strtoupper($request->get("apply_filter")) == "Y"
-					|| strtoupper($_GET["apply_filter"]) == "Y");
+				$isApplyFilter = (strtoupper($request->get("apply_filter")) == "Y");
 				$isClearFilter = (strtoupper($request->get("clear_filter")) == "Y");
 				$isWithPreset = (strtoupper($request->get("with_preset")) == "Y");
 
@@ -1311,7 +1348,7 @@ class Options
 				{
 					$dateTime = new Filter\DateTime();
 					$days = (int) $source[$fieldId."_days"];
-					$days = $days > 0 ? $days - 1 : 0;
+					$days = max($days, 0);
 
 					$result[$fieldId."_datesel"] = DateType::PREV_DAYS;
 					$result[$fieldId."_month"] = $dateTime->month();

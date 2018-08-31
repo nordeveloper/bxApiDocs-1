@@ -16,6 +16,6 @@ namespace Bitrix\Main\ORM\Objectify;
 class Values
 {
 	const ACTUAL = 1;
-	const RUNTIME = 2;
+	const CURRENT = 2;
 	const ALL = 1|2;
 }

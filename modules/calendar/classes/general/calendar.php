@@ -294,7 +294,7 @@ class CCalendar
 		$bExtranet = CCalendar::IsExtranetEnabled();
 
 		$userTimezoneOffsetUTC = self::GetCurrentOffsetUTC(self::$userId);
-		$userTimezoneName = self::GetUserTimezoneName(self::$userId);
+		$userTimezoneName = self::GetUserTimezoneName(self::$userId, false);
 		$userTimezoneDefault = '';
 
 		// We don't have default timezone for this offset for this user
@@ -367,6 +367,30 @@ class CCalendar
 			);
 		}
 
+		$placementParams = false;
+		if (\Bitrix\Main\Loader::includeModule('rest'))
+		{
+			$placementParams = [
+				'gridPlacementCode' => \CCalendarRestService::PLACEMENT_GRID_VIEW,
+				'gridPlacementList' => \Bitrix\Rest\PlacementTable::getHandlersList(\CCalendarRestService::PLACEMENT_GRID_VIEW),
+				'serviceUrl' => '/bitrix/components/bitrix/app.layout/lazyload.ajax.php?&site='.SITE_ID.'&'.bitrix_sessid_get()
+			];
+
+//			if(is_array($gridPlacementHandlerList))
+//			{
+//				foreach($gridPlacementHandlerList as $placementHandler)
+//				{
+					//$tabId = 'placement_'.$placementHandler['ID'];
+//			$arResult["Title"][$tabId] = (
+//			!empty($placementHandler['TITLE']) > 0
+//				? $placementHandler['TITLE']
+//				: $placementHandler['APP_NAME']
+//			);
+//			$arResult["Urls"][$tabId] = $arResult["Urls"]["view"]."app/".$placementHandler['ID']."/";
+//				}
+//			}
+		}
+		$JSConfig['placementParams'] = $placementParams;
 
 		if(self::$type == 'user' && self::$userId == self::$ownerId)
 		{
@@ -566,7 +590,8 @@ class CCalendar
 		// We don't have any section
 		if ($bCreateDefault)
 		{
-			$fullSectionsList = $groupOrUser ? self::GetSectionList(array('checkPermissions' => false)) : array();
+			$fullSectionsList = $groupOrUser ? self::GetSectionList(array('checkPermissions' => false, 'getPermissions' => false)) : array();
+
 			// Section exists but it closed to this user (Ref. mantis:#64037)
 			if (count($fullSectionsList) > 0)
 			{
@@ -602,8 +627,14 @@ class CCalendar
 		$JSConfig['bSuperpose'] = self::$bSuperpose;
 		$JSConfig['additonalMeetingsId'] = $additonalMeetingsId;
 
+		$selectedUserCodes = array('U'.self::$userId);
+		if (self::$type == 'user')
+		{
+			$selectedUserCodes[] = 'U'.self::$ownerId;
+		}
+
 		$additionalParams = array(
-			'socnetDestination' => CCalendar::GetSocNetDestination(false, array('U'.self::$userId, 'U'.self::$ownerId)),
+			'socnetDestination' => CCalendar::GetSocNetDestination(false, $selectedUserCodes),
 			'locationList' => CCalendarLocation::GetList(),
 			'timezoneList' => CCalendar::GetTimezoneList(),
 			'defaultColorsList' => $colors,
@@ -738,10 +769,15 @@ class CCalendar
 
 		$id = intVal($id);
 		if (!$id)
+		{
 			return false;
+		}
 
+		$checkPermissions = isset($params['checkPermissions']) ? $params['checkPermissions'] : true;
 		if (!isset(self::$userId))
+		{
 			self::$userId = CCalendar::GetCurUserId();
+		}
 
 		CCalendar::SetOffset(false, 0);
 		$res = CCalendarEvent::GetList(
@@ -749,19 +785,24 @@ class CCalendar
 				'arFilter' => array("ID" => $id),
 				'parseRecursion' => false,
 				'setDefaultLimit' => false,
-				'fetchAttendees' => true
+				'fetchAttendees' => true,
+				'checkPermissions' => $checkPermissions
 			)
 		);
 
 		if ($event = $res[0])
 		{
 			if (!isset(self::$type))
+			{
 				self::$type = $event['CAL_TYPE'];
+			}
 
 			if (!isset(self::$ownerId))
+			{
 				self::$ownerId = $event['OWNER_ID'];
+			}
 
-			if (!self::IsPersonal($event['CAL_TYPE'], $event['OWNER_ID'], self::$userId) && !CCalendarSect::CanDo('calendar_edit', $event['SECT_ID'], self::$userId))
+			if ($checkPermissions && !self::IsPersonal($event['CAL_TYPE'], $event['OWNER_ID'], self::$userId) && !CCalendarSect::CanDo('calendar_edit', $event['SECT_ID'], self::$userId))
 			{
 				return Loc::getMessage('EC_ACCESS_DENIED');
 			}
@@ -1463,13 +1504,19 @@ class CCalendar
 		if ($sectionId > 0)
 			$arFilter['ID'] = $sectionId;
 
+		if (isset($params['active']))
+		{
+			$arFilter['ACTIVE'] = $params['active'] ? 'Y' : 'N';
+		}
 		$res = CCalendarSect::GetList(array('arFilter' => $arFilter));
 
 		$arCalendars = array();
 		foreach($res as $calendar)
 		{
 			if ($params['skipExchange'] == true && strlen($calendar['DAV_EXCH_CAL']) > 0)
+			{
 				continue;
+			}
 
 			$arCalendars[] = array(
 				'ID' => $calendar['ID'],
@@ -1874,7 +1921,8 @@ class CCalendar
 				$arFields['MEETING_HOST'] = $curEvent['MEETING_HOST'];
 			}
 			// If it's attendee and but modifying called from CalDav methods
-			if ($params['bSilentAccessMeeting'] && $curEvent['IS_MEETING'] && $curEvent['PARENT_ID'] != $curEvent['ID'])
+			if (($params['bSilentAccessMeeting'] || $params['fromWebservice'] === true)
+				&& $curEvent['IS_MEETING'] && $curEvent['PARENT_ID'] != $curEvent['ID'])
 			{
 				$params['recursionEditMode'] = 'skip';
 				$params['sendInvitations'] = false;
@@ -1900,8 +1948,12 @@ class CCalendar
 
 			if ($params['fromWebservice'] === true)
 			{
+
+
 				if ($arFields["RRULE"] == -1 && CCalendarEvent::CheckRecurcion($curEvent))
+				{
 					$arFields["RRULE"] = CCalendarEvent::ParseRRULE($curEvent['RRULE']);
+				}
 			}
 
 			if (!isset($arFields['EXDATE']) && $arFields["RRULE"])
@@ -1999,8 +2051,11 @@ class CCalendar
 				'bExchange' => $bExchange,
 				'sectionId' => $sectionId
 			), $arFields, $curEvent);
+
 			if ($res !== true)
+			{
 				return CCalendar::ThrowError($res);
+			}
 		}
 
 		$params['arFields'] = $arFields;
@@ -2831,75 +2886,69 @@ class CCalendar
 			CTimeZone::Disable();
 		}
 
-		$res = '';
 		// *** ADD MEETING ROOM ***
 		$locOld = CCalendar::ParseLocation($old);
 		$locNew = CCalendar::ParseLocation($new);
 		CCalendar::GetSettings(array('request' => false));
-
-		$allowReserveMeeting = isset($params['allowReserveMeeting']) ? $params['allowReserveMeeting'] : self::$allowReserveMeeting;
+		$res = $locNew['mrid'] ? $locNew['str'] : $new;
 
 		$RMiblockId = isset($params['RMiblockId']) ? $params['RMiblockId'] : self::$settings['rm_iblock_id'];
 
 		// If not allowed
-		if (!$allowReserveMeeting)
+		if ($RMiblockId && $locOld['mrid'] !== false && $locOld['mrevid'] !== false) // Release MR
 		{
-			$res = $locNew['mrid'] ? $locNew['str'] : $new;
+			CCalendar::ReleaseMeetingRoom(array(
+				'mrevid' => $locOld['mrevid'],
+				'mrid' => $locOld['mrid'],
+				'RMiblockId' => $RMiblockId
+			));
+		}
+
+		if ($locOld['room_id'] !== false && $locOld['room_event_id'] !== false) // Release MR
+		{
+			CCalendar::ReleaseLocation($locOld);
+		}
+
+		if ($locNew['mrid'] !== false) // Reserve MR
+		{
+			$mrevid = false;
+			if ($params['bRecreateReserveMeetings'])
+			{
+				$mrevid = CCalendar::ReserveMeetingRoom(array(
+					'RMiblockId' => $RMiblockId,
+					'mrid' => $locNew['mrid'],
+					'dateFrom' => $params['dateFrom'],
+					'dateTo' => $params['dateTo'],
+					'name' => $params['name'],
+					'description' => Loc::getMessage('EC_RESERVE_FOR_EVENT').': '.$params['name'],
+					'persons' => $params['persons'],
+					'members' => $params['attendees']
+				));
+			}
+			elseif(is_array($locNew) && $locNew['mrevid'] !== false)
+			{
+				$mrevid = $locNew['mrevid'];
+			}
+
+			$locNew = ($mrevid && $mrevid != 'reserved' && $mrevid != 'expire' && $mrevid > 0) ? 'ECMR_'.$locNew['mrid'].'_'.$mrevid : '';
+		}
+		elseif($locNew['room_id'])
+		{
+			$roomEventId = CCalendarLocation::reserveRoom(array(
+				'room_id' => $locNew['room_id'],
+				'room_event_id' => false,
+				'parentParams' => $params['parentParams']
+			));
+
+			$locNew = $roomEventId ? 'calendar_'.$locNew['room_id'].'_'.$roomEventId : '';
 		}
 		else
 		{
-			if ($locOld['mrid'] !== false && $locOld['mrevid'] !== false) // Release MR
-			{
-				CCalendar::ReleaseMeetingRoom(array(
-					'mrevid' => $locOld['mrevid'],
-					'mrid' => $locOld['mrid'],
-					'RMiblockId' => $RMiblockId
-				));
-			}
+			$locNew = $locNew['str'];
+		}
 
-			if ($locOld['room_id'] !== false && $locOld['room_event_id'] !== false) // Release MR
-			{
-				CCalendar::ReleaseLocation($locOld);
-			}
-
-			if ($locNew['mrid'] !== false) // Reserve MR
-			{
-				$mrevid = false;
-				if ($params['bRecreateReserveMeetings'] && $allowReserveMeeting)
-				{
-					$mrevid = CCalendar::ReserveMeetingRoom(array(
-						'RMiblockId' => $RMiblockId,
-						'mrid' => $locNew['mrid'],
-						'dateFrom' => $params['dateFrom'],
-						'dateTo' => $params['dateTo'],
-						'name' => $params['name'],
-						'description' => Loc::getMessage('EC_RESERVE_FOR_EVENT').': '.$params['name'],
-						'persons' => $params['persons'],
-						'members' => $params['attendees']
-					));
-				}
-				elseif(is_array($locNew) && $locNew['mrevid'] !== false)
-				{
-					$mrevid = $locNew['mrevid'];
-				}
-
-				$locNew = ($mrevid && $mrevid != 'reserved' && $mrevid != 'expire' && $mrevid > 0) ? 'ECMR_'.$locNew['mrid'].'_'.$mrevid : '';
-			}
-			elseif($locNew['room_id'])
-			{
-				$roomEventId = CCalendarLocation::reserveRoom(array(
-					'room_id' => $locNew['room_id'],
-					'room_event_id' => false,
-					'parentParams' => $params['parentParams']
-				));
-
-				$locNew = $roomEventId ? 'calendar_'.$locNew['room_id'].'_'.$roomEventId : '';
-			}
-			else
-			{
-				$locNew = $locNew['str'];
-			}
-
+		if ($locNew)
+		{
 			$res = $locNew;
 		}
 
@@ -3194,34 +3243,6 @@ class CCalendar
 		return true;
 	}
 
-	public static function GetUserManagers($userId, $bReturnIds = false)
-	{
-		if (!isset(self::$userManagers[$userId]))
-		{
-			$rsUser = CUser::GetByID($userId);
-			if($arUser = $rsUser->Fetch())
-			{
-				self::SetUserDepartment($userId, $arUser["UF_DEPARTMENT"]);
-				self::$userManagers[$userId] = CIntranetUtils::GetDepartmentManager($arUser["UF_DEPARTMENT"], $arUser["ID"], true);
-			}
-			else
-			{
-				self::$userManagers[$userId] = false;
-			}
-		}
-
-		if (!$bReturnIds)
-			return self::$userManagers[$userId];
-
-		$res = array();
-		if (is_array(self::$userManagers[$userId]))
-		{
-			foreach(self::$userManagers[$userId] as $user)
-				$res[] = $user['ID'];
-		}
-		return $res;
-	}
-
 	public static function IsSocnetAdmin()
 	{
 		if (!isset(self::$bCurUserSocNetAdmin))
@@ -3254,7 +3275,9 @@ class CCalendar
 	public static function GetDestinationUsers($codes, $fetchUsers = false)
 	{
 		if (!Main\Loader::includeModule('socialnetwork'))
+		{
 			return array();
+		}
 		$users = \CSocNetLogDestination::getDestinationUsers($codes, $fetchUsers);
 		if ($fetchUsers)
 		{
@@ -3397,7 +3420,10 @@ class CCalendar
 
 	public static function GetSocNetDestination($user_id = false, $selected = array(), $userList = array())
 	{
-		\Bitrix\Main\Loader::includeModule("socialnetwork");
+		if (!\Bitrix\Main\Loader::includeModule("socialnetwork"))
+		{
+			return false;
+		}
 
 		global $CACHE_MANAGER;
 
@@ -3492,7 +3518,6 @@ class CCalendar
 
 		// intranet structure
 		$arStructure = CSocNetLogDestination::GetStucture();
-		//$arStructure = CSocNetLogDestination::GetStucture(array("LAZY_LOAD" => true));
 		$DESTINATION['DEPARTMENT'] = $arStructure['department'];
 		$DESTINATION['DEPARTMENT_RELATION'] = $arStructure['department_relation'];
 		$DESTINATION['DEPARTMENT_RELATION_HEAD'] = $arStructure['department_relation_head'];
@@ -4360,18 +4385,26 @@ class CCalendar
 		return $offset;
 	}
 
-	public static function GetUserTimezoneName($user)
+	public static function GetUserTimezoneName($user, $getDefault = true)
 	{
 		if (!is_array($user) && intVal($user) > 0)
+		{
 			$user = self::GetUser($user, true);
+		}
+		$offset = self::GetCurrentOffsetUTC($user['ID']);
 
-		$tzName = CUserOptions::GetOption("calendar", "timezone".self::GetCurrentOffsetUTC($user['ID']), false, $user['ID']);
+		$tzName = CUserOptions::GetOption("calendar", "timezone".$offset, false, $user['ID']);
 		if ($tzName === 'undefined' || $tzName === 'false')
 			$tzName = false;
 
 		if (!$tzName && $user['AUTO_TIME_ZONE'] !== 'Y' && $user['TIME_ZONE'])
 		{
 			$tzName = $user['TIME_ZONE'];
+		}
+
+		if (!$tzName && $getDefault)
+		{
+			$tzName = self::GetGoodTimezoneForOffset($offset);
 		}
 
 		return $tzName;
@@ -5103,7 +5136,8 @@ class CCalendar
 		$res = CCalendarSect::GetList(
 			array(
 				'arFilter' => $arFilter,
-				'checkPermissions' => $params['checkPermissions']
+				'checkPermissions' => $params['checkPermissions'],
+				'getPermissions' => $params['getPermissions']
 			)
 		);
 		return $res;

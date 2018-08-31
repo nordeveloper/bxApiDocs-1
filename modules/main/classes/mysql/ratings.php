@@ -671,6 +671,8 @@ class CRatings extends CAllRatings
 	{
 		global $DB, $USER;
 
+		$externalAuthTypes = array_diff(\Bitrix\Main\UserTable::getExternalUserTypes(), array('email'));
+
 		return "
 			SELECT
 				U.ID,
@@ -686,7 +688,7 @@ class CRatings extends CAllRatings
 				b_rating_vote RV LEFT JOIN b_rating_vote RV0 ON RV0.USER_ID = ".intval($USER->GetId())." and RV0.OWNER_ID = RV.USER_ID,
 				b_user U
 			WHERE
-				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", \Bitrix\Main\UserTable::getExternalUserTypes())."') THEN 'Y' ELSE 'N' END) = 'N'
+				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", $externalAuthTypes)."') THEN 'Y' ELSE 'N' END) = 'N'
 				AND RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
 				and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
 				and RV.USER_ID = U.ID
@@ -700,6 +702,8 @@ class CRatings extends CAllRatings
 	{
 		global $DB, $USER;
 
+		$externalAuthTypes = array_diff(\Bitrix\Main\UserTable::getExternalUserTypes(), array('email'));
+
 		return "
 			SELECT
 				U.ID,
@@ -710,7 +714,7 @@ class CRatings extends CAllRatings
 				b_rating_vote RV LEFT JOIN b_rating_vote RV0 ON RV0.USER_ID = ".intval($USER->GetId())." and RV0.OWNER_ID = RV.USER_ID,
 				b_user U
 			WHERE
-				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", \Bitrix\Main\UserTable::getExternalUserTypes())."') THEN 'Y' ELSE 'N' END) = 'N'
+				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", $externalAuthTypes)."') THEN 'Y' ELSE 'N' END) = 'N'
 				AND RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
 				and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
 				and RV.USER_ID = U.ID

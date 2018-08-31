@@ -36,17 +36,17 @@ class Sender
 
 	public static function getCustomSmtp($email)
 	{
-		static $customSmtp;
+		static $smtp = array();
 
-		if (is_null($customSmtp))
+		if (!isset($smtp[$email]))
 		{
-			$customSmtp = false;
+			$config = false;
 
 			$cache = new \CPHPCache();
 
 			if ($cache->initCache(30*24*3600, $email, '/main/mail/smtp'))
 			{
-				$customSmtp = $cache->getVars();
+				$config = $cache->getVars();
 			}
 			else
 			{
@@ -57,34 +57,36 @@ class Sender
 					),
 					'order' => array(
 						'ID' => 'DESC',
-					)
+					),
 				));
 				while ($item = $res->fetch())
 				{
 					if (!empty($item['OPTIONS']['smtp']['server']) && empty($item['OPTIONS']['smtp']['encrypted']))
 					{
-						$customSmtp = $item['OPTIONS']['smtp'];
+						$config = $item['OPTIONS']['smtp'];
 						break;
 					}
 				}
 
 				$cache->startDataCache();
-				$cache->endDataCache($customSmtp);
+				$cache->endDataCache($config);
 			}
 
-			if ($customSmtp)
+			if ($config)
 			{
-				$customSmtp = new Smtp\Config(array(
+				$config = new Smtp\Config(array(
 					'from' => $email,
-					'host' => $customSmtp['server'],
-					'port' => $customSmtp['port'],
-					'login' => $customSmtp['login'],
-					'password' => $customSmtp['password'],
+					'host' => $config['server'],
+					'port' => $config['port'],
+					'login' => $config['login'],
+					'password' => $config['password'],
 				));
 			}
+
+			$smtp[$email] = $config;
 		}
 
-		return $customSmtp;
+		return $smtp[$email];
 	}
 
 	public static function applyCustomSmtp($event)

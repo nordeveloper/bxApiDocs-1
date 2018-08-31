@@ -109,6 +109,39 @@ class User
 	/**
 	 * @return string
 	 */
+	public function getAvatarHr()
+	{
+		$fields = $this->getFields();
+		if (!$fields)
+		{
+			return '';
+		}
+
+		if (array_key_exists('avatar_hr', $fields))
+		{
+			return $fields['avatar_hr'];
+		}
+		else if ($fields['avatar_id'])
+		{
+			$avatar = \CFile::ResizeImageGet(
+				$fields['avatar_id'],
+				array('width' => 200, 'height' => 200),
+				BX_RESIZE_IMAGE_EXACT,
+				false,
+				false,
+				true
+			);
+			$this->userData['user']['avatar_hr'] = $avatar['src'];
+
+			return $avatar['src'];
+		}
+
+		return '';
+	}
+
+	/**
+	 * @return string
+	 */
 	public function getStatus()
 	{
 		$fields = $this->getFields();
@@ -445,6 +478,10 @@ class User
 			'ABSENT' => $this->isAbsent(),
 			'PHONES' => $this->getPhones(),
 		);
+		if ($options['HR_PHOTO'])
+		{
+			$result['AVATAR_HR'] = $this->getAvatarHr();
+		}
 
 		if ($options['JSON'])
 		{
@@ -454,7 +491,7 @@ class User
 				{
 					$result[$key] = date('c', $value->getTimestamp());
 				}
-				else if ($key == 'AVATAR' && is_string($value) && $value && strpos($value, 'http') !== 0)
+				else if (in_array($key, ['AVATAR', 'AVATAR_HR']) && is_string($value) && $value && strpos($value, 'http') !== 0)
 				{
 					$result[$key] = \Bitrix\Im\Common::getPublicDomain().$value;
 				}
@@ -586,11 +623,12 @@ class User
 			$filterOffset = false;
 		}
 
-		$filter = self::getListFilter($params);
-		if (is_null($filter))
+		$ormParams = self::getListParams($params);
+		if (is_null($ormParams))
 		{
 			return false;
 		}
+		$filter = $ormParams['filter'];
 		$filter['ACTIVE'] = 'Y';
 
 		$intranetInstalled = \Bitrix\Main\Loader::includeModule('intranet');
@@ -652,6 +690,18 @@ class User
 				true
 			);
 
+			if ($params['HR_PHOTO'])
+			{
+				$tmpFileHr = \CFile::ResizeImageGet(
+					$user["PERSONAL_PHOTO"],
+					array('width' => 200, 'height' => 200),
+					BX_RESIZE_IMAGE_EXACT,
+					false,
+					false,
+					true
+				);
+			}
+
 			$color = false;
 			if (isset($user['COLOR']) && strlen($user['COLOR']) > 0)
 			{
@@ -684,6 +734,10 @@ class User
 				'DEPARTMENTS' => is_array($user['UF_DEPARTMENT']) && !empty($user['UF_DEPARTMENT'])? $user['UF_DEPARTMENT']: [],
 				'ABSENT' => \CIMContactList::formatAbsentResult($user["ID"]),
 			);
+			if ($params['HR_PHOTO'])
+			{
+				$users[$user["ID"]]['AVATAR_HR'] = !empty($tmpFileHr['src'])? $tmpFileHr['src']: '';
+			}
 
 			if ($voximplantInstalled)
 			{
@@ -727,7 +781,7 @@ class User
 					{
 						$users[$key][$field] = date('c', $value->getTimestamp());
 					}
-					else if (is_string($value) && $value && in_array($field, Array('AVATAR')) && strpos($value, 'http') !== 0)
+					else if (is_string($value) && $value && in_array($field, Array('AVATAR', 'AVATAR_HR')) && strpos($value, 'http') !== 0)
 					{
 						$users[$key][$field] = \Bitrix\Im\Common::getPublicDomain().$value;
 					}
@@ -743,7 +797,7 @@ class User
 		return $users;
 	}
 
-	public static function getListFilter($params)
+	public static function getListParams($params)
 	{
 		if (isset($params['FILTER']['SEARCH']))
 		{
@@ -820,7 +874,7 @@ class User
 			$filter['=ID'] = array_keys($filterByUsers);
 		}
 
-		return $filter;
+		return ['filter' => $filter];
 	}
 
 	public static function getBusiness($userId = null, $options = array())

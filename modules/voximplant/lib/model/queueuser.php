@@ -32,7 +32,7 @@ class QueueUserTable extends Entity\DataManager
 				'size' => 50
 			)),
 			'LAST_ACTIVITY_DATE' => new Entity\DatetimeField('LAST_ACTIVITY_DATE'),
-			'USER' => new Entity\ReferenceField('USER', '\Bitrix\Main\User', array(
+			'USER' => new Entity\ReferenceField('USER', '\Bitrix\Voximplant\Model\User', array(
 				'=this.USER_ID' => 'ref.ID'
 			)),
 			'QUEUE' => new Entity\ReferenceField('QUEUE', QueueTable::getEntity(), array(

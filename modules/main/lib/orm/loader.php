@@ -24,52 +24,53 @@ class Loader
 	/** @var DataManager[] Entity registers its collection class on init */
 	protected static $predefinedCollectionClass;
 
-	public static function autoLoad($className)
+	public static function autoLoad($class)
 	{
 		// break recursion
-		if (substr($className, -5) == 'Table')
+		if (substr($class, -5) == 'Table')
 		{
 			return;
 		}
 
-		$className = Entity::normalizeName($className);
+		$namespace = substr($class, 0, strrpos($class, '\\')+1);
+		$className = substr($class, strrpos($class, '\\') + 1);
 
-		if (isset(static::$predefinedObjectClass[strtolower($className)]))
+		if (substr($className, 0, 3) == 'EO_')
 		{
-			// check for predefined object class
-			$tryDataClass = static::$predefinedObjectClass[strtolower($className)];
-
-			$entity = $tryDataClass::getEntity();
-			$entity->compileObjectClass();
-		}
-		elseif (isset(static::$predefinedCollectionClass[strtolower($className)]))
-		{
-			// check for predefined collection class
-			$tryDataClass = static::$predefinedCollectionClass[strtolower($className)];
-
-			$entity = $tryDataClass::getEntity();
-			$entity->compileCollectionClass();
-		}
-		else
-		{
-			// search for data class
 			$needFor = 'object';
-			$tryDataClass = $className.'Table';
 
-			if (substr($className, -10) == 'Collection')
+			if ($className == 'EO_NNM_Object')
+			{
+				// entity without name, defined by namespace
+				$entityName = '';
+			}
+			elseif (substr($className, -10) == 'Collection')
 			{
 				$needFor = 'collection';
-				$tryDataClass = substr($className, 0, -10).'Table';
+				$entityName = substr($className, 3, -10);
+			}
+			else
+			{
+				$entityName = substr($className, 3);
 			}
 
-			if (class_exists($tryDataClass) && is_subclass_of($tryDataClass, DataManager::class))
-			{
-				/** @var DataManager $tryDataClass */
-				$entity = $tryDataClass::getEntity();
+			$entityName .= 'Table';
+			$entityClass = $namespace.$entityName;
 
-				$needFor == 'object'
+			if (class_exists($entityClass) && is_subclass_of($entityClass, DataManager::class))
+			{
+				/** @var DataManager $entityClass */
+				$entity = $entityClass::getEntity();
+
+				$realClass = ($needFor == 'object')
 					? $entity->compileObjectClass()
 					: $entity->compileCollectionClass();
+
+				if (Entity::normalizeName($realClass) !== Entity::normalizeName($class))
+				{
+					// custom class defined, we support compatibility with default classes
+					class_alias($realClass, $class);
+				}
 			}
 		}
 	}

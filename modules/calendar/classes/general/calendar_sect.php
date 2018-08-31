@@ -259,20 +259,19 @@ class CCalendarSect
 				$sectId = $sect['ID'];
 				$bOwner = $sect['CAL_TYPE'] == 'user' && $sect['OWNER_ID'] == $userId;
 
-				$bManager = false;
-				if(\Bitrix\Main\Loader::includeModule('intranet') && $sect['CAL_TYPE'] == 'user' && $settings['dep_manager_sub'])
+				if(!$userId)
 				{
-					if(!$userId)
-						$userId = CCalendar::GetUserId();
-					$bManager = in_array($userId, CCalendar::GetUserManagers($sect['OWNER_ID'], true));
+					$userId = CCalendar::GetUserId();
 				}
 
-				if($bOwner || $bManager || self::CanDo('calendar_view_time', $sectId, $userId))
+				$isManager = \Bitrix\Main\Loader::includeModule('intranet') && $sect['CAL_TYPE'] == 'user' && $settings['dep_manager_sub'] && Bitrix\Calendar\Util::isManagerForUser($userId, $sect['OWNER_ID']);
+
+				if($bOwner || $isManager || self::CanDo('calendar_view_time', $sectId, $userId))
 				{
 					$sect['PERM'] = array(
-							'view_time' => $bManager || $bOwner || self::CanDo('calendar_view_time', $sectId, $userId),
-							'view_title' => $bManager || $bOwner || self::CanDo('calendar_view_title', $sectId, $userId),
-							'view_full' => $bManager || $bOwner || self::CanDo('calendar_view_full', $sectId, $userId),
+							'view_time' => $isManager || $bOwner || self::CanDo('calendar_view_time', $sectId, $userId),
+							'view_title' => $isManager || $bOwner || self::CanDo('calendar_view_title', $sectId, $userId),
+							'view_full' => $isManager || $bOwner || self::CanDo('calendar_view_full', $sectId, $userId),
 							'add' => $bOwner || self::CanDo('calendar_add', $sectId, $userId),
 							'edit' => $bOwner || self::CanDo('calendar_edit', $sectId, $userId),
 							'edit_section' => $bOwner || self::CanDo('calendar_edit_section', $sectId, $userId),
@@ -687,10 +686,10 @@ class CCalendarSect
 		return true;
 	}
 
-	public static function CreateDefault($Params = array())
+	public static function CreateDefault($params = array())
 	{
-		if ($Params['type'] == 'user' || $Params['type'] == 'group')
-			$name = CCalendar::GetOwnerName($Params['type'], $Params['ownerId']);
+		if ($params['type'] == 'user' || $params['type'] == 'group')
+			$name = CCalendar::GetOwnerName($params['type'], $params['ownerId']);
 		else
 			$name = GetMessage('EC_DEF_SECT_GROUP_CAL');
 
@@ -698,13 +697,13 @@ class CCalendarSect
 		if ($userId > 0)
 		{
 			$arFields = Array(
-				'CAL_TYPE' => $Params['type'],
+				'CAL_TYPE' => $params['type'],
 				'NAME' => $name,
 				'DESCRIPTION' => GetMessage('EC_DEF_SECT_DESC'),
 				'COLOR' => CCalendar::Color(),
-				'OWNER_ID' => $Params['ownerId'],
+				'OWNER_ID' => $params['ownerId'],
 				'IS_EXCHANGE' => 0,
-				'ACCESS' => CCalendarSect::GetDefaultAccess($Params['type'], $Params['ownerId']),
+				'ACCESS' => CCalendarSect::GetDefaultAccess($params['type'], $params['ownerId']),
 				'PERM' => array(
 					'view_time' => true,
 					'view_title' => true,

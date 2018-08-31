@@ -7,11 +7,19 @@ use Bitrix\Main\IO\File;
 
 class Extension
 {
-	public static function load($extName)
+	public static function load($extNames)
 	{
-		if (static::register($extName))
+		if (!is_array($extNames))
 		{
-			\CJSCore::init($extName);
+			$extNames = [$extNames];
+		}
+
+		foreach ($extNames as $extName)
+		{
+			if (static::register($extName))
+			{
+				\CJSCore::init($extName);
+			}
 		}
 	}
 

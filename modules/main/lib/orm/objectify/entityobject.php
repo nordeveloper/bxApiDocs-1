@@ -8,6 +8,7 @@
 
 namespace Bitrix\Main\ORM\Objectify;
 
+use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\ORM\Entity;
 use Bitrix\Main\ORM\Fields\ExpressionField;
 use Bitrix\Main\ORM\Fields\IReadable;
@@ -56,8 +57,14 @@ abstract class EntityObject implements \ArrayAccess
 	protected $actualValues = [];
 
 	/**
-	 * Current values - actual or rewritten by setter (except changed collections - they are still in actual values)
+	 * Current values - new or rewritten by setter (except changed collections - they are still in actual values)
 	 * @var mixed[]|static[]
+	 */
+	protected $currentValues = [];
+
+	/**
+	 * Container for non-entity data
+	 * @var mixed[]
 	 */
 	protected $runtimeValues = [];
 
@@ -87,10 +94,14 @@ abstract class EntityObject implements \ArrayAccess
 	 * DataManager (Table) class. Can be overridden.
 	 *
 	 * @return string|\Bitrix\Main\ORM\Data\DataManager
+	 * @throws NotImplementedException
 	 */
 	public static function dataClass()
 	{
-		return get_called_class().'Table';
+		throw new NotImplementedException(sprintf(
+			'You should override static method dataClass() in %s class. Name of Table class of entity should be returned.',
+			get_called_class()
+		));
 	}
 
 	/**
@@ -146,11 +157,11 @@ abstract class EntityObject implements \ArrayAccess
 			case Values::ACTUAL:
 				$objectValues = $this->actualValues;
 				break;
-			case Values::RUNTIME:
-				$objectValues = $this->runtimeValues;
+			case Values::CURRENT:
+				$objectValues = $this->currentValues;
 				break;
 			default:
-				$objectValues = array_merge($this->actualValues, $this->runtimeValues);
+				$objectValues = array_merge($this->actualValues, $this->currentValues);
 		}
 
 		// filter with field mask
@@ -192,7 +203,7 @@ abstract class EntityObject implements \ArrayAccess
 
 		if ($this->state == State::RAW)
 		{
-			$data = $this->runtimeValues;
+			$data = $this->currentValues;
 			$data['__object'] = $this;
 
 			// put secret key __object to array
@@ -213,9 +224,9 @@ abstract class EntityObject implements \ArrayAccess
 		elseif ($this->state == State::CHANGED)
 		{
 			// changed scalar and reference
-			if (!empty($this->runtimeValues))
+			if (!empty($this->currentValues))
 			{
-				$data = $this->runtimeValues;
+				$data = $this->currentValues;
 				$data['__object'] = $this;
 
 				// put secret key __object to array
@@ -256,8 +267,8 @@ abstract class EntityObject implements \ArrayAccess
 			return $result;
 		}
 
-		// clear runtime values
-		$this->runtimeValues = [];
+		// clear current values
+		$this->currentValues = [];
 
 		// change state
 		$this->sysChangeState(State::ACTUAL);
@@ -715,6 +726,54 @@ abstract class EntityObject implements \ArrayAccess
 	}
 
 	/**
+	 * Query Runtime Field values or just any runtime value getter
+	 *
+	 * @param $name
+	 *
+	 * @return mixed
+	 */
+	public function runtimeGet($name)
+	{
+		return $this->runtimeValues[$name];
+	}
+
+	/**
+	 * Any runtime value setter
+	 *
+	 * @param $name
+	 * @param $value
+	 *
+	 * @return $this
+	 */
+	public function runtimeSet($name, $value)
+	{
+		$this->runtimeValues[$name] = $value;
+
+		return $this;
+	}
+
+	/**
+	 * Returns all Query Runtime Field values and all runtime values
+	 *
+	 * @return mixed[]
+	 */
+	public function runtimeAll()
+	{
+		return $this->runtimeValues;
+	}
+
+	/**
+	 * @see EntityObject::runtimeGet()
+	 * @param $name
+	 *
+	 * @return mixed
+	 */
+	public function runtime($name)
+	{
+		return $this->runtimeGet($name);
+	}
+
+	/**
 	 * Sets actual value. For internal system usage only.
 	 *
 	 * @param $fieldName
@@ -778,9 +837,9 @@ abstract class EntityObject implements \ArrayAccess
 	{
 		$fieldName = strtoupper($fieldName);
 
-		if (array_key_exists($fieldName, $this->runtimeValues))
+		if (array_key_exists($fieldName, $this->currentValues))
 		{
-			return $this->runtimeValues[$fieldName];
+			return $this->currentValues[$fieldName];
 		}
 		else
 		{
@@ -857,7 +916,7 @@ abstract class EntityObject implements \ArrayAccess
 				if ($field->cast($value) === $this->actualValues[$fieldName])
 				{
 					// forget previous runtime change
-					unset($this->runtimeValues[$fieldName]);
+					unset($this->currentValues[$fieldName]);
 					return $this;
 				}
 			}
@@ -867,7 +926,7 @@ abstract class EntityObject implements \ArrayAccess
 				if ($value->primary() === $this->actualValues[$fieldName]->primary())
 				{
 					// forget previous runtime change
-					unset($this->runtimeValues[$fieldName]);
+					unset($this->currentValues[$fieldName]);
 					return $this;
 				}
 			}
@@ -876,12 +935,12 @@ abstract class EntityObject implements \ArrayAccess
 		// set value
 		if ($field instanceof ScalarField || $field instanceof UserTypeField)
 		{
-			$this->runtimeValues[$fieldName] = $value;
+			$this->currentValues[$fieldName] = $value;
 		}
 		elseif ($field instanceof Reference)
 		{
 			/** @var static $value */
-			$this->runtimeValues[$fieldName] = $value;
+			$this->currentValues[$fieldName] = $value;
 
 			// set elemental fields if there are any
 			$elementals = $field->getElementals();
@@ -914,7 +973,7 @@ abstract class EntityObject implements \ArrayAccess
 	{
 		$fieldName = strtoupper($fieldName);
 
-		unset($this->runtimeValues[$fieldName]);
+		unset($this->currentValues[$fieldName]);
 		unset($this->actualValues[$fieldName]);
 
 		return $this;
@@ -924,7 +983,7 @@ abstract class EntityObject implements \ArrayAccess
 	{
 		$fieldName = strtoupper($fieldName);
 
-		unset($this->runtimeValues[$fieldName]);
+		unset($this->currentValues[$fieldName]);
 
 		return $this;
 	}
@@ -1033,11 +1092,11 @@ abstract class EntityObject implements \ArrayAccess
 					$mediatorObject->sysSetValue($remoteReferenceName, $remoteObject);
 
 					// add or remove mediator depending on changeType
-					if ($changeType == Collection::RUNTIME_ADDED)
+					if ($changeType == Collection::OBJECT_ADDED)
 					{
 						$mediatorObject->save();
 					}
-					elseif ($changeType == Collection::RUNTIME_REMOVED)
+					elseif ($changeType == Collection::OBJECT_REMOVED)
 					{
 						// destroy directly through data class
 						$mediatorDataClass = $field->getMediatorEntity()->getDataClass();
@@ -1206,6 +1265,17 @@ abstract class EntityObject implements \ArrayAccess
 	 */
 	public function offsetGet($offset)
 	{
+		if ($this->offsetExists($offset))
+		{
+			// regular field
+			return $this->get($offset);
+		}
+		elseif (array_key_exists($offset, $this->runtimeValues))
+		{
+			// runtime field
+			return $this->runtimeGet($offset);
+		}
+
 		return $this->offsetExists($offset) ? $this->get($offset) : null;
 	}
 

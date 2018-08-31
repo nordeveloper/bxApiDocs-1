@@ -204,22 +204,30 @@ class ChainElement
 			throw new SystemException('Unknown value');
 		}
 
+		$helper = $this->value->getEntity()->getConnection()->getSqlHelper();
+
 		if ($this->value instanceof ExpressionField)
 		{
-			$SQLBuildFrom = array();
+			$SQLBuildFrom = [];
 
 			foreach ($this->value->getBuildFromChains() as $chain)
 			{
 				$SQLBuildFrom[] = $chain->getSQLDefinition();
 			}
 
+			$expr = $this->value->getExpression();
+
+			// insert talias
+			if (strpos($expr, '%%TABLE_ALIAS') !== false)
+			{
+				$expr = str_replace('%%TABLE_ALIAS', $helper->quote($this->getParameter('talias')), $expr);
+			}
+
 			// join
-			$sql = call_user_func_array('sprintf', array_merge(array($this->value->getExpression()), $SQLBuildFrom));
+			$sql = call_user_func_array('sprintf', array_merge([$expr], $SQLBuildFrom));
 		}
 		else
 		{
-			$helper = $this->value->getEntity()->getConnection()->getSqlHelper();
-
 			$sql = $helper->quote($this->getParameter('talias')) . '.';
 			$sql .= $helper->quote($this->value->getColumnName());
 		}

@@ -345,78 +345,6 @@ class CVoxImplantMain
 		return md5($key."|".md5($userInfo['user_login'].":voximplant.com:".$userInfo['user_password']));
 	}
 
-	public static function CallStart($callId, $userId, $callDevice = 'WEBRTC', $external = false)
-	{
-		// TODO check $callId, $userId
-		$call = VI\CallTable::getByCallId($callId);
-		if(!$call)
-			return false;
-
-		$crmData = false;
-		if ($call['CRM_LEAD'] > 0)
-		{
-			CVoxImplantCrmHelper::UpdateLead($call['CRM_LEAD'], Array('ASSIGNED_BY_ID' => $userId));
-			$crmData = CVoxImplantCrmHelper::GetDataForPopup($call['CALL_ID'], $call['CALLER_ID'], $userId);
-		}
-
-		$callRecord = array('STATUS' => Bitrix\Voximplant\CallTable::STATUS_CONNECTED);
-		if(!$call['PORTAL_USER_ID'])
-			$callRecord['USER_ID'] = $userId;
-
-		Bitrix\Voximplant\CallTable::update($call['ID'], $callRecord);
-		static::sendCallStartEvent(array(
-			'CALL_ID' => $call['CALL_ID'],
-			'USER_ID' => $userId,
-		));
-
-		if ($call['PORTAL_USER_ID'] > 0)
-		{
-			$pushUser = array(
-				$call['USER_ID'],
-				$call['PORTAL_USER_ID']
-			);
-		}
-		else
-		{
-			$pushUser = array($userId);
-		}
-
-		self::SendPullEvent(Array(
-			'COMMAND' => 'start',
-			'USER_ID' => $pushUser,
-			'CALL_ID' => $callId,
-			'CALL_DEVICE' => $callDevice,
-			'EXTERNAL' => $external? true: false,
-			'CRM' => $crmData,
-		));
-	}
-
-	public static function CallHold($callId, $result = false)
-	{
-		$res = VI\CallTable::getList(Array(
-			'select' => Array('ID', 'CALL_ID', 'CALLER_ID', 'USER_ID', 'TRANSFER_USER_ID', 'ACCESS_URL'),
-			'filter' => Array('=CALL_ID' => $callId),
-		));
-		$call = $res->fetch();
-		if (!$call)
-			return false;
-
-		$answer['COMMAND'] = $result? 'hold': 'unhold';
-		$answer['OPERATOR_ID'] = $call['USER_ID'];
-
-		$http = new \Bitrix\Main\Web\HttpClient();
-		$http->waitResponse(false);
-		$http->post($call['ACCESS_URL'], json_encode($answer));
-
-		self::SendPullEvent(Array(
-			'COMMAND' => $result? 'hold': 'unhold',
-			'USER_ID' => $call['USER_ID'],
-			'CALL_ID' => $call['CALL_ID']
-		));
-
-		return true;
-	}
-
 	public static function SendPullEvent($params)
 	{
 		if (!CModule::IncludeModule('pull') || !CPullOptions::GetQueueServerStatus() || $params['USER_ID'] <= 0)
@@ -429,18 +357,11 @@ class CVoxImplantMain
 			$config = Array(
 				"callId" => $params['CALL_ID'],
 				"callDevice" => $params['CALL_DEVICE'] == 'PHONE'? 'PHONE': 'WEBRTC',
-				"external" => $params['EXTERNAL']? true: false,
 				"CRM" => $params['CRM']? $params['CRM']: false,
 			);
 			$push['send_immediately'] = 'Y';
 			$push['advanced_params'] = Array(
 				"notificationsToCancel" => array('VI_CALL_'.$params['CALL_ID']),
-			);
-		}
-		else if ($params['COMMAND'] == 'hold' || $params['COMMAND'] == 'unhold')
-		{
-			$config = Array(
-				"callId" => $params['CALL_ID'],
 			);
 		}
 		else if ($params['COMMAND'] == 'timeout')

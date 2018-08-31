@@ -17,6 +17,9 @@ class CVoxImplantIncoming
 	const RULE_QUEUE = 'queue';
 	const RULE_NEXT_QUEUE = 'next_queue';
 
+	const COMMAND_INVITE = 'invite';
+	const COMMAND_ENQUEUE = 'enqueue';
+	const COMMAND_DEQUEUE = 'dequeue';
 	const COMMAND_BUSY = 'busy';
 	const COMMAND_INTERCEPT = 'interceptCall';
 
@@ -93,15 +96,15 @@ class CVoxImplantIncoming
 		$result = Array('COMMAND' => CVoxImplantIncoming::RULE_QUEUE);
 		$firstUserId = 0;
 
-		$config = CVoxImplantConfig::GetConfigBySearchId($params['SEARCH_ID']);
-		$call = VI\CallTable::getByCallId($params['CALL_ID']);
-		$routeFound = false;
+		$call = VI\Call::load($params['CALL_ID']);
 		if(!$call)
+		{
 			return false;
+		}
+		$routeFound = false;
 
-		VI\CallTable::update($call['ID'], array(
-			'SESSION_ID' => $params['SESSION_ID']
-		));
+		$call->updateSessionId($params['SESSION_ID']);
+		$config = $call->getConfig();
 
 		if (!$config)
 		{
@@ -117,7 +120,7 @@ class CVoxImplantIncoming
 				$userData = self::getUserByDirectCode($directCode, ($config['TIMEMAN'] == 'Y'));
 				if(is_array($userData) && $userData['AVAILABLE'] == 'Y')
 				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_WAIT;
+					$result['COMMAND'] = CVoxImplantIncoming::COMMAND_INVITE;
 					$result['TYPE_CONNECT'] = self::TYPE_CONNECT_SIP;
 					$result['USER_ID'] = $userData['USER_ID'];
 					$result['USER_HAVE_PHONE'] = $userData['USER_HAVE_PHONE'];
@@ -135,7 +138,7 @@ class CVoxImplantIncoming
 			{
 				if($userData['AVAILABLE'] == 'Y')
 				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_WAIT;
+					$result['COMMAND'] = CVoxImplantIncoming::COMMAND_INVITE;
 					$result['TYPE_CONNECT'] = self::TYPE_CONNECT_DIRECT;
 					$result['USER_ID'] = $userData['USER_ID'];
 					$result['USER_HAVE_PHONE'] = $userData['USER_HAVE_PHONE'];
@@ -188,7 +191,7 @@ class CVoxImplantIncoming
 			{
 				if($userData['AVAILABLE'] == 'Y')
 				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_WAIT;
+					$result['COMMAND'] = CVoxImplantIncoming::COMMAND_INVITE;
 					$result['TYPE_CONNECT'] = self::TYPE_CONNECT_CRM;
 					$result['USER_ID'] = $userData['USER_ID'];
 					$result['USER_HAVE_PHONE'] = $userData['USER_HAVE_PHONE'];
@@ -225,15 +228,13 @@ class CVoxImplantIncoming
 			}
 		}
 
-		if (!$routeFound)
+		if ($routeFound)
 		{
-			$queueId = $config['QUEUE_ID'];
-
-			if(!$queueId)
-			{
-				$queueId = CVoxImplantMain::getDefaultGroupId();
-			}
-
+			$call->moveToUser($result['USER_ID']);
+		}
+		else
+		{
+			$queueId = $config['QUEUE_ID'] ?: CVoxImplantMain::getDefaultGroupId();
 			if(!$queueId)
 			{
 				$result = array(
@@ -242,8 +243,8 @@ class CVoxImplantIncoming
 				);
 				return $result;
 			}
-			$queueConfig = VI\Model\QueueTable::getById($queueId)->fetch();
 
+			$queueConfig = VI\Model\QueueTable::getById($queueId)->fetch();
 			if(!$queueConfig)
 			{
 				$result = array(
@@ -253,10 +254,7 @@ class CVoxImplantIncoming
 				return $result;
 			}
 
-			VI\CallTable::update($call['ID'], array(
-				'QUEUE_ID' => $queueId
-			));
-			$call['QUEUE_ID'] = $queueId;
+			$call->moveToQueue($queueId);
 
 			if ($queueConfig['TYPE'] == CVoxImplantConfig::QUEUE_TYPE_ALL)
 			{
@@ -265,7 +263,6 @@ class CVoxImplantIncoming
 					'CALL_ID' => $params['CALL_ID'],
 					'CALLER_ID' => $params['CALLER_ID'],
 					'LAST_TYPE_CONNECT' => self::TYPE_CONNECT_QUEUE,
-					'SEND_INVITE' => 'N',
 					'CONFIG' => $config,
 				));
 			}
@@ -278,9 +275,6 @@ class CVoxImplantIncoming
 					'LAST_USER_ID' => 0,
 					'LAST_TYPE_CONNECT' => self::TYPE_CONNECT_QUEUE,
 					'LAST_ANSWER_USER_ID' => 0,
-					'FIRST_EXEC' => 'Y',
-					'SEND_INVITE' => 'N',
-					'CONFIG' => $config,
 				));
 			}
 
@@ -289,46 +283,32 @@ class CVoxImplantIncoming
 
 		if((int)$result['USER_ID'] === 0)
 		{
-			// if responsible is not defined yet, then activity will be created for the first user of the default queue
-			$queue = VI\Queue::createWithId($config['QUEUE_ID']);
-			if($queue instanceof VI\Queue)
+			if(is_array($result['USERS']) && count($result['USERS']) > 0)
 			{
-				$result['USER_ID'] = $queue->getFirstUserId(false);
+				$result['USER_ID'] = $result['USERS'][0];
 			}
-		}
-
-		if($config['CRM'] == 'Y')
-		{
-			CVoxImplantCrmHelper::StartCallTrigger($call['CALL_ID']);
-		}
-
-		if ($result['USER_ID'] > 0)
-		{
-			$call['USER_ID'] = $result['USER_ID'];
-			CVoxImplantCrmHelper::registerCallInCrm($call);
-		}
-
-		if ($result['COMMAND'] == CVoxImplantIncoming::RULE_WAIT)
-		{
-			if ($result['USER_ID'] > 0 || count($result['USERS']) > 0)
+			else
 			{
-				if ($call !== false)
+				// if responsible is not defined yet, then activity will be created for the first user of the default queue
+				$queue = VI\Queue::createWithId($config['QUEUE_ID']);
+				if($queue instanceof VI\Queue)
 				{
-					$queueHistory = is_array($call['QUEUE_HISTORY']) ? $call['QUEUE_HISTORY'] : array();
-					$queueHistory[] = $result['USER_ID'];
-					VI\CallTable::update(
-						$call['ID'],
-						array(
-							'USER_ID' => $result['USER_ID'],
-							'QUEUE_HISTORY' => $queueHistory
-						)
-					);
+					$result['USER_ID'] = $queue->getFirstUserId(false);
 				}
 			}
 		}
 
+		if ($result['USER_ID'] > 0)
+		{
+			$call->updateUserId($result['USER_ID']);
+			CVoxImplantCrmHelper::registerCallInCrm($call);
+		}
+
+		//todo: remove this parameter from scenario. it does not seem to be used
 		if ($firstUserId > 0)
+		{
 			$result['FIRST_USER_ID'] = $firstUserId;
+		}
 
 		return $result;
 	}
@@ -338,9 +318,11 @@ class CVoxImplantIncoming
 		$callId = $params['CALL_ID'];
 		$queueId = $params['QUEUE_ID'];
 
-		$call = VI\CallTable::getByCallId($callId);
+		$call = VI\Call::load($callId);
 		if(!$call)
+		{
 			return false;
+		}
 
 		$queue = VI\Queue::createWithId($queueId);
 		if(!$queue)
@@ -352,27 +334,15 @@ class CVoxImplantIncoming
 			return $result;
 		}
 
-		foreach ($call['QUEUE_HISTORY'] as $userId)
-		{
-			self::SendPullEvent(Array(
-				'COMMAND' => 'timeout',
-				'USER_ID' => intval($userId),
-				'CALL_ID' => $callId,
-				'MARK' => 'timeout_inc_5',
-			));
-		}
+		$call->removeAllInvitedUsers();
+		$call->moveToQueue($queueId);
 
-		VI\CallTable::update($call['ID'], array(
-			'QUEUE_ID' => $queueId,
-			'QUEUE_HISTORY' => array()
-		));
-
-		if ($call['CRM_LEAD'] > 0)
+		if ($call->getCrmLead() > 0)
 		{
 			$firstUserId = $queue->getFirstUserId();
 			if($firstUserId)
 			{
-				CVoxImplantCrmHelper::UpdateLead($call['CRM_LEAD'], Array('ASSIGNED_BY_ID' => $firstUserId));
+				CVoxImplantCrmHelper::UpdateLead($call->getCrmLead(), Array('ASSIGNED_BY_ID' => $firstUserId));
 			}
 		}
 
@@ -380,8 +350,8 @@ class CVoxImplantIncoming
 		{
 			return CVoxImplantIncoming::GetQueue(array(
 				'CALL_ID' => $callId,
-				'CALLER_ID' => $call['CALLER_ID'],
-				'CONFIG' => CVoxImplantConfig::GetConfig($call['CONFIG_ID']),
+				'CALLER_ID' => $call->getCallerId(),
+				'CONFIG' => $call->getConfig(),
 				'QUEUE_ID' => $queueId
 			));
 		}
@@ -389,8 +359,7 @@ class CVoxImplantIncoming
 		{
 			return CVoxImplantIncoming::GetNextInQueue(array(
 				'CALL_ID' => $callId,
-				'CALLER_ID' => $call['CALLER_ID'],
-				'CONFIG' => CVoxImplantConfig::GetConfig($call['CONFIG_ID']),
+				'CALLER_ID' => $call->getCallerId(),
 				'QUEUE_ID' => $queueId
 			));
 		}
@@ -399,13 +368,11 @@ class CVoxImplantIncoming
 	public static function routeToUser($params)
 	{
 		$callId = $params['CALL_ID'];
-		$call = VI\CallTable::getByCallId($callId);
+		$call = VI\Call::load($callId);
 		if(!$call)
+		{
 			return false;
-
-		$config = CVoxImplantConfig::GetConfig($call['CONFIG_ID']);
-		if(!$config)
-			return false;
+		}
 
 		if(isset($params['USER_ID']))
 		{
@@ -428,43 +395,27 @@ class CVoxImplantIncoming
 			$result['HANGUP_REASON'] = 'User is not found';
 			return $result;
 		}
-
-		foreach ($call['QUEUE_HISTORY'] as $userId)
+		$userId = $userInfo['USER_ID'];
+		if ($call->getCrmLead() > 0)
 		{
-			self::SendPullEvent(Array(
-				'COMMAND' => 'timeout',
-				'USER_ID' => intval($userId),
-				'CALL_ID' => $callId,
-				'MARK' => 'timeout_inc_6',
-			));
+			CVoxImplantCrmHelper::UpdateLead($call->getCrmLead(), Array('ASSIGNED_BY_ID' => $userId));
 		}
-
-		$call['QUEUE_HISTORY'][] = $userInfo['USER_ID'];
-		VI\CallTable::update($call['ID'], array(
-			'USER_ID' => $userInfo['USER_ID'],
-			'QUEUE_ID' => null,
-			'QUEUE_HISTORY' => $call['QUEUE_HISTORY']
-		));
-
-		if ($call['CRM_LEAD'] > 0)
-		{
-			CVoxImplantCrmHelper::UpdateLead($call['CRM_LEAD'], Array('ASSIGNED_BY_ID' => $userInfo['USER_ID']));
-		}
-
+		$call->moveToUser($userId);
 		$result = array(
-			'COMMAND' => CVoxImplantIncoming::RULE_WAIT,
+			'COMMAND' => CVoxImplantIncoming::COMMAND_INVITE,
 			'TYPE_CONNECT' => self::TYPE_CONNECT_USER,
-			'USER_ID' => $userInfo['USER_ID'],
+			'USER_ID' => $userId,
 			'USER_HAVE_PHONE' => $userInfo['USER_HAVE_PHONE'],
 			'USER_HAVE_MOBILE' => $userInfo['USER_HAVE_MOBILE']
 		);
+
 		return $result;
 	}
 
 	public static function GetNextAction($params)
 	{
 		// TODO check $params
-		$call = VI\CallTable::getByCallId($params['CALL_ID']);
+		$call = VI\Call::load($params['CALL_ID']);
 		if (!$call)
 		{
 			$result['COMMAND'] =  CVoxImplantIncoming::RULE_HUNGUP;
@@ -475,9 +426,11 @@ class CVoxImplantIncoming
 			$result['COMMAND'] = CVoxImplantIncoming::RULE_QUEUE;
 		}
 
-		$config = CVoxImplantConfig::GetConfig($call['CONFIG_ID']);
+		$config = $call->getConfig();
 		$rule = self::TYPE_CONNECT_QUEUE;
 		$nextQueueId = $config['QUEUE_ID'];
+		$call->removeAllInvitedUsers();
+
 		if ($params['LAST_TYPE_CONNECT'] == self::TYPE_CONNECT_IVR && $config['CRM'] == 'Y' && $config['CRM_FORWARD'] == 'Y')
 		{
 			$userData = self::getCrmResponsible($params['CALLER_ID'], ($config['TIMEMAN'] == 'Y'));
@@ -485,7 +438,7 @@ class CVoxImplantIncoming
 			{
 				if($userData['AVAILABLE'] == 'Y')
 				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_WAIT;
+					$result['COMMAND'] = CVoxImplantIncoming::COMMAND_INVITE;
 					$result['TYPE_CONNECT'] = self::TYPE_CONNECT_CRM;
 					$result['USER_ID'] = $userData['USER_ID'];
 					$result['USER_HAVE_PHONE'] = $userData['USER_HAVE_PHONE'];
@@ -528,27 +481,16 @@ class CVoxImplantIncoming
 		{
 			// well.. QueueAll can lead here.
 			// todo: get rid of heavy code duplication
-			$currentQueue = VI\Queue::createWithId($call['QUEUE_ID']);
+			$currentQueue = VI\Queue::createWithId($call->getQueueId());
 			if(!$currentQueue)
 			{
 				return array(
 					'COMMAND' => static::RULE_VOICEMAIL,
-					'REASON' => 'QUEUE ' . $call['QUEUE_ID'] . ' is not found'
+					'REASON' => 'QUEUE ' . $call->getQueueId() . ' is not found'
 				);
 			}
 
 			$firstInQueue = $currentQueue->getFirstUserId($config['TIMEMAN'] == 'Y');
-
-			if(is_array($call['QUEUE_HISTORY']) && count($call['QUEUE_HISTORY']) > 0)
-			{
-				self::SendPullEvent(Array(
-					'COMMAND' => 'timeout',
-					'USER_ID' => $call['QUEUE_HISTORY'],
-					'CALL_ID' => $params['CALL_ID'],
-					'MARK' => 'timeout_inc_7',
-				));
-			}
-
 			if ($currentQueue->getNoAnswerRule() == CVoxImplantIncoming::RULE_PSTN_SPECIFIC)
 			{
 				if (strlen($currentQueue->getForwardNumber()) > 0)
@@ -562,9 +504,6 @@ class CVoxImplantIncoming
 			{
 				$result['COMMAND'] = CVoxImplantIncoming::RULE_QUEUE;
 				$nextQueueId = $currentQueue->getNextQueueId();
-				VI\CallTable::update($call['ID'], array(
-					'QUEUE_HISTORY' => array()
-				));
 			}
 			else if ($currentQueue->getNoAnswerRule() != CVoxImplantIncoming::RULE_HUNGUP)
 			{
@@ -587,7 +526,6 @@ class CVoxImplantIncoming
 			}
 		}
 
-
 		if ($rule == CVoxImplantIncoming::RULE_VOICEMAIL)
 		{
 			$result['COMMAND'] = CVoxImplantIncoming::RULE_VOICEMAIL;
@@ -609,13 +547,10 @@ class CVoxImplantIncoming
 			}
 		}
 
-		if($result['COMMAND'] == CVoxImplantIncoming::RULE_WAIT)
+		if($result['COMMAND'] == CVoxImplantIncoming::COMMAND_INVITE)
 		{
-			VI\CallTable::update($call['ID'], array(
-				'USER_ID' => $result['USER_ID'],
-				'QUEUE_ID' => null,
-				'QUEUE_HISTORY' => array()
-			));
+			$call->updateUserId($result['USER_ID']);
+			$call->addUsers([$result['USER_ID']], VI\Model\CallUserTable::ROLE_CALLEE);
 		}
 
 		if ($result['COMMAND'] == CVoxImplantIncoming::RULE_QUEUE)
@@ -640,7 +575,7 @@ class CVoxImplantIncoming
 				return $result;
 			}
 
-			VI\CallTable::update($call['ID'], array('QUEUE_ID' => $nextQueueId));
+			$call->moveToQueue($nextQueueId);
 
 			if ($queueConfig['TYPE'] == CVoxImplantConfig::QUEUE_TYPE_ALL)
 			{
@@ -650,8 +585,6 @@ class CVoxImplantIncoming
 					'CALLER_ID' => $params['CALLER_ID'],
 					'LAST_USER_ID' => $params['LAST_USER_ID'],
 					'LAST_TYPE_CONNECT' => self::TYPE_CONNECT_QUEUE,
-					'CONFIG' => $config,
-					'LOAD_QUEUE' => 'Y'
 				));
 			}
 			else
@@ -663,19 +596,8 @@ class CVoxImplantIncoming
 					'LAST_USER_ID' => $params['LAST_USER_ID'],
 					'LAST_TYPE_CONNECT' => self::TYPE_CONNECT_QUEUE,
 					'LAST_ANSWER_USER_ID' => 0,
-					'CONFIG' => $config,
 				));
 			}
-		}
-
-		if (isset($params['LAST_USER_ID']) && $params['LAST_USER_ID'] > 0)
-		{
-			self::SendPullEvent(Array(
-				'COMMAND' => 'timeout',
-				'USER_ID' => intval($params['LAST_USER_ID']),
-				'CALL_ID' => $params['CALL_ID'],
-				'MARK' => 'timeout_inc_1',
-			));
 		}
 
 		return $result;
@@ -683,38 +605,27 @@ class CVoxImplantIncoming
 
 	public static function GetNextInQueue($params)
 	{
-		$fistExec = isset($params['FIRST_EXEC']) && $params['FIRST_EXEC'] == 'Y';
-		$sendInvite = !isset($params['SEND_INVITE']) || $params['SEND_INVITE'] == 'Y';
-
-		$call = VI\CallTable::getByCallId($params['CALL_ID']);
+		$call = VI\Call::load($params['CALL_ID']);
 		if(!$call)
 		{
 			$result['COMMAND'] = CVoxImplantIncoming::RULE_HUNGUP;
 			return $result;
 		}
 
+		$call->removeAllInvitedUsers();
+
 		// TODO check $params
 		$result = Array('COMMAND' => CVoxImplantIncoming::RULE_HUNGUP);
 
-		if (!$fistExec)
+		if ($call->getStatus() == VI\Model\CallTable::STATUS_CONNECTED)
 		{
-			if ($call['STATUS'] == VI\CallTable::STATUS_CONNECTED)
-			{
-				$result['COMMAND'] = CVoxImplantIncoming::RULE_TALK;
-				return $result;
-			}
+			$result['COMMAND'] = CVoxImplantIncoming::RULE_TALK;
+			return $result;
 		}
 
-		if (isset($params['CONFIG']))
-		{
-			$config = $params['CONFIG'];
-		}
-		else
-		{
-			$config = CVoxImplantConfig::GetConfig($call['CONFIG_ID']);
-		}
+		$config = $call->getConfig();
 
-		$queueId = $call['QUEUE_ID'];
+		$queueId = $call->getQueueId();
 		$queue = VI\Queue::createWithId($queueId);
 		if(!$queue)
 		{
@@ -723,23 +634,14 @@ class CVoxImplantIncoming
 				'REASON' => 'Queue ' . $queueId . 'is not found'
 			);
 		}
-		if (isset($params['LAST_USER_ID']) && $params['LAST_USER_ID'] > 0)
-		{
-			self::SendPullEvent(array(
-				'COMMAND' => 'timeout',
-				'USER_ID' => intval($params['LAST_USER_ID']),
-				'CALL_ID' => $params['CALL_ID'],
-				'MARK' => 'timeout_inc_2',
-			));
-		}
 
 		$filter = array(
 			'=QUEUE_ID' => $queueId,
 			'=USER.ACTIVE' => 'Y'
 		);
-		if (count($call['QUEUE_HISTORY']) > 0)
+		if (count($call->getQueueHistory()) > 0)
 		{
-			$filter['!=USER_ID'] = $call['QUEUE_HISTORY'];
+			$filter['!=USER_ID'] = $call->getQueueHistory();
 		}
 		if ($queue->getType() == CVoxImplantConfig::QUEUE_TYPE_EVENLY)
 		{
@@ -750,13 +652,20 @@ class CVoxImplantIncoming
 			$order = Array('ID' => 'asc');
 		}
 		$res = VI\Model\QueueUserTable::getList(Array(
-			'select' => Array('ID', 'USER_ID', 'IS_ONLINE' => 'USER.IS_ONLINE', 'UF_VI_PHONE' => 'USER.UF_VI_PHONE'),
+			'select' => Array(
+				'ID',
+				'USER_ID',
+				'IS_ONLINE' => 'USER.IS_ONLINE',
+				'IS_BUSY' => 'USER.IS_BUSY',
+				'UF_VI_PHONE' => 'USER.UF_VI_PHONE'
+			),
 			'filter' => $filter,
 			'order' => $order,
 		));
 
 		$findActiveUser = false;
-		CModule::IncludeModule('pull');
+		$hasBusyUsers = false;
+
 		while($queueUser = $res->fetch())
 		{
 			$queueUser['USER_HAVE_MOBILE'] = CVoxImplantUser::hasMobile($queueUser['USER_ID']) ? 'Y': 'N';
@@ -765,56 +674,68 @@ class CVoxImplantIncoming
 			{
 				continue;
 			}
-
 			if ($config['TIMEMAN'] == "Y" && !CVoxImplantUser::GetActiveStatusByTimeman($queueUser['USER_ID']))
 			{
 				continue;
 			}
+			if ($queueUser['IS_BUSY'] == "Y")
+			{
+				$hasBusyUsers = true;
+				continue;
+			}
 
 			$findActiveUser = true;
-
-			$queue->touchUser($queueUser['USER_ID']);
-			$call['QUEUE_HISTORY'][] = $queueUser['USER_ID'];
-			VI\CallTable::update($call['ID'], array('QUEUE_HISTORY' => $call['QUEUE_HISTORY']));
-
-			$result['COMMAND'] = CVoxImplantIncoming::RULE_WAIT;
-			$result['TYPE_CONNECT'] = self::TYPE_CONNECT_QUEUE;
-			$result['USER_ID'] = $queueUser['USER_ID'];
-			$result['USER_HAVE_PHONE'] = $queueUser['UF_VI_PHONE'] == 'Y'? 'Y': 'N';
-			$result['USER_HAVE_MOBILE'] = $queueUser['USER_HAVE_MOBILE'];
+			$userId = $queueUser['USER_ID'];
 
 			break;
 		}
 
 		if ($findActiveUser)
 		{
-			$result['QUEUE'] = $queue->toArray();
-		}
-		else if ($queue->getNoAnswerRule() == self::RULE_QUEUE && count($call['QUEUE_HISTORY']) > 0)
-		{
-			// move to the head of the queue
-			VI\CallTable::update($call['ID'], array(
-				'QUEUE_HISTORY' => array()
-			));
+			$queue->touchUser($userId);
+			$call->addToQueueHistory([$userId]);
+			$call->addUsers([$userId], VI\Model\CallUserTable::ROLE_CALLEE);
 
-			if ($queue->getType() == CVoxImplantConfig::QUEUE_TYPE_ALL)
+			$result = [
+				'COMMAND' => CVoxImplantIncoming::COMMAND_INVITE,
+				'TYPE_CONNECT' => self::TYPE_CONNECT_QUEUE,
+				'USER_ID' => $userId,
+				'USER_HAVE_PHONE' => $queueUser['UF_VI_PHONE'] == 'Y'? 'Y': 'N',
+				'USER_HAVE_MOBILE' => $queueUser['USER_HAVE_MOBILE'],
+				'QUEUE' => $queue->toArray(),
+			];
+
+			return $result;
+		}
+
+		if ($queue->getNoAnswerRule() == self::RULE_QUEUE && (count($call->getQueueHistory()) > 0 || $hasBusyUsers))
+		{
+			$call->clearQueueHistory();
+
+			if ($hasBusyUsers)
 			{
-				return self::GetQueue($params);
+				// enqueue call and wait for free user
+				$call->updateStatus(VI\Model\CallTable::STATUS_ENQUEUED);
+				$queuePosition = VI\CallQueue::getCallPosition($call->getCallId());
+
+				$result = [
+					'COMMAND' => static::COMMAND_ENQUEUE,
+					'QUEUE_POSITION' => $queuePosition
+				];
+				return $result;
 			}
-			else
+			else // queue history was not empty
 			{
+				// move to the head of the queue
 				return self::GetNextInQueue($params);
 			}
+
 		}
 		else if ($queue->getNoAnswerRule() == self::RULE_NEXT_QUEUE && $queue->getNextQueueId() > 0 && CVoxImplantAccount::IsPro())
 		{
 			// move call to the next queue, if NEXT_QUEUE_ID is set
 			$nextQueueId = $queue->getNextQueueId();
-			VI\CallTable::update($call['ID'], array(
-				'QUEUE_HISTORY' => array(),
-				'QUEUE_ID' => $nextQueueId
-			));
-			$call['QUEUE_ID'] = $nextQueueId;
+			$call->moveToQueue($nextQueueId);
 			$nextQueue = VI\Queue::createWithId($nextQueueId);
 			if(!$nextQueue)
 			{
@@ -879,29 +800,18 @@ class CVoxImplantIncoming
 
 	public static function GetQueue($params)
 	{
-		$loadQueue = !isset($params['LOAD_QUEUE']) || $params['LOAD_QUEUE'] == 'Y';
-		$sendInvite = !isset($params['SEND_INVITE']) || $params['SEND_INVITE'] == 'Y';
-
 		// TODO check $params
 		$result = Array('COMMAND' => CVoxImplantIncoming::RULE_HUNGUP);
 
-		$call = VI\CallTable::getByCallId($params['CALL_ID']);
+		$call = VI\Call::load($params['CALL_ID']);
 		if(!$call)
 		{
 			$result['COMMAND'] = CVoxImplantIncoming::RULE_HUNGUP;
 			return $result;
 		}
 
-		if (isset($params['CONFIG']))
-		{
-			$config = $params['CONFIG'];
-		}
-		else
-		{
-			$config = CVoxImplantConfig::GetConfig($call['CONFIG_ID']);
-		}
-
-		$queueId = $call['QUEUE_ID'];
+		$config = $call->getConfig();
+		$queueId = $call->getQueueId();
 		$queue = VI\Queue::createWithId($queueId);
 		if(!$queue)
 		{
@@ -910,141 +820,134 @@ class CVoxImplantIncoming
 				'REASON'=> 'Queue ' . $queueId . ' is not found'
 			);
 		}
-		$excludedUsers = is_array($call['QUEUE_HISTORY']) ? $call['QUEUE_HISTORY'] : array();
 
-		if (isset($params['LAST_USER_ID']) && $params['LAST_USER_ID'] > 0)
+		$excludedUsers = $call->getQueueHistory();
+		if (isset($params['LAST_USER_ID']) && $params['LAST_USER_ID'] > 0 && !in_array($params['LAST_USER_ID'], $excludedUsers))
 		{
-			self::SendPullEvent(Array(
-				'COMMAND' => 'timeout',
-				'USER_ID' => intval($params['LAST_USER_ID']),
-				'CALL_ID' => $params['CALL_ID'],
-				'MARK' => 'timeout_inc_3',
-			));
-			if(!in_array($params['LAST_USER_ID'], $call['QUEUE_HISTORY']))
-			{
-				$excludedUsers[] = $params['LAST_USER_ID'];
-			}
+			$excludedUsers[] = $params['LAST_USER_ID'];
 		}
 
 		$res = VI\Model\QueueUserTable::getList(Array(
-			'select' => Array('ID', 'USER_ID', 'IS_ONLINE' => 'USER.IS_ONLINE', 'UF_VI_PHONE' => 'USER.UF_VI_PHONE', 'ACTIVE' => 'USER.ACTIVE'),
-			'filter' => Array('=QUEUE_ID' => $queueId, '=ACTIVE' => 'Y', '!=USER_ID' => $excludedUsers),
+			'select' => Array(
+				'ID',
+				'USER_ID',
+				'IS_ONLINE' => 'USER.IS_ONLINE',
+				'IS_BUSY' => 'USER.IS_BUSY',
+				'UF_VI_PHONE' => 'USER.UF_VI_PHONE',
+				'ACTIVE' => 'USER.ACTIVE'
+			),
+			'filter' => Array(
+				'=QUEUE_ID' => $queueId,
+				'=ACTIVE' => 'Y',
+				'!=USER_ID' => $excludedUsers
+			),
 			'order' => Array('LAST_ACTIVITY_DATE' => 'asc'),
 		));
 
-		$findUserId = 0;
-		if ($loadQueue)
+
+		$hasBusyUsers = false;
+		$users = [];
+		while($queueUser = $res->fetch())
 		{
-			$result['COMMAND'] = CVoxImplantIncoming::RULE_WAIT;
-			$result['TYPE_CONNECT'] = self::TYPE_CONNECT_QUEUE;
-			$result['QUEUE'] = $queue->toArray();
-
-			CModule::IncludeModule('pull');
-			while($queueUser = $res->fetch())
+			$queueUser['USER_HAVE_MOBILE'] = CVoxImplantUser::hasMobile($queueUser['USER_ID']) ? 'Y' : 'N';
+			if ($queueUser['IS_ONLINE'] != 'Y' && $queueUser['UF_VI_PHONE'] != 'Y' && $queueUser['USER_HAVE_MOBILE'] != 'Y')
 			{
-				$queueUser['USER_HAVE_MOBILE'] = CVoxImplantUser::hasMobile($queueUser['USER_ID']) ? 'Y' : 'N';
-				if ($queueUser['IS_ONLINE'] != 'Y' && $queueUser['UF_VI_PHONE'] != 'Y' && $queueUser['USER_HAVE_MOBILE'] != 'Y')
-				{
-					continue;
-				}
-
-				if ($config['TIMEMAN'] == "Y" && !CVoxImplantUser::GetActiveStatusByTimeman($queueUser['USER_ID']))
-				{
-					continue;
-				}
-
-				if (!$findUserId)
-				{
-					$queue->touchUser($queueUser['USER_ID']);
-					$findUserId = $queueUser['ID'];
-					$result['USER_ID'] = $queueUser['USER_ID'];
-				}
-				$result['USERS'][] = Array(
-					'USER_ID' => $queueUser['USER_ID'],
-					'USER_HAVE_PHONE' => $queueUser['UF_VI_PHONE'] == 'Y'? 'Y': 'N',
-					'USER_HAVE_MOBILE' => $queueUser['USER_HAVE_MOBILE']
-				);
+				continue;
 			}
-		}
-		else
-		{
-			while($queueUser = $res->fetch())
+			if ($config['TIMEMAN'] == "Y" && !CVoxImplantUser::GetActiveStatusByTimeman($queueUser['USER_ID']))
 			{
-				if (intval($params['LAST_USER_ID']) == $queueUser['USER_ID'])
-				{
-					continue;
-				}
-				else
-				{
-					self::SendPullEvent(Array(
-						'COMMAND' => 'timeout',
-						'USER_ID' => $queueUser['USER_ID'],
-						'CALL_ID' => $params['CALL_ID'],
-						'MARK' => 'timeout_inc_4',
-					));
-				}
+				continue;
 			}
+			if ($queueUser['IS_BUSY'] == "Y")
+			{
+				$hasBusyUsers = true;
+				continue;
+			}
+
+			$users[] = [
+				'USER_ID' => $queueUser['USER_ID'],
+				'USER_HAVE_PHONE' => $queueUser['UF_VI_PHONE'] == 'Y'? 'Y': 'N',
+				'USER_HAVE_MOBILE' => $queueUser['USER_HAVE_MOBILE']
+			];
 		}
 
-		if($findUserId)
+		if(count($users) > 0)
 		{
-			if ($sendInvite)
+			$queueHistory = array();
+			foreach ($users as $queueUser)
 			{
-				$queueHistory = array();
-				foreach ($result['USERS'] as $queueUser)
-				{
-					$queueHistory[] = $queueUser['USER_ID'];
-				}
-				VI\CallTable::update($call['ID'], array('QUEUE_HISTORY' => $queueHistory));
-			}
-		}
-		else
-		{
-			$userId = intval($params['LAST_USER_ID']);
-			if ($userId <= 0)
-			{
-				$userId = $queue->getFirstUserId($config['TIMEMAN'] == 'Y');
-				if ($userId)
-				{
-					$queue->touchUser($userId);
-				}
+				$queueHistory[] = $queueUser['USER_ID'];
 			}
 
-			if ($queue->getNoAnswerRule() == CVoxImplantIncoming::RULE_PSTN_SPECIFIC)
+			$call->updateQueueHistory($queueHistory);
+			$call->addUsers($queueHistory, VI\Model\CallUserTable::ROLE_CALLEE);
+			$queue->touchUser($users[0]['USER_ID']);
+
+			$result = [
+				'COMMAND' => CVoxImplantIncoming::COMMAND_INVITE,
+				'TYPE_CONNECT' => self::TYPE_CONNECT_QUEUE,
+				'USERS' => $users,
+				'QUEUE' => $queue->toArray()
+			];
+			return $result;
+		}
+
+		$userId = intval($params['LAST_USER_ID']);
+		if ($userId <= 0)
+		{
+			$userId = $queue->getFirstUserId($config['TIMEMAN'] == 'Y');
+			if ($userId)
 			{
-				if ($queue->getForwardNumber() != '')
-				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_PSTN;
-					$result['PHONE_NUMBER'] = NormalizePhone($queue->getForwardNumber(), 1);
-					$result['USER_ID'] = $userId;
-				}
-				else
-				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_VOICEMAIL;
-					$result['REASON'] = 'Forward number is empty';
-				}
+				$queue->touchUser($userId);
 			}
-			else if ($queue->getNoAnswerRule() != CVoxImplantIncoming::RULE_HUNGUP)
+		}
+
+		if ($queue->getNoAnswerRule() == CVoxImplantIncoming::RULE_QUEUE && $hasBusyUsers)
+		{
+			$call->updateStatus(VI\Model\CallTable::STATUS_ENQUEUED);
+			$queuePosition = VI\CallQueue::getCallPosition($call->getCallId());
+
+			$result = [
+				'COMMAND' => static::COMMAND_ENQUEUE,
+				'QUEUE_POSITION' => $queuePosition
+			];
+			return $result;
+		}
+		else if ($queue->getNoAnswerRule() == CVoxImplantIncoming::RULE_PSTN_SPECIFIC)
+		{
+			if ($queue->getForwardNumber() != '')
 			{
-				$result['COMMAND'] = CVoxImplantIncoming::RULE_VOICEMAIL;
+				$result['COMMAND'] = CVoxImplantIncoming::RULE_PSTN;
+				$result['PHONE_NUMBER'] = NormalizePhone($queue->getForwardNumber(), 1);
 				$result['USER_ID'] = $userId;
-
-				if ($queue->getNoAnswerRule() == CVoxImplantIncoming::RULE_PSTN && $userId > 0)
-				{
-					$userPhone = CVoxImplantPhone::GetUserPhone($userId);
-					if ($userPhone)
-					{
-						$result['COMMAND'] = CVoxImplantIncoming::RULE_PSTN;
-						$result['PHONE_NUMBER'] = $userPhone;
-						$result['USER_ID'] = $userId;
-					}
-				}
 			}
 			else
 			{
-				$result['COMMAND'] = CVoxImplantIncoming::RULE_HUNGUP;
+				$result['COMMAND'] = CVoxImplantIncoming::RULE_VOICEMAIL;
+				$result['REASON'] = 'Forward number is empty';
 			}
 		}
+		else if ($queue->getNoAnswerRule() != CVoxImplantIncoming::RULE_HUNGUP)
+		{
+			$result['COMMAND'] = CVoxImplantIncoming::RULE_VOICEMAIL;
+			$result['USER_ID'] = $userId;
+
+			if ($queue->getNoAnswerRule() == CVoxImplantIncoming::RULE_PSTN && $userId > 0)
+			{
+				$userPhone = CVoxImplantPhone::GetUserPhone($userId);
+				if ($userPhone)
+				{
+					$result['COMMAND'] = CVoxImplantIncoming::RULE_PSTN;
+					$result['PHONE_NUMBER'] = $userPhone;
+					$result['USER_ID'] = $userId;
+				}
+			}
+		}
+		else
+		{
+			$result['COMMAND'] = CVoxImplantIncoming::RULE_HUNGUP;
+		}
+
 		return $result;
 	}
 
@@ -1111,7 +1014,7 @@ class CVoxImplantIncoming
 		}
 		else if ($params['COMMAND'] == 'update_crm')
 		{
-			$call = VI\CallTable::getByCallId($callId);
+			$call = VI\Model\CallTable::getByCallId($callId);
 			$config = Array(
 				"callId" => $params['CALL_ID'],
 				"CRM" => $params['CRM'],
@@ -1156,7 +1059,7 @@ class CVoxImplantIncoming
 	{
 		// TODO check $params
 		$result = new \Bitrix\Main\Result();
-		$call = VI\CallTable::getByCallId($params['CALL_ID']);
+		$call = VI\Model\CallTable::getByCallId($params['CALL_ID']);
 		if (!$call)
 		{
 			$result->addError(new \Bitrix\Main\Error('Call not found', 'NOT_FOUND'));
@@ -1167,15 +1070,14 @@ class CVoxImplantIncoming
 
 		$answer['COMMAND'] = $params['COMMAND'];
 		$answer['OPERATOR_ID'] = $params['OPERATOR_ID']? $params['OPERATOR_ID']: $USER->GetId();
-		if ($params['COMMAND'] == CVoxImplantIncoming::RULE_WAIT)
+		if ($params['COMMAND'] == CVoxImplantIncoming::COMMAND_INVITE)
+		{
+		}
+		else if ($params['COMMAND'] == CVoxImplantIncoming::RULE_WAIT)
 		{
 		}
 		else if ($params['COMMAND'] == CVoxImplantIncoming::RULE_QUEUE)
 		{
-		}
-		else if ($params['COMMAND'] == CVoxImplantIncoming::RULE_PSTN)
-		{
-			$answer['PHONE_NUMBER'] = '';
 		}
 		else if ($params['COMMAND'] == CVoxImplantIncoming::RULE_USER)
 		{
@@ -1187,6 +1089,10 @@ class CVoxImplantIncoming
 		}
 		else if ($params['COMMAND'] == CVoxImplantIncoming::COMMAND_BUSY)
 		{
+		}
+		else if ($params['COMMAND'] == CVoxImplantIncoming::COMMAND_DEQUEUE)
+		{
+			$answer['OPERATOR'] = $params['OPERATOR'];
 		}
 		else if ($params['COMMAND'] == CVoxImplantIncoming::COMMAND_INTERCEPT)
 		{
@@ -1201,8 +1107,9 @@ class CVoxImplantIncoming
 		{
 			$answer['DEBUG_INFO'] = $params['DEBUG_INFO'];
 		}
+		$answer['CALL_ID'] = $params['CALL_ID'];
 
-		$http = new \Bitrix\Main\Web\HttpClient(array(
+		$http = VI\HttpClientFactory::create(array(
 			'waitResponse' => $waitResponse
 		));
 		$queryResult = $http->query('POST', $call['ACCESS_URL'], Json::encode($answer));
@@ -1241,7 +1148,7 @@ class CVoxImplantIncoming
 
 	public static function Answer($callId)
 	{
-		$res = VI\CallTable::getList(Array(
+		$res = VI\Model\CallTable::getList(Array(
 			'select' => Array('ID', 'ACCESS_URL'),
 			'filter' => Array('=CALL_ID' => $callId),
 		));
@@ -1273,43 +1180,38 @@ class CVoxImplantIncoming
 
 	public static function RegisterCall($config, $params)
 	{
-		$call = VI\CallTable::getByCallId($params['CALL_ID']);
+		$call = VI\Call::load($params['CALL_ID']);
 		if($call)
 		{
-			$call['CONFIG_ID'] = $config['ID'];
-			$call['USER_ID'] = 0;
-			$call['STATUS'] = Bitrix\Voximplant\CallTable::STATUS_WAITING;
-			$call['INCOMING'] = CVoxImplantMain::CALL_INCOMING;
-			$call['ACCESS_URL'] = $params['ACCESS_URL'];
-			$call['WORKTIME_SKIPPED'] = $config['WORKTIME_SKIP_CALL'] == 'Y' ? 'Y' : 'N';
-			$call['PORTAL_NUMBER'] = $config['SEARCH_ID'];
-
-			VI\CallTable::update($call['ID'], $call);
+			// callback calls are pre-created
+			$callFields = [
+				'STATUS' => VI\Model\CallTable::STATUS_WAITING,
+				'CRM' => $config['CRM'],
+				'ACCESS_URL' => $params['ACCESS_URL'],
+				'DATE_CREATE' => new Bitrix\Main\Type\DateTime(),
+				'WORKTIME_SKIPPED' => $config['WORKTIME_SKIP_CALL'] == 'Y' ? 'Y' : 'N',
+				'PORTAL_NUMBER' => $config['SEARCH_ID'],
+				'SESSION_ID' => $params['SESSION_ID'],
+			];
+			$call->update($callFields);
 		}
 		else
 		{
-			$call = array(
+			$call = VI\Call::create([
 				'CONFIG_ID' => $config['ID'],
 				'CALL_ID' => $params['CALL_ID'],
 				'USER_ID' => 0,
 				'CALLER_ID' => $params['CALLER_ID'],
-				'STATUS' => Bitrix\Voximplant\CallTable::STATUS_WAITING,
+				'STATUS' => VI\Model\CallTable::STATUS_WAITING,
 				'INCOMING' => CVoxImplantMain::CALL_INCOMING,
-				'CRM' => $config['CRM'] == 'Y' ? 'Y' : 'N',
+				'CRM' => $config['CRM'],
 				'ACCESS_URL' => $params['ACCESS_URL'],
 				'DATE_CREATE' => new Bitrix\Main\Type\DateTime(),
 				'WORKTIME_SKIPPED' => $config['WORKTIME_SKIP_CALL'] == 'Y' ? 'Y' : 'N',
-				'PORTAL_NUMBER' => $config['SEARCH_ID']
-			);
-			$insertResult = Bitrix\Voximplant\CallTable::add($call);
-			if($insertResult->isSuccess())
-			{
-				$call['ID'] = $insertResult->getId();
-			}
-			else
-			{
-				$call = false;
-			}
+				'PORTAL_NUMBER' => $config['SEARCH_ID'],
+				'SESSION_ID' => $params['SESSION_ID'],
+				'SIP_HEADERS' => is_array($params['SIP_HEADERS']) ? $params['SIP_HEADERS'] : [],
+			]);
 		}
 
 		if ($config['CRM'] == 'Y')
@@ -1317,35 +1219,33 @@ class CVoxImplantIncoming
 			$crmData = CVoxImplantCrmHelper::GetCrmEntity($params['CALLER_ID']);
 			if(is_array($crmData))
 			{
-				$call['CRM_ENTITY_TYPE'] = $crmData['ENTITY_TYPE_NAME'];
-				$call['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
-				VI\CallTable::update($call['ID'], $call);
+				$call->setCrmEntity($crmData['ENTITY_TYPE_NAME'], $crmData['ENTITY_ID']);
 			}
+			CVoxImplantCrmHelper::StartCallTrigger($call->getCallId());
 		}
 
 		if ($config['WORKTIME_SKIP_CALL'] == 'Y')
 		{
 			$config['WORKTIME_USER_ID'] = 0;
-
 			if(isset($crmData['ASSIGNED_BY_ID']))
 			{
 				$config['WORKTIME_USER_ID'] = $crmData['ASSIGNED_BY_ID'];
-				}
-				else
-				{
-					$queue =  VI\Queue::createWithId($config['QUEUE_ID']);
-					$queueUserId = ($queue instanceof VI\Queue) ?$queue->getFirstUserId($config['TIMEMAN'] == 'Y'): false;
+			}
+			else
+			{
+				$queue =  VI\Queue::createWithId($config['QUEUE_ID']);
+				$queueUserId = ($queue instanceof VI\Queue) ?$queue->getFirstUserId($config['TIMEMAN'] == 'Y'): false;
 
-					if ($queueUserId)
-					{
-						$queue->touchUser($queueUserId);
-						$config['WORKTIME_USER_ID'] = $queueUserId;
-					}}
+				if ($queueUserId)
+				{
+					$queue->touchUser($queueUserId);
+					$config['WORKTIME_USER_ID'] = $queueUserId;
+				}
+			}
 
 			if($config['WORKTIME_USER_ID'] > 0)
 			{
-				$call['USER_ID'] = $config['WORKTIME_USER_ID'];
-				CVoxImplantCrmHelper::StartCallTrigger($call['CALL_ID']);
+				$call->updateUserId($config['WORKTIME_USER_ID']);
 				CVoxImplantCrmHelper::registerCallInCrm($call);
 			}
 			else
@@ -1445,8 +1345,8 @@ class CVoxImplantIncoming
 	public static function getUserByDirectCode($directCode, $checkTimeman = false)
 	{
 		$directCode = (int)$directCode;
-		$userData = \Bitrix\Main\UserTable::getList(Array(
-			'select' => Array('ID', 'IS_ONLINE', 'UF_VI_PHONE', 'ACTIVE'),
+		$userData = \Bitrix\Voximplant\Model\UserTable::getList(Array(
+			'select' => Array('ID', 'IS_ONLINE', 'IS_BUSY', 'UF_VI_PHONE', 'ACTIVE'),
 			'filter' => Array('=UF_PHONE_INNER' => $directCode, '=ACTIVE' => 'Y'),
 		))->fetch();
 		if (!$userData)
@@ -1465,7 +1365,8 @@ class CVoxImplantIncoming
 			'USER_HAVE_PHONE' => $userData['UF_VI_PHONE'] == 'Y' ? 'Y' : 'N',
 			'USER_HAVE_MOBILE' => CVoxImplantUser::hasMobile($userId) ? 'Y' : 'N',
 			'ONLINE' => $userData['IS_ONLINE'],
-			'AVAILABLE' => (!$skipByTimeman && ($userData['IS_ONLINE'] == 'Y' || $userData['UF_VI_PHONE'] == 'Y' || $userData['USER_HAVE_MOBILE'] == 'Y')) ? 'Y' : 'N',
+			'BUSY' => $userData['IS_BUSY'],
+			'AVAILABLE' => (!$skipByTimeman && ($userData['IS_BUSY'] != 'Y') && ($userData['IS_ONLINE'] == 'Y' || $userData['UF_VI_PHONE'] == 'Y' || $userData['USER_HAVE_MOBILE'] == 'Y')) ? 'Y' : 'N',
 		);
 
 		return $result;
@@ -1478,8 +1379,8 @@ class CVoxImplantIncoming
 	 */
 	public static function getUserInfo($userId, $checkTimeman = false)
 	{
-		$userData = \Bitrix\Main\UserTable::getList(Array(
-			'select' => Array('ID', 'IS_ONLINE', 'UF_VI_PHONE', 'ACTIVE'),
+		$userData = \Bitrix\Voximplant\Model\UserTable::getList(Array(
+			'select' => Array('ID', 'IS_ONLINE', 'IS_BUSY', 'UF_VI_PHONE', 'ACTIVE'),
 			'filter' => Array('=ID' => $userId,  '=ACTIVE' => 'Y'),
 		))->fetch();
 
@@ -1497,7 +1398,8 @@ class CVoxImplantIncoming
 			'USER_HAVE_PHONE' => $userData['UF_VI_PHONE'] == 'Y' ? 'Y' : 'N',
 			'USER_HAVE_MOBILE' => CVoxImplantUser::hasMobile($userId) ? 'Y' : 'N',
 			'ONLINE' => $userData['IS_ONLINE'],
-			'AVAILABLE' => (!$skipByTimeman && ($userData['IS_ONLINE'] == 'Y' || $userData['UF_VI_PHONE'] == 'Y' || $userData['USER_HAVE_MOBILE'] == 'Y')) ? 'Y' : 'N',
+			'BUSY' => $userData['IS_BUSY'],
+			'AVAILABLE' => (!$skipByTimeman && ($userData['IS_BUSY'] != 'Y') && ($userData['IS_ONLINE'] == 'Y' || $userData['UF_VI_PHONE'] == 'Y' || $userData['USER_HAVE_MOBILE'] == 'Y')) ? 'Y' : 'N',
 		);
 
 		return $result;
@@ -1509,46 +1411,18 @@ class CVoxImplantIncoming
 	 */
 	public static function interceptCall($userId, $callId)
 	{
-		$call = VI\CallTable::getByCallId($callId);
+		$call = VI\Call::load($callId);
 		if(!$call)
+		{
 			return false;
-
-		$usersToCancel = array(
-			$call['USER_ID']
-		);
-
-		if(is_array($call['QUEUE_HISTORY']) && count($call['QUEUE_HISTORY']) > 0)
-			$usersToCancel = array_merge($usersToCancel, $call['QUEUE_HISTORY']);
-
-		self::SendPullEvent(Array(
-			'COMMAND' => 'timeout',
-			'USER_ID' => $usersToCancel,
-			'CALL_ID' => $callId,
-			'MARK' => 'timeout_inc_8',
-		));
+		}
+		$call->moveToUser($userId);
 
 		self::SendCommand(Array(
 			'CALL_ID' => $callId,
 			'COMMAND' => self::COMMAND_INTERCEPT,
 			'USER_ID' => $userId,
 			'OPERATOR' => self::getUserInfo($userId)
-		));
-
-		if(is_array($call['QUEUE_HISTORY']))
-		{
-			$call['QUEUE_HISTORY'][] = $userId;
-		}
-		else
-		{
-			$call['QUEUE_HISTORY'] = array(
-				$userId
-			);
-		}
-		$call['USER_ID'] = $userId;
-
-		VI\CallTable::update($call['ID'], array(
-			'USER_ID' => $call['USER_ID'],
-			'QUEUE_HISTORY' => $call['QUEUE_HISTORY']
 		));
 
 		return true;
@@ -1565,13 +1439,13 @@ class CVoxImplantIncoming
 		$hourAgo->add('-1 hour');
 		$userId = (int)$userId;
 
-		$row = VI\CallTable::getRow(array(
+		$row = VI\Model\CallTable::getRow(array(
 			'select' => array(
 				'CALL_ID'
 			),
 			'filter' => array(
 				'>DATE_CREATE' => $hourAgo,
-				'=STATUS' => VI\CallTable::STATUS_WAITING,
+				'=STATUS' => VI\Model\CallTable::STATUS_WAITING,
 				array(
 					'LOGIC' => 'OR',
 					array(

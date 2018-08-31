@@ -44,7 +44,29 @@ class Helper
 	 */
 	public static function getCurrentUserId()
 	{
-		return (int)$GLOBALS['USER']->GetID();
+		return ($GLOBALS['USER'] instanceof \CUser) ?  (int)$GLOBALS['USER']->GetID() : 0;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public static function isAdmin()
+	{
+		global $USER;
+
+		if(!($USER instanceof \CUser))
+		{
+			return false;
+		}
+
+		if(Loader::includeModule('bitrix24'))
+		{
+			return $USER->CanDoOperation('bitrix24_config');
+		}
+		else
+		{
+			return $USER->IsAdmin();
+		}
 	}
 
 	/**
@@ -149,7 +171,7 @@ class Helper
 				{
 					$cursor = PhoneTable::getList(array(
 						'filter' => array(
-							'PHONE_NUMBER' => $number,
+							'=PHONE_NUMBER' => $number,
 						)
 					));
 					$result = ($cursor->fetch() !== false);					

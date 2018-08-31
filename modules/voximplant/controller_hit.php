@@ -40,14 +40,13 @@ if(
 			$params['CALLER_ID'] = $params['ACCOUNT_SEARCH_ID'];
 		}
 
-		$result = CVoxImplantOutgoing::Init(Array(
+		$action = CVoxImplantOutgoing::Init(Array(
 			'ACCOUNT_SEARCH_ID' => $params['ACCOUNT_SEARCH_ID'],
 			'CONFIG_ID' => $params['CONFIG_ID'],
 			'USER_ID' => $params['USER_ID'],
 			'USER_DIRECT_CODE' => $params['USER_DIRECT_CODE'],
 			'PHONE_NUMBER' => $params['PHONE_NUMBER'],
 			'CALL_ID' => $params['CALL_ID'],
-			'CALL_ID_TMP' => $params['CALL_ID_TMP']? $params['CALL_ID_TMP']: '',
 			'CALL_DEVICE' => $params['CALL_DEVICE'],
 			'CALLER_ID' => $params['CALLER_ID'],
 			'ACCESS_URL' => $params['ACCESS_URL'],
@@ -64,8 +63,7 @@ if(
 		{
 			ExecuteModuleEventEx($arEvent, Array(Array(
 				'CALL_ID' => $params['CALL_ID'],
-				'CALL_ID_TMP' => $params['CALL_ID_TMP']? $params['CALL_ID_TMP']: '',
-				'CALL_TYPE' => 1,
+				'CALL_TYPE' => CVoxImplantMain::CALL_OUTGOING,
 				'ACCOUNT_SEARCH_ID' => $params['ACCOUNT_SEARCH_ID'],
 				'PHONE_NUMBER' => $params['PHONE_NUMBER'],
 				'CALLER_ID' => $params['CALLER_ID'],
@@ -74,268 +72,90 @@ if(
 
 		CVoxImplantHistory::WriteToLog($result, 'OUTGOING REGISTER');
 
-		echo Json::encode($result);
+		echo $action->toJson();
 	}
-	else if($params["COMMAND"] == "IncomingInvite")
+	else if($params["COMMAND"] == "CancelUserInvite")
 	{
-		$result = CVoxImplantIncoming::Init(Array(
-			'SEARCH_ID' => $params['PHONE_NUMBER'],
-			'CALL_ID' => $params['CALL_ID'],
-			'CALLER_ID' => $params['CALLER_ID'],
-			'DIRECT_CODE' => $params['DIRECT_CODE'],
-			'ACCESS_URL' => $params['ACCESS_URL'],
-			'CALLBACK_MODE' => ($params['CALLBACK_MODE'] === 'Y'),
-			'LAST_TYPE_CONNECT' => $params['LAST_TYPE_CONNECT'],
-			'QUEUE_ID' => $params['QUEUE_ID'],
-			'USER_ID' => $params['USER_ID'],
-			'SIP_TO' => $params['SIP_TO'],
-			'SESSION_ID' => $params['SESSION_ID']
-		));
-
-		CVoxImplantHistory::WriteToLog($result, 'INCOMING INVITE: ANSWER');
-
-		echo Json::encode($result);
-	}
-	else if($params["COMMAND"] == "FailAnswer")
-	{
-		CVoxImplantMain::SendPullEvent(Array(
-			'COMMAND' => 'timeout',
-			'USER_ID' => $params['USER_ID'],
-			'CALL_ID' => $params['CALL_ID'],
-			'MARK' => 'timeout_hit_1'
-		));
+		$call = \Bitrix\Voximplant\Call::load($params['CALL_ID']);
+		if($call)
+		{
+			$call->removeUsers($params['USERS']);
+		}
 		echo Json::encode(Array('result' => 'OK'));
 	}
-	else if($params["COMMAND"] == "TransferTimeout")
+	else if($params["COMMAND"] == "CompleteTransfer")
 	{
-		CVoxImplantTransfer::Timeout($params['CALL_ID']);
+		\Bitrix\Voximplant\Transfer\Transferor::completeTransfer($params['CALL_ID'], $params['USER_ID']);
 
 		echo Json::encode(Array('result' => 'OK'));
 	}
-	else if($params["COMMAND"] == "TransferCancel")
+	else if($params["COMMAND"] == "CancelTransfer")
 	{
-		CVoxImplantTransfer::Decline($params['CALL_ID'], false);
-
-		echo Json::encode(Array('result' => 'OK'));
-	}
-	else if($params["COMMAND"] == "TransferComplete")
-	{
-		CVoxImplantTransfer::Complete($params['CALL_ID'], $params['CALL_DEVICE']);
+		\Bitrix\Voximplant\Transfer\Transferor::cancelTransfer($params['CALL_ID'], $params['CODE'], $params['REASON']);
 
 		echo Json::encode(Array('result' => 'OK'));
 	}
 	else if($params["COMMAND"] == "CompletePhoneTransfer")
 	{
-		CVoxImplantTransfer::completePhoneTransfer($params['FROM_CALL_ID'], $params['TO_CALL_ID']);
+		\Bitrix\Voximplant\Transfer\Transferor::completePhoneTransfer($params['FROM_CALL_ID'], $params['TO_CALL_ID']);
 
 		echo Json::encode(Array('result' => 'OK'));
 	}
 	else if($params["COMMAND"] == "StartCall")
 	{
-		CVoxImplantMain::CallStart($params['CALL_ID'], $params['USER_ID'], $params['CALL_DEVICE'], $params['EXTERNAL'] == 'Y');
-
-		$call = \Bitrix\Voximplant\CallTable::getByCallId($params['CALL_ID']);
-		$usersToTimeout = array();
-		$usersToCancelPush = array();
-
-		if($call['PORTAL_USER_ID'] > 0)
+		$callId = $params['CALL_ID'];
+		$call = \Bitrix\Voximplant\Call::load($callId);
+		if(!$call)
 		{
-			$usersToCancelPush[] = $call['PORTAL_USER_ID'];
+			return false;
 		}
 
-		if ($call && (int)$call['PORTAL_USER_ID'] === 0)
-		{
-			$cursor = \Bitrix\Voximplant\Model\QueueUserTable::getList(Array(
-				'filter' => Array('=QUEUE_ID' => $call['QUEUE_ID']),
-			));
-			while ($queue = $cursor->fetch())
-			{
-				if($params['USER_ID'] == $queue['USER_ID'])
-				{
-					$usersToCancelPush[] = $queue['USER_ID'];
-				}
-				else
-				{
-					$usersToTimeout[] = $queue['USER_ID'];
-				}
-			}
-		}
+		$call->handleUserConnected($params['USER_ID'], $params['CALL_DEVICE']);
 
-		if(count($usersToCancelPush) > 0)
-		{
-			CVoxImplantMain::SendPullEvent(Array(
-				'COMMAND' => 'answer_phone',
-				'USER_ID' => $usersToCancelPush,
-				'CALL_ID' => $call['CALL_ID'],
-			));
-		}
-
-		if(count($usersToTimeout) > 0)
-		{
-			CVoxImplantMain::SendPullEvent(Array(
-				'COMMAND' => 'timeout',
-				'USER_ID' => $usersToTimeout,
-				'CALL_ID' => $call['CALL_ID'],
-				'MARK' => 'timeout_hit_2'
-			));
-		}
+		CVoxImplantMain::sendCallStartEvent(array(
+			'CALL_ID' => $call->getCallId(),
+			'USER_ID' => $params['USER_ID'],
+		));
 
 		echo Json::encode(Array('result' => 'OK'));
 	}
 	else if($params["COMMAND"] == "HangupCall")
 	{
-		$call = \Bitrix\Voximplant\CallTable::getByCallId($params['CALL_ID']);
-		$userTimeout = Array();
-		if ($call)
+		CVoxImplantHistory::WriteToLog($params, 'PORTAL HANGUP');
+		$call = \Bitrix\Voximplant\Call::load($params['CALL_ID']);
+		if($call)
 		{
-			$res = \Bitrix\Voximplant\Model\QueueUserTable::getList(Array(
-				'filter' => Array('=QUEUE_ID' => $call['QUEUE_ID']),
-			));
-			while ($queue = $res->fetch())
-			{
-				if ($call['TRANSFER_USER_ID'] == $queue['USER_ID'])
-					continue;
-
-				$userTimeout[$queue['USER_ID']] = true;
-				CVoxImplantMain::SendPullEvent(Array(
-					'COMMAND' => 'timeout',
-					'USER_ID' => $queue['USER_ID'],
-					'CALL_ID' => $call['CALL_ID'],
-					'MARK' => 'timeout_hit_3'
-				));
-			}
-			if ($call['TRANSFER_USER_ID'] > 0)
-			{
-				$userTimeout[$call['TRANSFER_USER_ID']] = true;
-				CVoxImplantTransfer::SendPullEvent(Array(
-					'COMMAND' => 'timeoutTransfer',
-					'USER_ID' => $call['TRANSFER_USER_ID'],
-					'CALL_ID' => $call['CALL_ID'],
-				));
-			}
-			if ($call['PORTAL_USER_ID'] > 0 && !$userTimeout[$call['PORTAL_USER_ID']])
-			{
-				$userTimeout[$call['PORTAL_USER_ID']] = true;
-				CVoxImplantMain::SendPullEvent(Array(
-					'COMMAND' => 'timeout',
-					'USER_ID' => $call['PORTAL_USER_ID'],
-					'CALL_ID' => $call['CALL_ID'],
-					'MARK' => 'timeout_hit_4'
-				));
-			}
-			if ($call['USER_ID'] > 0 && !$userTimeout[$call['USER_ID']])
-			{
-				CVoxImplantMain::SendPullEvent(Array(
-					'COMMAND' => 'timeout',
-					'USER_ID' => $call['USER_ID'],
-					'CALL_ID' => $call['CALL_ID'],
-					'MARK' => 'timeout_hit_5'
-				));
-			}
+			$call->finish();
 		}
-		else
+		echo Json::encode(Array('result' => 'OK'));
+	}
+	else if($params["COMMAND"] == "SessionTerminated")
+	{
+		$call = \Bitrix\Voximplant\Call::load($params['CALL_ID']);
+		if($call)
 		{
-			CVoxImplantMain::SendPullEvent(Array(
-				'COMMAND' => 'timeout',
-				'USER_ID' => $params['USER_ID'],
-				'CALL_ID' => $params['CALL_ID'],
-				'MARK' => 'timeout_hit_6'
-			));
+			$call->finish();
 		}
-
-		CVoxImplantHistory::WriteToLog($call, 'PORTAL HANGUP');
-
 		echo Json::encode(Array('result' => 'OK'));
 	}
 	else if($params["COMMAND"] == "GetNextAction")
 	{
-		$result = CVoxImplantIncoming::GetNextAction(Array(
-			'SEARCH_ID' => $params['PHONE_NUMBER'],
-			'CALL_ID' => $params['CALL_ID'],
-			'QUEUE_ID' => $params['QUEUE_ID'],
-			'CALLER_ID' => $params['CALLER_ID'],
-			'LAST_USER_ID' => $params['LAST_USER_ID'],
-			'LAST_TYPE_CONNECT' => $params['LAST_TYPE_CONNECT'],
-			'LAST_ANSWER_USER_ID' => $params['LAST_ANSWER_USER_ID'],
-		));
-		CVoxImplantHistory::WriteToLog($result, 'GET NEXT ACTION');
-		echo Json::encode($result);
-	}
-	else if($params["COMMAND"] == "GetNextInQueue")
-	{
-		if ($params['QUEUE_ID'] > 0)
+		$call = \Bitrix\Voximplant\Call::load($params['CALL_ID']);
+		if($call)
 		{
-			$queueId = (int)$params['QUEUE_ID'];
-		}
-		else if(isset($params['CALL_ID']))
-		{
-			$call = \Bitrix\Voximplant\CallTable::getByCallId($params['CALL_ID']);
-			if(is_array($call))
+			if(isset($params['GATHERED_DIGITS']) && $params['GATHERED_DIGITS'] != '')
 			{
-				if($call['QUEUE_ID'] > 0)
-				{
-					$queueId = (int)$call['QUEUE_ID'];
-				}
-				else
-				{
-					$config = \Bitrix\Voximplant\ConfigTable::getById($call['CONFIG_ID'])->fetch();
-					if(is_array($config) && $config['QUEUE_ID'] > 0)
-					{
-						$queueId = (int)$config['QUEUE_ID'];
-					}
-				}
+				$call->updateGatheredDigits($params['GATHERED_DIGITS']);
 			}
-		}
 
-		if($queueId > 0)
-			$queueParams = \Bitrix\Voximplant\Model\QueueTable::getById($queueId)->fetch();
-
-		if (in_array($params['LAST_TYPE_CONNECT'], Array(CVoxImplantIncoming::TYPE_CONNECT_DIRECT, CVoxImplantIncoming::TYPE_CONNECT_CRM)))
-		{
-			$result = CVoxImplantIncoming::GetNextAction(Array(
-				'SEARCH_ID' => $params['PHONE_NUMBER'],
-				'CALL_ID' => $params['CALL_ID'],
-				'QUEUE_ID' => $queueId,
-				'CALLER_ID' => $params['CALLER_ID'],
-				'LAST_USER_ID' => $params['LAST_USER_ID'],
-				'LAST_TYPE_CONNECT' => $params['LAST_TYPE_CONNECT'],
-				'LAST_ANSWER_USER_ID' => $params['LAST_ANSWER_USER_ID'],
-			));
-			CVoxImplantHistory::WriteToLog($result, 'GET NEXT ACTION');
-		}
-		else if (isset($queueParams['TYPE']) && $queueParams['TYPE'] == CVoxImplantConfig::QUEUE_TYPE_ALL)
-		{
-			$result = CVoxImplantIncoming::GetQueue(Array(
-				'SEARCH_ID' => $params['PHONE_NUMBER'],
-				'CALL_ID' => $params['CALL_ID'],
-				'CALLER_ID' => $params['CALLER_ID'],
-				'LAST_TYPE_CONNECT' => $params['LAST_TYPE_CONNECT'],
-			));
-			CVoxImplantHistory::WriteToLog($result, 'RESEND IN QUEUE');
+			$router = new \Bitrix\Voximplant\Routing\Router($call);
+			$nextAction = $router->getNextAction($params);
 		}
 		else
 		{
-			$result = CVoxImplantIncoming::GetNextInQueue(Array(
-				'SEARCH_ID' => $params['PHONE_NUMBER'],
-				'CALL_ID' => $params['CALL_ID'],
-				'CALLER_ID' => $params['CALLER_ID'],
-				'LAST_USER_ID' => $params['LAST_USER_ID'],
-				'LAST_TYPE_CONNECT' => $params['LAST_TYPE_CONNECT'],
-				'LAST_ANSWER_USER_ID' => $params['LAST_ANSWER_USER_ID'],
-			));
-			CVoxImplantHistory::WriteToLog($result, 'GET NEXT IN QUEUE');
+			$nextAction = new \Bitrix\Voximplant\Routing\Action('hangup', ['REASON' => 'Call is not found']);
 		}
-
-		echo Json::encode($result);
-	}
-	else if($params["COMMAND"] == "RouteToQueue")
-	{
-		$result = CVoxImplantIncoming::routeToQueue(array(
-			'CALL_ID' => $params['CALL_ID'],
-			'QUEUE_ID' => $params['QUEUE_ID']
-		));
-
-		echo Json::encode($result);
+		echo $nextAction->toJson();
 	}
 	else if($params["COMMAND"] == "RouteToUser")
 	{
@@ -358,12 +178,22 @@ if(
 			'RESULT' => $result ? 'Y' : 'N'
 		));
 	}
-	elseif($params["COMMAND"] == "InviteUsers")
+	else if($params["COMMAND"] == "InviteUsers")
 	{
 		$callId = $params["CALL_ID"];
 		$users = $params["USERS"];
 
-		\Bitrix\Voximplant\Integration\Pull::sendInvite($users, $callId);
+		$call = \Bitrix\Voximplant\Call::load($callId);
+		$call->getSignaling()->sendInvite($users);
+	}
+	else if($params["COMMAND"] == "Ping")
+	{
+		$callId = $params["CALL_ID"];
+		$call = \Bitrix\Voximplant\Call::load($callId);
+		if($call)
+		{
+			$call->updateLastPingDate(new \Bitrix\Main\Type\DateTime());
+		}
 	}
 
 	// CONTROLLER OR EMERGENCY HITS
@@ -388,6 +218,18 @@ if(
 	}
 	elseif($params["COMMAND"] == "IncomingGetConfig")
 	{
+		if(isset($params["SIP_HEADERS"]))
+		{
+			try
+			{
+				$params["SIP_HEADERS"] = Json::decode($params["SIP_HEADERS"]);
+			}
+			catch (\Bitrix\Main\ArgumentException $e)
+			{
+				unset($params["SIP_HEADERS"]);
+			}
+		}
+
 		$result = CVoxImplantIncoming::GetConfig($params);
 		
 		echo Json::encode($result);
@@ -442,20 +284,14 @@ if(
 		}
 		else if($params["COMMAND"] == "ExternalHungup")
 		{
-			$res = Bitrix\Voximplant\CallTable::getList(Array(
-				'filter' => Array('=CALL_ID' => $params['CALL_ID_TMP']),
-			));
-			if ($call = $res->fetch())
-			{
-				Bitrix\Voximplant\CallTable::delete($call['ID']);
+			$call = \Bitrix\Voximplant\Call::load($params['CALL_ID']);
 
-				CVoxImplantOutgoing::SendPullEvent(Array(
-					'COMMAND' => 'timeout',
-					'USER_ID' => $call['USER_ID'],
-					'CALL_ID' => $call['CALL_ID'],
-					'FAILED_CODE' => intval($params['CALL_FAILED_CODE']),
-					'MARK' => 'timeout_hit_7'
-				));
+			if ($call)
+			{
+				$call->finish([
+					'externalHangup' => true,
+					'failedCode' => intval($params['CALL_FAILED_CODE'])
+				]);
 				CVoxImplantHistory::WriteToLog($call, 'EXTERNAL CALL HANGUP');
 			}
 		}

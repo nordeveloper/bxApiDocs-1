@@ -29,18 +29,21 @@ class UserTypeField extends ExpressionField
 	{
 		if ($this->isMultiple)
 		{
-			//if (!\is_iterable($value)) PHP 7
-			if (!is_array($value) && !($value instanceof \Traversable))
+			if ($value !== false) // empty value for multiple field
 			{
-				throw new ArgumentException(sprintf(
-					'Expected iterable value for multiple field, but got `%s` instead', gettype($value)
-				));
-			}
+				//if (!\is_iterable($value)) PHP 7
+				if (!is_array($value) && !($value instanceof \Traversable))
+				{
+					throw new ArgumentException(sprintf(
+						'Expected iterable value for multiple field, but got `%s` instead', gettype($value)
+					));
+				}
 
-			// array of values
-			foreach ($value as &$_value)
-			{
-				$_value = parent::cast($_value);
+				// array of values
+				foreach ($value as &$_value)
+				{
+					$_value = parent::cast($_value);
+				}
 			}
 
 			return $value;

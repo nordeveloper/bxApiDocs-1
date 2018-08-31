@@ -5,6 +5,7 @@ use Bitrix\Main\Application;
 use Bitrix\Main\Entity;
 use Bitrix\Main\Error;
 use Bitrix\Main\SystemException;
+use Bitrix\Voximplant\Internals\Entity\Query;
 
 abstract class Base extends Entity\DataManager
 {
@@ -36,6 +37,69 @@ abstract class Base extends Entity\DataManager
 		$update = $helper->prepareUpdate(static::getTableName(), $fields);
 		$query = 'UPDATE '. $helper->quote(static::getTableName()) . ' SET ' . $update[0] . ' WHERE ID = ' . $id;
 		$conn->queryExecute($query);
+	}
+
+	/**
+	 * Simply updates rows using filter.
+	 * @param array $fields Fields.
+	 * @param array $filter Filter.
+	 * @param int $limit Limit.
+	 * @return int Returns count of affected rows.
+	 */
+	public static function updateBatch(array $fields, array $filter, $limit = 0)
+	{
+		$limit = (int)$limit;
+		$tableName = static::getTableName();
+		$connection = Application::getConnection();
+		$sqlHelper = $connection->getSqlHelper();
+
+		$update = $sqlHelper->prepareUpdate($tableName, $fields);
+
+		$query = new Query(static::getEntity());
+		$query->setFilter($filter);
+		$query->getQuery();
+
+		$alias = $sqlHelper->quote($query->getInitAlias()) . '.';
+		$where = str_replace($alias, '', $query->getWhere());
+
+		$sql = 'UPDATE ' . $tableName . ' SET ' . $update[0] . ' WHERE ' . $where;
+		if($limit > 0)
+		{
+			$sql .= ' LIMIT ' . $limit;
+		}
+
+		$connection->queryExecute($sql, $update[1]);
+		return $connection->getAffectedRowsCount();
+	}
+
+	/**
+	 * Deletes rows using filter.
+	 * @param array $filter Filter.
+	 * @param int $limit Limit.
+	 * @return int Returns count of affected rows.
+	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 */
+	public static function deleteBatch(array $filter, $limit = 0)
+	{
+		$tableName = static::getTableName();
+		$connection = Application::getConnection();
+		$sqlHelper = $connection->getSqlHelper();
+
+		$query = new Query(static::getEntity());
+		$query->setFilter($filter);
+		$query->getQuery();
+
+		$alias = $sqlHelper->quote($query->getInitAlias()) . '.';
+		$where = str_replace($alias, '', $query->getWhere());
+
+		$sql = 'DELETE FROM ' . $tableName . ' WHERE ' . $where;
+		if($limit > 0)
+		{
+			$sql .= ' LIMIT ' . $limit;
+		}
+
+		$connection->queryExecute($sql);
+		return $connection->getAffectedRowsCount();
 	}
 
 	/**

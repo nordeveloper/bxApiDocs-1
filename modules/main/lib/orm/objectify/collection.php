@@ -37,8 +37,8 @@ abstract class Collection implements \ArrayAccess, \Iterator
 	/** @var bool */
 	protected $isSinglePrimary;
 
-	/** @var array [SerializedPrimary => RUNTIME_CHANGE_CODE] */
-	protected $objectsRuntimeChanged;
+	/** @var array [SerializedPrimary => OBJECT_CHANGE_CODE] */
+	protected $objectsChanges;
 
 	/** @var  EntityObject[] */
 	protected $objectsRemoved;
@@ -46,11 +46,11 @@ abstract class Collection implements \ArrayAccess, \Iterator
 	/** @var EntityObject[] Used for Iterator interface, allows to delete elements during foreach loop */
 	protected $iterableObjects;
 
-	/** @var int Code for $objectsRuntimeChanged */
-	const RUNTIME_ADDED = 1;
+	/** @var int Code for $objectsChanged */
+	const OBJECT_ADDED = 1;
 
-	/** @var int Code for $objectsRuntimeChanged */
-	const RUNTIME_REMOVED = 2;
+	/** @var int Code for $objectsChanged */
+	const OBJECT_REMOVED = 2;
 
 	/**
 	 * Collection constructor.
@@ -87,10 +87,22 @@ abstract class Collection implements \ArrayAccess, \Iterator
 	 * DataManager (Table) class. Can be overridden.
 	 *
 	 * @return string|DataManager
+	 * @throws NotImplementedException
 	 */
 	public static function dataClass()
 	{
-		return substr(get_called_class(), 0, -10).'Table';
+		throw new NotImplementedException(sprintf(
+			'You should override static method dataClass() in %s class. Name of Table class of entity should be returned.',
+			get_called_class()
+		));
+	}
+
+	/**
+	 * @return Entity
+	 */
+	public function entity()
+	{
+		return $this->entity;
 	}
 
 	/**
@@ -103,7 +115,7 @@ abstract class Collection implements \ArrayAccess, \Iterator
 		if (empty($this->objects[$srPrimary]))
 		{
 			$this->objects[$srPrimary] = $object;
-			$this->objectsRuntimeChanged[$srPrimary] = static::RUNTIME_ADDED;
+			$this->objectsChanges[$srPrimary] = static::OBJECT_ADDED;
 		}
 	}
 
@@ -158,16 +170,16 @@ abstract class Collection implements \ArrayAccess, \Iterator
 
 		unset($this->objects[$srPrimary]);
 
-		if (!isset($this->objectsRuntimeChanged[$srPrimary]) || $this->objectsRuntimeChanged[$srPrimary] != static::RUNTIME_ADDED)
+		if (!isset($this->objectsChanges[$srPrimary]) || $this->objectsChanges[$srPrimary] != static::OBJECT_ADDED)
 		{
 			// regular remove
-			$this->objectsRuntimeChanged[$srPrimary] = static::RUNTIME_REMOVED;
+			$this->objectsChanges[$srPrimary] = static::OBJECT_REMOVED;
 			$this->objectsRemoved[$srPrimary] = $object;
 		}
-		elseif (isset($this->objectsRuntimeChanged[$srPrimary]) && $this->objectsRuntimeChanged[$srPrimary] == static::RUNTIME_ADDED)
+		elseif (isset($this->objectsChanges[$srPrimary]) && $this->objectsChanges[$srPrimary] == static::OBJECT_ADDED)
 		{
 			// silent remove for added runtime
-			unset($this->objectsRuntimeChanged[$srPrimary]);
+			unset($this->objectsChanges[$srPrimary]);
 			unset($this->objectsRemoved[$srPrimary]);
 		}
 	}
@@ -268,7 +280,7 @@ abstract class Collection implements \ArrayAccess, \Iterator
 	 */
 	public function isChanged()
 	{
-		return !empty($this->objectsRuntimeChanged);
+		return !empty($this->objectsChanges);
 	}
 
 	/**
@@ -279,7 +291,7 @@ abstract class Collection implements \ArrayAccess, \Iterator
 	{
 		$changes = [];
 
-		foreach ($this->objectsRuntimeChanged as $srPrimary => $changeCode)
+		foreach ($this->objectsChanges as $srPrimary => $changeCode)
 		{
 			if (isset($this->objects[$srPrimary]))
 			{
@@ -311,20 +323,20 @@ abstract class Collection implements \ArrayAccess, \Iterator
 	{
 		if ($rollback)
 		{
-			foreach ($this->objectsRuntimeChanged as $srPrimary => $changeCode)
+			foreach ($this->objectsChanges as $srPrimary => $changeCode)
 			{
-				if ($changeCode === static::RUNTIME_ADDED)
+				if ($changeCode === static::OBJECT_ADDED)
 				{
 					unset($this->objects[$srPrimary]);
 				}
-				elseif ($changeCode === static::RUNTIME_REMOVED)
+				elseif ($changeCode === static::OBJECT_REMOVED)
 				{
 					$this->objects[$srPrimary] = $this->objectsRemoved[$srPrimary];
 				}
 			}
 		}
 
-		$this->objectsRuntimeChanged = [];
+		$this->objectsChanges = [];
 		$this->objectsRemoved = [];
 	}
 

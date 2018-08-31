@@ -183,6 +183,9 @@ class ConfigTable extends Entity\DataManager
 				'title' => Loc::getMessage('INCOMING_CONFIG_ENTITY_MELODY_WAIT_FIELD'),
 				'default_value' => '0',
 			)),
+			'MELODY_ENQUEUE' => new Entity\IntegerField('MELODY_ENQUEUE', array(
+				'default_value' => '0',
+			)),
 			'MELODY_HOLD' => new Entity\IntegerField('MELODY_HOLD', array(
 				'title' => Loc::getMessage('INCOMING_CONFIG_ENTITY_MELODY_HOLD_FIELD'),
 				'default_value' => '0',
@@ -284,6 +287,9 @@ class ConfigTable extends Entity\DataManager
 			)),
 			'BACKUP_NUMBER' => new Entity\StringField('BACKUP_NUMBER'),
 			'BACKUP_LINE' => new Entity\StringField('BACKUP_LINE'),
+			'REDIRECT_WITH_CLIENT_NUMBER' => new Entity\BooleanField('REDIRECT_WITH_CLIENT_NUMBER', array(
+				'values' => ['N', 'Y']
+			)),
 			'QUEUE' => new Entity\ReferenceField(
 				'QUEUE',
 				'\Bitrix\Voximplant\Model\Queue',

@@ -152,11 +152,11 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 
 			if (!$dateFrom || !$dateTo)
 			{
-				$dateFromTimestamp = \CCalendar::Timestamp($value['from']);
+				$dateFromTimestamp = \CCalendar::timestamp($value['from']);
 				$skipTime = isset($userField['SETTINGS']) && $userField['SETTINGS']['FULL_DAY'] == 'Y';
-				$dateFrom = \CCalendar::Date($dateFromTimestamp, !$skipTime);
+				$dateFrom = \CCalendar::date($dateFromTimestamp, !$skipTime);
 				$duration = intval($value['duration']);
-				$dateTo = \CCalendar::Date($dateFromTimestamp + ($skipTime ? $duration - \CCalendar::DAY_LENGTH : $duration), !$skipTime);
+				$dateTo = \CCalendar::date($dateFromTimestamp + ($skipTime ? $duration - \CCalendar::DAY_LENGTH : $duration), !$skipTime);
 				$serviceName = trim($value['serviceName']);
 
 				$fields = array(
@@ -173,12 +173,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 
 				if (!$skipTime)
 				{
-					$userTimezoneOffsetUTC = \CCalendar::GetCurrentOffsetUTC($currentUserId);
-					$userTimezoneName = \CCalendar::GetUserTimezoneName($currentUserId);
-					if(!$userTimezoneName)
-					{
-						$userTimezoneName = \CCalendar::GetGoodTimezoneForOffset($userTimezoneOffsetUTC);
-					}
+					$userTimezoneName = \CCalendar::getUserTimezoneName($currentUserId, true);
 					if($userTimezoneName)
 					{
 						$fields['TZ_FROM'] = $userTimezoneName;
@@ -266,19 +261,19 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			}
 
 			// Userfields for event
-			$arUFFields = array();
+			$userFields = array();
 			if ($params['userField']['ENTITY_ID'] == 'CRM_DEAL')
 			{
-				$arUFFields['UF_CRM_CAL_EVENT'] = array("D_".$params['userField']['VALUE_ID']);
+				$userFields['UF_CRM_CAL_EVENT'] = array("D_".$params['userField']['VALUE_ID']);
 			}
 			elseif ($params['userField']['ENTITY_ID'] == 'CRM_LEAD')
 			{
-				$arUFFields['UF_CRM_CAL_EVENT'] = array("L_".$params['userField']['VALUE_ID']);
+				$userFields['UF_CRM_CAL_EVENT'] = array("L_".$params['userField']['VALUE_ID']);
 			}
 
-			$entryId = \CCalendar::SaveEvent(array(
+			$entryId = \CCalendar::saveEvent(array(
 				'arFields' => $eventFields,
-				'UF' => $arUFFields,
+				'UF' => $userFields,
 				'silentErrorMode' => false,
 				'autoDetectSection' => true,
 				'autoCreateSection' => true,
@@ -290,7 +285,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			$eventFields["CAL_TYPE"] = $resourceType;
 			$eventFields["SECTIONS"] = $resourceId;
 
-			$entryId = \CCalendarEvent::Edit(array(
+			$entryId = \CCalendarEvent::edit(array(
 				'arFields' => $eventFields
 			));
 		}
@@ -356,7 +351,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			}
 			else
 			{
-				\CCalendar::DeleteEvent(intVal($entryId), false);
+				\CCalendar::deleteEvent(intVal($entryId), false);
 			}
 		}
 
@@ -365,7 +360,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 
 	private static function releaseResource($entry)
 	{
-		\CCalendar::DeleteEvent(intVal($entry['EVENT_ID']), false);
+		\CCalendar::deleteEvent(intVal($entry['EVENT_ID']), false, array('checkPermissions' => false));
 		Internals\ResourceTable::delete($entry['ID']);
 	}
 
@@ -401,7 +396,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 					{
 						if ($section['NAME'] != $resource['title'])
 						{
-							\CCalendarSect::Edit(array(
+							\CCalendarSect::edit(array(
 								'arFields' => array(
 									'ID' => $resource['id'],
 									'CAL_TYPE' => $resource['type'],
@@ -415,7 +410,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 				}
 				elseif (!$resource['id'] && $resource['title'] !== '')
 				{
-					$resource['id'] = \CCalendarSect::Edit(array(
+					$resource['id'] = \CCalendarSect::edit(array(
 						'arFields' => array(
 							'CAL_TYPE' => $resource['type'],
 							'NAME' => $resource['title'],
@@ -446,11 +441,11 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		return $res;
 	}
 
-	function getSettingsHTML($userField = false, $htmlControl, $bVarsFromForm)
+	function getSettingsHTML($userField = false, $htmlControl, $varsFromForm)
 	{
 		static::initDisplay(array('userfield_resourcebooking', 'calendar_planner', 'socnetlogdest', 'helper'));
 
-		if($bVarsFromForm)
+		if($varsFromForm)
 		{
 			$settingsValue = $GLOBALS[$htmlControl["NAME"]];
 		}
@@ -474,7 +469,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 
 		if ($settingsValue['USE_USERS'] == 'Y')
 		{
-			$params['socnetDestination'] = \CCalendar::GetSocNetDestination(false, array(), $settingsValue['SELECTED_USERS']);
+			$params['socnetDestination'] = \CCalendar::getSocNetDestination(false, array(), $settingsValue['SELECTED_USERS']);
 		}
 
 		$result = '<tr>
@@ -490,9 +485,9 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		return $result;
 	}
 
-	function getEditFormHTML($userField, $arHtmlControl)
+	function getEditFormHTML($userField, $htmlControl)
 	{
-		return static::getPublicEdit($userField, $arHtmlControl);
+		return static::getPublicEdit($userField, $htmlControl);
 	}
 
 	public static function getPublicEdit($userField, $additionalParams = array())
@@ -530,7 +525,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 
 		if ($params['useUsers'])
 		{
-			$params['socnetDestination'] = \CCalendar::GetSocNetDestination(false, array(), $userField['SETTINGS']['SELECTED_USERS']);
+			$params['socnetDestination'] = \CCalendar::getSocNetDestination(false, array(), $userField['SETTINGS']['SELECTED_USERS']);
 		}
 
 		ob_start();
@@ -556,8 +551,8 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		$context = isset($additionalParams['CONTEXT']) ? $additionalParams['CONTEXT'] : '';
 		$value = static::fetchFieldValue($userField["VALUE"]);
 		$skipTime = is_array($userField['SETTINGS']) && $userField['SETTINGS']['FULL_DAY'] == 'Y';
-		$fromTs = \CCalendar::Timestamp($value['DATE_FROM'], true, !$skipTime);
-		$toTs = \CCalendar::Timestamp($value['DATE_TO'], true, !$skipTime);
+		$fromTs = \CCalendar::timestamp($value['DATE_FROM'], true, !$skipTime);
+		$toTs = \CCalendar::timestamp($value['DATE_TO'], true, !$skipTime);
 
 		$users = [];
 		$resources = [];
@@ -570,13 +565,13 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			{
 				$userIdList[] = $entry['RESOURCE_ID'];
 
-				$db = \CUser::GetList($by = 'ID', $order = 'ASC',
+				$db = \CUser::getList($by = 'ID', $order = 'ASC',
 					array('ID'=> $entry['RESOURCE_ID']),
 					array('FIELDS' => array('ID', 'LOGIN', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'TITLE', 'PERSONAL_PHOTO'))
 				);
-				if ($row = $db->Fetch())
+				if ($row = $db->fetch())
 				{
-					$row['URL'] = \CCalendar::GetUserUrl($row["ID"]);
+					$row['URL'] = \CCalendar::getUserUrl($row["ID"]);
 					$users[] = $row;
 				}
 			}
@@ -614,7 +609,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			{
 				foreach($users as $user)
 				{
-					$resListItems[] = '<span>'.HtmlFilter::encode(\CCalendar::GetUserName($user)).'</span>';
+					$resListItems[] = '<span>'.HtmlFilter::encode(\CCalendar::getUserName($user)).'</span>';
 				}
 			}
 			if(count($resourceNames) > 0)
@@ -627,7 +622,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 
 			if (count($resListItems) > 0)
 			{
-				$html = '<span>'.\CCalendar::GetFromToHtml($fromTs, $toTs, $skipTime, $toTs - $fromTs).'</span>: ';
+				$html = '<span>'.\CCalendar::getFromToHtml($fromTs, $toTs, $skipTime, $toTs - $fromTs).'</span>: ';
 				if(!empty($value['SERVICE_NAME']))
 				{
 					$html .= '<span>'.HtmlFilter::encode($value['SERVICE_NAME']).'</span>, ';
@@ -658,7 +653,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 									class="crm-entity-widget-content-block-title-text"><?= ($skipTime ? Loc::getMessage("USER_TYPE_RESOURCE_DATE_BLOCK_TITLE") : Loc::getMessage("USER_TYPE_RESOURCE_DATETIME_BLOCK_TITLE")) ?></span>
 							</div>
 							<div
-								class="crm-entity-widget-content-block-inner"><?= \CCalendar::GetFromToHtml($fromTs, $toTs, $skipTime, $toTs - $fromTs) ?></div>
+								class="crm-entity-widget-content-block-inner"><?= \CCalendar::getFromToHtml($fromTs, $toTs, $skipTime, $toTs - $fromTs) ?></div>
 						</div>
 
 						<? if(!empty($value['SERVICE_NAME'])): ?>
@@ -680,9 +675,8 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 								</div>
 								<? foreach($users as $user): ?>
 									<div class="crm-widget-employee-container">
-										<a class="crm-widget-employee-avatar-container" href="<?= $user['URL'] ?>" target="_blank"
-										   style="background-image: url('<?= \CCalendar::GetUserAvatarSrc($user) ?>'); background-size: 30px;"></a><span
-											class="crm-widget-employee-info"><a class="crm-widget-employee-name" href="<?= $user['URL']?>" target="_blank"><?= HtmlFilter::encode(\CCalendar::GetUserName($user))?></a><span class="crm-widget-employee-position"></span></span>
+										<a class="crm-widget-employee-avatar-container" href="<?= $user['URL'] ?>" target="_blank" style="background-image: url('<?= \CCalendar::getUserAvatarSrc($user) ?>'); background-size: 30px;"></a>
+										<span class="crm-widget-employee-info"><a class="crm-widget-employee-name" href="<?= $user['URL']?>" target="_blank"><?= HtmlFilter::encode(\CCalendar::getUserName($user))?></a><span class="crm-widget-employee-position"></span></span>
 									</div>
 								<? endforeach; ?>
 							</div>
@@ -772,22 +766,22 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 				$result['SERVICE_NAME'] = $resourse['SERVICE_NAME'];
 				\CTimeZone::Enable();
 
-				$fromTs = \CCalendar::Timestamp($result['DATE_FROM']);
-				$toTs = \CCalendar::Timestamp($result['DATE_TO']);
+				$fromTs = \CCalendar::timestamp($result['DATE_FROM']);
+				$toTs = \CCalendar::timestamp($result['DATE_TO']);
 
 				if (!$resourse['SKIP_TIME'])
 				{
-					$currentUserID = \CCalendar::GetCurUserId();
+					$currentUserID = \CCalendar::getCurUserId();
 
-					$userOffsetFrom = \CCalendar::GetTimezoneOffset($resourse['TZ_FROM'], $fromTs) - \CCalendar::GetCurrentOffsetUTC($currentUserID);
-					$userOffsetTo = \CCalendar::GetTimezoneOffset($resourse['TZ_TO'], $toTs) - \CCalendar::GetCurrentOffsetUTC($currentUserID);
+					$userOffsetFrom = \CCalendar::getTimezoneOffset($resourse['TZ_FROM'], $fromTs) - \CCalendar::getCurrentOffsetUTC($currentUserID);
+					$userOffsetTo = \CCalendar::getTimezoneOffset($resourse['TZ_TO'], $toTs) - \CCalendar::getCurrentOffsetUTC($currentUserID);
 
-					$result['DATE_FROM'] = \CCalendar::Date($fromTs - $userOffsetFrom);
-					$result['DATE_TO'] = \CCalendar::Date($toTs - $userOffsetTo);
+					$result['DATE_FROM'] = \CCalendar::date($fromTs - $userOffsetFrom);
+					$result['DATE_TO'] = \CCalendar::date($toTs - $userOffsetTo);
 				}
 				else
 				{
-					$result['DATE_TO'] = \CCalendar::Date($toTs + \CCalendar::DAY_LENGTH);
+					$result['DATE_TO'] = \CCalendar::date($toTs + \CCalendar::DAY_LENGTH);
 				}
 			}
 
@@ -834,8 +828,8 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			}
 
 			$billingCurrency = \CBitrix24::BillingCurrency();
-			$arProductPrices = \CBitrix24::getPrices($billingCurrency);
-			$params["tfPrice"] = \CBitrix24::ConvertCurrency($arProductPrices["TF1"]["PRICE"], $billingCurrency);
+			$productPrices = \CBitrix24::getPrices($billingCurrency);
+			$params["tfPrice"] = \CBitrix24::ConvertCurrency($productPrices["TF1"]["PRICE"], $billingCurrency);
 
 			return $params;
 		}

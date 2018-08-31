@@ -536,7 +536,7 @@ class CSiteCheckerTest
 		list($host, $port) = explode(':',$_SERVER['HTTP_HOST']);
 		if ($host != 'localhost' && !preg_match('#^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$#',$host))
 		{
-			if (!preg_match('#^[a-z0-9\-\.]{2,192}\.(xn--)?[a-z0-9]{2,63}$#i', $host))
+			if (!preg_match('#^[a-z0-9\-\.]{1,192}\.(xn--)?[a-z0-9]{2,63}$#i', $host))
 				$strError .= GetMessage("SC_TEST_DOMAIN_VALID", array('#VAL#' => htmlspecialcharsbx($_SERVER['HTTP_HOST'])))."<br>";
 		}
 		if ($strError)

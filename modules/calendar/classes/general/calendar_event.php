@@ -217,13 +217,16 @@ class CCalendarEvent
 			}
 
 			$arReminders = array();
-			if (is_array($arFields['REMIND']))
+			if (isset($arFields['REMIND']))
 			{
-				foreach ($arFields['REMIND'] as $remind)
+				if (is_array($arFields['REMIND']))
 				{
-					if (is_array($remind) && isset($remind['type']) && in_array($remind['type'], array('min', 'hour', 'day')))
+					foreach($arFields['REMIND'] as $remind)
 					{
-						$arReminders[] = array('type' => $remind['type'], 'count' => floatVal($remind['count']));
+						if(is_array($remind) && isset($remind['type']) && in_array($remind['type'], array('min', 'hour', 'day')))
+						{
+							$arReminders[] = array('type' => $remind['type'], 'count' => floatVal($remind['count']));
+						}
 					}
 				}
 			}
@@ -582,7 +585,7 @@ class CCalendarEvent
 					{
 						if(is_array($val))
 						{
-							$val = array_map(intval, $val);
+							$val = array_map('intval', $val);
 							$arSqlSearch[] = 'CE.ID IN (\''.implode('\',\'', $val).'\')';
 						}
 						else if (intVal($val) > 0)
@@ -598,7 +601,7 @@ class CCalendarEvent
 					{
 						if(is_array($val))
 						{
-							$val = array_map(intval, $val);
+							$val = array_map('intval', $val);
 							$arSqlSearch[] = 'CE.OWNER_ID IN (\''.implode('\',\'', $val).'\')';
 						}
 						else if (intVal($val) > 0)
@@ -610,7 +613,7 @@ class CCalendarEvent
 					{
 						if(is_array($val))
 						{
-							$val = array_map(intval, $val);
+							$val = array_map('intval', $val);
 							$arSqlSearch[] = 'CE.MEETING_HOST IN (\''.implode('\',\'', $val).'\')';
 						}
 						else if (intVal($val) > 0)
@@ -626,7 +629,7 @@ class CCalendarEvent
 					{
 						if(is_array($val))
 						{
-							$val = array_map(intval, $val);
+							$val = array_map('intval', $val);
 							$arSqlSearch[] = 'CE.CREATED_BY IN (\''.implode('\',\'', $val).'\')';
 						}
 						else if (intVal($val) > 0)
@@ -1107,7 +1110,6 @@ class CCalendarEvent
 			$event['ACCESSIBILITY'] = 'busy';
 
 		$private = $event['PRIVATE_EVENT'] && $event['CAL_TYPE'] == 'user';
-		$bManager = false;
 		$bAttendee = false;
 
 		if (isset($event['~ATTENDEES']))
@@ -1120,11 +1122,12 @@ class CCalendarEvent
 		}
 
 		if(!$userId)
+		{
 			$userId = CCalendar::GetUserId();
+		}
 
 		$settings = CCalendar::GetSettings(array('request' => false));
-		if (Loader::includeModule('intranet') && $event['CAL_TYPE'] == 'user' && $settings['dep_manager_sub'])
-			$bManager = in_array($userId, CCalendar::GetUserManagers($event['OWNER_ID'], true));
+		$isManager = (Loader::includeModule('intranet') && $event['CAL_TYPE'] == 'user' && $settings['dep_manager_sub']) && Bitrix\Calendar\Util::isManagerForUser($userId, $event['OWNER_ID']);
 
 		if ($event['CAL_TYPE'] == 'user' && $event['IS_MEETING'] && $event['OWNER_ID'] != $userId)
 		{
@@ -1140,12 +1143,12 @@ class CCalendarEvent
 			}
 		}
 
-		if ($private || (!CCalendarSect::CanDo('calendar_view_full', $sectId, $userId) && !$bManager && !$bAttendee))
+		if ($private || (!CCalendarSect::CanDo('calendar_view_full', $sectId, $userId) && !$isManager && !$bAttendee))
 		{
 			if ($private)
 			{
 				$event['NAME'] = '['.GetMessage('EC_ACCESSIBILITY_'.strtoupper($event['ACCESSIBILITY'])).']';
-				if (!$bManager && !CCalendarSect::CanDo('calendar_view_time', $sectId, $userId))
+				if (!$isManager && !CCalendarSect::CanDo('calendar_view_time', $sectId, $userId))
 					return false;
 			}
 			else
@@ -1258,7 +1261,7 @@ class CCalendarEvent
 			if (!is_object(self::$TextParser))
 			{
 				self::$TextParser = new CTextParser();
-				self::$TextParser->allow = array("HTML" => "N", "ANCHOR" => "Y", "BIU" => "Y", "IMG" => "Y", "QUOTE" => "Y", "CODE" => "Y", "FONT" => "Y", "LIST" => "Y", "SMILES" => "Y", "NL2BR" => "N", "VIDEO" => "Y", "TABLE" => "Y", "CUT_ANCHOR" => "N", "ALIGN" => "Y", "USER" => "Y");
+				self::$TextParser->allow = array("HTML" => "N", "ANCHOR" => "Y", "BIU" => "Y", "IMG" => "Y", "QUOTE" => "Y", "CODE" => "Y", "FONT" => "Y", "LIST" => "Y", "SMILES" => "Y", "NL2BR" => "Y", "VIDEO" => "Y", "TABLE" => "Y", "CUT_ANCHOR" => "N", "ALIGN" => "Y", "USER" => "Y");
 			}
 
 			self::$TextParser->allow["USERFIELDS"] = self::__GetUFForParseText($eventId, $arUFWDValue);
@@ -1418,7 +1421,7 @@ class CCalendarEvent
 						{
 							$toTS -= CCalendar::GetDayLen();
 						}
-						$event['DATE_TO'] = CCalendar::Date($toTS, !$skipTime, false);
+						$event['DATE_TO'] = CCalendar::Date($toTS - ($event['TZ_OFFSET_FROM'] - $event['TZ_OFFSET_TO']), !$skipTime, false);
 
 						if (!$exclude)
 						{
@@ -1446,7 +1449,8 @@ class CCalendarEvent
 				if (($preciseLimits && $toTS >= $limitFromTSReal) ||
 					(!$preciseLimits && $toTS > $limitFromTS - $h24))
 				{
-					$event['DATE_TO'] = CCalendar::Date($toTS, !$skipTime, false);
+					$event['DATE_TO'] = CCalendar::Date($toTS - ($event['TZ_OFFSET_FROM'] - $event['TZ_OFFSET_TO']), !$skipTime, false);
+					//$event['DATE_TO'] = CCalendar::Date($toTS, !$skipTime, false);
 					if (!$exclude)
 					{
 						self::HandleEvent($res, $event);
@@ -1687,9 +1691,7 @@ class CCalendarEvent
 			if (!isset($arFields['TZ_FROM']) && !isset($arFields['TZ_TO']))
 			{
 				$userTimezoneOffsetUTC = CCalendar::GetCurrentOffsetUTC($userId);
-				$userTimezoneName = CCalendar::GetUserTimezoneName($userId);
-				if (!$userTimezoneName)
-					$userTimezoneName = CCalendar::GetGoodTimezoneForOffset($userTimezoneOffsetUTC);
+				$userTimezoneName = CCalendar::GetUserTimezoneName($userId, true);
 
 				$arFields['TZ_FROM'] = $userTimezoneName;
 				$arFields['TZ_TO'] = $userTimezoneName;
@@ -2617,7 +2619,7 @@ class CCalendarEvent
 					"location" => CCalendar::GetTextLocation($event["LOCATION"]),
 					"guestId" => $userId,
 					"eventId" => $event['PARENT_ID'],
-					"userId" => $event['MEETING_HOST'],
+					"userId" => isset($event['MEETING']['MEETING_CREATOR']) ? $event['MEETING']['MEETING_CREATOR'] : $event['MEETING_HOST'],
 					"fields" => $event
 				));
 			}
@@ -2967,11 +2969,9 @@ class CCalendarEvent
 					$event['ACCESSIBILITY'] = 'busy';
 
 				$private = $event['PRIVATE_EVENT'] && $event['CAL_TYPE'] == 'user';
-				$bManager = false;
-				if (!$private && CCalendar::IsIntranetEnabled() && Loader::includeModule('intranet') && $event['CAL_TYPE'] == 'user' && $settings['dep_manager_sub'])
-					$bManager = in_array($curUserId, CCalendar::GetUserManagers($event['OWNER_ID'], true));
+				$isManager = (!$private && CCalendar::IsIntranetEnabled() && Loader::includeModule('intranet') && $event['CAL_TYPE'] == 'user' && $settings['dep_manager_sub']) && Bitrix\Calendar\Util::isManagerForUser($curUserId, $event['OWNER_ID']);
 
-				if ($private || (!CCalendarSect::CanDo('calendar_view_full', $sectId) && !$bManager))
+				if ($private || (!CCalendarSect::CanDo('calendar_view_full', $sectId) && !$isManager))
 				{
 					$event = self::ApplyAccessRestrictions($event, $userId);
 				}
@@ -3076,7 +3076,7 @@ class CCalendarEvent
 			$strSql =
 				"UPDATE b_calendar_event SET ".
 				"ATTENDEES_CODES='".implode(',', $event['ATTENDEES_CODES'])."'".
-				" WHERE ID=".IntVal($event['ID']);
+				" WHERE PARENT_ID=".IntVal($event['ID']);
 			$DB->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
 			CCalendar::ClearCache(array('event_list'));
 		}
@@ -3339,7 +3339,7 @@ class CCalendarEvent
 						"from" => $excludeDate,
 						"guestId" => $attendee["USER_ID"],
 						"eventId" => $event['PARENT_ID'],
-						"userId" => $event['MEETING_HOST'],
+						"userId" => isset($event['MEETING']['MEETING_CREATOR']) ? $event['MEETING']['MEETING_CREATOR'] : $event['MEETING_HOST'],
 						"fields" => $event
 					));
 				}

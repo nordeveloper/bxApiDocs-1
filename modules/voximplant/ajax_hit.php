@@ -106,10 +106,11 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 		else if ($_POST['COMMAND'] == 'deviceHungup')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantIncoming::SendCommand(Array(
-				'CALL_ID' => $_POST['PARAMS']['CALL_ID'],
-				'COMMAND' => CVoxImplantIncoming::RULE_HUNGUP
-			));
+			$call = \Bitrix\Voximplant\Call::load($_POST['PARAMS']['CALL_ID']);
+			if($call)
+			{
+				$call->getScenario()->sendCancelExternalCall($userId);
+			}
 		}
 		else if ($_POST['COMMAND'] == 'wait')
 		{
@@ -125,27 +126,11 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
 			$callId = $_POST['PARAMS']['CALL_ID'];
-			$call = \Bitrix\Voximplant\CallTable::getByCallId($callId);
+			$call = \Bitrix\Voximplant\Call::load($callId);
 			if($call)
 			{
-				\Bitrix\Voximplant\CallTable::update($call['ID'], array(
-					'STATUS' => \Bitrix\Voximplant\CallTable::STATUS_CONNECTING
-				));
+				$call->handleUserAnswer($userId);
 			}
-
-			CVoxImplantIncoming::SendCommand(Array(
-				'CALL_ID' => $callId,
-				'COMMAND' => CVoxImplantIncoming::RULE_WAIT
-			));
-
-			CVoxImplantIncoming::SendPullEvent(Array(
-				'COMMAND' => 'answer_self',
-				'USER_ID' => $userId,
-				'CALL_ID' => $callId,
-			));
-
-			if (CModule::IncludeModule('im'))
-				CIMStatus::SetIdle($userId, false);
 		}
 		else if ($_POST['COMMAND'] == 'skip')
 		{
@@ -166,16 +151,27 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 				'COMMAND' => CVoxImplantIncoming::COMMAND_BUSY
 			));
 		}
-		else if ($_POST['COMMAND'] == 'start')
+		else if ($_POST['COMMAND'] == 'hold')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
 
-			CVoxImplantMain::CallStart($_POST['PARAMS']['CALL_ID'], $userId);
+			$call = \Bitrix\Voximplant\Call::load($callId);
+			if($call)
+			{
+				$call->getScenario()->sendHold($userId);;
+				$call->getSignaling()->sendHold($userId);
+			}
 		}
-		else if ($_POST['COMMAND'] == 'hold' || $_POST['COMMAND'] == 'unhold')
+		else if($_POST['COMMAND'] == 'unhold')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantMain::CallHold($_POST['PARAMS']['CALL_ID'], $_POST['COMMAND'] == 'hold');
+
+			$call = \Bitrix\Voximplant\Call::load($callId);
+			if($call)
+			{
+				$call->getScenario()->sendUnHold($userId);;
+				$call->getSignaling()->sendUnHold($userId);
+			}
 		}
 		else if ($_POST['COMMAND'] == 'ready')
 		{
@@ -187,35 +183,36 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 				'USER_ID' => $USER->GetId(),
 			));
 		}
-		else if ($_POST['COMMAND'] == 'inviteTransfer')
+		else if ($_POST['COMMAND'] == 'startTransfer')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantTransfer::Invite($_POST['PARAMS']['CALL_ID'], $_POST['PARAMS']['TRANSFER_TYPE'], $_POST['PARAMS']['USER_ID'], $_POST['PARAMS']['TRANSFER_PHONE']);
+			$result = Bitrix\Voximplant\Transfer\Transferor::initiateTransfer(
+				$_POST['PARAMS']['CALL_ID'],
+				$userId,
+				$_POST['PARAMS']['TARGET_TYPE'],
+				$_POST['PARAMS']['TARGET_ID']
+			);
+
+			echo $result->toJson();
 		}
-		else if ($_POST['COMMAND'] == 'readyTransfer')
+		else if ($_POST['COMMAND'] == 'completeTransfer')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantTransfer::Ready($_POST['PARAMS']['CALL_ID']);
-		}
-		else if ($_POST['COMMAND'] == 'answerTransfer')
-		{
-			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantTransfer::Answer($_POST['PARAMS']['CALL_ID']);
-		}
-		else if ($_POST['COMMAND'] == 'waitTransfer')
-		{
-			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantTransfer::Wait($_POST['PARAMS']['CALL_ID']);
-		}
-		else if ($_POST['COMMAND'] == 'declineTransfer')
-		{
-			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantTransfer::Decline($_POST['PARAMS']['CALL_ID']);
+			$call = \Bitrix\Voximplant\Call::load($_POST['PARAMS']['CALL_ID']);
+			if($call)
+			{
+				$call->getScenario()->sendCompleteTransfer($userId);
+			}
 		}
 		else if ($_POST['COMMAND'] == 'cancelTransfer')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
-			CVoxImplantTransfer::Cancel($_POST['PARAMS']['CALL_ID']);
+
+			$transferCall = \Bitrix\Voximplant\Call::load($_POST['PARAMS']['CALL_ID']);
+			if($transferCall)
+			{
+				$transferCall->getScenario()->sendCancelTransfer($userId);
+			}
 		}
 		else if ($_POST['COMMAND'] == 'startCallViaRest')
 		{
@@ -226,7 +223,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
 			$callId = $_POST['PARAMS']['CALL_ID'];
-			$call = \Bitrix\Voximplant\CallTable::getByCallId($callId);
+			$call = \Bitrix\Voximplant\Model\CallTable::getByCallId($callId);
 
 			if($call)
 			{
@@ -282,12 +279,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 			$params =  \Bitrix\Main\Web\Json::decode($_POST['PARAMS']);
 			$callId = $params['CALL_ID'];
 			$comment = $params['COMMENT'];
-			$call = \Bitrix\Voximplant\CallTable::getByCallId($callId);
+			$call = \Bitrix\Voximplant\Call::load($callId);
 			if($call)
 			{
-				\Bitrix\Voximplant\CallTable::update($call['ID'], array(
-					'COMMENT' => $comment
-				));
+				$call->setComment($comment);
 			}
 			else
 			{

@@ -64,7 +64,7 @@ $arJSCoreConfig = array(
 	'tooltip' => array(
 		'js' => $pathJS.'/core_tooltip.js',
 		'css' => $pathCSS.'/core_tooltip.css',
-		'rel' => array('ajax'),
+		'rel' => array('ajax', 'ui.tooltip'),
 		'lang_additional' => array('TOOLTIP_ENABLED' => (IsModuleInstalled("socialnetwork") && COption::GetOptionString("socialnetwork", "allow_tooltip", "Y") == "Y" ? "Y" : "N")),
 	),
 	'translit' => array(

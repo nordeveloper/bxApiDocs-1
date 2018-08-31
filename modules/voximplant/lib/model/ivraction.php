@@ -50,7 +50,7 @@ class IvrActionTable extends Entity\DataManager
 	{
 		$itemId = (int)$itemId;
 		if($itemId <= 0)
-			throw new ArgumentException('Queue id should be greater than zero', '$itemId');
+			throw new ArgumentException('Item id should be greater than zero', '$itemId');
 
 		$connection = Application::getConnection();
 		$entity = self::getEntity();

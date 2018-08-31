@@ -91,7 +91,10 @@ class DiscountCouponTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('DISCOUNT_COUPON_ENTITY_ONE_TIME_FIELD')
 			)),
 			'TIMESTAMP_X' => new Main\Entity\DatetimeField('TIMESTAMP_X', array(
-				'default_value' => function(){ return new Main\Type\DateTime(); },
+				'default_value' => function()
+					{
+						return new Main\Type\DateTime();
+					},
 				'title' => Loc::getMessage('DISCOUNT_COUPON_ENTITY_TIMESTAMP_X_FIELD')
 			)),
 			'MODIFIED_BY' => new Main\Entity\IntegerField('MODIFIED_BY', array(
@@ -99,7 +102,10 @@ class DiscountCouponTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('DISCOUNT_COUPON_ENTITY_MODIFIED_BY_FIELD')
 			)),
 			'DATE_CREATE' => new Main\Entity\DatetimeField('DATE_CREATE', array(
-				'default_value' => function(){ return new Main\Type\DateTime(); },
+				'default_value' => function()
+					{
+						return new Main\Type\DateTime();
+					},
 				'title' => Loc::getMessage('DISCOUNT_COUPON_ENTITY_DATE_CREATE_FIELD')
 			)),
 			'CREATED_BY' => new Main\Entity\IntegerField('CREATED_BY', array(
@@ -254,6 +260,25 @@ class DiscountCouponTable extends Main\Entity\DataManager
 		unset($modifyFieldList);
 
 		return $result;
+	}
+
+	/**
+	 * Delete all coupons for discount.
+	 *
+	 * @param int $discount			Discount id.
+	 * @return void
+	 */
+	public static function deleteByDiscount($discount)
+	{
+		$discount = (int)$discount;
+		if ($discount <= 0)
+			return;
+		$conn = Main\Application::getConnection();
+		$helper = $conn->getSqlHelper();
+		$conn->queryExecute(
+			'delete from '.$helper->quote(self::getTableName()).' where '.$helper->quote('DISCOUNT_ID').' = '.$discount
+		);
+		unset($helper, $conn);
 	}
 
 	/**

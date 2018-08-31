@@ -732,7 +732,12 @@ class CIMChat
 
 		$userCount = 0;
 
-		$sqlCounter = "SELECT COUNT(ID) as CNT FROM b_user WHERE ACTIVE = 'Y' AND b_user.EXTERNAL_AUTH_ID NOT IN ('email', 'network', 'bot')";
+		$types = \Bitrix\Main\UserTable::getExternalUserTypes();
+
+		$sqlCounter = "
+			SELECT COUNT(ID) as CNT 
+			FROM b_user 
+			WHERE ACTIVE = 'Y' AND (EXTERNAL_AUTH_ID NOT IN ('".implode("','", $types)."') OR EXTERNAL_AUTH_ID IS NULL OR b_user.EXTERNAL_AUTH_ID = '')";
 		$dbRes = $DB->Query($sqlCounter, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 		if ($row = $dbRes->Fetch())
 		{
@@ -776,22 +781,13 @@ class CIMChat
 		));
 		if (!$chatId)
 			return false;
-
-		$res = $DB->Query("select ID from b_user_field where field_name='UF_DEPARTMENT'");
-		if ($result = $res->Fetch())
-		{
-			$fieldId = intval($result['ID']);
-		}
-		else
-		{
-			return false;
-		}
+		
 		$sql = "
 			insert into b_im_relation (USER_ID, MESSAGE_TYPE, CHAT_ID)
 			select distinct b_user.ID, '".IM_MESSAGE_OPEN."', ".intval($chatId)."
 			from b_user
 			inner join b_utm_user on b_utm_user.VALUE_ID = b_user.ID and b_utm_user.FIELD_ID = ".$fieldId." and b_utm_user.VALUE_INT > 0
-			WHERE b_user.ACTIVE = 'Y' AND (b_user.EXTERNAL_AUTH_ID NOT IN ('email', 'network', 'bot') OR b_user.EXTERNAL_AUTH_ID IS NULL OR b_user.EXTERNAL_AUTH_ID = '')
+			WHERE b_user.ACTIVE = 'Y' AND (b_user.EXTERNAL_AUTH_ID NOT IN ('".implode("','", $types)."') OR b_user.EXTERNAL_AUTH_ID IS NULL OR b_user.EXTERNAL_AUTH_ID = '')
 		";
 		$result = $DB->Query($sql);
 		if (!$result)
@@ -2979,6 +2975,14 @@ class CIMChat
 			}
 		}
 
+		if (
+			in_array($arRes['CHAT_TYPE'], [\Bitrix\Im\Chat::TYPE_OPEN, \Bitrix\Im\Chat::TYPE_GROUP])
+			&& $arRes['CHAT_ENTITY_TYPE'] != 'LIVECHAT'
+		)
+		{
+			self::index($chatId);
+		}
+
 		return true;
 	}
 
@@ -3208,6 +3212,14 @@ class CIMChat
 			\Bitrix\Pull\Event::add(array_keys($arOldRelation), $pushMessage);
 		}
 
+		if (
+			in_array($arRes['CHAT_TYPE'], [\Bitrix\Im\Chat::TYPE_OPEN, \Bitrix\Im\Chat::TYPE_GROUP])
+			&& $arRes['CHAT_ENTITY_TYPE'] != 'LIVECHAT'
+		)
+		{
+			self::index($chatId);
+		}
+
 		return true;
 
 	}
@@ -3394,6 +3406,31 @@ class CIMChat
 				'extra' => \Bitrix\Im\Common::getPullExtra()
 			));
 		}
+
+		return true;
+	}
+
+	public static function index($chatId)
+	{
+		$arRelation = self::GetRelationById($chatId);
+		$users = Array();
+
+		$i = 0;
+		foreach ($arRelation as $relation)
+		{
+			if ($i > 100)
+				break;
+
+			$users[] = \Bitrix\Im\User::getInstance($relation['USER_ID'])->getFullName(false);
+			$i++;
+		}
+
+		\Bitrix\Im\Model\ChatIndexTable::merge(array(
+			'CHAT_ID' => $chatId,
+			'SEARCH_USERS' => implode(' ', $users),
+		));
+
+		\Bitrix\Im\Model\ChatTable::indexRecord($chatId);
 
 		return true;
 	}

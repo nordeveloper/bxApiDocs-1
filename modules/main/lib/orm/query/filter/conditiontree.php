@@ -542,6 +542,28 @@ class ConditionTree
 	}
 
 	/**
+	 * Replaces condition with a new one.
+	 *
+	 * @param $currentCondition
+	 * @param $newCondition
+	 *
+	 * @return bool
+	 */
+	public function replaceCondition($currentCondition, $newCondition)
+	{
+		foreach ($this->conditions as $k => $condition)
+		{
+			if ($condition === $currentCondition)
+			{
+				$this->conditions[$k] = $newCondition;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Converts any value to raw SQL, except of NULL, which is supposed to be handled in Operator.
 	 *
 	 * @param mixed     $value

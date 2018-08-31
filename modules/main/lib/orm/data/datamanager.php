@@ -47,6 +47,9 @@ abstract class DataManager
 	/** @var EntityObject[] Cache of class names */
 	protected static $objectClass;
 
+	/** @var Collection[] Cache of class names */
+	protected static $collectionClass;
+
 	/** @var array Restricted words for object class name */
 	protected static $reservedWords = [
 		// keywords
@@ -127,13 +130,9 @@ abstract class DataManager
 			$namespace = substr($objectClass, 0, strrpos($objectClass, '\\')+1);
 			$className = substr($objectClass, strrpos($objectClass, '\\') + 1);
 
-			if (!strlen($className))
-			{
-				// tables without name
-				$className = substr(md5(get_called_class()), 0, 6);
-			}
+			$className = Entity::getDefaultObjectClassName($className);
 
-			$className = 'EO_'.$className;
+
 
 			// with prefix EO_ it's not actual anymore
 			/*if (in_array(strtolower($className), static::$reservedWords))
@@ -173,7 +172,20 @@ abstract class DataManager
 	 */
 	public static function getCollectionClass()
 	{
-		return Entity::normalizeName(get_called_class()).'Collection';
+		if (!isset(static::$collectionClass[get_called_class()]))
+		{
+			$objectClass = Entity::normalizeName(get_called_class());
+
+			// make class name more unique
+			$namespace = substr($objectClass, 0, strrpos($objectClass, '\\')+1);
+			$className = substr($objectClass, strrpos($objectClass, '\\') + 1);
+
+			$className = Entity::getDefaultCollectionClassName($className);
+
+			static::$collectionClass[get_called_class()] = $namespace.$className;
+		}
+
+		return static::$collectionClass[get_called_class()];
 	}
 
 	/**
@@ -707,10 +719,10 @@ abstract class DataManager
 			$event->mergeObjectFields($object);
 
 			// actualize old-style fields array from object
-			$fields = $object->values(Values::RUNTIME, FieldTypeMask::SCALAR);
+			$fields = $object->values(Values::CURRENT, FieldTypeMask::SCALAR);
 
 			// uf values
-			$ufdata = $object->values(Values::RUNTIME, FieldTypeMask::USERTYPE);
+			$ufdata = $object->values(Values::CURRENT, FieldTypeMask::USERTYPE);
 
 			// check data
 			static::checkFields($result, null, $fields);
@@ -932,10 +944,10 @@ abstract class DataManager
 			$event->mergeObjectFields($object);
 
 			// actualize old-style fields array from object
-			$fields = $object->values(Values::RUNTIME, FieldTypeMask::SCALAR);
+			$fields = $object->values(Values::CURRENT, FieldTypeMask::SCALAR);
 
 			// uf values
-			$ufdata = $object->values(Values::RUNTIME, FieldTypeMask::USERTYPE);
+			$ufdata = $object->values(Values::CURRENT, FieldTypeMask::USERTYPE);
 
 			// check data
 			static::checkFields($result, $primary, $fields);

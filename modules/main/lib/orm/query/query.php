@@ -303,7 +303,7 @@ class Query
 	 *
 	 * @param mixed $definition Field
 	 * @param string $alias Field alias like SELECT field AS alias
-	 * @return Query
+	 * @return $this
 	 */
 	public function addSelect($definition, $alias = '')
 	{
@@ -333,7 +333,7 @@ class Query
 	 * Sets a list of filters for WHERE clause
 	 *
 	 * @param array $filter
-	 * @return Query
+	 * @return $this
 	 */
 	public function setFilter(array $filter)
 	{
@@ -346,7 +346,7 @@ class Query
 	 *
 	 * @param string $key
 	 * @param mixed $value
-	 * @return Query
+	 * @return $this
 	 */
 	public function addFilter($key, $value)
 	{
@@ -376,7 +376,7 @@ class Query
 	 * Sets a list of fields in GROUP BY clause
 	 *
 	 * @param mixed $group
-	 * @return Query
+	 * @return $this
 	 */
 	public function setGroup($group)
 	{
@@ -390,7 +390,7 @@ class Query
 	 * Adds a field to the list of fields for GROUP BY clause
 	 *
 	 * @param $group
-	 * @return Query
+	 * @return $this
 	 */
 	public function addGroup($group)
 	{
@@ -416,7 +416,7 @@ class Query
 	 *
 	 * @param mixed $order
 	 *
-	 * @return Query
+	 * @return $this
 	 * @throws Main\ArgumentException
 	 * @throws Main\SystemException
 	 */
@@ -450,7 +450,7 @@ class Query
 	 * @param string $definition
 	 * @param string $order
 	 *
-	 * @return Query
+	 * @return $this
 	 * @throws Main\ArgumentException
 	 * @throws Main\SystemException
 	 */
@@ -494,7 +494,7 @@ class Query
 	 * Sets a limit for LIMIT n clause
 	 *
 	 * @param int $limit
-	 * @return Query
+	 * @return $this
 	 */
 	public function setLimit($limit)
 	{
@@ -516,7 +516,7 @@ class Query
 	 * Sets an offset for LIMIT n, m clause
 
 	 * @param int $offset
-	 * @return Query
+	 * @return $this
 	 */
 	public function setOffset($offset)
 	{
@@ -678,7 +678,7 @@ class Query
 	 * @param string|null $name
 	 * @param array|Field $fieldInfo
 	 *
-	 * @return Query
+	 * @return $this
 	 * @throws Main\ArgumentException
 	 * @throws Main\SystemException
 	 */
@@ -2616,22 +2616,34 @@ class Query
 	 * @param        $baseDefinition
 	 * @param        $refDefinition
 	 * @param        $isBackReference
+	 * @param        $firstCall
 	 *
 	 * @return Filter
 	 * @throws Main\ArgumentException
 	 * @throws Main\SystemException
 	 */
-	protected function prepareJoinFilterReference(Filter $reference, $alias_this, $alias_ref, $baseDefinition, $refDefinition, $isBackReference)
+	protected function prepareJoinFilterReference(Filter $reference, $alias_this, $alias_ref, $baseDefinition, $refDefinition, $isBackReference, $firstCall = true)
 	{
 		// do not make an impact on original reference object
-		$reference = clone $reference;
+		if ($firstCall)
+		{
+			$reference = clone $reference;
+		}
 
 		foreach ($reference->getConditions() as $condition)
 		{
 			if ($condition instanceof Filter)
 			{
 				// subfilter, recursive call
-				$this->prepareJoinFilterReference($condition, $alias_this, $alias_ref, $baseDefinition, $refDefinition, $isBackReference);
+				$this->prepareJoinFilterReference(
+					$condition,
+					$alias_this,
+					$alias_ref,
+					$baseDefinition,
+					$refDefinition,
+					$isBackReference,
+					false
+				);
 			}
 			else
 			{
@@ -2685,8 +2697,15 @@ class Query
 				elseif (strpos($field, 'ref.') === 0)
 				{
 					$definition = str_replace('ref.', '', $field);
-					$absDefinition = strlen($refDefinition) ? $refDefinition . '.' . $definition : $definition;
 
+					if (strpos($definition, '.') !== false)
+					{
+						throw new Main\ArgumentException(sprintf(
+							'Reference chain `%s` is not allowed here. First-level definitions only.', $field
+						));
+					}
+
+					$absDefinition = strlen($refDefinition) ? $refDefinition . '.' . $definition : $definition;
 					$chain = $this->getRegisteredChain($absDefinition, true);
 
 					if ($isBackReference)
@@ -2769,8 +2788,15 @@ class Query
 					elseif (strpos($v->getDefinition(), 'ref.') === 0)
 					{
 						$definition = str_replace('ref.', '', $v->getDefinition());
-						$absDefinition = strlen($refDefinition) ? $refDefinition . '.' . $definition : $definition;
 
+						if (strpos($definition, '.') !== false)
+						{
+							throw new Main\ArgumentException(sprintf(
+								'Reference chain `%s` is not allowed here. First-level definitions only.', $v->getDefinition()
+							));
+						}
+
+						$absDefinition = strlen($refDefinition) ? $refDefinition . '.' . $definition : $definition;
 						$chain = $this->getRegisteredChain($absDefinition, true);
 
 						if ($isBackReference)
@@ -3317,6 +3343,14 @@ class Query
 	public function getWhereChains()
 	{
 		return $this->where_chains;
+	}
+
+	/**
+	 * @return Chain[]
+	 */
+	public function getRuntimeChains()
+	{
+		return $this->runtime_chains;
 	}
 
 	public function getJoinMap()

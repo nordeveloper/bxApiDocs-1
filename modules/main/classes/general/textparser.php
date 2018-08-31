@@ -1351,12 +1351,26 @@ class CTextParser
 					$classAdditional = '';
 			}
 
-			$res = $this->render_user(array(
+			$renderParams = array(
 				'CLASS_ADDITIONAL' => $classAdditional,
 				'PATH_TO_USER' => $pathToUser,
 				'USER_ID' => $userId,
 				'USER_NAME' => $userName
-			));
+			);
+
+			if (
+				$type == 'email'
+				&& !empty($this->pathToUserEntityType)
+				&& !empty($this->pathToUserEntityId)
+			)
+			{
+				$renderParams['TOOLTIP_PARAMS'] = \Bitrix\Main\Web\Json::encode(array(
+					'entityType' => $this->pathToUserEntityType,
+					'entityId' => intval($this->pathToUserEntityId)
+				));
+			}
+
+			$res = $this->render_user($renderParams);
 		}
 
 		return $this->defended_tags($res, "replace");
@@ -1371,7 +1385,7 @@ class CTextParser
 
 		$res = (
 			!$this->bPublic
-				? '<a class="blog-p-user-name'.$classAdditional.'" href="'.CComponentEngine::MakePathFromTemplate($pathToUser, array("user_id" => $userId)).'" bx-tooltip-user-id="'.(!$this->bMobile ? $userId : '').'">'.$userName.'</a>'
+				? '<a class="blog-p-user-name'.$classAdditional.'" href="'.CComponentEngine::MakePathFromTemplate($pathToUser, array("user_id" => $userId)).'" bx-tooltip-user-id="'.(!$this->bMobile ? $userId : '').'"'.(!empty($fields['TOOLTIP_PARAMS']) ? ' bx-tooltip-params="'.htmlspecialcharsbx($fields['TOOLTIP_PARAMS']).'"' : '').'>'.$userName.'</a>'
 				: $userName
 		);
 

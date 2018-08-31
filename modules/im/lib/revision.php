@@ -21,7 +21,7 @@ class Revision
 	/**
 	 * Rest Api revision
 	 */
-	const REST = 18;
+	const REST = 19;
 
 	public static function getWeb()
 	{

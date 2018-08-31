@@ -1203,9 +1203,13 @@ class CAdminListRow
 		$sDefAction = $sDefTitle = "";
 		if(!$this->bEditMode)
 		{
+			global $adminSidePanelHelper;
+
 			if(!empty($this->link))
 			{
-				$sDefAction = "BX.adminPanel.Redirect([], '".CUtil::JSEscape($this->link)."', event);";
+				$sDefAction = ((is_object($adminSidePanelHelper) && $adminSidePanelHelper->isPublicSidePanel()) ?
+					"BX.adminSidePanel.onOpenPage('".CUtil::JSEscape($this->link)."');" :
+					"BX.adminPanel.Redirect([], '".CUtil::JSEscape($this->link)."', event);");
 				$sDefTitle = $this->title;
 			}
 			else
@@ -1215,7 +1219,17 @@ class CAdminListRow
 				{
 					if($action["DEFAULT"] == true)
 					{
-						$sDefAction = ($action["ACTION"]? $action["ACTION"] : "BX.adminPanel.Redirect([], '".CUtil::JSEscape($action["LINK"])."', event)");
+						if (!empty($action["ACTION"]))
+						{
+							$sDefAction = $action["ACTION"];
+						}
+						else
+						{
+							$sDefAction = ((is_object($adminSidePanelHelper) && $adminSidePanelHelper->isPublicSidePanel()) ?
+								"BX.adminSidePanel.onOpenPage('".CUtil::JSEscape($this->link)."');" :
+								"BX.adminPanel.Redirect([], '".CUtil::JSEscape($action["LINK"])."', event)");
+						}
+
 						$sDefTitle = (!empty($action["TITLE"])? $action["TITLE"] : $action["TEXT"]);
 						break;
 					}

@@ -6,7 +6,7 @@ use Bitrix\Main\Result;
 use Bitrix\Main\Type as FieldType;
 use Bitrix\Voximplant as VI;
 use Bitrix\Voximplant\Tts;
-use Bitrix\Voximplant\CallTable;
+use Bitrix\Voximplant\Model\CallTable;
 
 class CVoxImplantOutgoing
 {
@@ -112,109 +112,62 @@ class CVoxImplantOutgoing
 		return false;
 	}
 
+	/**
+	 * @param $params
+	 * @return VI\Routing\Action|false
+	 */
 	public static function Init($params)
 	{
-		$result['STATUS'] = 'OK';
-		$result['PORTAL_CALL'] = 'N';
-
-		if (strlen($params['PHONE_NUMBER']) > 0 && strlen($params['PHONE_NUMBER']) <= 4)
-		{
-			$res = \Bitrix\Main\UserTable::getList(Array(
-				'select' => Array('ID', 'IS_ONLINE', 'UF_VI_PHONE', 'ACTIVE'),
-				'filter' => Array('=UF_PHONE_INNER' => intval($params['PHONE_NUMBER']), '=ACTIVE' => 'Y'),
-			));
-			if ($userData = $res->fetch())
-			{
-				$result['PORTAL_CALL'] = 'Y';
-				$result['USER_ID'] = $userData['ID'];
-				$result['COMMAND'] = CVoxImplantIncoming::RULE_HUNGUP;
-
-				$userData['USER_HAVE_MOBILE'] = CVoxImplantUser::hasMobile($userData['ID']) ? 'Y' : 'N';
-
-				if ($userData['ID'] == $params['USER_ID'])
-				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_HUNGUP;
-				}
-				else if ($userData['IS_ONLINE'] == 'Y' || $userData['UF_VI_PHONE'] == 'Y' || $userData['USER_HAVE_MOBILE'] == 'Y')
-				{
-					$result['COMMAND'] = CVoxImplantIncoming::RULE_WAIT;
-					$result['TYPE_CONNECT'] = CVoxImplantIncoming::TYPE_CONNECT_DIRECT;
-					$result['USER_HAVE_PHONE'] = $userData['UF_VI_PHONE'] == 'Y'? 'Y': 'N';
-					$result['USER_HAVE_MOBILE'] = $userData['USER_HAVE_MOBILE'];
-					$result['USER_SHORT_NAME'] = '';
-				}
-			}
-		}
-
-		if($result['PORTAL_CALL'] === 'N')
-		{
-			$callAllowed = VI\Security\Helper::canUserCallNumber(
-				$params['USER_ID'],
-				$params['PHONE_NUMBER']
-			);
-
-			if(!$callAllowed)
-			{
-				$result['STATUS'] = 'ERROR';
-				$result['error'] = new CVoxImplantError(
-					__METHOD__,
-					'CALL_IS_NOT_ALLOWED',
-					'User is not allowed to call specified number'
-				);
-				return $result;
-			}
-		}
-
-		$callAdd = true;
 		$config = CVoxImplantConfig::GetConfig($params['CONFIG_ID']);
-		if ($params['CALL_ID_TMP'])
+		if ($params['CALL_ID'])
 		{
-			$call = VI\CallTable::getByCallId($params['CALL_ID_TMP']);
+			$call = VI\Call::load($params['CALL_ID']);
 			if($call)
 			{
-				$call['CONFIG_ID'] = $params['CONFIG_ID'];
-				$call['CALL_ID'] = $params['CALL_ID'];
-				$call['CRM'] = $params['CRM'] == 'Y' ? 'Y' : 'N';
-				$call['USER_ID'] = $params['USER_ID'];
-				$call['CALLER_ID'] = $params['PHONE_NUMBER'];
-				$call['STATUS'] = VI\CallTable::STATUS_CONNECTING;
-				$call['ACCESS_URL'] = $params['ACCESS_URL'];
-				$call['PORTAL_USER_ID'] = $result['PORTAL_CALL'] == 'Y' ? $result['USER_ID'] : 0;
-				$call['PORTAL_NUMBER'] = $config['SEARCH_ID'];
+				$callFields = [
+					'CONFIG_ID' => $params['CONFIG_ID'],
+					'CRM' => $params['CRM'],
+					'USER_ID' => $params['USER_ID'],
+					'CALLER_ID' => $params['PHONE_NUMBER'],
+					'STATUS' => VI\Model\CallTable::STATUS_CONNECTING,
+					'ACCESS_URL' => $params['ACCESS_URL'],
+					'PORTAL_NUMBER' => $config['SEARCH_ID'],
+				];
 
 				if($params['CRM_ENTITY_TYPE'] && $params['CRM_ENTITY_ID'])
 				{
-					$call['CRM_ENTITY_TYPE'] = $params['CRM_ENTITY_TYPE'];
-					$call['CRM_ENTITY_ID'] = $params['CRM_ENTITY_ID'];
+					$callFields['CRM_ENTITY_TYPE'] = $params['CRM_ENTITY_TYPE'];
+					$callFields['CRM_ENTITY_ID'] = $params['CRM_ENTITY_ID'];
 				}
-
 				if($params['CRM_ACTIVITY_ID'])
-					$call['CRM_ACTIVITY_ID'] = $params['CRM_ACTIVITY_ID'];
-
-				if($params['CRM_CALL_LIST'])
-					$call['CRM_CALL_LIST'] = $params['CRM_CALL_LIST'];
-
-				if(is_array($params['CRM_BINDINGS']))
-					$callFields['CRM_BINDINGS'] = $params['CRM_BINDINGS'];
-
-				if($params['SESSION_ID'])
-					$call['SESSION_ID'] = (int)$params['SESSION_ID'];
-
-				$updateResult = VI\CallTable::update($call['ID'], $call);
-				if ($updateResult->isSuccess())
 				{
-					$callAdd = false;
+					$callFields['CRM_ACTIVITY_ID'] = $params['CRM_ACTIVITY_ID'];
 				}
+				if($params['CRM_CALL_LIST'])
+				{
+					$callFields['CRM_CALL_LIST'] = $params['CRM_CALL_LIST'];
+				}
+				if(is_array($params['CRM_BINDINGS']))
+				{
+					$callFields['CRM_BINDINGS'] = $params['CRM_BINDINGS'];
+				}
+				if($params['SESSION_ID'])
+				{
+					$callFields['SESSION_ID'] = (int)$params['SESSION_ID'];
+				}
+
+				$call->update($callFields);
+
 			}
 		}
-		if ($callAdd)
+		if (!$call)
 		{
-			$call = array(
+			$call = VI\Call::create([
 				'INCOMING' => CVoxImplantMain::CALL_OUTGOING,
 				'CONFIG_ID' => $params['CONFIG_ID'],
 				'CALL_ID' => $params['CALL_ID'],
 				'SESSION_ID' => (int)$params['SESSION_ID'],
-				'CRM' => $params['CRM'] == 'Y' ? 'Y' : 'N',
+				'CRM' => $params['CRM'],
 				'CRM_ENTITY_TYPE' => ($params['CRM_ENTITY_TYPE'] ? $params['CRM_ENTITY_TYPE'] : null),
 				'CRM_ENTITY_ID' => ($params['CRM_ENTITY_ID'] ? $params['CRM_ENTITY_ID'] : null),
 				'CRM_ACTIVITY_ID' => ($params['CRM_ACTIVITY_ID'] ? $params['CRM_ACTIVITY_ID'] : null),
@@ -222,30 +175,36 @@ class CVoxImplantOutgoing
 				'CRM_BINDINGS' => ($params['CRM_BINDINGS'] ? $params['CRM_BINDINGS'] : array()),
 				'USER_ID' => $params['USER_ID'],
 				'CALLER_ID' => $params['PHONE_NUMBER'],
-				'STATUS' => VI\CallTable::STATUS_WAITING,
+				'STATUS' => VI\Model\CallTable::STATUS_WAITING,
 				'ACCESS_URL' => $params['ACCESS_URL'],
-				'PORTAL_USER_ID' => $result['PORTAL_CALL'] == 'Y'? $result['USER_ID']: 0,
 				'DATE_CREATE' => new FieldType\DateTime(),
 				'PORTAL_NUMBER' => $config['SEARCH_ID'],
-			);
-			$addResult = VI\CallTable::add($call);
-			$call['ID'] = $addResult->getId();
+			]);
+		}
+		$call->addUsers([$params['USER_ID']], VI\Model\CallUserTable::ROLE_CALLER, VI\Model\CallUserTable::STATUS_CONNECTED);
+
+		$router = new VI\Routing\Router($call);
+		$firstAction = $router->getNextAction();
+
+		if($firstAction->getCommand() === VI\Routing\Command::INVITE || VI\Routing\Command::BUSY)
+		{
+			// looks like internal call
+			$firstUser = $firstAction->getParameter('USERS')[0];
+			$call->updatePortalUserId($firstUser['USER_ID']);
 		}
 
-		if ($params['CRM'] == 'Y' && $result['PORTAL_CALL'] == 'N')
+		if (!$call->isInternalCall() && $call->isCrmEnabled())
 		{
-			if($params['CRM_ENTITY_TYPE'] && $params['CRM_ENTITY_ID'])
+			if($call->getCrmEntityType() && $call->getCrmEntityId())
 			{
 				//nop
 			}
 			else
 			{
-				$crmData = CVoxImplantCrmHelper::GetCrmEntity($params['PHONE_NUMBER']);
+				$crmData = CVoxImplantCrmHelper::GetCrmEntity($call->getCallerId());
 				if(is_array($crmData))
 				{
-					$call['CRM_ENTITY_TYPE'] = $crmData['ENTITY_TYPE_NAME'];
-					$call['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
-					VI\CallTable::updateWithCallId($params['CALL_ID'], $call);
+					$call->setCrmEntity($crmData['ENTITY_TYPE_NAME'], $crmData['ENTITY_ID']);
 				}
 			}
 
@@ -261,11 +220,8 @@ class CVoxImplantOutgoing
 			'COMMAND' => 'outgoing',
 			'USER_ID' => $params['USER_ID'],
 			'CALL_ID' => $params['CALL_ID'],
-			'CALL_ID_TMP' => $params['CALL_ID_TMP'],
 			'CALL_DEVICE' => $params['CALL_DEVICE'],
 			'PHONE_NUMBER' => $params['PHONE_NUMBER'],
-			'EXTERNAL' => $params['CALL_ID_TMP']? true: false,
-			'PORTAL_CALL' => $result['PORTAL_CALL'],
 			'PORTAL_CALL_USER_ID' => $params['USER_ID'],
 			'CRM' => $crmData,
 			'CRM_ENTITY_TYPE' => $params['CRM_ENTITY_TYPE'],
@@ -273,37 +229,31 @@ class CVoxImplantOutgoing
 			'CRM_ACTIVITY_ID' => $params['CRM_ACTIVITY_ID'],
 		));
 
-		$portalUser = Array();
-		if ($result['PORTAL_CALL'] == 'Y')
+		if ($call->isInternalCall() && CModule::IncludeModule('im'))
 		{
-			if (CModule::IncludeModule('im'))
-			{
-				$portalUser = CIMContactList::GetUserData(Array('ID' => Array($params['USER_ID'], $result['USER_ID']), 'DEPARTMENT' => 'N', 'HR_PHOTO' => 'Y'));
-			}
-			else
-			{
-				$portalUser = Array();
-			}
+			$portalUser = CIMContactList::GetUserData(['ID' => $call->getUserIds(), 'DEPARTMENT' => 'N', 'HR_PHOTO' => 'Y']);
+		}
+		else
+		{
+			$portalUser = Array();
 		}
 
 		self::SendPullEvent(Array(
 			'COMMAND' => 'outgoing',
-			'USER_ID' => $params['USER_ID'],
-			'CALL_ID' => $params['CALL_ID'],
-			'CALL_ID_TMP' => $params['CALL_ID_TMP'],
+			'USER_ID' => $call->getUserId(),
+			'CALL_ID' => $call->getCallId(),
 			'CALL_DEVICE' => $params['CALL_DEVICE'],
-			'PHONE_NUMBER' => $params['PHONE_NUMBER'],
-			'EXTERNAL' => $params['CALL_ID_TMP']? true: false,
-			'PORTAL_CALL' => $result['PORTAL_CALL'],
-			'PORTAL_CALL_USER_ID' => $result['USER_ID'],
+			'PHONE_NUMBER' => $call->getCallerId(),
+			'PORTAL_CALL' => $call->isInternalCall() ? 'Y' : 'N',
+			'PORTAL_CALL_USER_ID' => $call->getPortalUserId(),
 			'PORTAL_CALL_DATA' => $portalUser,
-			'CONFIG' => CVoxImplantConfig::getConfigForPopup($params['CALL_ID']),
+			'CONFIG' => CVoxImplantConfig::getConfigForPopup($call->getCallId()),
 			'PORTAL_NUMBER' => $config['SEARCH_ID'],
 			'PORTAL_NUMBER_NAME' => $config['PORTAL_MODE'] == CVoxImplantConfig::MODE_SIP ? $config['PHONE_TITLE'] : $config['PHONE_NAME'],
 			'CRM' => $crmData,
 		));
 
-		return $result;
+		return $firstAction;
 	}
 
 	public static function GetConfigByUserId($userId)
@@ -356,10 +306,8 @@ class CVoxImplantOutgoing
 
 			$config = Array(
 				"callId" => $params['CALL_ID'],
-				"callIdTmp" => $params['CALL_ID_TMP']? $params['CALL_ID_TMP']: '',
 				"callDevice" => $params['CALL_DEVICE'] == 'PHONE'? 'PHONE': 'WEBRTC',
 				"phoneNumber" => $params['PHONE_NUMBER'],
-				"external" => $params['EXTERNAL']? true: false,
 				"portalCall" => $params['PORTAL_CALL'] == 'Y'? true: false,
 				"portalCallUserId" => $params['PORTAL_CALL'] == 'Y'? $params['PORTAL_CALL_USER_ID']: 0,
 				"portalCallData" => $params['PORTAL_CALL'] == 'Y'? $params['PORTAL_CALL_DATA']: Array(),
@@ -424,13 +372,25 @@ class CVoxImplantOutgoing
 		if ($userId <= 0 || !$phoneNormalized)
 			return false;
 
+		$additionalParams = array();
+		if(isset($params['LINE_ID']))
+		{
+			$additionalParams['LINE_ID'] = $params['LINE_ID'];
+		}
+
+		$viHttp = new CVoxImplantHttp();
+		$result = $viHttp->StartOutgoingCall($userId, $phoneNumber, $additionalParams);
+
+		$config = self::GetConfigByUserId($userId);
 		$callFields = array(
-			'CALL_ID' => 'temp.'.md5($userId.$phoneNumber).time(),
+			'CALL_ID' =>  $result->call_id,
+			'CONFIG_ID' => $config['ID'],
 			'USER_ID' => $userId,
-			'CALLER_ID' => $phoneNormalized,
-			'STATUS' => VI\CallTable::STATUS_CONNECTING,
-			'DATE_CREATE' => new FieldType\DateTime(),
 			'INCOMING' => CVoxImplantMain::CALL_OUTGOING,
+			'CALLER_ID' => $phoneNormalized,
+			'ACCESS_URL' => $result->access_url,
+			'STATUS' => VI\Model\CallTable::STATUS_CONNECTING,
+			'DATE_CREATE' => new FieldType\DateTime(),
 		);
 
 		if(isset($params['ENTITY_TYPE']) && isset($params['ENTITY_ID']) && strpos($params['ENTITY_TYPE'], 'CRM_') === 0)
@@ -438,46 +398,30 @@ class CVoxImplantOutgoing
 			$callFields['CRM_ENTITY_TYPE'] = substr($params['ENTITY_TYPE'], 4);
 			$callFields['CRM_ENTITY_ID'] = $params['ENTITY_ID'];
 		}
-
+		if(isset($params['ENTITY_TYPE_NAME']) && isset($params['ENTITY_ID']))
+		{
+			$callFields['CRM_ENTITY_TYPE'] = $params['ENTITY_TYPE_NAME'];
+			$callFields['CRM_ENTITY_ID'] = $params['ENTITY_ID'];
+		}
 		if(isset($params['SRC_ACTIVITY_ID']))
 		{
 			$callFields['CRM_ACTIVITY_ID'] = $params['SRC_ACTIVITY_ID'];
 		}
-
 		if(isset($params['CALL_LIST_ID']))
 		{
 			$callFields['CRM_CALL_LIST'] = $params['CALL_LIST_ID'];
 		}
 
-		$insertResult = VI\CallTable::add($callFields);
-		if(!$insertResult->isSuccess())
-		{
-			return false;
-		}
-
-		$additionalParams = array();
-		if(isset($params['LINE_ID']))
-		{
-			$additionalParams['LINE_ID'] = $params['LINE_ID'];
-		}
-		$viHttp = new CVoxImplantHttp();
-		$result = $viHttp->StartOutgoingCall($userId, $phoneNumber, $additionalParams);
-		$config = self::GetConfigByUserId($userId);
-
-		VI\CallTable::update($insertResult->getId(), Array(
-			'CALL_ID' => $result->call_id,
-			'ACCESS_URL' => $result->access_url,
-			'CONFIG_ID' => $config['ID'],
-			'DATE_CREATE' => new FieldType\DateTime(),
-		));
+		$call = VI\Call::create($callFields);
+		$call->addUsers([$userId], VI\Model\CallUserTable::ROLE_CALLEE, VI\Model\CallUserTable::STATUS_INVITING);
 
 		return array(
 			'USER_ID' => $userId,
 			'PHONE_NUMBER' => $phoneNormalized,
-			'CALL_ID' => $result->call_id,
+			'CALL_ID' => $call->getCallId(),
 			'CALL_DEVICE' => 'PHONE',
 			'EXTERNAL' => true,
-			'CONFIG' => CVoxImplantConfig::getConfigForPopup($result->call_id),
+			'CONFIG' => CVoxImplantConfig::getConfigForPopup($call->getCallId()),
 		);
 	}
 
@@ -675,10 +619,10 @@ class CVoxImplantOutgoing
 			return $result;
 		}
 
-		$call = array(
+		$callFields = array(
 			'CONFIG_ID' => $numberConfig['ID'],
 			'CALLER_ID' => $phoneNormalized,
-			'STATUS' => VI\CallTable::STATUS_CONNECTING,
+			'STATUS' => VI\Model\CallTable::STATUS_CONNECTING,
 			'DATE_CREATE' => new FieldType\DateTime(),
 			'INCOMING' => CVoxImplantMain::CALL_CALLBACK,
 			'CALLBACK_PARAMETERS' => array(
@@ -693,8 +637,8 @@ class CVoxImplantOutgoing
 
 		if(isset($customData['CRM_ENTITY_TYPE']) && isset($customData['CRM_ENTITY_ID']))
 		{
-			$call['CRM_ENTITY_TYPE'] = $customData['CRM_ENTITY_TYPE'];
-			$call['CRM_ENTITY_ID'] = $customData['CRM_ENTITY_ID'];
+			$callFields['CRM_ENTITY_TYPE'] = $customData['CRM_ENTITY_TYPE'];
+			$callFields['CRM_ENTITY_ID'] = $customData['CRM_ENTITY_ID'];
 		}
 
 		$voice = $voice ?: Tts\Language::getDefaultVoice(\Bitrix\Main\Context::getCurrent()->getLanguage());
@@ -708,17 +652,11 @@ class CVoxImplantOutgoing
 		else
 		{
 			$callId = $callBackResult->call_id;
-			$call['CALL_ID'] = $callId;
-			$insertResult = VI\CallTable::add($call);
-			if(!$insertResult->isSuccess())
-			{
-				$result->addErrors($insertResult->getErrors());
-				return $result;
-			}
+			$callFields['CALL_ID'] = $callId;
+			$call = VI\Call::create($callFields);
 
 			$result->setData(array(
-				'ID' => $insertResult->getId(),
-				'CALL_ID' => $callId
+				'CALL_ID' => $call->getCallId()
 			));
 		}
 

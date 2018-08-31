@@ -8,6 +8,7 @@
 
 namespace Bitrix\Main\ORM\Query;
 
+use Bitrix\Main\ArgumentException;
 use Bitrix\Main\DB\ArrayResult;
 use \Bitrix\Main\DB\Result as BaseResult;
 use Bitrix\Main\ORM\Fields\ExpressionField;
@@ -73,6 +74,11 @@ class Result extends BaseResult
 		return $this->result->fetchRowInternal();
 	}
 
+	/**
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws SystemException
+	 * @throws ArgumentException
+	 */
 	public function fetchObject()
 	{
 		// TODO when join, add primary and hide it in ARRAY result, but use for OBJECT fetch
@@ -154,21 +160,25 @@ class Result extends BaseResult
 					continue 2;
 				}
 
+				// actualize current definition
+				$currentDefinitionParts[] = $field->getName();
+				$currentDefinition = join('.', $currentDefinitionParts);
+
+				// is it runtime field? then ->tmpSet()
+				$isRuntimeField = !empty($this->query->getRuntimeChains()[$currentDefinition]);
+
 				if ($field instanceof IReadable)
 				{
 					// normalize value
 					$value = $field->cast($row[$selectChain->getAlias()]);
 
 					// set value as actual to the object
-					$currentObject->sysSetActual($field->getName(), $value);
+					$isRuntimeField
+						? $currentObject->runtimeSet($field->getName(), $value)
+						: $currentObject->sysSetActual($field->getName(), $value);
 				}
 				else
 				{
-					// we have a relation
-					// actualize current definition
-					$currentDefinitionParts[] = $field->getName();
-					$currentDefinition = join('.', $currentDefinitionParts);
-
 					// define remote entity definition
 					// check if this reference has already been woken up
 					// main part of current chain (w/o last element) should be the same
@@ -215,20 +225,38 @@ class Result extends BaseResult
 						$remoteObject = $this->composeRemoteObject($remoteEntity, $remotePrimaryValues, $remoteObjectValues);
 
 						// set remoteObject to baseObject
-						$currentObject->sysSetActual($field->getName(), $remoteObject);
+						$isRuntimeField
+							? $currentObject->runtimeSet($field->getName(), $remoteObject)
+							: $currentObject->sysSetActual($field->getName(), $remoteObject);
 					}
 					elseif ($field instanceof OneToMany || $field instanceof ManyToMany)
 					{
 						// get collection of remote objects
-						if (empty($currentObject->sysGetValue($field->getName())))
+						if ($isRuntimeField)
 						{
-							// create new collection and set as value for current object
-							$collection = $remoteEntity->createCollection();
-							$currentObject->sysSetActual($field->getName(), $collection);
+							if (empty($currentObject->runtimeGet($field->getName())))
+							{
+								// create new collection and set as value for current object
+								$collection = $remoteEntity->createCollection();
+								$currentObject->runtimeSet($field->getName(), $collection);
+							}
+							else
+							{
+								$collection = $currentObject->runtimeGet($field->getName());
+							}
 						}
 						else
 						{
-							$collection = $currentObject->sysGetValue($field->getName());
+							if (empty($currentObject->sysGetValue($field->getName())))
+							{
+								// create new collection and set as value for current object
+								$collection = $remoteEntity->createCollection();
+								$currentObject->sysSetActual($field->getName(), $collection);
+							}
+							else
+							{
+								$collection = $currentObject->sysGetValue($field->getName());
+							}
 						}
 
 						// define remote object
@@ -269,7 +297,7 @@ class Result extends BaseResult
 	}
 
 	/**
-	 * @return Collection
+	 * @return null Actual type should be annotated by orm:annotate
 	 * @throws \Bitrix\Main\SystemException
 	 */
 	public function fetchCollection()

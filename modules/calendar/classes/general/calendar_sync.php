@@ -38,7 +38,9 @@ class CCalendarSync
 			}
 			$forceSync = false;
 			if (isset($connectionData['forceSync']))
+			{
 				$forceSync = $connectionData['forceSync'];
+			}
 
 			$bShouldClearCache = (self::syncConnection($connectionData, $forceSync)) ? true : $bShouldClearCache;
 		}
@@ -164,7 +166,7 @@ class CCalendarSync
 		}
 
 		$pushOptionEnabled = COption::GetOptionString('calendar', 'sync_by_push', false) || CCalendar::IsBitrix24();
-		if (!$forceSync && $pushOptionEnabled)
+		if ($pushOptionEnabled)
 		{
 			$pushResult = PushTable::getByPrimary(array('ENTITY_TYPE' => 'CONNECTION', 'ENTITY_ID' => $connectionData['ID']));
 
@@ -601,10 +603,9 @@ class CCalendarSync
 		if ($bGoogleApi)
 		{
 			$googleApiCalendar = new GoogleApiSync($arFields['OWNER_ID']);
-
 			$arFields['DAV_XML_ID'] = $googleApiCalendar->saveEvent($arDavFields, $section['GAPI_CALENDAR_ID']);
-
-
+			// TODO: handle google errors
+			// $googleApiCalendar->getTransportErrors()
 			return true;
 		}
 		// **** Synchronize with CalDav ****

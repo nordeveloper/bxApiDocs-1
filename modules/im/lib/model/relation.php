@@ -166,6 +166,19 @@ class RelationTable extends Entity\DataManager
 			new Entity\Validator\Length(null, 50),
 		);
 	}
+
+	/**
+	 * @param array $fields Record as returned by getList
+	 * @return string
+	 */
+	public static function generateSearchContent(array $fields)
+	{
+		$result = \Bitrix\Main\Search\MapBuilder::create()
+			->addText($fields['TITLE'])
+			->build();
+
+		return $result;
+	}
 }
 
 class_alias("Bitrix\\Im\\Model\\RelationTable", "Bitrix\\Im\\RelationTable", false);

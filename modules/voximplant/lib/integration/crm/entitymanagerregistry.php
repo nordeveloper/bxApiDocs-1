@@ -6,7 +6,7 @@ use Bitrix\Crm\EntityManageFacility;
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\Loader;
 use Bitrix\Main\SystemException;
-use Bitrix\Voximplant\CallTable;
+use Bitrix\Voximplant\Model\CallTable;
 
 class EntityManagerRegistry
 {
@@ -95,9 +95,13 @@ class EntityManagerRegistry
 		{
 			return static::getWithEntity($call['CRM_ENTITY_TYPE'], (int)$call['CRM_ENTITY_ID']);
 		}
-		else
+		else if($call['CALLER_ID'] != '')
 		{
 			return static::getWithPhoneNumber($call['CALLER_ID']);
+		}
+		else
+		{
+			return false;
 		}
 	}
 }

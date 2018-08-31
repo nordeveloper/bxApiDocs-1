@@ -10,6 +10,15 @@ class CCalendarSceleton
 		global $APPLICATION;
 		CJSCore::Init(array('ajax', 'window', 'popup', 'access', 'date', 'viewer', 'socnetlogdest','color_picker', 'sidepanel', 'clipboard', 'tooltip'));
 
+		\Bitrix\Main\UI\Extension::load("ui.alerts");
+		\Bitrix\Main\UI\Extension::load("ui.buttons");
+		\Bitrix\Main\UI\Extension::load("ui.buttons.icons");
+
+		if(\Bitrix\Main\Loader::includeModule('rest'))
+		{
+			CJSCore::Init(array('applayout'));
+		}
+
 		if(\Bitrix\Main\Loader::includeModule('webservice'))
 		{
 			CJSCore::Init(array('stssync'));

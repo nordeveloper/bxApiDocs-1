@@ -26,7 +26,7 @@ Loc::loadMessages(__FILE__);
  * <li> PHONE_NUMBER string(20) mandatory
  * <li> INCOMING string(50) mandatory
  * <li> CALL_ID string(255) optional
- * <li> CALL_LOG string(255) optional
+ * <li> CALL_LOG string(2000) optional
  * <li> CALL_DIRECTION string(255) optional
  * <li> CALL_DURATION int mandatory
  * <li> CALL_START_DATE datetime mandatory
@@ -94,7 +94,7 @@ class StatisticTable extends Base
 				'title' => Loc::getMessage('STATISTIC_ENTITY_CALL_TYPE_FIELD'),
 			)),
 			new Entity\StringField('CALL_LOG', array(
-				'validation' => function(){return array(new Entity\Validator\Length(null, 255));},
+				'validation' => function(){return array(new Entity\Validator\Length(null, 2000));},
 				'title' => Loc::getMessage('STATISTIC_ENTITY_CALL_LOG_FIELD'),
 			)),
 			new Entity\StringField('CALL_DIRECTION', array(

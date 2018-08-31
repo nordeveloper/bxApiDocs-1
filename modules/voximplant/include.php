@@ -1,4 +1,5 @@
 <?
+
 CModule::AddAutoloadClasses(
 	"voximplant",
 	array(
@@ -16,7 +17,6 @@ CModule::AddAutoloadClasses(
 		"CVoxImplantError" => "classes/general/vi_error.php",
 		"CVoxImplantCrmHelper" => "classes/general/vi_crm_helper.php",
 		"CVoxImplantConfig" => "classes/general/vi_config.php",
-		"CVoxImplantTransfer" => "classes/general/vi_transfer.php",
 		"CVoxImplantSip" => "classes/general/vi_sip.php",
 		"CVoxImplantDiskHelper" => "classes/general/vi_webdav_helper.php",
 		"CVoxImplantWebDavHelper" => "classes/general/vi_webdav_helper.php",
@@ -26,7 +26,11 @@ CModule::AddAutoloadClasses(
 );
 
 CJSCore::RegisterExt('voximplant', array(
-	'js' => '/bitrix/js/voximplant/voximplant.js',
+	'js' => '/bitrix/js/voximplant/voximplant.js'
+));
+
+CJSCore::RegisterExt('voximplant_common', array(
+	'js' => '/bitrix/js/voximplant/common.js',
 	'lang' => '/bitrix/modules/voximplant/lang/'.LANGUAGE_ID.'/install/js/common.php',
 ));
 
