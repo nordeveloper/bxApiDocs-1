@@ -6,8 +6,6 @@
  * @copyright 2001-2013 Bitrix
  */
 
-use Bitrix\Tasks\Integration\Rest\UserField;
-
 if(!CModule::IncludeModule('rest'))
 {
 	return;
@@ -59,7 +57,7 @@ final class CTaskRestService extends IRestService
 			self::_init();
 
 		$arFunctionsMap = array(
-			CRestUtil::EVENTS => array(
+			CRestUtil::EVENTS     => array(
 				'OnTaskAdd'    => array('tasks', 'OnTaskAdd', array('CTaskRestService', 'onEventFilter')),
 				'OnTaskUpdate' => array('tasks', 'OnTaskUpdate', array('CTaskRestService', 'onEventFilter')),
 				'OnTaskDelete' => array('tasks', 'OnTaskDelete', array('CTaskRestService', 'onEventFilter')),
@@ -68,6 +66,11 @@ final class CTaskRestService extends IRestService
 				'OnTaskCommentAdd' => 		array('tasks', 'OnAfterCommentAdd', array('CTaskCommentItem', 'onEventFilter')),
 				'OnTaskCommentUpdate' => 	array('tasks', 'OnAfterCommentUpdate', array('CTaskCommentItem', 'onEventFilter')),
 				'OnTaskCommentDelete' => 	array('tasks', 'OnAfterCommentDelete', array('CTaskCommentItem', 'onEventFilter')),
+			),
+			CRestUtil::PLACEMENTS => array(
+				'TASK_TOP_MENU'          => array(),
+				'TASK_LIST_CONTEXT_MENU' => array(),
+				'TASK_VIEW_MODE'         => array(),
 			)
 		);
 

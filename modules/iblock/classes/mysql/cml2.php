@@ -94,6 +94,14 @@ class CIBlockXMLFile
 		return true;
 	}
 
+	public function GetRoot()
+	{
+		global $DB;
+		$rs = $DB->Query("SELECT ID MID from ".$this->_table_name." WHERE PARENT_ID = 0");
+		$ar = $rs->Fetch();
+		return $ar["MID"];
+	}
+
 	/*
 	This function have to called once at the import start.
 

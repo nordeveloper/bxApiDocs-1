@@ -208,6 +208,12 @@ class PostFiles
 					$isCheckedSuccess = true;
 				}
 
+				$absPath = realpath(str_replace("\\", "/", $absPath));
+				if (strpos($absPath, realpath(\CTempFile::GetAbsoluteRoot())) !== 0)
+				{
+					continue;
+				}
+
 				if (!$isCheckedSuccess && $io->ValidatePathString($absPath) && $io->FileExists($absPath))
 				{
 					$docRoot = $io->CombinePath($docRoot, '/');

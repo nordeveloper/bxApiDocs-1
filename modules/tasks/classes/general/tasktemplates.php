@@ -10,6 +10,7 @@
  */
 global $APPLICATION, $DB;
 
+use Bitrix\Main\Application;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Tasks\Internals\Task\Template\DependenceTable;
 use Bitrix\Tasks\Template;
@@ -539,87 +540,155 @@ class CTaskTemplates
 		return false;
 	}
 
-	function Delete($ID, array $parameters = array())
+	public static function Delete($id, array $params = [])
 	{
-		global $DB, $USER_FIELD_MANAGER;
+		global $USER_FIELD_MANAGER;
 
-		$ID = intval($ID);
+		$id = (int)$id;
 
-		if ($ID > 0)
+		if (!$id)
 		{
-			$rsTemplate = CTaskTemplates::GetByID($ID);
+			return false;
+		}
 
-			if ($arTemplate = $rsTemplate->Fetch())
+		try
+		{
+			$template = \Bitrix\Main\Application::getConnection()
+							->query('SELECT * FROM b_tasks_template WHERE ID='.$id)
+							->fetch();
+
+			if (!$template)
 			{
-				// Remove all agents for this template
-				self::removeAgents($ID);
+				return false;
+			}
 
-				if ($arTemplate["FILES"])
+			$safeDelete = false;
+			if (\Bitrix\Main\Loader::includeModule('recyclebin'))
+			{
+				$result = \Bitrix\Tasks\Integration\Recyclebin\Template::OnBeforeDelete($id, $template);
+				if (!$result->isSuccess())
 				{
-					$arFiles = unserialize($arTemplate["FILES"]);
-					if (is_array($arFiles))
+					return false;
+				}
+
+				$safeDelete = true;
+			}
+
+			foreach (GetModuleEvents('tasks', 'OnBeforeTaskTemplateDelete', true) as $arEvent)
+			{
+				if (ExecuteModuleEventEx($arEvent, array($id, $template)) === false)
+				{
+					return false;
+				}
+			}
+
+			self::removeAgents($id);
+
+			if ($safeDelete)
+			{
+				Application::getConnection()->queryExecute('UPDATE b_tasks_template SET ZOMBIE=\'Y\' WHERE ID='.$id);
+			}
+			else
+			{
+				Application::getConnection()->queryExecute('DELETE FROM b_tasks_template WHERE ID='.$id);
+
+				$USER_FIELD_MANAGER->Delete("TASKS_TASK_TEMPLATE", $id);
+
+				// drop syslog records
+				\Bitrix\Tasks\Item\SystemLog::deleteByEntity($id, 1);
+
+				if ($template["FILES"])
+				{
+					$files = unserialize($template["FILES"]);
+					if (is_array($files))
 					{
-						$arFilesToDelete = array();
-						foreach($arFiles as $file)
+						$filesToDelete = array();
+						foreach ($files as $file)
 						{
 							$rsFile = CTaskFiles::GetList(array(), array("FILE_ID" => $file));
 							if (!$arFile = $rsFile->Fetch())
 							{
-								$arFilesToDelete[] = $file;
+								$filesToDelete[] = $file;
 							}
 						}
-						foreach ($arFilesToDelete as $file)
+						foreach ($filesToDelete as $file)
 						{
 							CFile::Delete($file);
 						}
-
 					}
 				}
 
-				$strSql = "DELETE FROM b_tasks_template WHERE ID = ".$ID;
-
-				if ($DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__))
+				if (isset($params['DELETE_SUB_ITEMS']) && $params['DELETE_SUB_ITEMS'] !== false)
 				{
-					$USER_FIELD_MANAGER->Delete("TASKS_TASK_TEMPLATE", $ID);
-
-					if($parameters['DELETE_SUB_ITEMS'] !== false)
+					// drop checklists
+					$clRes = \Bitrix\Tasks\Internals\Task\Template\CheckListTable::getListByTemplateDependency(
+						$id,
+						array('select' => array('ID'))
+					);
+					while ($clItem = $clRes->fetch())
 					{
-						// drop checklists
-						$clRes = \Bitrix\Tasks\Internals\Task\Template\CheckListTable::getListByTemplateDependency($ID, array('select' => array('ID')));
-						while($clItem = $clRes->fetch())
-						{
-							\Bitrix\Tasks\Internals\Task\Template\CheckListTable::delete($clItem['ID']);
-						}
-
-						// drop children (sub-templates)
-						$subRes = DependenceTable::getSubTree($ID, array('select' => array('ID' => 'TEMPLATE_ID')), array('INCLUDE_SELF' => false));
-						while($sItem = $subRes->fetch())
-						{
-							$sTemplate = new static();
-							$sTemplate->delete($sItem['ID']);
-						}
-						// drop tree records for this templates and it`s children
-						try
-						{
-							DependenceTable::deleteSubtree($ID);
-						}
-						catch(\Bitrix\Tasks\DB\Tree\TargetNodeNotFoundException $e) // had no children actually
-						{
-						}
-
-						// drop rights
-						\Bitrix\Tasks\Item\Access\Task\Template::revokeAll($ID, array('CHECK_RIGHTS' => false));
+						\Bitrix\Tasks\Internals\Task\Template\CheckListTable::delete($clItem['ID']);
 					}
 
-					// drop syslog records
-					\Bitrix\Tasks\Item\SystemLog::deleteByEntity($ID, 1);
+					// drop children (sub-templates)
+					$subRes = DependenceTable::getSubTree(
+						$id,
+						array('select' => array('ID' => 'TEMPLATE_ID')),
+						array('INCLUDE_SELF' => false)
+					);
+					while ($sItem = $subRes->fetch())
+					{
+						$sTemplate = new static();
+						$sTemplate->delete($sItem['ID']);
+					}
+					// drop tree records for this templates and it`s children
+					try
+					{
+						DependenceTable::deleteSubtree($id);
+					}
+					catch (\Bitrix\Tasks\Internals\DataBase\Tree\TargetNodeNotFoundException $e) // had no children actually
+					{
+						return false;
+					}
 
-					return true;
+					// drop rights
+					\Bitrix\Tasks\Item\Access\Task\Template::revokeAll($id, array('CHECK_RIGHTS' => false));
+				}
+			}
+
+			foreach (GetModuleEvents('tasks', 'OnTaskTemplateDelete', true) as $arEvent)
+			{
+				if (ExecuteModuleEventEx($arEvent, array($id, $template)) === false)
+				{
+					return false;
 				}
 			}
 		}
+		catch (\Exception $e)
+		{
+			return false;
+		}
 
-		return false;
+		return true;
+	}
+
+	// may be in a future.... may be...
+	public static function DeleteBatch(array $ids, array $params = [])
+	{
+		$result = [];
+		$ids = array_filter(array_unique(array_map('intval', $ids)));
+
+		if (empty($ids))
+		{
+			return false;
+		}
+
+		foreach($ids as $id)
+		{
+			$result[$id] = self::Delete($id, $params);
+		}
+
+		return $result;
 	}
 
 
@@ -634,9 +703,14 @@ class CTaskTemplates
 	 * @global $DB CDatabase
 	 * @global $DBType string
 	 */
-	public static function GetList($arOrder, $arFilter, $arNavParams = array(), $arParams = array(), $arSelect = array())
+	public static function GetList($arOrder, $arFilter = array(), $arNavParams = array(), $arParams = array(), $arSelect = array())
 	{
 		global $DB, $DBType, $USER_FIELD_MANAGER;
+
+		if (!array_key_exists('ZOMBIE', $arFilter) || $arFilter['ZOMBIE'] != 'Y')
+		{
+			$arFilter['ZOMBIE'] = 'N';
+		}
 
 		$arSqlSearch = CTaskTemplates::GetFilter($arFilter, $arParams);
 
@@ -985,7 +1059,7 @@ class CTaskTemplates
 		return $accessSql;
 	}
 
-	public static function GetCount($includeSubtemplates = false)
+	public static function GetCount($includeSubtemplates = false, array $arParams)
 	{
 		global $DB;
 
@@ -994,15 +1068,13 @@ class CTaskTemplates
 			$strSql = "
 				SELECT COUNT(*) AS CNT 
 					FROM b_tasks_template TT
-
+					".self::getAccessSql($arParams)."
 					".(!$includeSubtemplates ? "
 					LEFT JOIN
 						".Template\DependencyTable::getTableName()." TDD ON TT.ID = TDD.TEMPLATE_ID AND TDD.DIRECT = '1'"
 					: "")."
 
 				WHERE 
-					CREATED_BY = ".intval(\Bitrix\Tasks\Util\User::getId())."
-
 					".(!$includeSubtemplates ? " AND TDD.".Template\DependencyTable::getPARENTIDColumnName()." IS NULL" : "");
 
 			if ($dbRes = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__))
@@ -1046,7 +1118,13 @@ class CTaskTemplates
 					$arSqlSearch[] = CTasks::FilterCreate("TT.RESPONSIBLE_ID", $val, "number", $bFullJoin, $cOperationType);
 					break;
 
+				case "TAGS":
+					$val = '%i:%;s:%:"'.$val.'";%';
+					$arSqlSearch[] = CTasks::FilterCreate("TT.".$key, $val, "string", $bFullJoin, $cOperationType);
+					break;
+
 				case "TITLE":
+				case "ZOMBIE":
 				case "XML_ID":
 					$arSqlSearch[] = CTasks::FilterCreate("TT.".$key, $val, "string", $bFullJoin, $cOperationType);
 					break;
@@ -1057,10 +1135,19 @@ class CTaskTemplates
 					break;
 
 				case 'SEARCH_INDEX':
-					$arSqlSearch[] = "TT.ID = ".
-									 (int)$val.
-									 " OR TT.TITLE LIKE '%{$val}%' OR DESCRIPTION LIKE '%{$val}%'".
-									 " OR CONCAT_WS(' ', CU.NAME, CU.LAST_NAME,CU.SECOND_NAME,CU.LOGIN,RU.NAME ,RU.LAST_NAME,RU.SECOND_NAME,RU.LOGIN) LIKE '%{$val}%'";
+					$fieldsToLike = array(
+						"TT.TITLE",
+						"TT.DESCRIPTION",
+						"CONCAT_WS(' ', CU.NAME, CU.LAST_NAME, CU.SECOND_NAME, CU.LOGIN, RU.NAME, RU.LAST_NAME, RU.SECOND_NAME, RU.LOGIN)"
+					);
+
+					$filter = CTasks::FilterCreate("TT.ID", (int)$val, "number", $bFullJoin, $cOperationType);
+
+					foreach ($fieldsToLike as $field)
+					{
+						$filter .= " OR ".CTasks::FilterCreate($field, $val, "string", $bFullJoin, "S");
+					}
+					$arSqlSearch[] = $filter;
 
 					break;
 

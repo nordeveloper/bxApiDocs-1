@@ -22,6 +22,7 @@ use \Bitrix\Tasks\Internals\Task\FavoriteTable;
 use \Bitrix\Tasks\Internals\Task\ProjectDependenceTable;
 use \Bitrix\Tasks\Internals\Task\SortingTable;
 use \Bitrix\Tasks\Internals\Task\MemberTable;
+use \Bitrix\Tasks\Internals\Helper\Task\Dependence;
 use \Bitrix\Tasks\Kanban\TaskStageTable;
 
 use \Bitrix\Tasks\Util\Type;
@@ -457,7 +458,7 @@ class CTasks
 					$arFields["STATUS_CHANGED_DATE"] = $arFields["CHANGED_DATE"] = $arFields["CREATED_DATE"] = $nowDateTimeString;
 				}
 
-				if (isset($arFields['DEADLINE']) && (string)$arFields['DEADLINE'] != '' && 
+				if (isset($arFields['DEADLINE']) && (string)$arFields['DEADLINE'] != '' &&
 					isset($arFields['MATCH_WORK_TIME']) && $arFields['MATCH_WORK_TIME'] == 'Y')
 				{
 					$arFields['DEADLINE'] = static::getDeadlineMatchWorkTime($arFields['DEADLINE']);
@@ -647,7 +648,9 @@ class CTasks
 							\Bitrix\Tasks\Util::log($e);
 						}
 
-						CTasks::Index($arTask, $arFields["TAGS"]); // search index
+						$mergedFields = array_merge($arTask, $arFields);
+
+						CTasks::Index($mergedFields, $arFields["TAGS"]); // search index
 
 						// clear cache
 						if ($arFields["GROUP_ID"])
@@ -938,40 +941,41 @@ class CTasks
 						"DECLINE_REASON" => $arFields["DECLINE_REASON"]
 					);
 
-					$time = User::getTime();
+					$time = \Bitrix\Tasks\UI::formatDateTime(User::getTime());
 
 					$arFields["CHANGED_BY"] = $userID;
-					$arFields["CHANGED_DATE"] = \Bitrix\Tasks\UI::formatDateTime($time);
+					$arFields["CHANGED_DATE"] = $time;
 
 					$occurAsUserId = CTasksTools::getOccurAsUserId();
-					if ( ! $occurAsUserId )
-						$occurAsUserId = ($arFields["CHANGED_BY"] ? $arFields["CHANGED_BY"] : 1);
+					if (!$occurAsUserId)
+					{
+						$occurAsUserId = ($arFields["CHANGED_BY"]? $arFields["CHANGED_BY"] : 1);
+					}
 
 					if (!$arFields["OUTLOOK_VERSION"])
 					{
-						$arFields["OUTLOOK_VERSION"] = ($arTask["OUTLOOK_VERSION"] ? $arTask["OUTLOOK_VERSION"] : 1) + 1;
+						$arFields["OUTLOOK_VERSION"] = ($arTask["OUTLOOK_VERSION"]? $arTask["OUTLOOK_VERSION"] : 1) + 1;
 					}
 
 					// If new status code given AND new status code != current status => than update
-					if (isset($arFields["STATUS"])
-						&& ( (int) $arTask['STATUS'] !== (int) $arFields['STATUS'] )
-					)
+					if (isset($arFields["STATUS"]) && (int)$arTask['STATUS'] !== (int)$arFields['STATUS'])
 					{
 						$arFields["STATUS_CHANGED_BY"] = $userID;
-						$arFields["STATUS_CHANGED_DATE"] = \Bitrix\Tasks\UI::formatDateTime($time);
+						$arFields["STATUS_CHANGED_DATE"] = $time;
 
 						if ($arFields["STATUS"] == 5 || $arFields["STATUS"] == 4)
 						{
 							$arFields["CLOSED_BY"] = $userID;
-							$arFields["CLOSED_DATE"] = \Bitrix\Tasks\UI::formatDateTime($time);
+							$arFields["CLOSED_DATE"] = $time;
 						}
 						else
 						{
 							$arFields["CLOSED_BY"] = false;
 							$arFields["CLOSED_DATE"] = false;
-							if ($arFields["STATUS"] == 3)
+
+							if ($arFields["STATUS"] == 3 && !$arTask["DATE_START"])
 							{
-								$arFields["DATE_START"] = \Bitrix\Tasks\UI::formatDateTime($time);
+								$arFields["DATE_START"] = $time;
 							}
 						}
 					}
@@ -982,19 +986,13 @@ class CTasks
 					}
 
 					$shiftResult = null;
-					if($arParams['CORRECT_DATE_PLAN'])
+					if ($arParams['CORRECT_DATE_PLAN'])
 					{
-						$fakeParentChange = static::fakeParentChange($arTask['PARENT_ID'], $arFields['PARENT_ID'], $userID);
-						$parentChanged = static::parentChanged($arTask, $arFields, $fakeParentChange);
+						$parentChanged = static::parentChanged($arTask, $arFields, $userID);
 						$datesChanged = static::datesChanged($arTask, $arFields);
 						$followDatesChanged = static::followDatesSetTrue($arFields);
 
-						if ($fakeParentChange)
-						{
-							unset($arFields['PARENT_ID']);
-						}
-
-						if($parentChanged)
+						if ($parentChanged)
 						{
 							// task was attached previously, and now it is being unattached or reattached to smth else
 							// then we need to recalculate its previous parent...
@@ -1002,9 +1000,16 @@ class CTasks
 							$shiftResultPrev = $scheduler->processEntity($ID, $arTask, array(
 								'MODE' => 'BEFORE_DETACH',
 							));
-							if($shiftResultPrev->isSuccess())
+							if ($shiftResultPrev->isSuccess())
 							{
 								$shiftResultPrev->save(array('!ID' => $ID));
+							}
+						}
+						else
+						{
+							if (array_key_exists('PARENT_ID', $arFields))
+							{
+								unset($arFields['PARENT_ID']);
 							}
 						}
 
@@ -1066,7 +1071,7 @@ class CTasks
 						$arFields['STAGE_ID'] = 0;
 					}
 
-					$arFields['SEARCH_INDEX'] = \Bitrix\Tasks\Manager\Task::prepareSearchIndex($arTask);
+					$arFields['SEARCH_INDEX'] = \Bitrix\Tasks\Manager\Task::prepareSearchIndex(array_merge($arTask, $arFields));
 
 					$strUpdate = $DB->PrepareUpdate("b_tasks", $arFields, "tasks");
 					$strSql = "UPDATE b_tasks SET ".$strUpdate." WHERE ID=".$ID;
@@ -1114,9 +1119,19 @@ class CTasks
 							$arFields['STATUS'] == static::STATE_COMPLETED
 						))
 						{
-							// stop timer, if exists
-							$timer = CTaskTimerManager::getInstance($arTask['RESPONSIBLE_ID']);
-							$timer->stop($ID);
+							// stop timer for responsible and accomplices, if exists
+							$responsibleTimer = CTaskTimerManager::getInstance($arTask['RESPONSIBLE_ID']);
+							$responsibleTimer->stop($ID);
+
+							$accomplices = $arTask['ACCOMPLICES'];
+							if (isset($accomplices) && !empty($accomplices))
+							{
+								foreach ($accomplices as $accompliceId)
+								{
+									$accompliceTimer = CTaskTimerManager::getInstance($accompliceId);
+									$accompliceTimer->stop($ID);
+								}
+							}
 						}
 
 						// Emit pull event
@@ -1374,7 +1389,7 @@ class CTasks
 						}
 
 //						CTaskCountersProcessor::onAfterTaskUpdate($arTask, $arFields);
-						\Bitrix\Tasks\Internals\Counter::onAfterTaskUpdate($arTask, $arFields);
+						\Bitrix\Tasks\Internals\Counter::onAfterTaskUpdate($arTask, $arFields, $arParams);
 						static::clearCache();
 
 						if ($bWasFatalError)
@@ -1391,6 +1406,11 @@ class CTasks
 							\Bitrix\Tasks\Kanban\StagesTable::pinInStage($ID, array(
 								'CREATED_BY' => $arTask['CREATED_BY']// because is not new task
 							), true);
+						}
+
+						if ($arTask['FORUM_TOPIC_ID'] && $arTask['TITLE'] !== $arFields['TITLE'])
+						{
+							\Bitrix\Tasks\Integration\Forum\Task\Topic::updateTopicTitle($arTask['FORUM_TOPIC_ID'], $arFields['TITLE']);
 						}
 
 						return true;
@@ -1449,6 +1469,11 @@ class CTasks
 	{
 		try
 		{
+			if (User::isSuper($userId))
+			{
+				return false;
+			}
+
 			if ($newParentId == false && $oldParentId)
 			{
 				$parentTask = new \Bitrix\Tasks\Item\Task($oldParentId, 1);
@@ -1475,21 +1500,27 @@ class CTasks
 		}
 	}
 
-	private static function parentChanged($oldData, $newData, $fakeParentChange)
+	private static function parentChanged($oldData, $newData, $userId)
 	{
-		return array_key_exists('PARENT_ID', $newData) && ($oldData['PARENT_ID'] && $newData['PARENT_ID'] != $oldData['PARENT_ID']) && !$fakeParentChange;
+		if (array_key_exists('PARENT_ID', $newData))
+		{
+			$fakeParentChange = static::fakeParentChange($oldData['PARENT_ID'], $newData['PARENT_ID'], $userId);
+			//return !$fakeParentChange && ($oldData['PARENT_ID'] && $newData['PARENT_ID'] != $oldData['PARENT_ID']);
+			return !$fakeParentChange && ($newData['PARENT_ID'] != $oldData['PARENT_ID']);
+		}
+
+		return false;
 	}
 
-	private static function datesChanged($was, $now)
+	private static function datesChanged($oldData, $newData)
 	{
-		if(!array_key_exists('START_DATE_PLAN', $now) && !array_key_exists('END_DATE_PLAN', $now))
+		if (!array_key_exists('START_DATE_PLAN', $newData) && !array_key_exists('END_DATE_PLAN', $newData))
 		{
 			return false;
 		}
 
-		return ((string) $was['START_DATE_PLAN'] != (string) $now['START_DATE_PLAN'])
-				||
-				((string) $was['END_DATE_PLAN'] != (string) $now['END_DATE_PLAN']);
+		return ((string)$oldData['START_DATE_PLAN'] != (string)$newData['START_DATE_PLAN']) ||
+			((string)$oldData['END_DATE_PLAN'] != (string)$newData['END_DATE_PLAN']);
 	}
 
 	private static function followDatesSetTrue($fields)
@@ -1572,7 +1603,7 @@ class CTasks
 		global $DB, $CACHE_MANAGER;
 
 		$actorUserId = User::getId();
-		if(!$actorUserId)
+		if (!$actorUserId)
 		{
 			$actorUserId = User::getAdminId();
 		}
@@ -1589,13 +1620,8 @@ class CTasks
 
 		if (is_array($arParams))
 		{
-			if (
-				isset($arParams['skipExchangeSync'])
-				&& (
-					($arParams['skipExchangeSync'] === 'Y')
-					|| ($arParams['skipExchangeSync'] === true)
-				)
-			)
+			if (isset($arParams['skipExchangeSync']) &&
+				(($arParams['skipExchangeSync'] === 'Y') || ($arParams['skipExchangeSync'] === true)))
 			{
 				$paramSkipExchangeSync = true;
 			}
@@ -1608,9 +1634,23 @@ class CTasks
 		$rsTask = CTasks::GetByID($ID, false);
 		if ($arTask = $rsTask->Fetch())
 		{
-			foreach(GetModuleEvents('tasks', 'OnBeforeTaskDelete', true) as $arEvent)
+			$safeDelete = false;
+			try
 			{
-				if (ExecuteModuleEventEx($arEvent, array($ID, $arTask))===false)
+				if (\Bitrix\Main\Loader::includeModule('recyclebin'))
+				{
+					$result = \Bitrix\Tasks\Integration\Recyclebin\Task::OnBeforeTaskDelete($ID, $arTask);
+
+					$safeDelete = $result;
+				}
+			}
+			catch (\Exception $e)
+			{
+			}
+
+			foreach (GetModuleEvents('tasks', 'OnBeforeTaskDelete', true) as $arEvent)
+			{
+				if (ExecuteModuleEventEx($arEvent, array($ID, $arTask)) === false)
 				{
 					return false;
 				}
@@ -1621,45 +1661,61 @@ class CTasks
 			$timer->stop($ID);
 
 			CTaskMembers::DeleteAllByTaskID($ID);
-			CTaskFiles::DeleteByTaskID($ID);
 			CTaskDependence::DeleteByTaskID($ID);
 			CTaskDependence::DeleteByDependsOnID($ID);
-			CTaskTags::DeleteByTaskID($ID);
 
-			FavoriteTable::deleteByTaskId($ID, array('LOW_LEVEL' => true));
+			if (!$safeDelete)
+			{
+				CTaskFiles::DeleteByTaskID($ID);
+				CTaskTags::DeleteByTaskID($ID);
+				FavoriteTable::deleteByTaskId($ID, array('LOW_LEVEL' => true));
+
+				// todo: this function was not included into tablet file, but still should be placed to the business logic layer of the "viewed" entity
+				$list = \Bitrix\Tasks\Internals\Task\ViewedTable::getList(
+					[
+						"select" => ["TASK_ID", "USER_ID"],
+						"filter" => [
+							"=TASK_ID" => $ID,
+						],
+					]
+				);
+				while ($item = $list->fetch())
+				{
+					\Bitrix\Tasks\Internals\Task\ViewedTable::delete($item);
+				}
+
+				CTaskReminders::DeleteByTaskID($ID);
+
+				// delete parameters
+				$list = \Bitrix\Tasks\Internals\Task\ParameterTable::getList(
+					[
+						"select" => ["ID"],
+						"filter" => [
+							"=TASK_ID" => $ID,
+						],
+					]
+				);
+				while ($item = $list->fetch())
+				{
+					\Bitrix\Tasks\Internals\Task\ParameterTable::delete($item);
+				}
+			}
+
 			SortingTable::deleteByTaskId($ID);
 
-			// todo: this function was not included into tablet file, but still should be placed to the business logic layer of the "viewed" entity
-			$list = \Bitrix\Tasks\Internals\Task\ViewedTable::getList(array(
-				"select" => array("TASK_ID", "USER_ID"),
-				"filter" => array(
-					"=TASK_ID" => $ID,
-				),
-			));
-			while ($item = $list->fetch())
-			{
-				\Bitrix\Tasks\Internals\Task\ViewedTable::delete($item);
-			}
-
-			CTaskReminders::DeleteByTaskID($ID);
-
-			// delete parameters
-			$list = \Bitrix\Tasks\Internals\Task\ParameterTable::getList(array(
-				"select" => array("ID"),
-				"filter" => array(
-					"=TASK_ID" => $ID,
-				),
-			));
-			while ($item = $list->fetch())
-			{
-				\Bitrix\Tasks\Internals\Task\ParameterTable::delete($item);
-			}
-
 			// by default, CTasks::Delete() should not delete the entire sub-tree, so we need to delete only node itself
-			\Bitrix\Tasks\Internals\Helper\Task\Dependence::delete($ID);
-			// todo: we need to update PARENT_ID of each sub-task
+			$children = Dependence::getSubTree($ID)->find(array('__PARENT_ID' => $ID))->getData();
+			Dependence::delete($ID);
 
-			if($arTask['PARENT_ID'] && $arTask['START_DATE_PLAN'] && $arTask['END_DATE_PLAN'])
+			if ($arTask['PARENT_ID'] && !empty($children))
+			{
+				foreach ($children as $child)
+				{
+					Dependence::attach($child['__ID'], $arTask['PARENT_ID']);
+				}
+			}
+
+			if ($arTask['PARENT_ID'] && $arTask['START_DATE_PLAN'] && $arTask['END_DATE_PLAN'])
 			{
 				// we need to scan for parent bracket tasks change...
 				$scheduler = \Bitrix\Tasks\Processor\Task\Scheduler::getInstance($actorUserId);
@@ -1668,7 +1724,7 @@ class CTasks
 				// we also do not need to calculate detached tree
 				// it is like DETACH_AFTER
 				$shiftResult = $scheduler->processEntity($arTask['PARENT_ID']);
-				if($shiftResult->isSuccess())
+				if ($shiftResult->isSuccess())
 				{
 					$shiftResult->save();
 				}
@@ -1687,8 +1743,14 @@ class CTasks
 			{
 				$CACHE_MANAGER->ClearByTag("tasks_group_".$arTask["GROUP_ID"]);
 			}
-			$arParticipants = array_unique(array_merge(array($arTask["CREATED_BY"], $arTask["RESPONSIBLE_ID"]), $arTask["ACCOMPLICES"], $arTask["AUDITORS"]));
-			foreach($arParticipants as $userId)
+			$arParticipants = array_unique(
+				array_merge(
+					array($arTask["CREATED_BY"], $arTask["RESPONSIBLE_ID"]),
+					$arTask["ACCOMPLICES"],
+					$arTask["AUDITORS"]
+				)
+			);
+			foreach ($arParticipants as $userId)
 			{
 				$CACHE_MANAGER->ClearByTag("tasks_user_".$userId);
 			}
@@ -1696,10 +1758,16 @@ class CTasks
 			$strSql = "UPDATE b_tasks_template SET TASK_ID = NULL WHERE TASK_ID = ".$ID;
 			$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 
-			$strSql = "UPDATE b_tasks_template SET PARENT_ID = ".($arTask["PARENT_ID"] ? $arTask["PARENT_ID"] : "NULL")." WHERE PARENT_ID = ".$ID;
+			$strSql = "UPDATE b_tasks_template SET PARENT_ID = ".
+					  ($arTask["PARENT_ID"] ? $arTask["PARENT_ID"] : "NULL").
+					  " WHERE PARENT_ID = ".
+					  $ID;
 			$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 
-			$strSql = "UPDATE b_tasks SET PARENT_ID = ".($arTask["PARENT_ID"] ? $arTask["PARENT_ID"] : "NULL")." WHERE PARENT_ID = ".$ID;
+			$strSql = "UPDATE b_tasks SET PARENT_ID = ".
+					  ($arTask["PARENT_ID"] ? $arTask["PARENT_ID"] : "NULL").
+					  " WHERE PARENT_ID = ".
+					  $ID;
 			$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 
 			$strUpdate = $DB->PrepareUpdate(
@@ -1712,16 +1780,19 @@ class CTasks
 				"tasks"
 			);
 
-			$strSql = "UPDATE b_tasks SET " . $strUpdate . " WHERE ID = " . (int) $ID;
+			$strSql = "UPDATE b_tasks SET ".$strUpdate." WHERE ID = ".(int)$ID;
 
 			if ($DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__))
 			{
 				CTaskNotifications::SendDeleteMessage($arTask);
 
-				// todo: replace with event binding or processor
-				\Bitrix\Tasks\Integration\Forum\Task\Topic::delete($arTask["FORUM_TOPIC_ID"]);
+				if (!$safeDelete)
+				{
+					// todo: replace with event binding or processor
+					\Bitrix\Tasks\Integration\Forum\Task\Topic::delete($arTask["FORUM_TOPIC_ID"]);
+				}
 
-				if ( ! $paramSkipExchangeSync )
+				if (!$paramSkipExchangeSync)
 					CTaskSync::DeleteItem($arTask); // MS Exchange
 
 				// Emit pull event
@@ -1729,20 +1800,22 @@ class CTasks
 				{
 					$arPullRecipients = array();
 
-					foreach($arParticipants as $userId)
-						$arPullRecipients[] = (int) $userId;
+					foreach ($arParticipants as $userId)
+					{
+						$arPullRecipients[] = (int)$userId;
+					}
 
-					$taskGroupId = 0;	// no group
+					$taskGroupId = 0;    // no group
 
 					if (isset($arTask['GROUP_ID']) && ($arTask['GROUP_ID'] > 0))
-						$taskGroupId = (int) $arTask['GROUP_ID'];
+						$taskGroupId = (int)$arTask['GROUP_ID'];
 
 					$arPullData = array(
-						'TASK_ID' => (int) $ID,
-						'BEFORE' => array(
+						'TASK_ID'    => (int)$ID,
+						'BEFORE'     => array(
 							'GROUP_ID' => $taskGroupId
 						),
-						'TS' => time(),
+						'TS'         => time(),
 						'event_GUID' => $eventGUID
 					);
 
@@ -1755,7 +1828,7 @@ class CTasks
 
 					self::EmitPullWithTag(
 						$arPullRecipients,
-						'TASKS_TASK_' . (int) $ID,
+						'TASKS_TASK_'.(int)$ID,
 						'task_remove',
 						$arPullData
 					);
@@ -1764,15 +1837,17 @@ class CTasks
 				{
 				}
 
-				foreach(GetModuleEvents('tasks', 'OnTaskDelete', true) as $arEvent)
+				foreach (GetModuleEvents('tasks', 'OnTaskDelete', true) as $arEvent)
+				{
 					ExecuteModuleEventEx($arEvent, array($ID));
+				}
 
 				if (CModule::IncludeModule("search"))
 				{
 					CSearch::DeleteIndex("tasks", $ID);
 				}
 
-//				CTaskCountersProcessor::onAfterTaskDelete($arTask);
+				//				CTaskCountersProcessor::onAfterTaskDelete($arTask);
 				\Bitrix\Tasks\Internals\Counter::onAfterTaskDelete($arTask);
 
 				TaskStageTable::clearTask($ID);
@@ -2167,9 +2242,11 @@ class CTasks
 						if (($strDateStart !== false) && ($strDateEnd !== false))
 						{
 							$arSqlSearch[] = "(
-									(T.CREATED_DATE >= $strDateStart AND T.CREATED_DATE <= $strDateEnd)
+									(T.CREATED_DATE >= $strDateStart AND T.CLOSED_DATE <= $strDateEnd)
 								OR
-									(T.CLOSED_DATE >= $strDateStart AND T.CLOSED_DATE <= $strDateEnd)
+									(T.CHANGED_DATE >= $strDateStart AND T.CHANGED_DATE <= $strDateEnd)
+								OR
+									(T.CREATED_DATE <= $strDateStart AND T.CLOSED_DATE IS NULL)
 								)";
 						}
 						elseif (($strDateStart !== false) && ($strDateEnd === false))
@@ -2177,15 +2254,14 @@ class CTasks
 							$arSqlSearch[] = "(
 									(T.CREATED_DATE >= $strDateStart)
 								OR
-									(T.CLOSED_DATE >= $strDateStart)
+									(T.CHANGED_DATE >= $strDateStart)
 								)";
 						}
 						elseif (($strDateStart === false) && ($strDateEnd !== false))
 						{
 							$arSqlSearch[] = "(
-									(T.CREATED_DATE <= $strDateEnd)
-								OR
 									(T.CLOSED_DATE <= $strDateEnd)
+									(T.CHANGED_DATE <= $strDateEnd)
 								)";
 						}
 					}
@@ -3793,6 +3869,8 @@ class CTasks
 			$arSelect[] = "ID";
 		}
 
+		unset($arSelect['SEARCH_INDEX']);
+
 		// add fields that are NOT selected by default
 		//$arFields["FAVORITE"] = "CASE WHEN FVT.TASK_ID IS NULL THEN 'N' ELSE 'Y' END";
 
@@ -4021,7 +4099,7 @@ class CTasks
 		if (isset($arFilter['::LOGIC']))
 			CTaskAssert::assert($arFilter['::LOGIC'] === 'AND');
 
-		// try to make some trashy optimizations
+		// try to make some recyclebiny optimizations
 		// (later you can remove the following block without getting any logic broken)
 		$distinct = '';
 		$additionalJoins = '';
@@ -4100,7 +4178,7 @@ class CTasks
 				" : "")
 
 			. ($bNeedJoinStagesTable ? "
-				LEFT JOIN ".TaskStageTable::getTableName()." STG ON STG.TASK_ID = T.ID
+				INNER JOIN ".TaskStageTable::getTableName()." STG ON STG.TASK_ID = T.ID
 				" : "")
 
 			. ($bNeedJoinForumsTable ? "
@@ -4473,7 +4551,7 @@ class CTasks
 
 		$sourceFilter = $arFilter;
 
-		// try to make some trashy optimizations
+		// try to make some recyclebiny optimizations
 		// (later you can remove the following block without getting any logic broken)
 		$additionalJoins = '';
 		if($canUseOptimization)

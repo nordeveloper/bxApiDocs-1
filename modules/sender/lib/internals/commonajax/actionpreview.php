@@ -12,6 +12,7 @@ use Bitrix\Main\Loader;
 use Bitrix\Main\HttpRequest;
 
 use Bitrix\Sender\Internals\QueryController as Controller;
+use Bitrix\Sender\Security;
 use Bitrix\Fileman\Block\EditorMail;
 
 Loc::loadMessages(__FILE__);
@@ -36,13 +37,8 @@ class ActionPreview extends CommonAction
 
 		Loader::includeModule('fileman');
 
-		$canEditPhp = false;
-		$canUseLpa = false;
-		if (is_object($GLOBALS["USER"]))
-		{
-			$canEditPhp = $GLOBALS["USER"]->CanDoOperation('edit_php');
-			$canUseLpa = $GLOBALS["USER"]->CanDoOperation('lpa_template_edit');
-		}
+		$canEditPhp = Security\User::current()->canEditPhp();
+		$canUseLpa = Security\User::current()->canUseLpa();
 
 		$previewParams = array(
 			'CAN_EDIT_PHP' => $canEditPhp,

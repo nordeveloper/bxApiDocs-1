@@ -3487,6 +3487,13 @@ REQ
 			if (isset($value))
 				$url.= "&".urlencode($name)."=".urlencode($value);
 
+		if ($arParams["replace_script_name"])
+		{
+			$url = self::replaceScriptName($url);
+		}
+
+		$url = str_replace("&skip_public=1", "", $url);
+
 		return $url.$strAdd;
 	}
 
@@ -3508,6 +3515,13 @@ REQ
 		foreach ($arParams as $name => $value)
 			if (isset($value))
 				$url.= "&".urlencode($name)."=".urlencode($value);
+
+		if ($arParams["replace_script_name"])
+		{
+			$url = self::replaceScriptName($url);
+		}
+
+		$url = str_replace("&skip_public=1", "", $url);
 
 		return $url.$strAdd;
 	}
@@ -3531,24 +3545,67 @@ REQ
 			if (isset($value))
 				$url.= "&".urlencode($name)."=".urlencode($value);
 
+		if ($arParams["replace_script_name"])
+		{
+			$url = self::replaceScriptName($url);
+		}
+
+		$url = str_replace("&skip_public=1", "", $url);
+
 		return $url.$strAdd;
 	}
 
 	public static function GetAdminSubElementEditLink($IBLOCK_ID, $ELEMENT_ID, $SUBELEMENT_ID, $arParams = array(), $strAdd = '', $absoluteUrl = false)
 	{
 		$absoluteUrl = ($absoluteUrl === true);
-		$url = ($absoluteUrl ? '/bitrix/admin/' : '').'iblock_subelement_edit.php?IBLOCK_ID='.(int)$IBLOCK_ID.'&type='.urlencode(CIBlock::GetArrayByID($IBLOCK_ID, 'IBLOCK_TYPE_ID'));
+		$selfFolderUrl = (defined("SELF_FOLDER_URL") ? SELF_FOLDER_URL : "/bitrix/admin/");
+		$url = ($absoluteUrl ? $selfFolderUrl : '').'iblock_subelement_edit.php?IBLOCK_ID='.(int)$IBLOCK_ID.'&type='.urlencode(CIBlock::GetArrayByID($IBLOCK_ID, 'IBLOCK_TYPE_ID'));
 		$url .= '&PRODUCT_ID='.(int)$ELEMENT_ID.'&ID='.(int)$SUBELEMENT_ID.'&lang='.LANGUAGE_ID;
 
 		foreach ($arParams as $name => $value)
 			if (isset($value))
 				$url.= '&'.urlencode($name).'='.urlencode($value);
 
+		if ($arParams["replace_script_name"])
+		{
+			$url = self::replaceScriptName($url);
+		}
+
+		$url = str_replace("&skip_public=1", "", $url);
+
 		return $url.$strAdd;
 	}
 
 	public static function GetAdminElementListLink($IBLOCK_ID, $arParams = array(), $strAdd = "")
 	{
+		$url = self::GetAdminElementListScriptName($IBLOCK_ID, $arParams);
+		$url.= "?IBLOCK_ID=".intval($IBLOCK_ID);
+		$url.= "&type=".urlencode(CIBlock::GetArrayByID($IBLOCK_ID, "IBLOCK_TYPE_ID"));
+		$url.= "&lang=".urlencode(LANGUAGE_ID);
+		foreach ($arParams as $name => $value)
+			if (isset($value))
+				$url.= "&".urlencode($name)."=".urlencode($value);
+
+		if ($arParams["replace_script_name"])
+		{
+			$url = self::replaceScriptName($url);
+		}
+
+		$url = str_replace("&skip_public=1", "", $url);
+
+		return $url.$strAdd;
+	}
+
+	public static function GetAdminElementListScriptName($IBLOCK_ID, $arParams = array())
+	{
+		if (!isset($arParams["skip_public"]))
+		{
+			if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1 || self::isPublicSidePanel())
+			{
+				return "menu_catalog_" . $IBLOCK_ID . "/";
+			}
+		}
+
 		if (defined("CATALOG_PRODUCT") && !array_key_exists("menu", $arParams))
 		{
 			if (CIBlock::GetAdminListMode($IBLOCK_ID) == 'C')
@@ -3564,6 +3621,12 @@ REQ
 				$url = "iblock_element_admin.php";
 		}
 
+		return $url;
+	}
+
+	public static function GetAdminSectionListLink($IBLOCK_ID, $arParams = array(), $strAdd = "")
+	{
+		$url = self::GetAdminSectionListScriptName($IBLOCK_ID, $arParams);
 		$url.= "?IBLOCK_ID=".intval($IBLOCK_ID);
 		$url.= "&type=".urlencode(CIBlock::GetArrayByID($IBLOCK_ID, "IBLOCK_TYPE_ID"));
 		$url.= "&lang=".urlencode(LANGUAGE_ID);
@@ -3571,11 +3634,26 @@ REQ
 			if (isset($value))
 				$url.= "&".urlencode($name)."=".urlencode($value);
 
+		if ($arParams["replace_script_name"])
+		{
+			$url = self::replaceScriptName($url);
+		}
+
+		$url = str_replace("&skip_public=1", "", $url);
+
 		return $url.$strAdd;
 	}
 
-	public static function GetAdminSectionListLink($IBLOCK_ID, $arParams = array(), $strAdd = "")
+	public static function GetAdminSectionListScriptName($IBLOCK_ID, $arParams = array())
 	{
+		if (!isset($arParams["skip_public"]))
+		{
+			if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1 || self::isPublicSidePanel())
+			{
+				return "menu_catalog_category_".$IBLOCK_ID."/";
+			}
+		}
+
 		if ((defined("CATALOG_PRODUCT") || array_key_exists('catalog', $arParams)) && !array_key_exists("menu", $arParams))
 		{
 			if (CIBlock::GetAdminListMode($IBLOCK_ID) == 'C')
@@ -3591,14 +3669,24 @@ REQ
 				$url = "iblock_section_admin.php";
 		}
 
-		$url.= "?IBLOCK_ID=".intval($IBLOCK_ID);
-		$url.= "&type=".urlencode(CIBlock::GetArrayByID($IBLOCK_ID, "IBLOCK_TYPE_ID"));
-		$url.= "&lang=".urlencode(LANGUAGE_ID);
-		foreach ($arParams as $name => $value)
-			if (isset($value))
-				$url.= "&".urlencode($name)."=".urlencode($value);
+		return $url;
+	}
 
-		return $url.$strAdd;
+	private static function isPublicSidePanel()
+	{
+		return ((isset($_REQUEST["IFRAME"]) && $_REQUEST["IFRAME"] === "Y") && ($_REQUEST["publicSidePanel"] === "Y"
+			|| $_REQUEST["IFRAME_TYPE"] == "PUBLIC_FRAME"));
+	}
+
+	private static function replaceScriptName($url)
+	{
+		if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1 || self::isPublicSidePanel())
+		{
+			$url = str_replace(".php", "/", $url);
+			$url = str_replace("&replace_script_name=1", "", $url);
+		}
+
+		return $url;
 	}
 
 	public static function GetAdminListMode($IBLOCK_ID)

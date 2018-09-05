@@ -7,6 +7,8 @@
  */
 namespace Bitrix\Sender\Posting;
 
+use Bitrix\Main;
+use Bitrix\Main\Entity\ReferenceField;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\DB;
 use Bitrix\Main\Type;
@@ -338,7 +340,7 @@ class Sender
 		{
 			$sendResult = $this->message->send();
 		}
-		catch(StopException $e)
+		catch(Main\Mail\StopException $e)
 		{
 			$sendResult = false;
 			$this->prevent();
@@ -452,6 +454,7 @@ class Sender
 
 		foreach ($recipients as $recipient)
 		{
+
 			if ($this->isPrevented())
 			{
 				break;
@@ -463,10 +466,22 @@ class Sender
 			}
 
 			$this->setPostingDateSend();
-			$sendResult = $this->sendToRecipient($recipient);
-			if ($this->isPrevented())
+
+			if (
+				empty($recipient['CONTACT_CODE']) ||
+				$recipient['CONTACT_BLACKLISTED'] === 'Y' ||
+				$recipient['CONTACT_UNSUBSCRIBED'] === 'Y'
+			)
 			{
-				break;
+				$sendResult = false;
+			}
+			else
+			{
+				$sendResult = $this->sendToRecipient($recipient);
+				if ($this->isPrevented())
+				{
+					break;
+				}
 			}
 
 			$sendResultStatus = $sendResult ? PostingRecipientTable::SEND_RESULT_SUCCESS : PostingRecipientTable::SEND_RESULT_ERROR;
@@ -510,7 +525,7 @@ class Sender
 		self::unlock($this->postingId);
 
 		// update status of posting
-		$status = $this->updateActualStatus();
+		$status = self::updateActualStatus($this->postingId, $this->isPrevented());
 
 		// set result code to continue or end of sending
 		$isContinue = $status == PostingTable::STATUS_PART;
@@ -527,13 +542,20 @@ class Sender
 		PostingTable::update(array('ID' => $this->postingId), array('DATE_SEND' => new Type\DateTime()));
 	}
 
-	protected function updateActualStatus()
+	/**
+	 * Update actual status.
+	 *
+	 * @param int $postingId Posting ID.
+	 * @param bool $isPrevented Is sending prevented.
+	 * @return string
+	 */
+	public static function updateActualStatus($postingId, $isPrevented = false)
 	{
 		//set status and delivered and error emails
-		$statusList = PostingTable::getRecipientCountByStatus($this->postingId);
+		$statusList = PostingTable::getRecipientCountByStatus($postingId);
 		$hasStatusError = array_key_exists(PostingRecipientTable::SEND_RESULT_ERROR, $statusList);
 		$hasStatusNone = array_key_exists(PostingRecipientTable::SEND_RESULT_NONE, $statusList);
-		if($this->isPrevented())
+		if($isPrevented)
 		{
 			$status = PostingTable::STATUS_ABORT;
 		}
@@ -568,7 +590,7 @@ class Sender
 			$postingUpdateFields[$postingFieldName] = $postingCountFieldValue;
 		}
 
-		PostingTable::update(array('ID' => $this->postingId), $postingUpdateFields);
+		PostingTable::update(array('ID' => $postingId), $postingUpdateFields);
 
 		return $status;
 	}
@@ -583,12 +605,25 @@ class Sender
 				'CONTACT_CODE' => 'CONTACT.CODE',
 				'CONTACT_TYPE_ID' => 'CONTACT.TYPE_ID',
 				'CONTACT_IS_SEND_SUCCESS' => 'CONTACT.IS_SEND_SUCCESS',
+				'CONTACT_BLACKLISTED' => 'CONTACT.BLACKLISTED',
+				'CONTACT_UNSUBSCRIBED' => 'MAILING_SUB.IS_UNSUB',
 				'CAMPAIGN_ID' => 'POSTING.MAILING_ID'
 			),
 			'filter' => array(
 				'=POSTING_ID' => $this->postingId,
 				'=STATUS' => PostingRecipientTable::SEND_RESULT_NONE
 			),
+			'runtime' => [
+				new ReferenceField(
+					'MAILING_SUB',
+					'Bitrix\\Sender\\MailingSubscriptionTable',
+					[
+						'=this.CONTACT_ID' => 'ref.CONTACT_ID',
+						'=this.POSTING.MAILING_ID' => 'ref.MAILING_ID'
+					],
+					['join_type' => 'LEFT']
+				)
+			],
 			'limit' => $this->limit
 		));
 		$recipients->addFetchDataModifier(

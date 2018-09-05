@@ -58,7 +58,7 @@ class CTaskMembers
 		}
 
 		//Defaults
-		if (!is_set($arFields, "TYPE") || !in_array($arFields["TYPE"], Array("A", "U")))
+		if (!is_set($arFields, "TYPE") || !in_array($arFields["TYPE"], Array("R", "O", "A", "U")))
 			$arFields["TYPE"] = "A";
 
 		return true;
@@ -95,10 +95,14 @@ class CTaskMembers
 		if (!is_array($arFilter))
 			$arFilter = Array();
 
-		$arSqlSearch = Array(
-			"TM.TYPE in ('A', 'U')" // restrict only this types
-		);
+		$arSqlSearch = [];
 
+		if(!array_key_exists('TYPE', $arFilter))
+		{
+			$arSqlSearch = [
+				"TM.TYPE in ('A', 'U')" // restrict only this types
+			];
+		}
 		foreach ($arFilter as $key => $val)
 		{
 			$res = CTasks::MkOperationFilter($key);

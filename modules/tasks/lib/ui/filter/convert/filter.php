@@ -2,9 +2,6 @@
 
 namespace Bitrix\Tasks\Ui\Filter\Convert;
 
-use Bitrix\Main\Type\Date;
-use Bitrix\Tasks\Util;
-use Bitrix\Tasks\Util\User;
 use Bitrix\Main\UI\Filter\DateType;
 
 final class Filter
@@ -87,33 +84,38 @@ final class Filter
 		if(array_key_exists('RESPONSIBLE_ID', $filter))
 		{
 			$filter['RESPONSIBLE_ID']=(array)$filter['RESPONSIBLE_ID'];
+			$userNames = \Bitrix\Tasks\Util\User::getUserName($filter['RESPONSIBLE_ID']);
+
 			foreach($filter['RESPONSIBLE_ID'] as $k=>$userId)
 			{
-				$filter['RESPONSIBLE_ID_label'][$k] = \Bitrix\Tasks\Util\User::getUserName($userId);
+				$filter['RESPONSIBLE_ID_label'][$k] = $userNames[$userId];
 			}
 		}
 		if(array_key_exists('CREATED_BY', $filter))
 		{
 			$filter['CREATED_BY']=(array)$filter['CREATED_BY'];
+			$userNames = \Bitrix\Tasks\Util\User::getUserName($filter['CREATED_BY']);
 			foreach($filter['CREATED_BY'] as $k=>$userId)
 			{
-				$filter['CREATED_BY_label'][$k] = \Bitrix\Tasks\Util\User::getUserName($userId);
+				$filter['RESPONSIBLE_ID_label'][$k] = $userNames[$userId];
 			}
 		}
 		if(array_key_exists('AUDITOR', $filter))
 		{
 			$filter['AUDITOR']=(array)$filter['AUDITOR'];
+			$userNames = \Bitrix\Tasks\Util\User::getUserName($filter['AUDITOR']);
 			foreach($filter['AUDITOR'] as $k=>$userId)
 			{
-				$filter['AUDITOR_label'][$k] = \Bitrix\Tasks\Util\User::getUserName($userId);
+				$filter['AUDITOR_label'][$k] = $userNames[$userId];
 			}
 		}
 		if(array_key_exists('ACCOMPLICE', $filter))
 		{
 			$filter['ACCOMPLICE']=(array)$filter['ACCOMPLICE'];
+			$userNames = \Bitrix\Tasks\Util\User::getUserName($filter['ACCOMPLICE']);
 			foreach($filter['ACCOMPLICE'] as $k=>$userId)
 			{
-				$filter['ACCOMPLICE_label'][$k] = \Bitrix\Tasks\Util\User::getUserName($userId);
+				$filter['ACCOMPLICE_label'][$k] = $userNames[$userId];
 			}
 		}
 

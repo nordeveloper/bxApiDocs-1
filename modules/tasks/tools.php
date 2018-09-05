@@ -701,13 +701,13 @@ function tasksGetItemMenu($task, $arPaths, $site_id = SITE_ID, $bGantt = false, 
 				{
 					var fn = (window && window.DeleteTask) || (top && top.DeleteTask) || BX.DoNothing;
 
-					BX.Tasks.confirmDelete(BX.message('TASKS_COMMON_TASK_ALT_A')).then(function(){
+<!--					BX.Tasks.confirmDelete(BX.message('TASKS_COMMON_TASK_ALT_A')).then(function(){-->
 
 						this.menuItems = [];
 						this.bindElement.onclick = function() { return (false); };
 						fn(<?=intval($task["ID"])?>);
 
-					}.bind(this));
+<!--					}.bind(this));-->
 
 					this.popupWindow.close();
 				})
@@ -792,8 +792,6 @@ function templatesRenderListItem($template, $arPaths, $depth = 0, $plain = false
 		tasksMenuPopup[<?php echo $template["ID"]?>] = [
 			<?templatesGetListItemActions($template, $arPaths)?>
 		];
-		BX.tooltip(<?php echo $template["CREATED_BY"]?>, "anchor_created_<?php echo $anchor_id?>", "");
-		BX.tooltip(<?php echo $template["RESPONSIBLE_ID"]?>, "anchor_responsible_<?php echo $anchor_id?>", "");
 	</script>
 	<tr class="task-list-item task-depth-<?php echo $depth?>" id="template-<?php echo $template["ID"]?>" ondblclick="jsUtils.Redirect([], '<?php echo CUtil::JSEscape(CComponentEngine::MakePathFromTemplate($arPaths["PATH_TO_TEMPLATES_TEMPLATE"], array("template_id" => $template["ID"], "action" => "edit")))?>');" title="<?php echo GetMessage("TASKS_DOUBLE_CLICK")?>">
 		<td class="task-title-column">
@@ -809,8 +807,8 @@ function templatesRenderListItem($template, $arPaths, $depth = 0, $plain = false
 			<i class="task-priority-icon task-priority-<?php if ($template["PRIORITY"] == 0):?>low<?php elseif ($template["PRIORITY"] == 2):?>high<?php else:?>medium<?php endif?>" title="<?php echo GetMessage("TASKS_PRIORITY")?>: <?php echo GetMessage("TASKS_PRIORITY_".$template["PRIORITY"])?>"></i>
 		</td>
 		<td class="task-deadline-column"><?php if ($template["DEADLINE"]):?><span class="task-deadline-datetime"><span class="task-deadline-date"><?php echo tasksFormatDate($template["DEADLINE"])?></span></span><?php if(date("H:i", strtotime($template["DEADLINE"])) != "00:00"):?> <span class="task-deadline-time"><?php echo date("H:i", strtotime($template["DEADLINE"]))?></span><?php endif?><?php else:?>&nbsp;<?php endif?></td>
-		<td class="task-responsible-column"><a class="task-responsible-link" href="<?php echo CComponentEngine::MakePathFromTemplate($arPaths["PATH_TO_USER_PROFILE"], array("user_id" => $template["RESPONSIBLE_ID"]))?>" id="anchor_responsible_<?php echo $anchor_id?>"><?php echo tasksFormatNameShort($template["RESPONSIBLE_NAME"], $template["RESPONSIBLE_LAST_NAME"], $template["RESPONSIBLE_LOGIN"], $template["RESPONSIBLE_SECOND_NAME"], $nameTemplate)?></a></td>
-		<td class="task-director-column"><a class="task-director-link" href="<?php echo CComponentEngine::MakePathFromTemplate($arPaths["PATH_TO_USER_PROFILE"], array("user_id" => $template["CREATED_BY"]))?>" id="anchor_created_<?php echo $anchor_id?>"><?php echo tasksFormatNameShort($template["CREATED_BY_NAME"], $template["CREATED_BY_LAST_NAME"], $template["CREATED_BY_LOGIN"], $template["CREATED_BY_SECOND_NAME"], $nameTemplate)?></a></td>
+		<td class="task-responsible-column"><a class="task-responsible-link" href="<?php echo CComponentEngine::MakePathFromTemplate($arPaths["PATH_TO_USER_PROFILE"], array("user_id" => $template["RESPONSIBLE_ID"]))?>" id="anchor_responsible_<?php echo $anchor_id?>" bx-tooltip-user-id="<?=$template["RESPONSIBLE_ID"]?>"><?php echo tasksFormatNameShort($template["RESPONSIBLE_NAME"], $template["RESPONSIBLE_LAST_NAME"], $template["RESPONSIBLE_LOGIN"], $template["RESPONSIBLE_SECOND_NAME"], $nameTemplate)?></a></td>
+		<td class="task-director-column"><a class="task-director-link" href="<?php echo CComponentEngine::MakePathFromTemplate($arPaths["PATH_TO_USER_PROFILE"], array("user_id" => $template["CREATED_BY"]))?>" id="anchor_created_<?php echo $anchor_id?>" bx-tooltip-user-id="<?=$template["CREATED_BY"]?>"><?php echo tasksFormatNameShort($template["CREATED_BY_NAME"], $template["CREATED_BY_LAST_NAME"], $template["CREATED_BY_LOGIN"], $template["CREATED_BY_SECOND_NAME"], $nameTemplate)?></a></td>
 		<td class="task-grade-column">&nbsp;</td>
 		<td class="task-complete-column">&nbsp;</td>
 	</tr>
@@ -836,13 +834,15 @@ function tasksRenderJSON(
 	$top = false, $nameTemplate = "", $arAdditionalFields = array(), $bSkipJsMenu = false, array $params = array()
 )
 {
+	$userId = \Bitrix\Tasks\Util\User::getId();
+
 	if (array_key_exists('USER_ID', $params))
 	{
-		$userId = (int)$params['USER_ID'];
+		$profileUserId = (int)$params['USER_ID'];
 	}
 	else
 	{
-		$userId = \Bitrix\Tasks\Util\User::getId();
+		$profileUserId = $userId;
 	}
 
 	$arAllowedTaskActions = array();
@@ -885,7 +885,15 @@ function tasksRenderJSON(
 		<?endif?>
 		status : "<?=tasksStatus2String($arTask["STATUS"])?>",
 		realStatus : "<?=intval($arTask["REAL_STATUS"])?>",
-		url: '<?=CUtil::JSEscape(CComponentEngine::MakePathFromTemplate($arPaths["PATH_TO_TASKS_TASK"], array("task_id" => $arTask["ID"], 'user_id'=>$userId, "action" => "view", 'group_id'=>$arTask['GROUP_ID'])));?>',
+		url: '<?=CUtil::JSEscape(CComponentEngine::MakePathFromTemplate(
+				$arPaths["PATH_TO_TASKS_TASK"],
+				array(
+					"task_id" => $arTask["ID"],
+					"user_id" => $profileUserId,
+					"action" => "view",
+					"group_id" => $arTask["GROUP_ID"]
+				)
+			));?>',
 		priority : <?=intval($arTask["PRIORITY"])?>,
 		mark : <?php echo !$arTask["MARK"] ? "null" : "'".CUtil::JSEscape($arTask["MARK"])."'"?>,
 		responsible: '<?=CUtil::JSEscape(tasksFormatNameShort($arTask["RESPONSIBLE_NAME"], $arTask["RESPONSIBLE_LAST_NAME"], $arTask["RESPONSIBLE_LOGIN"], $arTask["RESPONSIBLE_SECOND_NAME"], $nameTemplate))?>',
@@ -925,7 +933,7 @@ function tasksRenderJSON(
 		<?endif?>
 
 		<?php
-			if (sizeof($arTask["FILES"])):
+			if ($arTask["FILES"] && sizeof($arTask["FILES"])):
 				$i = 0;
 		?>
 			files: [

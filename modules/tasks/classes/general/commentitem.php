@@ -18,7 +18,7 @@ final class CTaskCommentItem extends CTaskSubItemAbstract
 	 * @param CTaskItemInterface $oTaskItem
 	 * @param array $arFields with mandatory elements POST_MESSAGE
 	 * @throws TasksException
-	 * @return CTaskElapsedItem
+	 * @return true
 	 */
 	public static function add(CTaskItemInterface $oTaskItem, $arFields)
 	{
@@ -39,9 +39,7 @@ final class CTaskCommentItem extends CTaskSubItemAbstract
 			throw new TasksException(serialize($result->getErrors()->getMessages()), TasksException::TE_ACTION_FAILED_TO_BE_PROCESSED | TasksException::TE_FLAG_SERIALIZED_ERRORS_IN_MESSAGE);
 		}
 
-		$data = $result->getData();
-
-		return (new self($oTaskItem, (int) $data['ID']));
+		return true;
 	}
 
 	public function update($arFields)

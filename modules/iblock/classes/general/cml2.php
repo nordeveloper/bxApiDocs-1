@@ -200,6 +200,11 @@ class CIBlockCMLImport
 		return $this->_xml_file->ReadXMLToDatabase($fp, $NS, $time_limit, $read_size);
 	}
 
+	public function GetRoot()
+	{
+		return $this->_xml_file->GetRoot();
+	}
+
 	function StartSession($sess_id)
 	{
 		return $this->_xml_file->StartSession($sess_id);

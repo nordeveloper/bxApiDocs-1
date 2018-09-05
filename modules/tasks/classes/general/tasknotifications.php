@@ -78,9 +78,24 @@ class CTaskNotifications
 
 		$arUsers = CTaskNotifications::__GetUsers($arFields);
 
+		$createdBy = 0;
+		if (isset($arFields['CREATED_BY']) && $arFields['CREATED_BY'] > 0)
+		{
+			$createdBy = (int)$arFields['CREATED_BY'];
+		}
+
 		$bExcludeLoggedUser = true;
-		if ($spawnedByAgent)
+		if (
+			$spawnedByAgent ||
+			(
+				$createdBy &&
+				$createdBy !== User::getId() &&
+				array_key_exists(User::getId(), $arUsers)
+			)
+		)
+		{
 			$bExcludeLoggedUser = false;
+		}
 
 		$arRecipientsIDs = CTaskNotifications::GetRecipientsIDs($arFields, $bExcludeLoggedUser);
 
@@ -88,15 +103,16 @@ class CTaskNotifications
 
 		if ($spawnedByAgent)
 		{
-			if (isset($arFields['CREATED_BY']) && ($arFields['CREATED_BY'] > 0))
-				$effectiveUserId = (int) $arFields['CREATED_BY'];
-			else
-				$effectiveUserId = 1;
+			$effectiveUserId = ($createdBy? $createdBy : 1);
 		}
 		elseif (User::getId())
+		{
 			$effectiveUserId = User::getId();
-		elseif (isset($arFields['CREATED_BY']) && ($arFields['CREATED_BY'] > 0))
-			$effectiveUserId = (int) $arFields['CREATED_BY'];
+		}
+		elseif ($createdBy)
+		{
+			$effectiveUserId = $createdBy;
+		}
 
 		if (sizeof($arRecipientsIDs) && ($effectiveUserId !== false))
 		{
@@ -203,6 +219,7 @@ class CTaskNotifications
 					'ACTION'   => 'TASK_ADD',
 					'arFields' => $arFields
 				),
+				'TASK_ASSIGNED_TO' => $arFields['RESPONSIBLE_ID'],
 				'CALLBACK' => array(
 					'BEFORE_SEND' => function($message) use($isBbCodeDescription, $invariantDescription, $descs)
 					{
@@ -791,72 +808,39 @@ class CTaskNotifications
 					$occurAsUserId = User::getId() ? User::getId() : $arTask["CREATED_BY"];
 
 				// If task was redone
-				if (
-					(
-						($status == CTasks::STATE_NEW)
-						|| ($status == CTasks::STATE_PENDING)
-					)
-					&& ($arTask['REAL_STATUS'] == CTasks::STATE_SUPPOSEDLY_COMPLETED)
-				)
+				if (($status == CTasks::STATE_NEW || $status == CTasks::STATE_PENDING) &&
+					($arTask['REAL_STATUS'] == CTasks::STATE_SUPPOSEDLY_COMPLETED))
 				{
-					$redoedMessage = CTaskNotifications::getGenderMessage($occurAsUserId, 'TASKS_TASK_STATUS_MESSAGE_REDOED');
-
-					$message = str_replace(
-						"#TASK_TITLE#",
-						self::formatTaskName(
-							$arTask['ID'],
-							$arTask['TITLE'],
-							$arTask['GROUP_ID'],
-							false
-						),
-						$redoedMessage
-					);
-					$message_email = str_replace(
-						"#TASK_TITLE#",
-						self::formatTaskName(
-							$arTask['ID'],
-							$arTask['TITLE'],
-							$arTask['GROUP_ID'],
-							false
-						),
-						$redoedMessage
-					);
-
+					$statusMessage = CTaskNotifications::getGenderMessage($occurAsUserId, 'TASKS_TASK_STATUS_MESSAGE_REDOED');
 					$messagePush = CTaskNotifications::makePushMessage('TASKS_TASK_STATUS_MESSAGE_REDOED', $occurAsUserId, $arTask);
+				}
+				elseif ($status == CTasks::STATE_PENDING && $arTask['REAL_STATUS'] == CTasks::STATE_DEFERRED)
+				{
+					$statusMessage = CTaskNotifications::getGenderMessage($occurAsUserId, 'TASKS_TASK_STATUS_MESSAGE_1');
+					$messagePush = CTaskNotifications::makePushMessage('TASKS_TASK_STATUS_MESSAGE_1', $occurAsUserId, $arTask);
 				}
 				else
 				{
 					$statusMessage = CTaskNotifications::getGenderMessage($occurAsUserId, 'TASKS_TASK_STATUS_MESSAGE_'.$status);
-
-					$message = str_replace(
-						"#TASK_TITLE#",
-						self::formatTaskName(
-							$arTask['ID'],
-							$arTask['TITLE'],
-							$arTask['GROUP_ID'],
-							false
-						),
-						$statusMessage
-					);
-					$message_email = str_replace(
-						"#TASK_TITLE#",
-						self::formatTaskName(
-							$arTask['ID'],
-							$arTask['TITLE'],
-							$arTask['GROUP_ID'],
-							false
-						),
-						$statusMessage
-					);
-
 					$messagePush = CTaskNotifications::makePushMessage('TASKS_TASK_STATUS_MESSAGE_'.$status, $occurAsUserId, $arTask);
+				}
 
-					if ($status == CTasks::STATE_DECLINED)
-					{
-						$message = str_replace("#TASK_DECLINE_REASON#", $arTask["DECLINE_REASON"], $message);
-						$message_email = str_replace("#TASK_DECLINE_REASON#", $arTask["DECLINE_REASON"], $message_email);
-						$messagePush = str_replace("#TASK_DECLINE_REASON#", $arTask["DECLINE_REASON"], $messagePush);
-					}
+				$message = str_replace(
+					"#TASK_TITLE#",
+					self::formatTaskName($arTask['ID'], $arTask['TITLE'], $arTask['GROUP_ID'],false),
+					$statusMessage
+				);
+				$message_email = str_replace(
+					"#TASK_TITLE#",
+					self::formatTaskName($arTask['ID'], $arTask['TITLE'], $arTask['GROUP_ID'],false),
+					$statusMessage
+				);
+
+				if ($status == CTasks::STATE_DECLINED)
+				{
+					$message = str_replace("#TASK_DECLINE_REASON#", $arTask["DECLINE_REASON"], $message);
+					$message_email = str_replace("#TASK_DECLINE_REASON#", $arTask["DECLINE_REASON"], $message_email);
+					$messagePush = str_replace("#TASK_DECLINE_REASON#", $arTask["DECLINE_REASON"], $messagePush);
 				}
 
 				CTaskNotifications::sendMessageEx($arTask["ID"], $occurAsUserId, $arRecipientsIDs, array(
@@ -1963,9 +1947,49 @@ class CTaskNotifications
 	// see CIMEvent::GetMessageRatingVote() for the context of usage
 	public static function OnGetMessageRatingVote(&$params, &$forEmail)
 	{
+		static $intranetInstalled = null;
+
+		if ($intranetInstalled === null)
+		{
+			$intranetInstalled = \Bitrix\Main\ModuleManager::isModuleInstalled('intranet');
+		}
+
 		if($params['ENTITY_TYPE_ID'] == 'TASK' && !$forEmail)
 		{
-			$langMessage = GetMessage('TASKS_NOTIFICATIONS_I_'.($params['VALUE'] >= 0 ? '' : 'DIS').'LIKE_TASK');
+			$type = (
+				$params['VALUE'] >= 0
+					? ($intranetInstalled ? 'REACT' : 'LIKE')
+					: 'DISLIKE'
+			);
+
+			$genderSuffix = '';
+			if (
+				$type == 'REACT'
+				&& !empty($params['USER_ID'])
+				&& intval($params['USER_ID']) > 0
+			)
+			{
+				$res = \Bitrix\Main\UserTable::getList(array(
+					'filter' => array(
+						'ID' => intval($params['USER_ID'])
+					),
+					'select' => array('PERSONAL_GENDER')
+				));
+				if ($userFields = $res->fetch())
+				{
+					switch ($userFields['PERSONAL_GENDER'])
+					{
+						case "M":
+						case "F":
+							$genderSuffix = '_'.$userFields['PERSONAL_GENDER'];
+							break;
+						default:
+							$genderSuffix = '';
+					}
+				}
+			}
+
+			$langMessage = GetMessage('TASKS_NOTIFICATIONS_I_'.$type.'_TASK'.$genderSuffix);
 			if((string) $langMessage != '')
 			{
 				$taskTitle = self::formatTaskName($params['ENTITY_ID'], $params['ENTITY_TITLE']);
@@ -1973,6 +1997,11 @@ class CTaskNotifications
 				$params['MESSAGE'] = str_replace(
 					'#LINK#',
 					(string) $params['ENTITY_LINK'] != '' ? '<a href="'.$params['ENTITY_LINK'].'" class="bx-notifier-item-action">'.$taskTitle.'</a>': '<i>'.$taskTitle.'</i>', $langMessage);
+			}
+
+			if ($intranetInstalled)
+			{
+				$params['MESSAGE'] .= "\n".str_replace("#REACTION#", \CRatingsComponentsMain::getRatingLikeMessage(!empty($params['REACTION']) ? $params['REACTION'] : ''), Bitrix\Main\Localization\Loc::getMessage("TASKS_NOTIFICATIONS_I_REACTION"));
 			}
 		}
 	}
@@ -2366,19 +2395,6 @@ class CTaskNotifications
 			)
 		);
 
-		$urlParams = array(
-			'VIEW' => '0',
-			'F_ADVANCED' => 'Y'
-		);
-		$i = 0;
-		foreach($taskIds as $task)
-		{
-			$urlParams['F_IDS['.$i.']'] = intval($task);
-			$i++;
-		}
-
-		$url = CHTTP::urlAddParams($url, $urlParams);
-
 		return $url;
 	}
 
@@ -2429,6 +2445,14 @@ class CTaskNotifications
 						$siteID = $groupSite['LID'];
 						$siteCache[$groupSite['LID']] = $groupSite;
 						break;
+					}
+				}
+				else
+				{
+					$userDataDb = \CUser::GetByID($arUser['ID']);
+					if ($userData = $userDataDb->Fetch())
+					{
+						$siteID = $userData['LID'];
 					}
 				}
 

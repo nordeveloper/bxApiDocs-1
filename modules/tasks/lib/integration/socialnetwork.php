@@ -8,10 +8,9 @@
 
 namespace Bitrix\Tasks\Integration;
 
-use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Config\Option;
+use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\ModuleManager;
-use Bitrix\Socialnetwork\UserToGroupTable;
 use Bitrix\Tasks\Util\User;
 
 Loc::loadMessages(__FILE__);
@@ -81,11 +80,12 @@ abstract class SocialNetwork extends \Bitrix\Tasks\Integration
 		$userId = User::getId();
 
 		$structure = \CSocNetLogDestination::GetStucture(array());
+		$dataAdditional = array();
 		$destination = array(
 			"DEST_SORT" => \CSocNetLogDestination::GetDestinationSort(array(
 				"DEST_CONTEXT" => $context,
 				"ALLOW_EMAIL_INVITATION" => ModuleManager::isModuleInstalled("mail"),
-			)),
+			), $dataAdditional),
 			"LAST" => array(
 				"USERS" => array(),
 				"SONETGROUPS" => array(),
@@ -107,7 +107,8 @@ abstract class SocialNetwork extends \Bitrix\Tasks\Integration
 			$destination["LAST"],
 			array(
 				"EMAILS" => ModuleManager::isModuleInstalled("mail"),
-				"PROJECTS" => (isset($parameters['USE_PROJECTS']) && $parameters['USE_PROJECTS'] == 'Y' ? 'Y' : 'N')
+				"PROJECTS" => (isset($parameters['USE_PROJECTS']) && $parameters['USE_PROJECTS'] == 'Y' ? 'Y' : 'N'),
+				"DATA_ADDITIONAL" => $dataAdditional
 			)
 		);
 
@@ -328,21 +329,33 @@ abstract class SocialNetwork extends \Bitrix\Tasks\Integration
 				)
 			)->fetchAll();
 
+			$users = [];
 			foreach ($res as $item)
 			{
+				$users[] = $item['USER_ID'];
 				$user = array(
-					'ID' => $item['USER_ID'],
-					'PHOTO' => self::getUserPictureSrc($item['USER_PERSONAL_PHOTO']),
-					'FORMATTED_NAME' => \Bitrix\Tasks\Util\User::getUserName($item['USER_ID']),
-					'HREF' => \CComponentEngine::MakePathFromTemplate(
+					'ID'            => $item['USER_ID'],
+					'PHOTO'         => self::getUserPictureSrc($item['USER_PERSONAL_PHOTO']),
+					'USER_ID'       => $item['USER_ID'],
+					//					'FORMATTED_NAME' => \Bitrix\Tasks\Util\User::getUserName($item['USER_ID']),
+					'HREF'          => \CComponentEngine::MakePathFromTemplate(
 						'/company/personal/user/#user_id#/',
 						array('user_id' => $item['USER_ID'])
 					),
 					'WORK_POSITION' => $item['USER_WORK_POSITION'],
-					'IS_HEAD' => false
+					'IS_HEAD'       => false
 				);
 				$out[$item['USER_ID']] = $user;
 			}
+
+			$names = \Bitrix\Tasks\Util\User::getUserName(array_unique($users));
+
+			foreach ($users as $userId)
+			{
+				$out[$userId]['FORMATTED_NAME'] = $names[$userId];
+			}
+
+
 		}
 		catch (\Bitrix\Main\ArgumentException $e)
 		{

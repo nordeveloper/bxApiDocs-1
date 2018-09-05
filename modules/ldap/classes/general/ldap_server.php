@@ -548,7 +548,10 @@ class CLdapServer
 			}
 
 			if($USER->LAST_ERROR != '')
+			{
 				self::$syncErrors[] = $userLogin.': '.$USER->LAST_ERROR;
+				$USER->LAST_ERROR = '';
+			}
 		}
 
 		foreach ($arDelLdapUsers as $userLogin)

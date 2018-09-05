@@ -261,12 +261,14 @@ class QueueTable extends Entity\DataManager
 						}
 						static::addQueueAutoRemoveAgent();
 					}
-
+				}
+				else
+				{
 					Application::getConnection()->query(
 						"DELETE FROM " . self::getTableName() .
-						" WHERE DATE_INSERT < '" . (new DateTime())->add('-1 day')->format("Y-m-d H:i:s") . "'" .
-						" AND TYPE = '" . Application::getConnection()->getSqlHelper()->forSql($type) . "'" .
-						" AND ACTION in ('" . implode("', '", [self::ACTION_IMPORT, self::ACTION_IMPORT_AND_AUTO_REMOVE]) . "')"
+						" WHERE TYPE = '" . Application::getConnection()->getSqlHelper()->forSql($type) . "'" .
+						" AND ACTION in ('" . implode("', '", [self::ACTION_IMPORT, self::ACTION_IMPORT_AND_AUTO_REMOVE, self::ACTION_REMOVE]) . "')" .
+						" AND DATE_INSERT < '" . (new DateTime())->add('-1 day')->format("Y-m-d H:i:s") . "'"
 					);
 				}
 			}

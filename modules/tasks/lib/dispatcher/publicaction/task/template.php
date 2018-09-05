@@ -12,11 +12,11 @@
 
 namespace Bitrix\Tasks\Dispatcher\PublicAction\Task;
 
+use Bitrix\Tasks\Integration;
 use Bitrix\Tasks\Integration\SocialServices\User;
+use Bitrix\Tasks\Internals\Task\Template\ReplicateParamsCorrector;
 use Bitrix\Tasks\Item;
 use Bitrix\Tasks\Util;
-use Bitrix\Tasks\Integration;
-use Bitrix\Tasks\Internals\Task\Template\ReplicateParamsCorrector;
 
 final class Template extends \Bitrix\Tasks\Dispatcher\PublicAction
 {
@@ -35,9 +35,9 @@ final class Template extends \Bitrix\Tasks\Dispatcher\PublicAction
 		$template = new Item\Task\Template($id);
 
 		return array(
-			'ID' => $id,
+			'ID'   => $id,
 			// todo: in case of REST, ALL dates should be converted to the ISO string (write special exporter here, instead of Canonical)
-			'DATA' => $template->export($select), // export ALL or only selected
+			'DATA' => $template->export($select),// export ALL or only selected
 		);
 	}
 
@@ -145,11 +145,13 @@ final class Template extends \Bitrix\Tasks\Dispatcher\PublicAction
 		{
 			return $result;
 		}
+
 		$result['ID'] = $id;
 
-		$template = new Item\Task\Template($id);
-		$deleteResult = $template->delete();
-		$this->errors->load($deleteResult->getErrors());
+		if (!\CTaskTemplates::Delete($id))
+		{
+			return null;
+		}
 
 		return $result;
 	}
@@ -211,9 +213,9 @@ final class Template extends \Bitrix\Tasks\Dispatcher\PublicAction
 					$task['REPLICATE'] = $way ? 'Y' : 'N';
 					$saveResult = $task->save(); // todo: DO NOT remove template in case of REPLICATE falls to N
 					$this->errors->load($saveResult->getErrors()->transform(array(
-						'CODE' => 'TASK.#CODE#',
-						'TYPE' => Util\Error::TYPE_WARNING
-					)));
+																				'CODE' => 'TASK.#CODE#',
+																				'TYPE' => Util\Error::TYPE_WARNING
+																			)));
 				}
 			}
 		}
@@ -232,7 +234,7 @@ final class Template extends \Bitrix\Tasks\Dispatcher\PublicAction
 	private function prepareMembers(array &$data)
 	{
 		$toInvite = array(
-			'MAIL' => array(),
+			'MAIL'    => array(),
 			'NETWORK' => array(),
 		);
 		static::getInvitationsFrom($data, 'RESPONSIBLES', $toInvite);

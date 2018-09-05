@@ -43,6 +43,10 @@ class DailyCounterTable extends Entity\DataManager
 				'data_type' => 'integer',
 				'default_value' => 0,
 			),
+			'TEST_SENT_CNT' => array(
+				'data_type' => 'integer',
+				'default_value' => 0,
+			),
 			'ERROR_CNT' => array(
 				'data_type' => 'integer',
 				'default_value' => 0,

@@ -94,6 +94,8 @@ class EditorMail
 					.'</span>';
 				$html = str_replace($php[2], $surrogate, $html);
 			}
+
+			$html = str_replace(['<?', '?>'], ['< ?', '? >'], $html);
 		}
 
 		return $html;

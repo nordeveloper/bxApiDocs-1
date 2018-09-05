@@ -146,7 +146,9 @@ class CheckList extends \Bitrix\Tasks\Manager
 			}
 			catch (\TasksException $e)
 			{
-				$errors->add('', $e->getMessage());
+				$originMessage = $e->getMessageOrigin();
+				$message = Loc::getMessage('TASKS_MANAGER_TASK_CHECKLIST_ITEMS').': '.$originMessage->messages[0]['text'];
+				$errors->add($e->getCode(), $message);
 			}
 		}
 

@@ -405,12 +405,16 @@ class Address extends \Bitrix\Main\UserField\TypeBase
 	protected static function parseValue($value)
 	{
 		$coords = '';
-		if(strpos($value, '|') >= 0)
+		if(strpos($value, '|') !== false)
 		{
 			list($value, $coords) = explode('|', $value);
-			if(strlen($coords) > 0)
+			if(strlen($coords) > 0 && strpos($coords, ';') !== false)
 			{
 				$coords = explode(';', $coords);
+			}
+			else
+			{
+				$coords = '';
 			}
 		}
 

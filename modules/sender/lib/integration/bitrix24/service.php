@@ -107,6 +107,21 @@ class Service
 	}
 
 	/**
+	 * Get available mailing codes.
+	 *
+	 * @return array
+	 */
+	public static function getAvailableMailingCodes()
+	{
+		if (self::isMailingsAvailable())
+		{
+			return Message\Factory::getMailingMessageCodes();
+		}
+
+		return [Message\iBase::CODE_MAIL];
+	}
+
+	/**
 	 * Return true if portal is cloud.
 	 *
 	 * @return bool

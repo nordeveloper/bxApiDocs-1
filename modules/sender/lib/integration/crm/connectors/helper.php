@@ -66,6 +66,25 @@ class Helper
 		$crmUserType = new \CCrmUserType($ufManager, $ufEntityId);
 		$logicFilter = array();
 		$crmUserType->prepareListFilterFields($list, $logicFilter);
+		$originalList = $crmUserType->getFields();
+		$restrictedTypes = [
+			'address', 'file', 'iblock_section',
+			'iblock_element', 'crm',
+		];
+
+		$list = array_filter(
+			$list,
+			function ($field) use ($originalList, $restrictedTypes)
+			{
+				if (empty($originalList[$field['id']]))
+				{
+					return false;
+				}
+
+				$type = $originalList[$field['id']]['USER_TYPE']['USER_TYPE_ID'];
+				return !in_array($type, $restrictedTypes);
+			}
+		);
 
 		foreach ($list as $index => $field)
 		{
@@ -341,6 +360,14 @@ class Helper
 		return true;
 	}
 
+	/**
+	 * Get filter by fields.
+	 *
+	 * @param array $fields Fields.
+	 * @param array $values Values.
+	 * @param string $entityTypeName Entity type name.
+	 * @return array
+	 */
 	public static function getFilterByFields(array $fields = array(), array $values = array(), $entityTypeName = '')
 	{
 		if ($entityTypeName)
@@ -467,6 +494,13 @@ class Helper
 		}
 	}
 
+	/**
+	 * Get "user selector" filter field
+	 *
+	 * @param array $userSelector User-selector.
+	 * @param string $filterID ID of filter.
+	 * @return string
+	 */
 	public static function getFilterFieldUserSelector(array $userSelector, $filterID)
 	{
 		if(empty($userSelector))
@@ -521,7 +555,7 @@ class Helper
 	/**
 	 * Callback on draw of result view.
 	 *
-	 * @param array $row Row.
+	 * @param array &$row Row.
 	 * @return void
 	 */
 	public function onResultViewDraw(array &$row)
@@ -540,12 +574,12 @@ class Helper
 				break;
 			case \CCrmOwnerType::Contact:
 				$crmRow = ContactTable::getRowById($row['CRM_ENTITY_ID']);
-				 $row['~NAME'] = self::getResultViewTitle(
+				$row['~NAME'] = self::getResultViewTitle(
 					$row['CRM_ENTITY_TYPE_ID'],
 					$row['CRM_ENTITY_ID'],
 					$row['NAME'],
-					 \CCrmOwnerType::GetDescription($row['CRM_ENTITY_TYPE_ID']),
-					 self::getCrmStatusName('SOURCE', $crmRow['SOURCE_ID'])
+					\CCrmOwnerType::GetDescription($row['CRM_ENTITY_TYPE_ID']),
+					self::getCrmStatusName('SOURCE', $crmRow['SOURCE_ID'])
 				);
 				break;
 			case \CCrmOwnerType::Lead:

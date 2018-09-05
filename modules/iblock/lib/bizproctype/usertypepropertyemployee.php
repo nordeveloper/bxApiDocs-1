@@ -195,6 +195,18 @@ class UserTypePropertyEmployee extends UserTypeProperty
 		return parent::formatValuePrintable($fieldType, $value);
 	}
 
+	public static function toSingleValue(FieldType $fieldType, $value)
+	{
+		if (is_array($value) && !isset($value['VALUE']))
+		{
+			$value = \CBPHelper::MakeArrayFlat($value);
+			$value = current($value);
+			return $value;
+		}
+
+		return parent::toSingleValue($fieldType, $value);
+	}
+
 	private static function fixUserPrefix($value)
 	{
 		if (!static::isCompatibleMode())

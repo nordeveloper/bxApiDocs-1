@@ -113,8 +113,7 @@ class CTaskTags
 		return $arSqlSearch;
 	}
 
-
-	public static function getTagsNamesByUserId($userId)
+	public static function getTagsNamesByUserId($userId, $limit = 100)
 	{
 		global $DB;
 
@@ -124,7 +123,8 @@ class CTaskTags
 			"SELECT DISTINCT TT.NAME 
 			FROM b_tasks_tag TT 
 			WHERE TT.USER_ID = $userId
-			ORDER BY TT.NAME ASC"
+			ORDER BY TT.NAME ASC
+			LIMIT ".(int)$limit
 		));
 	}
 

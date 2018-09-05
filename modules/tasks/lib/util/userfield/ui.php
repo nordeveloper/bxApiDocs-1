@@ -102,6 +102,7 @@ abstract class UI
 		$parameters = array_merge($parameters, array(
 			"bVarsFromForm" => false,
 			"arUserField" => $field,
+			"DISABLE_LOCAL_EDIT" => $parameters["PUBLIC_MODE"]
 		));
 
 		$GLOBALS['APPLICATION']->IncludeComponent(

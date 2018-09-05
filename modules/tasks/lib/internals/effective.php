@@ -414,87 +414,31 @@ class Effective
 		return '\Bitrix\Tasks\Internals\Effective::agent("'.$date->format('Y-m-d').'");';
 	}
 
-	/*
-	 public static function getMiddleCounter($userId, $groupId = 0, $dateFrom = null, $dateTo = null)
-	{
-		if (!$dateTo || !$dateFrom)
-		{
-			$times = self::getDefaultTimeRangeFilter();
-			$dateTo = $times['TO'];
-			$dateFrom = $times['FROM'];
-		}
-
-		$counters = self::getCountersByRange($dateFrom, $dateTo, $userId, $groupId = 0);
-
-		if (($counters['OPENED']) == 0)
-		{
-			$kpi = 100;
-		}
-		else
-		{
-			$kpi = round(100 - ($counters['VIOLATIONS'] / ($counters['OPENED'])) * 100);
-		}
-
-		return $kpi < 0 ? 0 : $kpi;
-	}
-	*/
-
-	public static function getCountersByRange(Datetime $dateFrom, Datetime $dateTo, $userId, $groupId = 0)
+	private static function getCountersByRange(Datetime $dateFrom, Datetime $dateTo, $userId, $groupId = 0)
 	{
 		$out = array();
 
 		$userId = intval($userId);
 		$groupId = intval($groupId);
 
-		$violationFilter = array(
-			'USER_ID' => $userId,
-			'IS_VIOLATION' => 'Y',
-			'>TASK.RESPONSIBLE_ID' => 0,
+		$sql = '
+			SELECT
+				COUNT(TASK_ID) as count
+			FROM 
+				b_tasks_effective as te
+				JOIN b_tasks as t ON te.TASK_ID = t.ID
+			WHERE
+				te.USER_ID = '.intval($userId).'
+				AND IS_VIOLATION = \'Y\'
+				AND t.RESPONSIBLE_ID > 0
+				AND (
+					(DATETIME >= \''.$dateFrom->format('Y-m-d H:i:s').'\' AND DATETIME <= \''.$dateTo->format('Y-m-d H:i:s').'\')
+					OR (DATETIME <= \''.$dateTo->format('Y-m-d H:i:s').'\' AND DATETIME_REPAIR IS NULL)
+					OR (DATETIME <= \''.$dateTo->format('Y-m-d H:i:s').'\' AND DATETIME_REPAIR >= \''.$dateFrom->format('Y-m-d H:i:s').'\')
+ 				)
+ 				'.($groupId > 0 ? 'AND te.GROUP_ID = '.$groupId : '');
 
-			array(
-				'LOGIC' => 'OR',
-				array(
-					'>=DATETIME' => $dateFrom,
-					'<=DATETIME' => $dateTo,
-				),
-				array(
-					'<=DATETIME' => $dateTo,
-					'=DATETIME_REPAIR' => false,
-				),
-				array(
-					'<=DATETIME' => $dateTo,
-					'>=DATETIME_REPAIR' => $dateFrom,
-				)
-			)
-		);
-
-		if ($groupId > 0)
-		{
-			$violationFilter['GROUP_ID'] = $groupId;
-		}
-
-		//TODO: refactor this!!
-		$violations = EffectiveTable::getList(
-			array(
-				'count_total' => true,
-				'filter' => $violationFilter,
-				'order' => array('DATETIME' => 'DESC', 'TASK_TITLE' => 'ASC'),
-				'select' => array(
-					'TASK_ID',
-					'DATE' => 'DATETIME',
-					'TASK_TITLE',
-					'TASK_DEADLINE',
-					'USER_TYPE',
-
-					'TASK_ORIGINATOR_ID' => 'TASK.CREATOR.ID',
-
-					'GROUP_ID'
-				),
-				'group' => array('DATE'),
-			)
-		);
-
-		$out['VIOLATIONS'] = (int)$violations->getCount();
+		$out['VIOLATIONS'] = (int)\Bitrix\Main\Application::getConnection()->queryScalar($sql);
 
 		$sql = "
 			SELECT 
@@ -509,15 +453,13 @@ class Effective
 					(tm.USER_ID = {$userId} AND tm.TYPE='A' AND (t.CREATED_BY != {$userId} AND t.RESPONSIBLE_ID != {$userId}))
 				)
 				
-				".($groupId > 0 ? "AND t.GROUP_ID = {$groupId}" : '')."
+				". ($groupId>0 ? "AND t.GROUP_ID = {$groupId}" : '')."
 				
 				AND 
 					t.CLOSED_DATE >= '".$dateFrom->format('Y-m-d H:i:s')."'
 					AND t.CLOSED_DATE <= '".$dateTo->format('Y-m-d H:i:s')."'
 			";
-
-		$res = \Bitrix\Main\Application::getConnection()->query($sql)->fetch();
-		$out['CLOSED'] = (int)$res['COUNT'];
+		$out['CLOSED'] = (int)\Bitrix\Main\Application::getConnection()->queryScalar($sql);
 
 		$sql = "
             SELECT 
@@ -535,26 +477,53 @@ class Effective
                 ".($groupId > 0 ? "AND t.GROUP_ID = {$groupId}" : '')."
                 
                 AND t.CREATED_DATE <= '".$dateTo->format('Y-m-d H:i:s')."'
-				AND t.CLOSED_DATE is null
+				AND 
+				(
+					t.CLOSED_DATE >= '".$dateFrom->format('Y-m-d H:i:s')."'
+					OR
+					CLOSED_DATE is null
+				)
 				
-                AND 
-                (
-                	t.STATUS != 6
-                
-                	OR
-                	(
-                		t.STATUS = 6
-                		AND
-                		t.CHANGED_DATE <= '".$dateTo->format('Y-m-d H:i:s')."'
-                		AND
-                		t.CHANGED_DATE >= '".$dateFrom->format('Y-m-d H:i:s')."'
-                	)
-                )
+                AND t.ZOMBIE = 'N'
+                AND t.STATUS != 6
             ";
-
-		$res = \Bitrix\Main\Application::getConnection()->query($sql)->fetch();
-		$out['OPENED'] = (int)$res['COUNT'];
+		$out['OPENED'] = (int)\Bitrix\Main\Application::getConnection()->queryScalar($sql);
 
 		return $out;
+	}
+
+	public static function getMiddleCounter($userId, $groupId = 0)
+	{
+		$date = self::getDefaultTimeRangeFilter();
+
+		// TODO
+		$stat = self::getCountersByRange($date['FROM'], $date['TO'], $userId, $groupId);
+
+		$violations = $stat['VIOLATIONS'];
+		$inProgress = $stat['OPENED'] + $stat['CLOSED'];
+
+		$effective = 100;
+		if ($inProgress > 0)
+		{
+			$effective = round(
+				100 - ($violations / $inProgress) * 100
+			);
+		}
+
+		if ($effective < 0)
+		{
+			$effective = 0;
+		}
+
+//		\CUserCounter::Set(
+//			$userId,
+//			Counter::getPrefix().Counter\Name::EFFECTIVE,
+//			$effective,
+//			'**',
+//			'',
+//			false
+//		);
+
+		return $effective;
 	}
 }

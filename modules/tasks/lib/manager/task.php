@@ -903,7 +903,7 @@ final class Task extends \Bitrix\Tasks\Manager
 		{
 			foreach ($secondary as $k => $v)
 			{
-				if (!array_key_exists($k, $primary) || $k == static::ACT_KEY) // force rights merging
+				if (!array_key_exists($k, $primary) || $k == static::ACT_KEY || $k == 'TITLE') // force rights merging
 				{
 					$primary[ $k ] = $secondary[ $k ];
 				}
@@ -975,26 +975,29 @@ final class Task extends \Bitrix\Tasks\Manager
 					}
 					break;
 				case 'RESPONSIBLE':
-					$index[] = \Bitrix\Tasks\Util\User::getUserName($arTask[ 'RESPONSIBLE_ID' ]);
+					$index[] = join(' ', \Bitrix\Tasks\Util\User::getUserName([$arTask['RESPONSIBLE_ID']]));
 					break;
 				case 'ORIGINATOR':
-					$index[] = \Bitrix\Tasks\Util\User::getUserName($arTask[ 'CREATED_BY' ]);
+					$index[] = join(' ', \Bitrix\Tasks\Util\User::getUserName([$arTask['CREATED_BY']]));
 					break;
 				case 'AUDITORS':
 					if(array_key_exists('AUDITORS', $arTask))
 					{
-						foreach ($arTask[ 'AUDITORS' ] as $userId)
+						$data = is_object($arTask['AUDITORS']) ? $arTask['AUDITORS']->toArray() : $arTask['AUDITORS'];
+						if ($data)
 						{
-							$index[] = \Bitrix\Tasks\Util\User::getUserName($userId);
+							$index[] = join(' ', \Bitrix\Tasks\Util\User::getUserName(array_unique($data)));
 						}
 					}
 					break;
 				case 'ACCOMPLICES':
 					if(array_key_exists('ACCOMPLICES', $arTask))
 					{
-						foreach ($arTask[ 'ACCOMPLICES' ] as $userId)
+						$data = is_object($arTask['ACCOMPLICES']) ? $arTask['ACCOMPLICES']->toArray()
+							: $arTask['ACCOMPLICES'];
+						if ($data)
 						{
-							$index[] = \Bitrix\Tasks\Util\User::getUserName($userId);
+							$index[] = join(' ', \Bitrix\Tasks\Util\User::getUserName(array_unique($data)));
 						}
 					}
 					break;

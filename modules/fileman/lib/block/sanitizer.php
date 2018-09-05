@@ -57,7 +57,10 @@ class Sanitizer
 			]
 		]);
 		$sanitizer->applyDoubleEncode(false);
+
+		$storedMap = self::replacePhpToTags($html);
 		$html = $sanitizer->sanitizeHtml($html);
+		self::replaceTagsToPhp($html, $storedMap);
 
 		return $html;
 	}
@@ -75,7 +78,6 @@ class Sanitizer
 
 	protected static function getTags()
 	{
-
 		$tags = array(
 			'a'	=> array('href', 'title','name','style','id','class','shape','coords','alt','target'),
 			'b'	=> array('style','id','class'),
@@ -118,9 +120,50 @@ class Sanitizer
 			'thead'	=> array('align','valign','style','id','class'),
 			'tr' => array('align','valign','style','id','class'),
 			'u'	=> array('style','id','class'),
-			'ul' => array('style','id','class')
+			'ul' => array('style','id','class'),
+			'php' => array('id'),
 		);
 
 		return $tags;
+	}
+
+	private static function replacePhpToTags(&$html)
+	{
+		if(!preg_match_all('/(<\?[\W\w\n]*?\?>)/i', $html, $matches, PREG_SET_ORDER))
+		{
+			return [];
+		}
+
+		if (!is_array($matches))
+		{
+			return [];
+		}
+
+		$stored = [];
+		$counter = 0;
+		foreach($matches as $key => $value)
+		{
+			$counter++;
+			$stored["<php id=\"{$counter}\"></php>"] = $value[0];
+		}
+
+		$html = str_replace(
+			array_values($stored),
+			array_keys($stored),
+			$html
+		);
+
+		return $stored;
+	}
+
+	private static function replaceTagsToPhp(&$html, array $stored = [])
+	{
+		$html = str_replace(
+			array_keys($stored),
+			array_values($stored),
+			$html
+		);
+
+		return $html;
 	}
 }

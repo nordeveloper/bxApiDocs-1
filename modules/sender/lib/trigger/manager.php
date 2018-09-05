@@ -23,6 +23,7 @@ use Bitrix\Sender\MailingChainTable;
 use Bitrix\Sender\MailingTriggerTable;
 use Bitrix\Sender\PostingTable;
 use Bitrix\Sender\PostingRecipientTable;
+use Bitrix\Sender\Integration;
 
 class Manager
 {
@@ -993,11 +994,6 @@ class Manager
 	 */
 	public static function onTriggerList($data)
 	{
-		$data['TRIGGER'] = array(
-			'Bitrix\Sender\Integration\Main\Trigger\UserAuth',
-			'Bitrix\Sender\Integration\Main\Trigger\UserDontAuth',
-		);
-
-		return $data;
+		return Integration\EventHandler::onTriggerList($data);
 	}
 }

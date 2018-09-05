@@ -134,6 +134,8 @@ class TransportMail implements Transport\iBase, Transport\iDuration, Transport\i
 			$headers['List-Unsubscribe'] = '<'.$unsubLink.'>';
 		}
 
+		$fields['SENDER_MAIL_CHARSET'] = $message->getCharset();
+
 		if (Integration\Bitrix24\Service::isCloud())
 		{
 			$headers['X-Bitrix-Mail-Count'] = $message->getTransport()->getSendCount() ?: 1;

@@ -19,15 +19,14 @@ use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\SystemException;
 use Bitrix\Tasks\Internals\DataBase\LazyAccess;
 use Bitrix\Tasks\Item\Access;
+use Bitrix\Tasks\Item\Collection;
 use Bitrix\Tasks\Item\Context;
 use Bitrix\Tasks\Item\Converter;
 use Bitrix\Tasks\Item\Exporter\Canonical;
+use Bitrix\Tasks\Item\Field;
 use Bitrix\Tasks\Item\Result;
 use Bitrix\Tasks\Item\State;
-use Bitrix\Tasks\Item\Field;
-use Bitrix\Tasks\Item\Collection;
 use Bitrix\Tasks\Util\Error;
-use Bitrix\Tasks\Util\Type;
 use Bitrix\Tasks\Util\User;
 use Bitrix\Tasks\Util\UserField;
 
@@ -1108,13 +1107,16 @@ abstract class Item extends LazyAccess
 					$isUf = $ufc && $field->isSourceUserField();
 					$isCustom = $field->isSourceCustom();
 
-					if($isTablet || $isUf)
+					if ($value !== null)
 					{
-						$tablet[$dbName] = $field->translateValueToDatabase($value, $name, $this);
-					}
-					elseif($isCustom)
-					{
-						$extra[$name] = $value; // the field will save data by itself
+						if ($isTablet || $isUf)
+						{
+							$tablet[$dbName] = $field->translateValueToDatabase($value, $name, $this);
+						}
+						elseif ($isCustom)
+						{
+							$extra[$name] = $value; // the field will save data by itself
+						}
 					}
 				}
 
@@ -1141,11 +1143,6 @@ abstract class Item extends LazyAccess
 						$this->setId($dbResult->getId()); // bind current instance to the newly created item
 					}
 
-					if ($this->id)
-					{
-						\Bitrix\Tasks\Kanban\StagesTable::pinInStage($this->id);
-					}
-
 					// now save each extra field separately
 					// todo: not only custom fields could have saveValueToDataBase() implemented!!!
 					// todo: for example, task`s PARENT_ID can create additional structures with saveValueToDataBase()
@@ -1161,6 +1158,11 @@ abstract class Item extends LazyAccess
 								'#ENTITY_NAME#' => $fld->getTitle()
 							)).': #MESSAGE#',
 						));
+					}
+
+					if ($this->id)
+					{
+						\Bitrix\Tasks\Kanban\StagesTable::pinInStage($this->id);
 					}
 
 					$this->executeHooksAfter($state);

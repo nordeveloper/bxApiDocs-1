@@ -152,12 +152,12 @@ class Builder
 		// import recipients
 		foreach($groups as $group)
 		{
-			if (is_array($group['ENDPOINT']))
+			if (is_array($group['ENDPOINT']) && !(isset($group['CONNECTOR']) && $group['CONNECTOR'] instanceof Connector\Base))
 			{
 				$group['CONNECTOR'] = Connector\Manager::getConnector($group['ENDPOINT']);
 			}
 
-			if(!$group['CONNECTOR'])
+			if(empty($group['CONNECTOR']))
 			{
 				continue;
 			}

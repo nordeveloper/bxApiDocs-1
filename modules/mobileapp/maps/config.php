@@ -18,7 +18,10 @@ $map = [
 
 
 		//status bar
-		'statusBar/use_top_offset' => ParameterType::BOOLEAN,
+		'statusBar/use_top_offset' =>[
+			"type"=>ParameterType::BOOLEAN,
+			"default"=>"NO"
+		],
 		'statusBar/show_status_bar_without_nav_bar' => [
 			"type"=>ParameterType::BOOLEAN,
 			"default"=>"NO"

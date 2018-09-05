@@ -73,7 +73,7 @@ class Rc
 			[
 				'CODE' => 'nps',
 				'SEGMENT_CODES' => ['case_crm_client_aft_deal_clo'],
-				'HINT' => Loc::getMessage('SENDER_PRESET_TEMPLATE_RC_HINT_EVERY_DAY'),
+				'HINT' => Loc::getMessage('SENDER_PRESET_TEMPLATE_RC_HINT_NPS'),
 				'DISPATCH' => [
 					'METHOD_CODE' => Dispatch\Method::SCHEDULE,
 					'TIMES_OF_DAY' => '09:00',

@@ -193,6 +193,22 @@ class EventHandler
 	}
 
 	/**
+	 * Handler of event sender/onTriggerList.
+	 *
+	 * @param array $data Data.
+	 * @return array
+	 */
+	public static function onTriggerList(array $data = [])
+	{
+		$data['TRIGGER'] = [
+			'Bitrix\Sender\Integration\Main\Triggers\UserAuth',
+			'Bitrix\Sender\Integration\Main\Triggers\UserDontAuth',
+		];
+
+		return $data;
+	}
+
+	/**
 	 * Handler of event sender/onSenderMessageList.
 	 *
 	 * @return array

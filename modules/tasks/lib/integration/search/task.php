@@ -11,6 +11,7 @@
 namespace Bitrix\Tasks\Integration\Search;
 
 use Bitrix\Main\Loader;
+use \Bitrix\Tasks\Util\User;
 
 final class Task extends \Bitrix\Tasks\Integration
 {
@@ -46,12 +47,19 @@ final class Task extends \Bitrix\Tasks\Integration
 		)
 		{
 			// todo: use special socnet helper to get path here
-			$path = str_replace("#group_id#", $task["GROUP_ID"], \COption::GetOptionString("tasks", "paths_task_group_entry", "/workgroups/group/#group_id#/tasks/task/view/#task_id#/", $task["SITE_ID"]));
+			$path = \COption::GetOptionString(
+				"tasks",
+				"paths_task_group_entry",
+				"/workgroups/group/#group_id#/tasks/task/view/#task_id#/",
+				$task["SITE_ID"]
+			);
+			$path = str_replace("#group_id#", $task["GROUP_ID"], $path);
 			$path = str_replace("#task_id#", $task["ID"], $path);
 
 			$groupsSites = \Bitrix\Socialnetwork\WorkgroupSiteTable::getList(
 				array('filter' => array('GROUP_ID' => $task["GROUP_ID"]))
 			)->fetchAll();
+
 			foreach ($groupsSites as $row)
 			{
 				$arSite[$row['SITE_ID']] = $path;
@@ -59,13 +67,36 @@ final class Task extends \Bitrix\Tasks\Integration
 		}
 		else
 		{
-			// todo: use special socnet helper to get path here
-			$path = str_replace("#user_id#", $task["RESPONSIBLE_ID"], \COption::GetOptionString("tasks", "paths_task_user_entry", "/company/personal/user/#user_id#/tasks/task/view/#task_id#/", $task["SITE_ID"]));
-			$path = str_replace("#task_id#", $task["ID"], $path);
-
-			$arSite = array(
-				$task["SITE_ID"] => $path
+			$participants = array_unique(
+				array_merge(
+					array($task["CREATED_BY"], $task["RESPONSIBLE_ID"]),
+					$task["ACCOMPLICES"],
+					$task["AUDITORS"]
+				)
 			);
+			$usersData = User::getData($participants);
+
+			foreach ($usersData as $data)
+			{
+				$siteId = $data['LID'];
+
+				if (array_key_exists($siteId, $arSite))
+				{
+					continue;
+				}
+
+				// todo: use special socnet helper to get path here
+				$path = \COption::GetOptionString(
+					"tasks",
+					"paths_task_user_entry",
+					"/company/personal/user/#user_id#/tasks/task/view/#task_id#/",
+					$siteId
+				);
+				$path = str_replace("#user_id#", $task["RESPONSIBLE_ID"], $path);
+				$path = str_replace("#task_id#", $task["ID"], $path);
+
+				$arSite[$siteId] = $path;
+			}
 		}
 
 		$arSearchIndex = array(

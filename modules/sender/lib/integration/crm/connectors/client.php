@@ -465,6 +465,28 @@ class Client extends ConnectorBaseFilter
 			"default" => false
 		);
 
+		foreach ([\CCrmOwnerType::Company, \CCrmOwnerType::Contact, \CCrmOwnerType::Deal] as $entityTypeId)
+		{
+			$entityTypeCaption = \CCrmOwnerType::getDescription($entityTypeId);
+			$entityTypeName = \CCrmOwnerType::resolveName($entityTypeId);
+			$fieldId = "{$entityTypeName}_ASSIGNED_BY_ID";
+			$list[] = array(
+				"id" => $fieldId,
+				"name" => Loc::getMessage('SENDER_INTEGRATION_CRM_CONNECTOR_CLIENT_FIELD_ASSIGNED_BY_ID') . " ($entityTypeCaption)",
+				'type' => 'custom_entity',
+				'selector' => array(
+					'TYPE' => 'user',
+					'DATA' => array('ID' => strtolower($fieldId), 'FIELD_ID' => $fieldId),
+				),
+				'sender_segment_callback' => function ($field)
+				{
+					return Helper::getFilterFieldUserSelector($field['selector']['DATA'], 'crm_segment_client');
+				},
+				//"sender_segment_filter" => false,
+				"default" => false
+			);
+		}
+
 		$list[] = array(
 			"id" => "CONTACT_BIRTHDATE",
 			"name" => Loc::getMessage('SENDER_INTEGRATION_CRM_CONNECTOR_CLIENT_FIELD_CONTACT_BIRTHDATE'),

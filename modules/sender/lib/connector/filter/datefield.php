@@ -10,6 +10,7 @@ namespace Bitrix\Sender\Connector\Filter;
 use Bitrix\Main\Type\Date;
 use Bitrix\Main\UI\Filter\Options as FilterOptions;
 use Bitrix\Main\UI\Filter\AdditionalDateType;
+use Bitrix\Main\UserFieldTable;
 
 /**
  * Class DateField
@@ -280,21 +281,49 @@ class DateField extends AbstractField
 		}
 
 		$fieldId = $this->getId();
-		$filterKey = $fieldId . "_YEAR_LESS_" . $tag;
+		$expressionFieldName = $fieldId . "_YEAR_LESS_" . $tag;
+		$filterKey = $this->getFilterKey();
+
+		// hack for multiple user field of `date` type.
+		$uf = explode('.', $filterKey);
+		foreach ($uf as $item)
+		{
+			if (strpos($item, 'UF_') !== 0)
+			{
+				continue;
+			}
+
+			$userField = UserFieldTable::getRow([
+				'select' => ['USER_TYPE_ID', 'MULTIPLE'],
+				'filter' => ['=FIELD_NAME' => $item]
+			]);
+			if (!$userField || $userField['USER_TYPE_ID'] != 'date')
+			{
+				continue;
+			}
+			if ($userField['MULTIPLE'] != 'Y')
+			{
+				continue;
+			}
+
+			$filterKey .= '_SINGLE'; // Magic ORM postfix
+		}
+		// end hack
+
 		return (new RuntimeFilter())
 			->setFilter(
-				"=$filterKey",
+				"=$expressionFieldName",
 				1
 			)
 			->addRuntime([
-				'name' => $filterKey,
+				'name' => $expressionFieldName,
 				'expression' => "
 					case when %s $operation concat(YEAR(%s) $addOneYear, '-{$date->format('m')}-{$date->format('d')}')
 					then 1 else 0 end
 				",
 				'buildFrom' => [
-					$this->getFilterKey(),
-					$this->getFilterKey()
+					$filterKey,
+					$filterKey
 				],
 				'parameters' => []
 			]);

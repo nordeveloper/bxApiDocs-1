@@ -248,7 +248,14 @@ class Counter
 
 	private function getKpi()
 	{
-		$filterOptions = new Filter\Options(
+		$effective = \CUserCounter::getValue($this->userId, Counter::getPrefix().Counter\Name::EFFECTIVE, '**');
+		if(!$effective)
+		{
+			$effective = \Bitrix\Tasks\Internals\Effective::getMiddleCounter($this->userId);
+		}
+		return $effective;
+
+		/*$filterOptions = new Filter\Options(
 			Effective::getFilterId(),
 			Effective::getPresetList()
 		);
@@ -272,7 +279,7 @@ class Counter
 			$kpi = round(100 - ($counters['VIOLATIONS'] / ($counters['OPENED'] + $counters['CLOSED'])) * 100);
 		}
 
-		return $kpi < 0 ? 0 : $kpi;
+		return $kpi < 0 ? 0 : $kpi;*/
 	}
 
 	private function getInternal($name)
@@ -532,7 +539,15 @@ class Counter
 	{
 	}
 
-	public static function onAfterTaskUpdate($fields, $newFields)
+	/**
+	 * @param $fields
+	 * @param $newFields
+	 * @param array $params
+	 * [
+	 * FORCE_RECOUNT_COUNTER = Y|N
+	 * ]
+	 */
+	public static function onAfterTaskUpdate($fields, $newFields, array $params = array())
 	{
 		if(self::fieldChanged('DEADLINE', $fields, $newFields))
 		{
@@ -553,7 +568,8 @@ class Counter
 			self::fieldChanged('RESPONSIBLE_ID', $fields, $newFields) ||
 			self::fieldChanged('CREATED_BY', $fields, $newFields) ||
 			self::fieldChanged('AUDITORS', $fields, $newFields) ||
-			self::fieldChanged('ACCOMPLICES', $fields, $newFields)
+			self::fieldChanged('ACCOMPLICES', $fields, $newFields) ||
+			(array_key_exists('FORCE_RECOUNT_COUNTER', $params) && $params['FORCE_RECOUNT_COUNTER'] == 'Y')
 		)
 		{
 			self::onAfterUpdateTaskInternal($fields);
@@ -1267,14 +1283,14 @@ class Counter
 					t.GROUP_ID
 				FROM 
 					b_tasks as t
-					JOIN b_tasks_member as tm ON tm.TASK_ID = t.ID AND tm.TYPE = 'R'
+					/*JOIN b_tasks_member as tm ON tm.TASK_ID = t.ID AND tm.TYPE = 'R'*/
 					LEFT JOIN b_tasks_viewed as tv
-						ON tv.TASK_ID = t.ID AND tv.USER_ID = tm.USER_ID
+						ON tv.TASK_ID = t.ID AND tv.USER_ID = {$this->userId}/*tm.USER_ID*/
 					".($this->groupId > 0 ? 'JOIN b_sonet_group as sg on sg.ID = t.GROUP_ID' : '')."
 				WHERE
 					(tv.TASK_ID IS NULL OR tv.TASK_ID = 0) AND
 					t.CREATED_BY != t.RESPONSIBLE_ID AND
-					tm.USER_ID = {$this->userId} AND
+					t.RESPONSIBLE_ID /*tm.USER_ID*/ = {$this->userId} AND
 					t.ZOMBIE = 'N' AND
 					
 					".($this->groupId > 0 ? " t.GROUP_ID = {$this->groupId} AND sg.CLOSED != 'Y' AND" : "")."
@@ -1351,13 +1367,13 @@ class Counter
 					t.GROUP_ID
 				FROM 
 					b_tasks as t
-					INNER JOIN b_tasks_member as tm 
-						ON tm.TASK_ID = t.ID AND tm.TYPE = 'R'
+					/*INNER JOIN b_tasks_member as tm 
+						ON tm.TASK_ID = t.ID AND tm.TYPE = 'R'*/
 					".($this->groupId > 0 ? 'JOIN b_sonet_group as sg on sg.ID = t.GROUP_ID' : '')."
 				WHERE 
 					t.DEADLINE < '{$expiredTime}'
-					AND tm.USER_ID = {$this->userId}
-	   				/*AND RESPONSIBLE_ID != CREATED_BY*/
+					/*AND tm.USER_ID = {$this->userId}*/
+	   				AND RESPONSIBLE_ID =  {$this->userId}
 					AND t.ZOMBIE = 'N'
 					".($this->groupId > 0 ? " AND t.GROUP_ID = {$this->groupId} AND sg.CLOSED != 'Y'" : "")."
 					AND (

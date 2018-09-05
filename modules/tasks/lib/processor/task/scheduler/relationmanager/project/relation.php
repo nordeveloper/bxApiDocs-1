@@ -65,6 +65,7 @@ final class Relation extends \Bitrix\Tasks\Processor\Task\Scheduler\Relation
 		$matchWorkTime = $toTask->getMatchWorkTime();
 
 		$startDate = null;
+		$endDateGmt = $fromTask->getEndDatePlanGmt();
 		$duration = $toTask->calculateDuration();
 
 		$calender = Calendar::getInstance();
@@ -88,26 +89,30 @@ final class Relation extends \Bitrix\Tasks\Processor\Task\Scheduler\Relation
 		}
 		elseif($this->getType() == ProjectDependenceTable::LINK_TYPE_FINISH_FINISH)
 		{
-			if($matchWorkTime)
+			if ($endDateGmt !== null)
 			{
-				$startDate = $calender->calculateStartDate($fromTask->getEndDatePlanGmt(), $duration);
-			}
-			else
-			{
-				$startDate = clone $fromTask->getEndDatePlanGmt();
-				$startDate->addSecond(-$duration);
+				if($matchWorkTime)
+				{
+					$startDate = $calender->calculateStartDate($endDateGmt, $duration);
+				}
+				else
+				{
+					$startDate = clone $endDateGmt;
+					$startDate->addSecond(-$duration);
+				}
 			}
 		}
 		else
 		{
-			$startDate = $fromTask->getEndDatePlanGmt();
+			$startDate = $endDateGmt;
 		}
 		//_print_r('SSStart date: '.\Bitrix\Tasks\Processor\Task\Scheduler\Impact::dateTimeGmtToLocalString($startDate));
 
 		if ($startDate == null)
 		{
-			return $startDate;
+			return null;
 		}
+
 		$startDate = clone $startDate;
 
 		if ($matchWorkTime)

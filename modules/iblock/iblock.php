@@ -87,6 +87,7 @@ $arClasses = array(
 	'\Bitrix\Iblock\Component\Tools' => "lib/component/tools.php",
 	'\Bitrix\Iblock\Helpers\Admin\Property' => "lib/helpers/admin/property.php",
 	'\Bitrix\Iblock\Helpers\Filter\Property' => "lib/helpers/filter/property.php",
+	'\Bitrix\Iblock\Helpers\Filter\PropertyManager' => "lib/helpers/filter/propertymanager.php",
 	'\Bitrix\Iblock\InheritedProperty\BaseTemplate' => "lib/inheritedproperty/basetemplate.php",
 	'\Bitrix\Iblock\InheritedProperty\BaseValues' => "lib/inheritedproperty/basevalues.php",
 	'\Bitrix\Iblock\InheritedProperty\ElementTemplates' => "lib/inheritedproperty/elementtemplates.php",
@@ -994,7 +995,7 @@ function ImportXMLFile($file_name, $iblock_type="-", $site_id='', $section_actio
 		if(!$obCatalog->IndexTemporaryTables())
 			return GetMessage("IBLOCK_XML2_INDEX_ERROR");
 
-		$xml_root = 1;
+		$xml_root = $obCatalog->GetRoot();
 		$bUpdateIBlock = true;
 	}
 
@@ -1002,7 +1003,11 @@ function ImportXMLFile($file_name, $iblock_type="-", $site_id='', $section_actio
 
 	$result = $obCatalog->ImportMetaData($xml_root, $iblock_type, $site_id, $bUpdateIBlock);
 	if($result !== true)
+	{
+		if($sync)
+			$obCatalog->EndSession();
 		return GetMessage("IBLOCK_XML2_METADATA_ERROR").implode("\n", $result);
+	}
 
 	$obCatalog->ImportSections();
 	$obCatalog->DeactivateSections($section_action);

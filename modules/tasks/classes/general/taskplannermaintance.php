@@ -22,21 +22,21 @@ class CTaskPlannerMaintance
 		global $APPLICATION, $USER, $CACHE_MANAGER;
 
 		self::$SITE_ID = $params['SITE_ID'];
-		self::$USER_ID = $params['USER_ID']? $params['USER_ID']: $USER->GetID();
+		self::$USER_ID = ($params['USER_ID']? $params['USER_ID'] : $USER->GetID());
 
-		$arTasks = array();
+		$tasks = array();
 
 		if (self::$USER_ID > 0)
 		{
 			$CACHE_MANAGER->RegisterTag('tasks_user_'.self::$USER_ID);
 			$CACHE_MANAGER->RegisterTag('tasks_user_fields');
 
-			$arTaskIDs = self::getCurrentTasksList();
-			$tasksCount = self::getTasksCount($arTaskIDs);
+			$taskIds = self::getCurrentTasksList();
+			$tasksCount = self::getTasksCount($taskIds);
 		}
 		else
 		{
-			$arTaskIDs  = array();
+			$taskIds  = array();
 			$tasksCount = 0;
 		}
 
@@ -44,8 +44,10 @@ class CTaskPlannerMaintance
 		{
 			if (self::$USER_ID > 0)
 			{
-				if (is_array($arTaskIDs) && ( ! empty($arTaskIDs)))
-					$arTasks = self::getTasks($arTaskIDs);
+				if (is_array($taskIds) && !empty($taskIds))
+				{
+					$tasks = self::getTasks($taskIds);
+				}
 			}
 		}
 		else
@@ -72,48 +74,52 @@ class CTaskPlannerMaintance
 
 		if (self::$USER_ID > 0)
 		{
-			$oTimer  = CTaskTimerManager::getInstance(self::$USER_ID);
-			$arTimer = $oTimer->getLastTimer();
+			$userTimer = CTaskTimerManager::getInstance(self::$USER_ID);
+			$lastTimer = $userTimer->getLastTimer();
 
-			$arTaskOnTimer = false;
-			if (($arTimer !== false) && ($arTimer['TASK_ID'] > 0))
+			$taskOnTimer = false;
+			if ($lastTimer !== false && $lastTimer['TASK_ID'])
 			{
 				// Timered task can be in day plan, try to found it
-				if (in_array($arTimer['TASK_ID'], $arTaskIDs))
+				if (in_array($lastTimer['TASK_ID'], $taskIds))
 				{
-					foreach ($arTasks as &$arTaskData)
+					foreach ($tasks as &$taskData)
 					{
-						if ($arTaskData['ID'] == $arTimer['TASK_ID'])
+						if ($taskData['ID'] == $lastTimer['TASK_ID'])
 						{
-							$arTaskOnTimer = $arTaskData;
+							$taskOnTimer = $taskData;
 							break;
 						}
 					}
-					unset($arTaskData);
+					unset($taskData);
 				}
 
 				// If task not found, select it
-				if ($arTaskOnTimer === false)
+				if ($taskOnTimer === false)
 				{
-					$arTmp = self::getTasks(array($arTimer['TASK_ID']));
-					if (isset($arTmp[0]))
-						$arTaskOnTimer = $arTmp[0];
+					$neededTasks = self::getTasks(array($lastTimer['TASK_ID']));
+					$neededTask = $neededTasks[0];
+
+					if (isset($neededTask) && $neededTask['RESPONSIBLE_ID'] == self::$USER_ID)
+					{
+						$taskOnTimer = $neededTasks[0];
+					}
 				}
 			}
 		}
 		else
 		{
-			$arTimer       = false;
-			$arTaskOnTimer = false;
+			$lastTimer = false;
+			$taskOnTimer = false;
 		}
 
 		$arResult = array(
 			'DATA' => array(
 				'TASKS_ENABLED' => true,
-				'TASKS'         => $arTasks,
-				'TASKS_COUNT'   => $tasksCount,
-				'TASKS_TIMER'   => $arTimer,
-				'TASK_ON_TIMER' => $arTaskOnTimer,
+				'TASKS' => $tasks,
+				'TASKS_COUNT' => $tasksCount,
+				'TASKS_TIMER' => $lastTimer,
+				'TASK_ON_TIMER' => $taskOnTimer,
 				'MANDATORY_UFS' => (CTasksRarelyTools::isMandatoryUserFieldExists() ? 'Y' : 'N')
 			),
 			'STYLES' => array('/bitrix/js/tasks/css/tasks.css'),
@@ -131,20 +137,18 @@ class CTaskPlannerMaintance
 		switch($action)
 		{
 			case 'task':
-
 				$lastTaskId = self::plannerActions(array(
 					'name' => $_REQUEST['name'],
 					'add' => $_REQUEST['add'],
 					'remove' => $_REQUEST['remove'],
 				), $params['SITE_ID']);
-
-			break;
+				break;
 
 			case 'timeman_close':
 				$res = self::getTimemanCloseDayData(array(
 					'SITE_ID' => $params['SITE_ID']
 				));
-			break;
+				break;
 		}
 
 		if($lastTaskId > 0)
@@ -322,7 +326,9 @@ class CTaskPlannerMaintance
 		$res = null;
 
 		if  (!is_array($arIDs) && strlen($arIDs) > 0)
+		{
 			$arIDs = unserialize($arIDs);
+		}
 
 		$arIDs = array_values($arIDs);
 
@@ -373,33 +379,28 @@ class CTaskPlannerMaintance
 					{
 						$task2member[$taskId]['ACCOMPLICES'][] = $arMember['USER_ID'];
 					}
-					elseif ($arMember['TYPE'] == 'U')
-					{
-						$task2member[$taskId]['AUDITORS'][] = $arMember['USER_ID'];
-					}
 				}
 
 				foreach($tasks as $id => $data)
 				{
-					// Permit only for responsible user, accomplices or auditors
-					if(!( ($data['RESPONSIBLE_ID'] == $USER_ID)
-						|| in_array($USER_ID, $task2member[$id]['ACCOMPLICES'])
-						|| in_array($USER_ID, $task2member[$id]['AUDITORS'])
-					))
+					// Permit only for responsible user and accomplices
+					if ($data['RESPONSIBLE_ID'] !== $USER_ID &&
+						!in_array($USER_ID, $task2member[$id]['ACCOMPLICES']))
 					{
 						continue;
 					}
 
 					$res[] = array(
-						'ID'                  => $data['ID'],
-						'PRIORITY'            => $data['PRIORITY'],
-						'STATUS'              => $data['STATUS'],
-						'TITLE'               => $data['TITLE'],
-						'TASK_CONTROL'        => $data['TASK_CONTROL'],
+						'ID' => $data['ID'],
+						'RESPONSIBLE_ID' => $data['RESPONSIBLE_ID'],
+						'PRIORITY' => $data['PRIORITY'],
+						'STATUS' => $data['STATUS'],
+						'TITLE' => $data['TITLE'],
+						'TASK_CONTROL' => $data['TASK_CONTROL'],
 						'ALLOW_TIME_TRACKING' => $data['ALLOW_TIME_TRACKING'],
-						'TIME_SPENT_IN_LOGS'  => $data['TIME_SPENT_IN_LOGS'],
-						'TIME_ESTIMATE'       => $data['TIME_ESTIMATE'],
-						'URL'                 => \Bitrix\Tasks\UI\Task::makeActionUrl($pathTemplate, $data['ID'], 'view', $USER_ID)
+						'TIME_SPENT_IN_LOGS' => $data['TIME_SPENT_IN_LOGS'],
+						'TIME_ESTIMATE' => $data['TIME_ESTIMATE'],
+						'URL' => \Bitrix\Tasks\UI\Task::makeActionUrl($pathTemplate, $data['ID'], 'view', $USER_ID)
 					);
 				}
 			}

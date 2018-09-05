@@ -159,13 +159,13 @@ class Dictionary
 	 */
 	public function getStringById($valueId)
 	{
-		$connection  = \Bitrix\Main\Application::getConnection();
-		$stringValue = $connection->queryScalar("SELECT VALUE FROM ".$this->getTableName()." WHERE ID = ".intval($valueId));
-		if ($stringValue === null)
-		{
+		$valueId = (int)$valueId;
+		if ($valueId <= 0)
 			return "";
-		}
-		return $stringValue;
+
+		$connection  = \Bitrix\Main\Application::getConnection();
+		$stringValue = $connection->queryScalar("SELECT VALUE FROM ".$this->getTableName()." WHERE ID = ".$valueId);
+		return ($stringValue === null ? "" : $stringValue);
 	}
 
 	/**
@@ -177,13 +177,16 @@ class Dictionary
 	 */
 	public function getStringByIds($valueIDs)
 	{
-		$result = array();
+		$result = [];
+		if (empty($valueIDs) || !is_array($valueIDs))
+			return $result;
+		\Bitrix\Main\Type\Collection::normalizeArrayValuesByInt($valueIDs, true);
+		if (empty($valueIDs))
+			return $result;
+
 		$connection  = \Bitrix\Main\Application::getConnection();
 
-		foreach ($valueIDs as $id)
-		{
-			$result[$id] = '';
-		}
+		$result = array_fill_keys($valueIDs, '');
 
 		$rs = $connection->query("SELECT ID, VALUE FROM ".$this->getTableName()." WHERE ID IN(".implode(',',$valueIDs).")");
 		while ($row = $rs->fetch())

@@ -1486,7 +1486,7 @@ class CAdminSubForm extends CAdminForm
 			"}";
 		}
 
-		echo 'var '.$this->name.' = new BX.adminSubTabControl("'.$this->name.'", "'.$this->unique_name.'", ['.$s.'], "'.$this->GetListUrl(true).'",'.$this->GetListPostParams(true,true).');';
+		echo 'var '.$this->name.' = new BX.adminSubTabControl("'.$this->name.'", "'.$this->unique_name.'", ['.$s.'], "'.CUtil::JSEscape($this->GetListUrl(true)).'",'.$this->GetListPostParams(true,true).');';
 
 		if (!$this->bPublicMode)
 		{
@@ -1533,11 +1533,18 @@ echo '
 		$reload = ($reload !== false);
 		$closeWait = ($closeWait !== false);
 		$result = '<script type="text/javascript">';
+		$result .= '
+			var currentWindow = top.window;
+			if (top.BX.SidePanel.Instance && top.BX.SidePanel.Instance.getTopSlider())
+			{
+				currentWindow = top.BX.SidePanel.Instance.getTopSlider().getWindow();
+			}
+		';
 		if ($closeWait)
-			$result .= 'top.BX.closeWait(); ';
-		$result .= 'top.BX.WindowManager.Get().AllowClose(); top.BX.WindowManager.Get().Close();';
+			$result .= 'currentWindow.BX.closeWait(); ';
+		$result .= 'currentWindow.BX.WindowManager.Get().AllowClose(); currentWindow.BX.WindowManager.Get().Close();';
 		if ($reload)
-			$result .= ' if (!!top.ReloadSubList) { top.ReloadSubList(); }';
+			$result .= ' if (!!currentWindow.ReloadSubList) { currentWindow.ReloadSubList(); }';
 		$result .= '</script>';
 		echo $result;
 		die();

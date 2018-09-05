@@ -926,7 +926,7 @@ class CLDAP
 		return $arResult;
 	}
 
-	function NTLMAuth()
+	static function NTLMAuth()
 	{
 		global $USER;
 

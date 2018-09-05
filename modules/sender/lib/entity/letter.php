@@ -956,6 +956,24 @@ class Letter extends Base
 	}
 
 	/**
+	 * Send errors.
+	 *
+	 * @return bool
+	 */
+	public function sendErrors()
+	{
+		try
+		{
+			return $this->getState()->sendErrors();
+		}
+		catch (InvalidOperationException $exception)
+		{
+			$this->errors->setError(new Error($exception->getMessage()));
+			return false;
+		}
+	}
+
+	/**
 	 * Stop.
 	 *
 	 * @return bool
@@ -1060,6 +1078,7 @@ class Letter extends Base
 				'TITLE' => 'TITLE',
 				'MAILING_NAME' => 'CAMPAIGN.NAME',
 				'DATE_SENT' => 'POSTING.DATE_SENT',
+				'COUNT_SEND_ERROR' => 'POSTING.COUNT_SEND_ERROR',
 				'CREATED_BY' => 'CREATED_BY',
 				'CREATED_BY_NAME' => 'CREATED_BY_USER.NAME',
 				'CREATED_BY_LAST_NAME' => 'CREATED_BY_USER.LAST_NAME',

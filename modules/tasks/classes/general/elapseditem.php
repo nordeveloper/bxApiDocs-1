@@ -217,30 +217,38 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 			$parameters['select'] = array('*');
 		}
 
-		if(is_array($params) && is_array($params['NAV_PARAMS']))
+		if (is_array($params))
 		{
-			if(isset($params['NAV_PARAMS']['nPageSize']))
+			if (is_array($params['NAV_PARAMS']))
 			{
-				$parameters['limit'] = (int) $params['NAV_PARAMS']['nPageSize'];
+				if (isset($params['NAV_PARAMS']['nPageSize']))
+				{
+					$parameters['limit'] = (int)$params['NAV_PARAMS']['nPageSize'];
+				}
+				if (isset($params['NAV_PARAMS']['iNumPage']))
+				{
+					$parameters['offset'] = (int)$params['NAV_PARAMS']['iNumPage'];
+				}
 			}
-			if(isset($params['NAV_PARAMS']['iNumPage']))
+
+			if (isset($params['count_total']))
 			{
-				$parameters['offset'] = (int) $params['NAV_PARAMS']['iNumPage'];
+				$parameters['count_total'] = (bool)$params['count_total'];
 			}
 		}
 
-		$res = \Bitrix\Tasks\Integration\Rest\ElapsedTimeTable::getList($parameters, array(
+		$dbResult = \Bitrix\Tasks\Integration\Rest\ElapsedTimeTable::getList($parameters, array(
 			'USER_ID' => \Bitrix\Tasks\Util\User::getId(),
 			'ROW_LIMIT' => $parameters['limit']
 		));
 
-		$result = array();
-		while($item = $res->fetch())
-		{
-			$result[] = $item;
-		}
+		$result = $dbResult->fetchAll();
+		$navData = array(
+			'offset' => $parameters['offset'],
+			'count' => $dbResult->getCount()
+		);
 
-		return $result;
+		return array($result, $navData);
 	}
 
 	private static function __resetSystemWideTasksCacheByTag($arData)
@@ -288,6 +296,8 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 		}
 
 		$returnValue = null;
+		$navData = null;
+
 		if (isset($arMethodMetaInfo['staticMethod']) && $arMethodMetaInfo['staticMethod'])
 		{
 			if ($methodName === 'add')
@@ -305,6 +315,7 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 				$order = ($argsParsed[1] == null? array() : $argsParsed[1]);
 				$filter = ($argsParsed[2] == null? array() : $argsParsed[2]);
 				$select = ($argsParsed[3] == null? array() : $argsParsed[3]);
+				$navParams = $argsParsed[4]['NAV_PARAMS'];
 
 				$byTaskId = false;
 				if (count($argsParsed) > 0 && $taskId !== 0)
@@ -317,30 +328,44 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 					}
 				}
 
-				$numPage = (int)$navigation['iNumPage'];
-				$navigationParams = array(
-					'nPageSize' => ($byTaskId? 0 : CTaskRestService::TASKS_LIMIT_PAGE_SIZE),
-					'iNumPage' => ($numPage > 0? $numPage - 1 : 0)
-				);
-
-				if ($numPage <= 1 && isset($argsParsed[4]['NAV_PARAMS']['nPageSize']))
+				if (isset($navParams))
 				{
-					$navigationParams = $argsParsed[4]['NAV_PARAMS'];
-					$pageSize = min(CTaskRestService::TASKS_LIMIT_PAGE_SIZE, (int)$navigationParams['nPageSize']);
-					$navigationParams['nPageSize'] = $pageSize;
-
-					if (isset($navigationParams['iNumPage']))
+					if (isset($navParams['nPageSize']))
 					{
-						$navigationParams['iNumPage'] = ($navigationParams['iNumPage'] > 0 ? ($navigationParams['iNumPage'] - 1) : 0) * $pageSize;
+						$navParams['nPageSize'] = min(CTaskRestService::TASKS_LIMIT_PAGE_SIZE, (int)$navParams['nPageSize']);
+					}
+					else
+					{
+						$navParams['nPageSize'] = CTaskRestService::TASKS_LIMIT_PAGE_SIZE;
+					}
+
+					if (isset($navParams['iNumPage']))
+					{
+						$numPage = (int)$navParams['iNumPage'];
+						$numPage = ($numPage > 0? ($numPage - 1) * $navParams['nPageSize'] : 0);
+
+						$navParams['iNumPage'] = $numPage;
+					}
+					else
+					{
+						$navParams['iNumPage'] = 1;
 					}
 				}
-
-				$returnValue = array();
-				$elapsedItems = self::getList($order, $filter, $select, array('NAV_PARAMS' => $navigationParams));
-				foreach ($elapsedItems as $elapsedItem)
+				else
 				{
-					$returnValue[] = $elapsedItem;
+					$navParams = array(
+						'nPageSize' => ($byTaskId? 0 : CTaskRestService::TASKS_LIMIT_PAGE_SIZE),
+						'iNumPage' => 1
+					);
 				}
+
+				$params = array(
+					'NAV_PARAMS' => $navParams,
+					'count_total' => true
+				);
+				list($elapsedItems, $navData) = self::getList($order, $filter, $select, $params);
+
+				$returnValue = $elapsedItems;
 			}
 			else
 			{
@@ -364,7 +389,7 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 			}
 		}
 
-		return (array($returnValue, null));
+		return array($returnValue, $navData);
 	}
 
 	public static function getPublicFieldMap()

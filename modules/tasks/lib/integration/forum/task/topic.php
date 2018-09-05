@@ -85,6 +85,39 @@ final class Topic extends \Bitrix\Tasks\Integration\Forum
 	}
 
 	/**
+	 * Updates forum topic title to match task's title
+	 * 
+	 * @param $topicId
+	 * @param $title
+	 * @return bool
+	 */
+	public static function updateTopicTitle($topicId, $title)
+	{
+		if (!Loader::includeModule('forum'))
+		{
+			return false;
+		}
+
+		$forumTopic = \CForumTopic::GetByID($topicId);
+
+		if ($forumTopic)
+		{
+			$fields = array(
+				'TITLE' => $title,
+				'TITLE_SEO' => \CUtil::translit(
+					$title,
+					LANGUAGE_ID,
+					array("max_len" => 255, "safe_chars" => ".", "replace_space" => '-')
+				)
+			);
+
+			\CForumTopic::Update($topicId, $fields);
+		}
+
+		return true;
+	}
+
+	/**
 	 * Get file count for a topic
 	 *
 	 * @param $topicId

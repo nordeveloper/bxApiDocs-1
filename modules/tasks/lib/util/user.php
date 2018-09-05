@@ -248,6 +248,21 @@ final class User
 	}
 
 	/**
+	 * Checks if $bossId is a boss for $userId recursively through the structure
+	 *
+	 * @param $bossId
+	 * @param $userId
+	 * @return bool
+	 *
+	 */
+	public static function isBossRecursively($bossId, $userId)
+	{
+		$employees = Intranet\User::getSubordinateSubDepartments($bossId);
+
+		return in_array($userId, $employees);
+	}
+
+	/**
 	 * Return data for users we really can see
 	 *
 	 * todo: make static cache here, call this function everywhere (at least, in CTaskNotifications)
@@ -686,6 +701,19 @@ final class User
 			return false;
 		}
 
+		foreach ($userIds as $key => $value)
+		{
+			if (!preg_match('/^[1-9][0-9]*$/', $value))
+			{
+				unset($userIds[$key]);
+			}
+		}
+
+		if (empty($userIds))
+		{
+			return $list;
+		}
+
 		$dt = ConvertTimeStamp(false, 'SHORT');
 
 		$arAbsenceData = \CIntranetUtils::GetAbsenceData(
@@ -718,7 +746,9 @@ final class User
 					$toTs = MakeTimeStamp($item['DATE_TO']);
 				}
 
-				if ($toTs > $curTs)
+				$absenceEnd = (\CIntranetUtils::IsDateTime($toTs)? $toTs : $toTs + 86399);
+
+				if ($absenceEnd > $curTs)
 				{
 					$from = FormatDate(
 						$DB->DateFormatToPhp(\CSite::GetDateFormat(
@@ -726,19 +756,19 @@ final class User
 						)),
 						$fromTs
 					);
-
 					$to = FormatDate(
 						$DB->DateFormatToPhp(\CSite::GetDateFormat(
 							\CIntranetUtils::IsDateTime($toTs) ? 'FULL' : 'SHORT'
 						)),
 						$toTs
 					);
+					$user = static::getUserName([$item['USER_ID']]);
 
-					$list[] = GetMessageJS('TASKS_WARNING_RESPONSIBLE_IS_ABSENCE', array(
-						'#FORMATTED_USER_NAME#' => htmlspecialcharsbx(static::getUserName($item['USER_ID'])),
-						'#DATE_FROM#' => $from,
-						'#DATE_TO#' => $to,
-						'#ABSCENCE_REASON#' => $item['NAME']
+					$list[]= GetMessageJS('TASKS_WARNING_RESPONSIBLE_IS_ABSENCE', array(
+						'#FORMATTED_USER_NAME#' => htmlspecialcharsbx($user[$item['USER_ID']]),
+						'#DATE_FROM#'           => $from,
+						'#DATE_TO#'             => $to,
+						'#ABSCENCE_REASON#'     => $item['NAME']
 					));
 				}
 			}
@@ -747,16 +777,15 @@ final class User
 		return $list;
 	}
 
-	public static function getUserName($userId, $siteId = null, $nameTemplate = null)
+	public static function getUserName(array $userIds, $siteId = null, $nameTemplate = null)
 	{
-		static $data = array();
+		$usersData = self::getData($userIds);
 
-		if(!array_key_exists($userId, $data))
+		foreach ($userIds as $userId)
 		{
-			$users = self::getData(array($userId));
-			$data[$userId] = self::formatName($users[$userId], $nameTemplate);
+			$data[$userId] = self::formatName($usersData[$userId], $nameTemplate);
 		}
 
-		return $data[$userId];
+		return $data;
 	}
 }

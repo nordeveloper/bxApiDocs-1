@@ -2193,8 +2193,13 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 
 		if ($actionId == self::ACTION_REMOVE)
 		{
-			if ( ! $this->isActionAllowed(self::ACTION_REMOVE) )
-				throw new TasksException('', TasksException::TE_ACTION_NOT_ALLOWED | TasksException::TE_ACCESS_DENIED);
+			if (!$this->isActionAllowed(self::ACTION_REMOVE))
+			{
+				throw new TasksException(
+					Loc::getMessage('TASKS_ACCESS_DENIED_TO_TASK_DELETE'),
+					TasksException::TE_ACTION_NOT_ALLOWED | TasksException::TE_ACCESS_DENIED
+				);
+			}
 
 			$this->markCacheAsDirty();
 

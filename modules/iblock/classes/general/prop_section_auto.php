@@ -23,6 +23,7 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 			"GetSettingsHTML" => array(__CLASS__,'GetSettingsHTML'),
 			"PrepareSettings" => array(__CLASS__,'PrepareSettings'),
 			"AddFilterFields" => array(__CLASS__,'AddFilterFields'),
+			"GetPublicFilterHTML" => array(__CLASS__,'GetPublicFilterHTML'),
 		);
 	}
 
@@ -60,6 +61,11 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 			}
 		}
 		return $arResult;
+	}
+
+	public static function GetPublicFilterHTML($arProperty, $strHTMLControlName)
+	{
+		return self::GetAdminFilterHTML($arProperty, $strHTMLControlName);
 	}
 
 	public static function GetPropertyFieldHtml($arProperty, $arValue, $strHTMLControlName)
@@ -532,6 +538,13 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 		$arSymbols = static::GetSymbols($arSettings);
 		$fixIBlock = $arProperty["LINK_IBLOCK_ID"] > 0;
 
+		$isMainUiFilter = ($strHTMLControlName["FORM_NAME"] == "main-ui-filter");
+		$inputName = $strHTMLControlName['VALUE'].'[]';
+		if ($isMainUiFilter)
+		{
+			$inputName = $strHTMLControlName['VALUE'];
+		}
+
 		$strValue = '';
 
 		if (isset($_REQUEST[$strHTMLControlName["VALUE"]]) && (is_array($_REQUEST[$strHTMLControlName["VALUE"]]) || (0 < intval($_REQUEST[$strHTMLControlName["VALUE"]]))))
@@ -552,11 +565,11 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 			"bitrix:main.lookup.input",
 			"iblockedit",
 			array(
-				"INPUT_NAME" => $strHTMLControlName['VALUE'].'[]',
+				"INPUT_NAME" => $inputName,
 				"INPUT_NAME_STRING" => "inp_".$strHTMLControlName['VALUE'],
 				"INPUT_VALUE_STRING" => $strValue,
 				"START_TEXT" => '',
-				"MULTIPLE" => 'Y',
+				"MULTIPLE" => $isMainUiFilter ? 'N' : 'Y', // TODO
 				'MAX_WIDTH' => '200',
 				'MIN_HEIGHT' => '24',
 				"IBLOCK_ID" => $arProperty["LINK_IBLOCK_ID"],
@@ -564,16 +577,26 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 				'BAN_SYM' => $arSymbols['BAN_SYM_STRING'],
 				'REP_SYM' => $arSymbols['REP_SYM_STRING'],
 				'FILTER' => 'Y',
+				'MAIN_UI_FILTER' => ($isMainUiFilter ? 'Y' : 'N'),
 				'TYPE' => 'SECTION',
 			), null, array("HIDE_ICONS" => "Y")
 		);
-		?><input style="float: left; margin-right: 10px;" type="button" value="<? echo Loc::getMessage('BT_UT_SAUTOCOMPLETE_MESS_SEARCH_ELEMENT'); ?>"
+		$inputStyle = 'float: left; margin-right: 10px;';
+		if ($isMainUiFilter)
+		{
+			$inputStyle = 'float: left; margin-right: 4px; margin-top: 7px; margin-left: 10px;';
+		}
+		?><input style="<?=$inputStyle?>" type="button" value="<? echo Loc::getMessage('BT_UT_SAUTOCOMPLETE_MESS_SEARCH_ELEMENT'); ?>"
 			title="<? echo Loc::getMessage('BT_UT_SAUTOCOMPLETE_MESS_SEARCH_ELEMENT_MULTI_DESCR'); ?>"
 			onclick="jsUtils.OpenWindow('/bitrix/admin/iblock_section_search.php?lang=<? echo LANGUAGE_ID; ?>&IBLOCK_ID=<? echo $arProperty["LINK_IBLOCK_ID"]; ?>&m=Y&n=&k=&lookup=<? echo 'jsMLI_'.$control_id; ?><?=($fixIBlock ? '&iblockfix=y' : '').'&tableId='.$windowTableId; ?>', 900, 700);"
 		>
 		<script type="text/javascript">
-		indClearHiddenFields = arClearHiddenFields.length;
-		arClearHiddenFields[indClearHiddenFields] = 'jsMLI_<? echo $control_id; ?>';
+			var arClearHiddenFields = arClearHiddenFields;
+			if (!!arClearHiddenFields)
+			{
+				indClearHiddenFields = arClearHiddenFields.length;
+				arClearHiddenFields[indClearHiddenFields] = 'jsMLI_<? echo $control_id; ?>';
+			}
 		</script><?
 		$strResult = ob_get_contents();
 		ob_end_clean();

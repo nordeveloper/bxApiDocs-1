@@ -1,13 +1,13 @@
 <?php
 namespace Bitrix\Tasks\Kanban;
 
-use \Bitrix\Tasks\Internals\TaskTable as Task;
-use \Bitrix\Tasks\Internals\Task\SortingTable;
-use \Bitrix\Tasks\Internals\Task\FavoriteTable;
-use \Bitrix\Tasks\Internals\Task\ViewedTable;
-use \Bitrix\Tasks\ProjectsTable;
-use \Bitrix\Main\Localization\Loc;
-use \Bitrix\Main\Entity;
+use Bitrix\Main\Entity;
+use Bitrix\Main\Localization\Loc;
+use Bitrix\Tasks\Internals\Task\FavoriteTable;
+use Bitrix\Tasks\Internals\Task\SortingTable;
+use Bitrix\Tasks\Internals\Task\ViewedTable;
+use Bitrix\Tasks\Internals\TaskTable as Task;
+use Bitrix\Tasks\ProjectsTable;
 
 Loc::loadMessages(__FILE__);
 
@@ -479,11 +479,13 @@ class StagesTable extends Entity\DataManager
 		// common
 		$sqlSearch = \CTasks::GetFilter($filter);
 		$filterKeys = \CTasks::GetFilteredKeys($filter);
+
 		// uf fields
 		$userFieldsSql = new \CUserTypeSQL();
 		$userFieldsSql->setEntity('TASKS_TASK', 'T.ID');
 		$userFieldsSql->setFilter($filter);
 		$ufFilterSql = $userFieldsSql->getFilter();
+
 		if ($ufFilterSql != '')
 		{
 			$sqlSearch[] = '(' . $ufFilterSql . ')';
@@ -498,9 +500,15 @@ class StagesTable extends Entity\DataManager
 		// if personal - search in another table
 		if (self::getWorkMode() == self::WORK_MODE_USER)
 		{
-			$sql = 'SELECT STG.STAGE_ID, COUNT(STG.STAGE_ID) AS CNT '
-					. 'FROM ' . TaskStageTable::getTableName() . ' STG '
-					. 'LEFT JOIN ' . Task::getTableName() . ' T ON '
+			$sql = 'SELECT STG.STAGE_ID, COUNT(STG.STAGE_ID) AS CNT '.
+				   'FROM '.
+				   TaskStageTable::getTableName().
+				   ' STG '
+				   .$userFieldsSql->GetJoin("T.ID"). " ".
+				   'LEFT JOIN '.
+				   Task::getTableName().
+				   ' T ON '
+
 					. 'T.ID = STG.TASK_ID'
 					. (in_array('FAVORITE', $filterKeys)
 						?	' LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON ' .
@@ -516,6 +524,7 @@ class StagesTable extends Entity\DataManager
 		{
 			$sql = 'SELECT T.STAGE_ID, COUNT(T.STAGE_ID) AS CNT '
 					. 'FROM ' . Task::getTableName() . ' T '
+				   .$userFieldsSql->GetJoin("T.ID")." "
 					. (in_array('FAVORITE', $filterKeys)
 						?	' LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON ' .
 							' FVT.TASK_ID = T.ID AND FVT.USER_ID = ' . $userId . ' '

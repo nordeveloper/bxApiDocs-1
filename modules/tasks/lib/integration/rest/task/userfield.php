@@ -45,6 +45,13 @@ final class UserField extends \Bitrix\Tasks\Integration\Rest\UserField
 				}
 			}
 		}
+		elseif ($methodName == 'add')
+		{
+			if (count($args) > 1 || !is_array($args[0]))
+			{
+				$args = array($args);
+			}
+		}
 
 		return parent::runRestMethod($executiveUserId, $methodName, $args);
 	}

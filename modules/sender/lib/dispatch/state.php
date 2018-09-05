@@ -7,16 +7,20 @@
  */
 namespace Bitrix\Sender\Dispatch;
 
+use Bitrix\Main\Application;
 use Bitrix\Main\InvalidOperationException;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\Type\Date;
 use Bitrix\Main\Type\DateTime;
 
+use Bitrix\Sender\Posting;
 use Bitrix\Sender\Dispatch;
 use Bitrix\Sender\Entity;
 use Bitrix\Sender\PostingTable;
+use Bitrix\Sender\PostingRecipientTable;
 use Bitrix\Sender\Internals\Model\LetterTable;
+use Bitrix\Sender\Integration;
 
 Loc::loadMessages(__FILE__);
 
@@ -453,6 +457,30 @@ class State
 	}
 
 	/**
+	 * Send errors.
+	 *
+	 * @return bool
+	 * @throws InvalidOperationException
+	 */
+	public function sendErrors()
+	{
+		if (!$this->canSendErrors())
+		{
+			throw new InvalidOperationException('Can not resend error letters.');
+		}
+
+		$postingId = $this->letter->get('POSTING_ID');
+		$updateSql = 'UPDATE ' . PostingRecipientTable::getTableName() .
+			" SET STATUS='" . PostingRecipientTable::SEND_RESULT_NONE . "'" .
+			" WHERE POSTING_ID=" . intval($postingId) .
+			" AND STATUS='" . PostingRecipientTable::SEND_RESULT_ERROR . "'";
+		Application::getConnection()->query($updateSql);
+		Posting\Sender::updateActualStatus($this->letter->get('POSTING_ID'));
+
+		return $this->updateStatus(LetterTable::STATUS_SEND, self::SENDING);
+	}
+
+	/**
 	 * Pause.
 	 *
 	 * @return bool
@@ -578,6 +606,37 @@ class State
 		}
 
 		return $this->canChangeState(self::SENDING);
+	}
+
+	/**
+	 * Check send errors possibility.
+	 *
+	 * @return bool
+	 */
+	public function canSendErrors()
+	{
+		if (Integration\Bitrix24\Service::isCloud())
+		{
+			return false;
+		}
+
+		if ($this->letter->isTrigger() || $this->letter->isReiterate())
+		{
+			return false;
+		}
+
+		if (!$this->letter->isSupportHeatMap() || !$this->letter->get('POSTING_ID'))
+		{
+			return false;
+		}
+
+		if (!$this->isSent())
+		{
+			return false;
+		}
+
+		$postingData = $this->letter->getLastPostingData();
+		return !empty($postingData['COUNT_SEND_ERROR']);
 	}
 
 	/**
