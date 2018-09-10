@@ -31,7 +31,7 @@ abstract class BasketBase extends BasketItemCollection
 	protected $maxItemSort = null;
 
 	/** @var bool $isLoadForFUserId */
-	protected $isLoadForFUserId = false;
+	private $isLoadForFUserId = false;
 
 	/**
 	 * @param $itemCode
@@ -96,13 +96,17 @@ abstract class BasketBase extends BasketItemCollection
 		return $this->getOrder();
 	}
 
+
 	/**
 	 * @throws Main\NotImplementedException
 	 * @return BasketBase
 	 */
-	protected static function createBasketObject()
+	private static function createBasketObject()
 	{
-		throw new Main\NotImplementedException();
+		$registry = Registry::getInstance(static::getRegistryType());
+		$basketClassName = $registry->getBasketClassName();
+
+		return new $basketClassName;
 	}
 
 	/**
@@ -161,12 +165,30 @@ abstract class BasketBase extends BasketItemCollection
 
 	/**
 	 * @param array $requestBasket
-	 * @return BasketBase
+	 * @return Basket|BasketBase
+	 * @throws Main\ArgumentException
 	 * @throws Main\NotImplementedException
+	 * @throws UserMessageException
 	 */
 	public static function createFromRequest(array $requestBasket)
 	{
-		throw new Main\NotImplementedException();
+		if (array_key_exists('SITE_ID', $requestBasket) && strval($requestBasket['SITE_ID']) != '')
+		{
+			throw new UserMessageException('site_id not found');
+		}
+
+		/** @var BasketBase $basket */
+		$basket = static::create($requestBasket['SITE_ID']);
+
+		foreach ($requestBasket as $requestBasketItem)
+		{
+			$basketItem = static::createItemInternal($basket, $requestBasketItem['MODULE'], $requestBasketItem['PRODUCT_ID']);
+			$basketItem->initFields($requestBasketItem);
+
+			$basket->addItem($basketItem);
+		}
+
+		return $basket;
 	}
 
 	/**
@@ -188,10 +210,63 @@ abstract class BasketBase extends BasketItemCollection
 
 	/**
 	 * @param array $filter
-	 * @throws \Exception
 	 * @return BasketBase
 	 */
-	abstract public function loadFromDb(array $filter);
+	public function loadFromDb(array $filter)
+	{
+		$select = array(
+			"ID", "LID", "MODULE", "PRODUCT_ID", "QUANTITY", "WEIGHT",
+			"DELAY", "CAN_BUY", "PRICE", "CUSTOM_PRICE", "BASE_PRICE",
+			'PRODUCT_PRICE_ID', 'PRICE_TYPE_ID', "CURRENCY", 'BARCODE_MULTI',
+			"RESERVED", "RESERVE_QUANTITY",	"NAME", "CATALOG_XML_ID",
+			"VAT_RATE", "NOTES", "DISCOUNT_PRICE","PRODUCT_PROVIDER_CLASS",
+			"CALLBACK_FUNC", "ORDER_CALLBACK_FUNC", "PAY_CALLBACK_FUNC",
+			"CANCEL_CALLBACK_FUNC", "DIMENSIONS", "TYPE", "SET_PARENT_ID",
+			"DETAIL_PAGE_URL", "FUSER_ID", 'MEASURE_CODE', 'MEASURE_NAME',
+			'ORDER_ID', 'DATE_INSERT', 'DATE_UPDATE', 'PRODUCT_XML_ID',
+			'SUBSCRIBE', 'RECOMMENDATION', 'VAT_INCLUDED', 'SORT',
+			'DATE_REFRESH', 'DISCOUNT_NAME', 'DISCOUNT_VALUE', 'DISCOUNT_COUPON'
+		);
+
+		$itemList = array();
+		$first = true;
+
+		$res = static::getList(array(
+			"select" => $select,
+			"filter" => $filter,
+			"order" => array('SORT' => 'ASC', 'ID' => 'ASC'),
+		));
+		while ($item = $res->fetch())
+		{
+			if ($first)
+			{
+				$this->setSiteId($item['LID']);
+				$this->setFUserId($item['FUSER_ID']);
+				$first = false;
+			}
+
+			$itemList[$item['ID']] = $item;
+		}
+
+		foreach ($itemList as $id => $item)
+		{
+			if ($item['SET_PARENT_ID'] > 0)
+			{
+				$itemList[$item['SET_PARENT_ID']]['ITEMS'][$id] = &$itemList[$id];
+			}
+		}
+
+		$result = array();
+		foreach ($itemList as $id => $item)
+		{
+			if ($item['SET_PARENT_ID'] == 0)
+				$result[$id] = $item;
+		}
+
+		$this->loadFromArray($result);
+
+		return $this;
+	}
 
 	/**
 	 * Attach to the essence of the object of the order basket
@@ -378,7 +453,11 @@ abstract class BasketBase extends BasketItemCollection
 				/** @var OrderBase $order */
 				if ($order = $this->getOrder())
 				{
-					EntityMarker::addMarker($order, $basketItem, $r);
+					$registry = Registry::getInstance(static::getRegistryType());
+
+					/** @var EntityMarker $entityMarker */
+					$entityMarker = $registry->getEntityMarkerClassName();
+					$entityMarker::addMarker($order, $basketItem, $r);
 					$order->setField('MARKED', 'Y');
 				}
 			}
@@ -408,17 +487,74 @@ abstract class BasketBase extends BasketItemCollection
 	/**
 	 * @return array
 	 */
-	abstract protected function getOriginalItemsValues();
+	private function getOriginalItemsValues()
+	{
+		$result = array();
+
+		/** @var Order $order */
+		$order = $this->getOrder();
+		$isNew = $order && $order->isNew();
+
+		$filter = array();
+		if (!$isNew && $order && $order->getId() > 0)
+		{
+			$filter['ORDER_ID'] = $order->getId();
+		}
+		else
+		{
+			if ($this->isLoadForFUserId)
+			{
+				$filter = array(
+					'FUSER_ID' => $this->getFUserId(),
+					'ORDER_ID' => null,
+					'LID' => $this->getSiteId()
+				);
+			}
+
+			if ($isNew)
+			{
+				$fUserId = $this->getFUserId(true);
+				if ($fUserId <= 0)
+				{
+					$userId = $order->getUserId();
+					if (intval($userId) > 0)
+					{
+						$fUserId = Fuser::getIdByUserId($userId);
+						if ($fUserId > 0)
+							$this->setFUserId($fUserId);
+					}
+				}
+			}
+		}
+
+		if ($filter)
+		{
+			$dbRes = static::getList(
+				array(
+					"select" => array("ID", 'TYPE', 'SET_PARENT_ID', 'PRODUCT_ID', 'NAME', 'QUANTITY', 'FUSER_ID', 'ORDER_ID'),
+					"filter" => $filter,
+				)
+			);
+
+			while ($item = $dbRes->fetch())
+			{
+				if ((int)$item['SET_PARENT_ID'] > 0 && (int)$item['SET_PARENT_ID'] != $item['ID'])
+				{
+					continue;
+				}
+
+				$result[$item["ID"]] = $item;
+			}
+		}
+
+		return $result;
+	}
 
 	/**
 	 * @param array $itemValues
+	 * @return Result
 	 */
 	abstract protected function deleteInternal(array $itemValues);
-
-	/**
-	 * @return string
-	 */
-	abstract protected function getItemEventName();
 
 	/**
 	 * Save basket
@@ -431,104 +567,22 @@ abstract class BasketBase extends BasketItemCollection
 
 		/** @var OrderBase $order */
 		$order = $this->getOrder();
-		$orderId = ($order) ? $order->getId() : 0;
-
 		if (!$order)
 		{
-			/** @var Main\Entity\Event $event */
-			$event = new Main\Event('sale', EventActions::EVENT_ON_BASKET_BEFORE_SAVED, array(
-				'ENTITY' => $this
-			));
-			$event->send();
-
-			if ($event->getResults())
+			$r = $this->callEventOnSaleBasketBeforeSaved();
+			if (!$r->isSuccess())
 			{
-				/** @var Main\EventResult $eventResult */
-				foreach($event->getResults() as $eventResult)
-				{
-					if($eventResult->getType() == Main\EventResult::ERROR)
-					{
-						$errorMsg = new ResultError(Main\Localization\Loc::getMessage('SALE_EVENT_ON_BEFORE_BASKET_SAVED'), 'SALE_EVENT_ON_BEFORE_BASKET_SAVED');
-						if ($eventResultData = $eventResult->getParameters())
-						{
-							if (isset($eventResultData) && $eventResultData instanceof ResultError)
-							{
-								/** @var ResultError $errorMsg */
-								$errorMsg = $eventResultData;
-							}
-						}
-
-						$result->addError($errorMsg);
-					}
-				}
-
-				if (!$result->isSuccess())
-				{
-					return $result;
-				}
+				return $r;
 			}
 		}
 
 		$originalItemsValues = $this->getOriginalItemsValues();
 
-		$changeMeaningfulFields = array(
-			"PRODUCT_ID",
-			"QUANTITY",
-			"PRICE",
-			"DISCOUNT_VALUE",
-			"VAT_RATE",
-			"NAME",
-		);
-
 		/** @var BasketItemBase $basketItem */
 		foreach ($this->collection as $basketItem)
 		{
-			$isNew = (bool)($basketItem->getId() <= 0);
-			$isChanged = $basketItem->isChanged();
-
-			$logFields = array();
-			if ($orderId > 0 && $isChanged)
-			{
-				$itemValues = $basketItem->getFields();
-				$originalValues = $itemValues->getOriginalValues();
-
-				foreach($originalValues as $originalFieldName => $originalFieldValue)
-				{
-					if (in_array($originalFieldName, $changeMeaningfulFields) && $basketItem->getField($originalFieldName) != $originalFieldValue)
-					{
-						$logFields[$originalFieldName] = $basketItem->getField($originalFieldName);
-						$logFields['OLD_'.$originalFieldName] = $originalFieldValue;
-					}
-				}
-			}
-
 			$r = $basketItem->save();
-			if ($r->isSuccess())
-			{
-				if ($orderId > 0 && $isChanged)
-				{
-					OrderHistory::addLog(
-						'BASKET',
-						$orderId,
-						$isNew ? "BASKET_ITEM_ADD" : "BASKET_ITEM_UPDATE",
-						$basketItem->getId(),
-						$basketItem,
-						$logFields,
-						OrderHistory::SALE_ORDER_HISTORY_LOG_LEVEL_1
-					);
-
-					OrderHistory::addAction(
-						'BASKET',
-						$orderId,
-						"BASKET_SAVED",
-						$basketItem->getId(),
-						$basketItem,
-						array(),
-						OrderHistory::SALE_ORDER_HISTORY_ACTION_LOG_LEVEL_1
-					);
-				}
-			}
-			else
+			if (!$r->isSuccess())
 			{
 				$result->addErrors($r->getErrors());
 			}
@@ -539,93 +593,135 @@ abstract class BasketBase extends BasketItemCollection
 
 		if ($originalItemsValues)
 		{
-			$itemEventName = $this->getItemEventName();
-
 			foreach ($originalItemsValues as $id => $itemValues)
 			{
-				/** @var Main\Event $event */
-				$event = new Main\Event('sale', "OnBefore".$itemEventName."Deleted", array('VALUES' => $itemValues));
-				$event->send();
+				$this->callEventOnBeforeSaleBasketItemDeleted($itemValues);
 
 				$this->deleteInternal($itemValues);
 
-				if ($orderId > 0)
-				{
-					OrderHistory::addLog(
-						'BASKET',
-						$orderId,
-						'BASKET_ITEM_DELETED',
-						$itemValues['ID'],
-						null,
-						array(
-							"PRODUCT_ID" => $itemValues["PRODUCT_ID"],
-							"NAME" => $itemValues["NAME"],
-							"QUANTITY" => $itemValues["QUANTITY"],
-						),
-						OrderHistory::SALE_ORDER_HISTORY_LOG_LEVEL_1
-					);
-				}
-
-				/** @var Main\Event $event */
-				$event = new Main\Event('sale', "On".$itemEventName."Deleted", array('VALUES' => $itemValues));
-				$event->send();
-
-				if ($orderId > 0)
-				{
-					OrderHistory::addAction(
-						'BASKET',
-						$orderId,
-						'BASKET_REMOVED',
-						$id ,
-						null,
-						array(
-							'NAME' => $itemValues['NAME'],
-							'QUANTITY' => $itemValues['QUANTITY'],
-							'PRODUCT_ID' => $itemValues['PRODUCT_ID'],
-						)
-					);
-
-					EntityMarker::deleteByFilter(array(
-						'=ORDER_ID' => $orderId,
-						'=ENTITY_TYPE' => EntityMarker::ENTITY_TYPE_BASKET_ITEM,
-						'=ENTITY_ID' => $id,
-					));
-				}
+				$this->callEventOnSaleBasketItemDeleted($itemValues);
 			}
-		}
-
-		if ($orderId > 0)
-		{
-			OrderHistory::collectEntityFields('BASKET', $orderId);
 		}
 
 		if (!$order)
 		{
-			/** @var Main\Entity\Event $event */
-			$event = new Main\Event('sale', EventActions::EVENT_ON_BASKET_SAVED, array(
-				'ENTITY' => $this
-			));
-			$event->send();
-
-			if ($event->getResults())
+			$r = $this->callEventOnSaleBasketSaved();
+			if (!$r->isSuccess())
 			{
-				/** @var Main\EventResult $eventResult */
-				foreach($event->getResults() as $eventResult)
-				{
-					if($eventResult->getType() == Main\EventResult::ERROR)
-					{
-						$errorMsg = new ResultError(Main\Localization\Loc::getMessage('SALE_EVENT_ON_BASKET_SAVED'), 'SALE_EVENT_ON_BASKET_SAVED');
-						if ($eventResultData = $eventResult->getParameters())
-						{
-							if (isset($eventResultData) && $eventResultData instanceof ResultError)
-							{
-								/** @var ResultError $errorMsg */
-								$errorMsg = $eventResultData;
-							}
-						}
+				$result->addErrors($r->getErrors());
+			}
+		}
 
-						$result->addError($errorMsg);
+		return $result;
+	}
+
+	/**
+	 * @param $itemValues
+	 * @return void
+	 */
+	private function callEventOnBeforeSaleBasketItemDeleted($itemValues)
+	{
+		$itemEventName = $this->getItemEventName();
+
+		$itemValues['ENTITY_REGISTRY_TYPE'] = static::getRegistryType();
+
+		/** @var Main\Event $event */
+		$event = new Main\Event('sale', "OnBefore".$itemEventName."Deleted", array('VALUES' => $itemValues));
+		$event->send();
+	}
+
+	/**
+	 * @param $itemValues
+	 * @return void
+	 */
+	protected function callEventOnSaleBasketItemDeleted($itemValues)
+	{
+		$itemEventName = $this->getItemEventName();
+
+		$itemValues['ENTITY_REGISTRY_TYPE'] = static::getRegistryType();
+
+		/** @var Main\Event $event */
+		$event = new Main\Event('sale', "On".$itemEventName."Deleted", array('VALUES' => $itemValues));
+		$event->send();
+	}
+
+	/**
+	 * @return Result
+	 */
+	protected function callEventOnSaleBasketBeforeSaved()
+	{
+		$result = new Result();
+
+		/** @var Main\Entity\Event $event */
+		$event = new Main\Event(
+			'sale',
+			EventActions::EVENT_ON_BASKET_BEFORE_SAVED,
+			array('ENTITY' => $this)
+		);
+		$event->send();
+
+		if ($event->getResults())
+		{
+			/** @var Main\EventResult $eventResult */
+			foreach ($event->getResults() as $eventResult)
+			{
+				if ($eventResult->getType() == Main\EventResult::ERROR)
+				{
+					$errorMsg = new ResultError(
+						Main\Localization\Loc::getMessage('SALE_EVENT_ON_BEFORE_BASKET_SAVED'),
+						'SALE_EVENT_ON_BEFORE_BASKET_SAVED'
+					);
+					if ($eventResultData = $eventResult->getParameters())
+					{
+						if (isset($eventResultData) && $eventResultData instanceof ResultError)
+						{
+							/** @var ResultError $errorMsg */
+							$errorMsg = $eventResultData;
+						}
 					}
+
+					$result->addError($errorMsg);
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @return Result
+	 */
+	protected function callEventOnSaleBasketSaved()
+	{
+		$result = new Result();
+
+		/** @var Main\Entity\Event $event */
+		$event = new Main\Event('sale', EventActions::EVENT_ON_BASKET_SAVED, array(
+			'ENTITY' => $this
+		));
+		$event->send();
+
+		if ($event->getResults())
+		{
+			/** @var Main\EventResult $eventResult */
+			foreach($event->getResults() as $eventResult)
+			{
+				if($eventResult->getType() == Main\EventResult::ERROR)
+				{
+					$errorMsg = new ResultError(
+						Main\Localization\Loc::getMessage('SALE_EVENT_ON_BASKET_SAVED'),
+							'SALE_EVENT_ON_BASKET_SAVED'
+					);
+					if ($eventResultData = $eventResult->getParameters())
+					{
+						if (isset($eventResultData) && $eventResultData instanceof ResultError)
+						{
+							/** @var ResultError $errorMsg */
+							$errorMsg = $eventResultData;
+						}
+					}
+
+					$result->addError($errorMsg);
 				}
 			}
 		}
@@ -895,7 +991,18 @@ abstract class BasketBase extends BasketItemCollection
 	}
 
 	/**
-	 * Apply the result of the discount to the basket.
+	 * @param $idOrder
+	 * @throws Main\NotImplementedException
+	 * @return Result
+	 */
+	public static function deleteNoDemand($idOrder)
+	{
+		throw new Main\NotImplementedException();
+	}
+
+	/**
+	 * Apply the result of the discounts to the basket.
+	 * @internal
 	 *
 	 * @param array $basketRows		Changed fields for basket rows.
 	 * @return Result
@@ -944,5 +1051,30 @@ abstract class BasketBase extends BasketItemCollection
 		unset($fields, $basketCode, $basketItem);
 
 		return $result;
+	}
+
+	/**
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 */
+	public function getContext()
+	{
+		$context = array();
+
+		$order = $this->getOrder();
+		/** @var OrderBase $order */
+		if ($order)
+		{
+			$context['USER_ID'] = $order->getUserId();
+			$context['SITE_ID'] = $order->getSiteId();
+			$context['CURRENCY'] = $order->getCurrency();
+		}
+		else
+		{
+			$context = parent::getContext();
+		}
+
+		return $context;
 	}
 }

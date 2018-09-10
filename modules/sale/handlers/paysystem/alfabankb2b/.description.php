@@ -3,13 +3,14 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true)
 	die();
 
 use \Bitrix\Main\Localization\Loc;
+use \Bitrix\Sale\PaySystem;
 
 Loc::loadMessages(__FILE__);
 
 $data = array(
 	'NAME' => Loc::getMessage('SALE_HPS_ALFABANK_TITLE'),
 	'SORT' => 100,
-	'DOMAIN' => 'CLOUD',
+	'DOMAIN' => PaySystem\Manager::HANDLER_DOMAIN_NONE,
 	'CODES' => array(
 		"ALFABANK_EXTERNAL_SYSTEM_CODE" => array(
 			"NAME" => Loc::getMessage("SALE_HPS_ALFABANK_EXT_SYSTEM_CODE"),

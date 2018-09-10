@@ -592,20 +592,27 @@ class CMobileHelper
 		{
 			return 'img.png';
 		}
-		$icons = array(
+		$icons = [
 			'pdf' => 'pdf.png',
+			'jpg' => 'img.png',
 			'doc' => 'doc.png',
 			'docx' => 'doc.png',
 			'ppt' => 'ppt.png',
 			'pptx' => 'ppt.png',
 			'rar' => 'rar.png',
 			'xls' => 'xls.png',
+			'csv' => 'xls.png',
 			'xlsx' => 'xls.png',
 			'zip' => 'zip.png',
-		);
+			'txt' => 'txt.png',
+			'avi' => 'movie.png',
+			'mov' => 'movie.png',
+			'mpeg' => 'movie.png',
+			'mp4' => 'movie.png',
+		];
 		$ext = strtolower(getFileExtension($name));
 
-		return isset($icons[$ext]) ? $icons[$ext] : 'blank.png';
+		return isset($icons[strtolower($ext)]) ? $icons[$ext] : 'blank.png';
 	}
 
 	public static function getDeviceResizeWidth()

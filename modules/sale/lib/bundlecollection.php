@@ -56,7 +56,8 @@ class BundleCollection extends BasketItemCollection
 
 	/**
 	 * @param array $parameters
-	 * @return \Bitrix\Main\DB\Result
+	 * @return Main\DB\Result
+	 * @throws Main\ArgumentException
 	 */
 	public static function getList(array $parameters)
 	{
@@ -65,10 +66,11 @@ class BundleCollection extends BasketItemCollection
 
 	/**
 	 * @return BundleCollection
+	 * @throws Main\ArgumentException
 	 */
 	public static function createBundleCollectionObject()
 	{
-		$registry = Registry::getInstance(Registry::REGISTRY_TYPE_ORDER);
+		$registry = Registry::getInstance(static::getRegistryType());
 		$bundleCollectionClassName = $registry->getBundleCollectionClassName();
 
 		return new $bundleCollectionClassName();
@@ -76,8 +78,10 @@ class BundleCollection extends BasketItemCollection
 
 	/**
 	 * @param array $filter
-	 *
 	 * @return BundleCollection
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\NotImplementedException
 	 */
 	public function loadFromDb(array $filter)
 	{
@@ -108,9 +112,17 @@ class BundleCollection extends BasketItemCollection
 
 	/**
 	 * @internal
-	 * @param \SplObjectStorage $cloneEntity
 	 *
-	 * @return EntityCollection
+	 * @param \SplObjectStorage|null $cloneEntity
+	 * @return BundleCollection|EntityCollection
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectNotFoundException
+	 * @throws \Exception
 	 */
 	public function createClone(\SplObjectStorage $cloneEntity = null)
 	{
@@ -161,11 +173,9 @@ class BundleCollection extends BasketItemCollection
 	/**
 	 * @return string
 	 */
-	protected function getBasketItemCollectionElementClassName()
+	public static function getRegistryType()
 	{
-		$registry  = Registry::getInstance(Registry::REGISTRY_TYPE_ORDER);
-
-		return $registry->getBasketItemClassName();
+		return Registry::REGISTRY_TYPE_ORDER;
 	}
 
 	/**
@@ -173,9 +183,9 @@ class BundleCollection extends BasketItemCollection
 	 * @param null $name
 	 * @param null $oldValue
 	 * @param null $value
-	 *
 	 * @return Result
 	 * @throws Main\ArgumentTypeException
+	 * @throws Main\NotImplementedException
 	 * @throws Main\ObjectNotFoundException
 	 */
 	public function onItemModify(Internals\CollectableEntity $item, $name = null, $oldValue = null, $value = null)

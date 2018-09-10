@@ -156,7 +156,7 @@ if($_SERVER["REQUEST_METHOD"]=="POST" && strlen($_POST["action"])>0 && check_bit
 
 			$pdfContent = '';
 
-			$dbOrder = CSaleOrder::GetList(
+			$dbOrder = Bitrix\Crm\Invoice\Compatible\Invoice::getList(
 				array("ID"=>"DESC"),
 				array("ID" => $invoice_id),
 				false,
@@ -189,10 +189,13 @@ if($_SERVER["REQUEST_METHOD"]=="POST" && strlen($_POST["action"])>0 && check_bit
 						'MC_REQUISITE' => is_array($paymentData['MC_REQUISITE']) ? $paymentData['MC_REQUISITE'] : null,
 						'MC_BANK_DETAIL' => is_array($paymentData['MC_BANK_DETAIL']) ? $paymentData['MC_BANK_DETAIL'] : null,
 						'CRM_MYCOMPANY' => is_array($paymentData['CRM_MYCOMPANY']) ? $paymentData['CRM_MYCOMPANY'] : null
-					)
+					),
+					array(),
+					array(),
+					REGISTRY_TYPE_CRM_INVOICE
 				);
 
-				$order = \Bitrix\Sale\Order::load($invoice_id);
+				$order = Bitrix\Crm\Invoice\Invoice::load($invoice_id);
 				if ($order)
 				{
 					$collection = $order->getPaymentCollection();

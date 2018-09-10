@@ -3,11 +3,15 @@
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\Discount;
+use Bitrix\Crm\Integration\DocumentGenerator\Value\Money;
 use Bitrix\DocumentGenerator\DataProvider\HashDataProvider;
+use Bitrix\DocumentGenerator\DataProviderManager;
+use Bitrix\DocumentGenerator\Value;
 
 class Product extends HashDataProvider
 {
-	protected $propertyIDs = [];
+	protected $properties;
+	protected $propertyIDs;
 	protected $propertiesLoaded = false;
 
 	public function __construct($data, array $options = [])
@@ -56,128 +60,288 @@ class Product extends HashDataProvider
 	 */
 	public function getFields()
 	{
-		$fields = [
-			'NAME' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_NAME_TITLE'),],
-			'PRODUCT_ID' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_ID_TITLE'),],
-			'SORT' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_SORT_TITLE'),],
-			'PRICE' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_TITLE'),
-			],
-			'QUANTITY' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_QUANTITY_TITLE'),],
-			'PRICE_EXCLUSIVE' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_EXCLUSIVE_TITLE'),],
-			'PRICE_EXCLUSIVE_SUM' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_EXCLUSIVE_SUM_TITLE'),
-				'VALUE' => function()
-				{
-					return $this->data['PRICE_EXCLUSIVE'] * $this->data['QUANTITY'];
-				}
-			],
-			'PRICE_NETTO' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_NETTO_TITLE'),],
-			'PRICE_NETTO_SUM' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_NETTO_SUM_TITLE'),
-				'VALUE' => function()
-				{
-					return $this->data['PRICE_NETTO'] * $this->data['QUANTITY'];
-				}
-			],
-			'PRICE_BRUTTO' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_BRUTTO_TITLE'),],
-			'PRICE_BRUTTO_SUM' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_BRUTTO_SUM_TITLE'),
-				'VALUE' => function()
-				{
-					return $this->data['PRICE_BRUTTO'] * $this->data['QUANTITY'];
-				}
-			],
-			'DISCOUNT_RATE' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DISCOUNT_RATE_TITLE'),],
-			'DISCOUNT_SUM' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DISCOUNT_SUM_TITLE'),],
-			'DISCOUNT_TOTAL' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DISCOUNT_TOTAL_TITLE'),
-				'VALUE' => function()
-				{
-					return $this->data['DISCOUNT_SUM'] * $this->data['QUANTITY'];
-				}
-			],
-			'TAX_RATE' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_RATE_TITLE'),],
-			'TAX_INCLUDED' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_INCLUDED_TITLE'),],
-			'MEASURE_CODE' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_MEASURE_CODE_TITLE'),],
-			'MEASURE_NAME' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_MEASURE_NAME_TITLE'),],
-			'PRICE_SUM' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_SUM_TITLE'),
-				'VALUE' => function()
-				{
-					return $this->getValue('PRICE', false) * $this->data['QUANTITY'];
-				}
-			],
-			'TAX_VALUE' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_VALUE_TITLE'),
-				'VALUE' => function()
-				{
-					if($this->data['TAX_RATE'] > 0)
-					{
-						return $this->data['PRICE'] - $this->getVatlessPrice();
-					}
+		if($this->fields === null)
+		{
+			$currencyId = null;
+			if(isset($this->source['CURRENCY_ID']))
+			{
+				$currencyId = $this->source['CURRENCY_ID'];
+			}
+			$this->fields = [
+				'NAME' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_NAME_TITLE'),],
+				'DESCRIPTION' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DESCRIPTION_TITLE'),],
+				'SECTION' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_SECTION_TITLE'),],
+				'PREVIEW_PICTURE' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PREVIEW_PICTURE_TITLE'),
+					'TYPE' => static::FIELD_TYPE_IMAGE,
+				],
+				'DETAIL_PICTURE' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DETAIL_PICTURE_TITLE'),
+					'TYPE' => static::FIELD_TYPE_IMAGE,
+				],
+				'PRODUCT_ID' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_ID_TITLE'),],
+				'SORT' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_SORT_TITLE'),],
+				'PRICE' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_TITLE'),
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'QUANTITY' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_QUANTITY_TITLE'),],
+				'PRICE_EXCLUSIVE' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_EXCLUSIVE_TITLE'),
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_EXCLUSIVE_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_EXCLUSIVE_SUM_TITLE'),
+					'VALUE' => [$this, 'getSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_NETTO' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_NETTO_TITLE'),
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_NETTO_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_NETTO_SUM_TITLE'),
+					'VALUE' => [$this, 'getSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_BRUTTO' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_BRUTTO_TITLE'),
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_BRUTTO_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_BRUTTO_SUM_TITLE'),
+					'VALUE' => [$this, 'getSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'DISCOUNT_RATE' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DISCOUNT_RATE_TITLE'),],
+				'DISCOUNT_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DISCOUNT_SUM_TITLE'),
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'DISCOUNT_TOTAL' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DISCOUNT_TOTAL_TITLE'),
+					'VALUE' => [$this, 'getSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'TAX_RATE' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_RATE_TITLE'),],
+				'TAX_INCLUDED' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_INCLUDED_TITLE'),],
+				'MEASURE_CODE' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_MEASURE_CODE_TITLE'),],
+				'MEASURE_NAME' => ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_MEASURE_NAME_TITLE'),],
+				'PRICE_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_SUM_TITLE'),
+					'VALUE' => [$this, 'getPriceSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'TAX_VALUE' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_VALUE_TITLE'),
+					'VALUE' => [$this, 'getTaxValue'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'TAX_VALUE_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_VALUE_SUM_TITLE'),
+					'VALUE' => [$this, 'getTaxValueSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_RAW' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_TITLE'),
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_RAW_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_SUM_TITLE'),
+					'VALUE' => [$this, 'getSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_RAW_NETTO' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_NETTO_TITLE'),
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'PRICE_RAW_NETTO_SUM' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_NETTO_SUM_TITLE'),
+					'VALUE' => [$this, 'getSum'],
+					'TYPE' => Money::class,
+					'FORMAT' => ['CURRENCY_ID' => $currencyId, 'NO_SIGN' => true, 'WITH_ZEROS' => false],
+				],
+				'CUSTOMIZED' => [],
+				'DISCOUNT_TYPE_ID' => [],
+				'CURRENCY_ID' => [],
+				'DISCOUNT_TYPE' => [
+					'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_DISCOUNT_TYPE_TITLE'),
+					'VALUE' => [$this, 'getDiscountType'],
+				],
+			];
 
-					return 0;
-				}
-			],
-			'TAX_VALUE_SUM' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_TAX_VALUE_SUM_TITLE'),
-				'VALUE' => function()
-				{
-					if($this->data['TAX_RATE'] > 0)
-					{
-						if($this->data['TAX_INCLUDED'] == 'Y')
-						{
-							return $this->getValue('PRICE_RAW_SUM', false) - $this->getValue('PRICE_RAW_SUM', false) / (1 + $this->data['TAX_RATE']/100);
-						}
-						else
-						{
-							return $this->getValue('PRICE_SUM', false) - $this->getValue('PRICE_EXCLUSIVE_SUM', false);
-						}
-					}
+			$this->fields = array_merge($this->fields, $this->getProperties());
+		}
 
-					return 0;
-				}
-			],
-			'PRICE_RAW' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_TITLE'),
-			],
-			'PRICE_RAW_SUM' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_SUM_TITLE'),
-				'VALUE' => function()
-				{
-					return $this->data['PRICE_RAW'] * $this->data['QUANTITY'];
-				}
-			],
-			'PRICE_RAW_NETTO' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_NETTO_TITLE'),
-			],
-			'PRICE_RAW_NETTO_SUM' => [
-				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PRODUCT_PRICE_RAW_NETTO_SUM_TITLE'),
-				'VALUE' => function()
-				{
-					return $this->getValue('PRICE_RAW_NETTO') * $this->data['QUANTITY'];
-				}
-			],
-			'CUSTOMIZED' => [],
-			'DISCOUNT_TYPE_ID' => [],
-		];
+		return $this->fields;
+	}
 
-		$fields = array_merge($fields, $this->loadProperties());
+	/**
+	 * @return array
+	 */
+	protected function getMoneyFields()
+	{
+		static $fields = null;
+		if($fields === null)
+		{
+			$fields = [
+				'PRICE' => 'PRICE',
+				'PRICE_EXCLUSIVE' => 'PRICE_EXCLUSIVE',
+				'PRICE_EXCLUSIVE_SUM' => 'PRICE_EXCLUSIVE_SUM',
+				'PRICE_NETTO' => 'PRICE_NETTO',
+				'PRICE_NETTO_SUM' => 'PRICE_NETTO_SUM',
+				'PRICE_BRUTTO' => 'PRICE_BRUTTO',
+				'PRICE_BRUTTO_SUM' => 'PRICE_BRUTTO_SUM',
+				'DISCOUNT_SUM' => 'DISCOUNT_SUM',
+				'DISCOUNT_TOTAL' => 'DISCOUNT_TOTAL',
+				'PRICE_SUM' => 'PRICE_SUM',
+				'PRICE_RAW' => 'PRICE_RAW',
+				'PRICE_RAW_SUM' => 'PRICE_RAW_SUM',
+				'PRICE_RAW_NETTO' => 'PRICE_RAW_NETTO',
+				'PRICE_RAW_NETTO_SUM' => 'PRICE_RAW_NETTO_SUM',
+			];
+		}
 
 		return $fields;
 	}
 
-	public function getValue($name, $round = true)
+	/**
+	 * @param string $placeholder
+	 * @return float
+	 */
+	public function getSum($placeholder)
 	{
-		$value = parent::getValue($name);
-
-		if(is_double($value) && $round)
+		if($placeholder == 'DISCOUNT_TOTAL')
 		{
-			$value = $this->round($value);
+			$placeholder = 'DISCOUNT_SUM';
+		}
+		else
+		{
+			$placeholder = str_replace('_SUM', '', $placeholder);
+		}
+		$value = $this->data[$placeholder];
+		if($value instanceof Value)
+		{
+			$value = $value->getValue();
+		}
+
+		return $value * $this->data['QUANTITY'];
+	}
+
+	/**
+	 * @return float
+	 */
+	public function getPriceSum()
+	{
+		return $this->getRawValue('PRICE') * $this->data['QUANTITY'];
+	}
+
+	/**
+	 * @return float
+	 */
+	public function getTaxValue()
+	{
+		$value = 0;
+		if($this->data['TAX_RATE'] > 0)
+		{
+			$value = $this->data['PRICE'] - $this->getVatlessPrice();
 		}
 
 		return $value;
+	}
+
+	/**
+	 * @return Money
+	 */
+	public function getTaxValueSum()
+	{
+		$value = 0;
+
+		if($this->data['TAX_RATE'] > 0)
+		{
+			if($this->data['TAX_INCLUDED'] == 'Y')
+			{
+				$value = $this->getRawValue('PRICE_RAW_SUM') - $this->getRawValue('PRICE_RAW_SUM') / (1 + $this->data['TAX_RATE']/100);
+			}
+			else
+			{
+				$value = $this->getRawValue('PRICE_SUM') - $this->getRawValue('PRICE_EXCLUSIVE_SUM');
+			}
+		}
+
+		return $value;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getDiscountType()
+	{
+		if($this->data['DISCOUNT_TYPE_ID'] == Discount::PERCENTAGE)
+		{
+			return '%';
+		}
+		else
+		{
+			return Money::getCurrencySymbol($this->data['CURRENCY_ID'], DataProviderManager::getInstance()->getRegionLanguageId());
+		}
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getProperties()
+	{
+		if($this->properties === null)
+		{
+			$this->properties = [];
+			$propertyTypes = $this->getPrintablePropertyTypes();
+
+			$catalogId = \CCrmCatalog::GetDefaultID();
+			if(!$catalogId)
+			{
+				return $this->properties;
+			}
+
+			foreach($this->loadProperties() as $property)
+			{
+				if(!isset($propertyTypes[$property['PROPERTY_TYPE']]))
+				{
+					continue;
+				}
+				$this->propertyIDs[] = $property['ID'];
+				$code = $property['ID'];
+				$this->properties['PROPERTY_'.$code] = [
+					'TITLE' => $property['NAME'],
+					'VALUE' => [$this, 'getPropertyValue'],
+				];
+				if($property['CODE'])
+				{
+					$code = $property['CODE'];
+					$this->properties['PROPERTY_'.$code] = [
+						'TITLE' => $property['NAME'],
+						'VALUE' => [$this, 'getPropertyValue'],
+					];
+				}
+			}
+		}
+
+		return $this->properties;
 	}
 
 	/**
@@ -185,55 +349,41 @@ class Product extends HashDataProvider
 	 */
 	protected function loadProperties()
 	{
-		$properties = [];
-
-		$catalogId = \CCrmCatalog::GetDefaultID();
-		if(!$catalogId)
+		static $properties = null;
+		if($properties === null)
 		{
-			return $properties;
-		}
+			$properties = [];
 
-		$propertyTypes = $this->getPrintablePropertyTypes();
-		$query = \CIBlock::GetProperties($catalogId, ['SORT' => 'ASC'], ['ACTIVE' => 'Y']);
-		while($property = $query->Fetch())
-		{
-			if(!isset($propertyTypes[$property['PROPERTY_TYPE']]))
+			$catalogId = \CCrmCatalog::GetDefaultID();
+			if(!$catalogId)
 			{
-				continue;
+				return $properties;
 			}
-			$this->propertyIDs[] = $property['ID'];
-			$code = $property['ID'];
-			$properties['PROPERTY_'.$code] = [
-				'TITLE' => $property['NAME'],
-				'VALUE' => function() use ($property, $code)
-				{
-					$this->loadPropertyValues();
-					return $this->data['PROPERTY_'.$code];
-				}
-			];
-			if($property['CODE'])
+
+			$propertyTypes = $this->getPrintablePropertyTypes();
+			$query = \CIBlock::GetProperties($catalogId, ['SORT' => 'ASC'], ['ACTIVE' => 'Y']);
+			while($property = $query->Fetch())
 			{
-				$code = $property['CODE'];
-				$properties['PROPERTY_'.$code] = [
-					'TITLE' => $property['NAME'],
-					'VALUE' => function() use ($property, $code)
-					{
-						$this->loadPropertyValues();
-						return $this->data['PROPERTY_'.$code];
-					}
-				];
+				if(!isset($propertyTypes[$property['PROPERTY_TYPE']]))
+				{
+					continue;
+				}
+				$properties[] = $property;
 			}
 		}
 
 		return $properties;
 	}
 
+	/**
+	 * Fills data with property values.
+	 */
 	protected function loadPropertyValues()
 	{
 		if($this->propertiesLoaded === false)
 		{
 			$this->propertiesLoaded = true;
-			if(!$this->data['ID'])
+			if(!$this->data['PRODUCT_ID'])
 			{
 				return;
 			}
@@ -242,10 +392,9 @@ class Product extends HashDataProvider
 			{
 				return;
 			}
-			$this->propertyIDs = array_unique($this->propertyIDs);
 			$propertyResult = \CIBlockElement::GetProperty(
 				$catalogId,
-				$this->data['ID'],
+				$this->data['PRODUCT_ID'],
 				array(
 					'sort' => 'asc',
 					'id' => 'asc',
@@ -270,6 +419,10 @@ class Product extends HashDataProvider
 				{
 					$this->data['PROPERTY_'.$code] = '';
 				}
+				if($property['PROPERTY_TYPE'] === 'F')
+				{
+					$property['VALUE'] = \CFile::GetPath($property['VALUE']);
+				}
 				$this->data['PROPERTY_'.$code] .= $property['VALUE'];
 				if($property['CODE'])
 				{
@@ -289,13 +442,26 @@ class Product extends HashDataProvider
 	}
 
 	/**
+	 * @param string $code
+	 * @return mixed
+	 */
+	public function getPropertyValue($code)
+	{
+		$this->loadPropertyValues();
+		return $this->data[$code];
+	}
+
+	/**
 	 * @return array
 	 */
 	protected function getPrintablePropertyTypes()
 	{
-		return ['S' => 'S', 'N' => 'N'];
+		return ['S' => 'S', 'N' => 'N', 'F' => 'F'];
 	}
 
+	/**
+	 * @return float|int
+	 */
 	public function getVatlessPrice()
 	{
 		if($this->data['TAX_INCLUDED'] == 'Y')
@@ -308,8 +474,16 @@ class Product extends HashDataProvider
 		}
 	}
 
-	protected function round($value, $precision = 2)
+	/**
+	 * @param float $value
+	 * @return Money
+	 */
+	protected function toMoney($value)
 	{
-		return round($value, $precision);
+		if($value instanceof Money)
+		{
+			return $value;
+		}
+		return new Money($value, ['CURRENCY_ID' => $this->data['CURRENCY_ID'], 'NO_SIGN' => true, 'WITH_ZEROS' => false]);
 	}
 }

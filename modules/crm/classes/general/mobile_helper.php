@@ -1712,7 +1712,12 @@ class CCrmMobileHelper
 
 	public static function getCompanyFilterFields()
 	{
-		$companyTypeList = CCrmStatus::GetStatusList('COMPANY_TYPE');
+		$companyTypeList = array("" => GetMessage("M_CRM_NOT_SELECTED"));
+		$companyTypeList2 = CCrmStatus::GetStatusList('COMPANY_TYPE');
+		foreach ($companyTypeList2 as $key => $val)
+		{
+			$companyTypeList[$key] = $val;
+		}
 		$industryList = CCrmStatus::GetStatusList('INDUSTRY');
 
 		$filterFields = array(
@@ -1726,7 +1731,7 @@ class CCrmMobileHelper
 				"type" => "select",
 				"id" => "COMPANY_TYPE",
 				"name" => GetMessage('CRM_COLUMN_COMPANY_COMPANY_TYPE'),
-				"items" => array_merge(array("" => GetMessage("M_CRM_NOT_SELECTED")), $companyTypeList),
+				"items" => $companyTypeList,
 				"value" => ""
 			),
 			array(

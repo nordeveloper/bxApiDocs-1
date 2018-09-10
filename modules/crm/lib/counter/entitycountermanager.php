@@ -174,6 +174,12 @@ class EntityCounterManager
 			\CUserCounter::DeleteByCode($code);
 		}
 
+		$codes = self::prepareCodes(\CCrmOwnerType::Order, array(EntityCounterType::IDLE, EntityCounterType::ALL));
+		foreach($codes as $code)
+		{
+			\CUserCounter::DeleteByCode($code);
+		}
+
 		$categoryIDs = \Bitrix\Crm\Category\DealCategory::getAllIDs();
 		foreach($categoryIDs as $categoryID)
 		{

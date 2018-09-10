@@ -11,32 +11,13 @@ class Invoice extends ProductsDataProvider implements Nameable
 	protected $order;
 	protected $payment;
 	protected $basket;
-	protected $linkData;
 
-	public function getFields()
+	/**
+	 * @return int|string
+	 */
+	public function getAssignedId()
 	{
-		$fields = parent::getFields();
-		$fields['CURRENCY_ID']['VALUE'] = function()
-		{
-			if(!$this->data['CURRENCY'])
-			{
-				$this->data['CURRENCY'] = \CCrmCurrency::GetBaseCurrencyID();
-			}
-			return $this->data['CURRENCY'];
-		};
-		$fields['CURRENCY_NAME'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_INVOICE_CURRENCY_NAME_TITLE'),
-			'VALUE' => function()
-			{
-				return \CCrmCurrency::GetCurrencyName($this->getValue('CURRENCY'));
-			}
-		];
-		$fields['ASSIGNED']['VALUE'] = function()
-		{
-			return $this->data['RESPONSIBLE_ID'];
-		};
-
-		return $fields;
+		return $this->data['RESPONSIBLE_ID'];
 	}
 
 	/**
@@ -110,48 +91,45 @@ class Invoice extends ProductsDataProvider implements Nameable
 		return \CCrmInvoice::ResolvePersonTypeID($this->getValue('UF_MYCOMPANY_ID'), $this->getValue('UF_CONTACT_ID'));
 	}
 
-	protected function getCurrencyId()
+	public function getCurrencyId()
 	{
-		return $this->getValue('CURRENCY');
+		return $this->data['CURRENCY'];
 	}
 
-	protected function loadProducts()
+	/**
+	 * @return array
+	 */
+	protected function loadProductsData()
 	{
-		if(!empty($this->data))
+		$result = [];
+		$productRows = \CCrmInvoice::GetProductRows($this->source);
+		foreach($productRows as $product)
 		{
-			if($this->products === null)
-			{
-				$products = [];
-				$productRows = \CCrmInvoice::GetProductRows($this->source);
-				foreach($productRows as $product)
-				{
-					$products[] = new Product([
-						'OWNER_ID' => $this->source,
-						'OWNER_TYPE' => $this->getCrmProductOwnerType(),
-						'PRODUCT_ID' => isset($product['PRODUCT_ID']) ? $product['PRODUCT_ID'] : 0,
-						'NAME' => isset($product['PRODUCT_NAME']) ? $product['PRODUCT_NAME'] : '',
-						'PRICE' => $product['PRICE'],
-						'QUANTITY' => isset($product['QUANTITY']) ? $product['QUANTITY'] : 0,
-						'DISCOUNT_TYPE_ID' => Discount::MONETARY,
-						'DISCOUNT_SUM' => $product['DISCOUNT_PRICE'],
-						'TAX_RATE' => $product['VAT_RATE'] * 100,
-						'TAX_INCLUDED' => isset($product['VAT_INCLUDED']) ? $product['VAT_INCLUDED'] : 'N',
-						'MEASURE_CODE' => isset($product['MEASURE_CODE']) ? $product['MEASURE_CODE'] : '',
-						'MEASURE_NAME' => isset($product['MEASURE_NAME']) ? $product['MEASURE_NAME'] : '',
-						'CUSTOMIZED' => isset($product['CUSTOM_PRICE']) ? $product['CUSTOM_PRICE'] : 'N',
-					]);
-				}
-				$this->products = $products;
-			}
+			$result[] = [
+				'OWNER_ID' => $this->source,
+				'OWNER_TYPE' => $this->getCrmProductOwnerType(),
+				'PRODUCT_ID' => isset($product['PRODUCT_ID']) ? $product['PRODUCT_ID'] : 0,
+				'NAME' => isset($product['PRODUCT_NAME']) ? $product['PRODUCT_NAME'] : '',
+				'PRICE' => $product['PRICE'],
+				'QUANTITY' => isset($product['QUANTITY']) ? $product['QUANTITY'] : 0,
+				'DISCOUNT_TYPE_ID' => Discount::MONETARY,
+				'DISCOUNT_SUM' => $product['DISCOUNT_PRICE'],
+				'TAX_RATE' => $product['VAT_RATE'] * 100,
+				'TAX_INCLUDED' => isset($product['VAT_INCLUDED']) ? $product['VAT_INCLUDED'] : 'N',
+				'MEASURE_CODE' => isset($product['MEASURE_CODE']) ? $product['MEASURE_CODE'] : '',
+				'MEASURE_NAME' => isset($product['MEASURE_NAME']) ? $product['MEASURE_NAME'] : '',
+				'CUSTOMIZED' => isset($product['CUSTOM_PRICE']) ? $product['CUSTOM_PRICE'] : 'N',
+				'CURRENCY_ID' => $this->getCurrencyId(),
+			];
 		}
 
-		return $this->products;
+		return $result;
 	}
 
 	/**
 	 * @return int|array
 	 */
-	protected function getMyCompanyId()
+	public function getMyCompanyId()
 	{
 		if(isset($this->data['UF_MYCOMPANY_ID']) && $this->data['UF_MYCOMPANY_ID'] > 0)
 		{
@@ -164,7 +142,7 @@ class Invoice extends ProductsDataProvider implements Nameable
 	/**
 	 * @return int|null
 	 */
-	protected function getCompanyId()
+	public function getCompanyId()
 	{
 		if(isset($this->data['UF_COMPANY_ID']) && $this->data['UF_COMPANY_ID'] > 0)
 		{
@@ -177,7 +155,7 @@ class Invoice extends ProductsDataProvider implements Nameable
 	/**
 	 * @return int|null
 	 */
-	protected function getContactId()
+	public function getContactId()
 	{
 		if(isset($this->data['UF_CONTACT_ID']) && $this->data['UF_CONTACT_ID'] > 0)
 		{
@@ -193,5 +171,21 @@ class Invoice extends ProductsDataProvider implements Nameable
 	protected function getUserFieldEntityID()
 	{
 		return \CCrmInvoice::GetUserFieldEntityID();
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getGetListParameters()
+	{
+		return array_merge_recursive(parent::getGetListParameters(), [
+			'select' => [
+				'UF_CONTACT_ID',
+				'UF_COMPANY_ID',
+				'UF_MYCOMPANY_ID',
+				'UF_DEAL_ID',
+				'UF_QUOTE_ID',
+			],
+		]);
 	}
 }

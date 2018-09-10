@@ -354,17 +354,26 @@ function yandex_get_value($arOffer, $param, $PROPERTY, $arProperties, $arUserTyp
 		{
 			if (is_array($description))
 			{
-				foreach ($value as $key => $val)
+				if (!empty($value))
 				{
-					$strProperty .= $strProperty ? "\n" : "";
-					$strProperty .= '<param name="'.yandex_text2xml($description[$key], true).'">'.
-						yandex_text2xml($val, true).'</param>';
+					foreach ($value as $key => $val)
+					{
+						if ($val != '')
+						{
+							$strProperty .= $strProperty ? "\n" : "";
+							$strProperty .= '<param name="'.yandex_text2xml($description[$key], true).'">'.
+								yandex_text2xml($val, true).'</param>';
+						}
+					}
 				}
 			}
 			else
 			{
-				$strProperty .= '<param name="'.yandex_text2xml($iblockProperty['NAME'], true).'">'.
-					yandex_text2xml($value, true).'</param>';
+				if ($value != '')
+				{
+					$strProperty .= '<param name="'.yandex_text2xml($iblockProperty['NAME'], true).'">'.
+						yandex_text2xml($value, true).'</param>';
+				}
 			}
 		}
 		else
@@ -814,20 +823,46 @@ if (!empty($XML_DATA['PRICE']))
 	$XML_DATA['PRICE'] = (int)$XML_DATA['PRICE'];
 	if ($XML_DATA['PRICE'] > 0)
 	{
-		$rsCatalogGroups = CCatalogGroup::GetGroupsList(array('CATALOG_GROUP_ID' => $XML_DATA['PRICE'],'GROUP_ID' => 2));
-		if (!($arCatalogGroup = $rsCatalogGroups->Fetch()))
-		{
+		$priceIterator = Catalog\GroupAccessTable::getList([
+			'select' => ['CATALOG_GROUP_ID'],
+			'filter' => ['=CATALOG_GROUP_ID' => $XML_DATA['PRICE'], '=GROUP_ID' => 2]
+		]);
+		$priceType = $priceIterator->fetch();
+		if (empty($priceType))
 			$arRunErrors[] = GetMessage('YANDEX_ERR_BAD_PRICE_TYPE');
-		}
 		else
-		{
 			$selectedPriceType = $XML_DATA['PRICE'];
-		}
-		unset($arCatalogGroup, $rsCatalogGroups);
+		unset($priceType, $priceIterator);
 	}
 	else
 	{
 		$arRunErrors[] = GetMessage('YANDEX_ERR_BAD_PRICE_TYPE');
+	}
+}
+$priceTypeList = [];
+if (empty($arRunErrors))
+{
+	if ($selectedPriceType > 0)
+	{
+		$priceTypeList = [$selectedPriceType];
+	}
+	else
+	{
+		$priceTypeList = [];
+		$priceIterator = Catalog\GroupAccessTable::getList([
+			'select' => ['CATALOG_GROUP_ID'],
+			'filter' => ['=GROUP_ID' => 2],
+			'order' => ['CATALOG_GROUP_ID' => 'ASC']
+		]);
+		while ($priceType = $priceIterator->fetch())
+		{
+			$priceTypeId = (int)$priceType['CATALOG_GROUP_ID'];
+			$priceTypeList[$priceTypeId] = $priceTypeId;
+			unset($priceTypeId);
+		}
+		unset($priceType, $priceIterator);
+		if (empty($priceTypeList))
+			$arRunErrors[] = GetMessage('BX_CATALOG_EXPORT_YANDEX_ERR_NO_AVAILABLE_PRICE_TYPES');
 	}
 }
 
@@ -1137,27 +1172,6 @@ if (empty($arRunErrors))
 	}
 	Catalog\Product\Price\Calculation::setConfig($calculationConfig);
 	unset($calculationConfig);
-
-	if ($selectedPriceType > 0)
-	{
-		$priceTypeList = array($selectedPriceType);
-	}
-	else
-	{
-		$priceTypeList = array();
-		$priceIterator = Catalog\GroupAccessTable::getList(array(
-			'select' => array('CATALOG_GROUP_ID'),
-			'filter' => array('=GROUP_ID' => 2),
-			'order' => array('CATALOG_GROUP_ID' => 'ASC')
-		));
-		while ($priceType = $priceIterator->fetch())
-		{
-			$priceTypeId = (int)$priceType['CATALOG_GROUP_ID'];
-			$priceTypeList[$priceTypeId] = $priceTypeId;
-			unset($priceTypeId);
-		}
-		unset($priceType, $priceIterator);
-	}
 
 	$needDiscountCache = \CIBlockPriceTools::SetCatalogDiscountCache($priceTypeList, array(2), $site['LID']);
 

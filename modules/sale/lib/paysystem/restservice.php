@@ -12,7 +12,9 @@ use Bitrix\Sale\BusinessValue;
 use Bitrix\Sale\Internals;
 use Bitrix\Sale\Order;
 use Bitrix\Sale\Payment;
+use Bitrix\Sale\Registry;
 use Bitrix\Sale\Services\PaySystem\Restrictions;
+use Bitrix\Crm\Invoice;
 
 Loader::includeModule('rest');
 
@@ -35,6 +37,7 @@ class RestService extends \IRestService
 	const ERROR_INVOICE_NOT_FOUND = 'ERROR_INVOICE_NOT_FOUND';
 	const ERROR_INTERNAL_INVOICE_NOT_FOUND = 'ERROR_INTERNAL_INVOICE_NOT_FOUND';
 	const ERROR_PROCESS_REQUEST_RESULT = 'ERROR_PROCESS_REQUEST_RESULT';
+	const ERROR_PAY_INVOICE_NOT_SUPPORTED = 'ERROR_INVOICE_NO_SUPPORTED';
 
 	/**
 	 * @return array
@@ -86,6 +89,19 @@ class RestService extends \IRestService
 			'HAVE_PAYMENT' => 'N',
 			'HAVE_RESULT_RECEIVE' => 'Y'
 		);
+
+		if (IsModuleInstalled('crm'))
+		{
+			if ($params['ENTITY_REGISTRY_TYPE'] === REGISTRY_TYPE_CRM_INVOICE)
+			{
+				$fields['ENTITY_REGISTRY_TYPE'] = REGISTRY_TYPE_CRM_INVOICE;
+			}
+		}
+
+		if (!isset($fields['ENTITY_REGISTRY_TYPE']))
+		{
+			$fields['ENTITY_REGISTRY_TYPE'] = Registry::REGISTRY_TYPE_ORDER;
+		}
 
 		$result = Manager::add($fields);
 		if ($result->isSuccess())
@@ -395,6 +411,11 @@ class RestService extends \IRestService
 	 */
 	public static function payInvoice(array $params)
 	{
+		if (!Loader::includeModule('crm'))
+		{
+			throw new RestException('Pay invoice is not supported!', self::ERROR_PAY_INVOICE_NOT_SUPPORTED);
+		}
+		
 		static::checkOrderPermission();
 
 		$params = static::prepareParams($params);
@@ -404,7 +425,7 @@ class RestService extends \IRestService
 			throw new RestException('Invoice #'.$params['INVOICE_ID'].' not found!', self::ERROR_INVOICE_NOT_FOUND);
 		}
 
-		$dbRes = Payment::getList(array(
+		$dbRes = Invoice\Payment::getList(array(
 			'select' => array('ID'),
 			'filter' => array(
 				'ORDER_ID' => $params['INVOICE_ID'],

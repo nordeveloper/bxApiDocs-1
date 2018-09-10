@@ -106,6 +106,14 @@ if($MOD_RIGHT>='R'):
 		array('path_to_activity_custom_type_list', GetMessage('CRM_OPTIONS_PATH_TO_ACTIVITY_CUSTOM_TYPE_LIST'), '/crm/configs/custom_activity/', Array('text', '40')),
 		array('path_to_start', GetMessage('CRM_OPTIONS_PATH_TO_START'), '/crm/start/', Array('text', '40')),
 		array('path_to_perm_list', GetMessage('CRM_OPTIONS_PATH_TO_PERM_LIST'), '/crm/configs/perms/', Array('text', '40')),
+		array('path_to_order_list', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_LIST'), '/shop/orders/', Array('text', '40')),
+		array('path_to_order_details', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_DETAILS'), '/shop/orders/details/#order_id#/', Array('text', '40')),
+		array('path_to_order_check_details', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_CHECK_DETAILS'), '/shop/orders/check/details/#check_id#/', Array('text', '40')),
+		array('path_to_order_shipment_list', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_SHIPMENT_LIST'), '/shop/orders/shipment/list/', Array('text', '40')),
+		array('path_to_order_shipment_details', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_SHIPMENT_DETAILS'), '/shop/orders/shipment/details/#shipment_id#/', Array('text', '40')),
+		array('path_to_order_payment_list', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_PAYMENT_LIST'), '/shop/orders/payment/list/', Array('text', '40')),
+		array('path_to_order_payment_details', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_PAYMENT_DETAILS'), '/shop/orders/payment/details/#payment_id#/', Array('text', '40')),
+		array('path_to_order_form', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_FORM'), '/shop/orderform/', Array('text', '40')),
 	);
 
 	$arAllOptions = array_merge($arOptionsPath, $arOptionsBase);

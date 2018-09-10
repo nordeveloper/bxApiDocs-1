@@ -41,13 +41,13 @@ class DocumentBase
 		);
 	}
 
-    /**
-     * @return int
-     */
-    public function getOwnerEntityTypeId()
-    {
-        return Exchange\EntityType::UNDEFINED;
-    }
+	/**
+	 * @return int
+	 */
+	public function getTypeId()
+	{
+		return DocumentType::UNDEFINED;
+	}
 
 	/**
 	 * @param array $values

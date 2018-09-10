@@ -103,9 +103,14 @@ function __showPopup($element_id, $items)
 {
 	echo
 		'<script type="text/javascript">
-			top.BX.ready(function(){
-				top.BX.bind(top.BX("'.$element_id.'"), "click", function() {
-					top.BX.adminShowMenu(this, '.CAdminPopup::PhpToJavaScript($items).');
+			var currentWindow = top.window;
+			if (top.BX.SidePanel.Instance && top.BX.SidePanel.Instance.getTopSlider())
+			{
+				currentWindow = top.BX.SidePanel.Instance.getTopSlider().getWindow();
+			}
+			currentWindow.BX.ready(function(){
+				currentWindow.BX.bind(currentWindow.BX("'.$element_id.'"), "click", function() {
+					currentWindow.BX.adminShowMenu(this, '.CAdminPopup::PhpToJavaScript($items).');
 				});
 			});
 		</script>';
@@ -544,12 +549,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$bReadOnly && check_bitrix_sessid()
 		{
 			?>
 			<script type="text/javascript">
-				top.BX.closeWait();
-				if (!!top.BX.WindowManager.Get())
+				var currentWindow = top.window;
+				if (top.BX.SidePanel.Instance && top.BX.SidePanel.Instance.getTopSlider())
 				{
-					top.BX.WindowManager.Get().AllowClose(); top.BX.WindowManager.Get().Close();
-					if (!!top.ReloadSubList)
-						top.ReloadSubList();
+					currentWindow = top.BX.SidePanel.Instance.getTopSlider().getWindow();
+				}
+				currentWindow.BX.closeWait();
+				if (!!currentWindow.BX.WindowManager.Get())
+				{
+					currentWindow.BX.WindowManager.Get().AllowClose();
+					currentWindow.BX.WindowManager.Get().Close();
+					if (!!currentWindow.ReloadSubList)
+						currentWindow.ReloadSubList();
 				}
 			</script>
 			<?

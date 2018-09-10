@@ -2,12 +2,24 @@
 namespace Bitrix\Sale\Exchange;
 
 
+use Bitrix\Sale\Exchange\Entity\SubordinateSale\EntityImportFactory;
 use Bitrix\Sale\Exchange\OneC\DocumentBase;
 use Bitrix\Sale\Exchange\OneC\SubordinateSale\ConverterFactory;
+use Bitrix\Sale\Exchange\OneC\SubordinateSale\CriterionShipment;
 use Bitrix\Sale\Exchange\OneC\SubordinateSale\DocumentFactory;
+use Bitrix\Sale\Exchange\OneC\SubordinateSale\ShipmentDocument;
+use Bitrix\Sale\Order;
+use Bitrix\Sale\Shipment;
 
 final class ImportOneCSubordinateSale extends ImportOneCPackage
 {
+	public static function configuration()
+	{
+		ManagerImport::registerInstance(static::getShipmentEntityTypeId(), OneC\ImportSettings::getCurrent(), new OneC\CollisionShipment(), new CriterionShipment());
+
+		parent::configuration();
+	}
+
 	protected function convert(array $documents)
 	{
 		$documentOrder = $this->getDocumentByTypeId(EntityType::ORDER, $documents);
@@ -23,7 +35,7 @@ final class ImportOneCSubordinateSale extends ImportOneCPackage
 				{
 					$typeId = $this->resolveSubordinateDocumentTypeId($subordinateDocumentFields);
 
-					if($typeId == EntityType::SHIPMENT)
+					if($typeId == static::getShipmentEntityTypeId())
 					{
 						$subordinateDocumentItems = array();
 						$itemsSubordinate = $this->getProductsItems($subordinateDocumentFields);
@@ -64,6 +76,71 @@ final class ImportOneCSubordinateSale extends ImportOneCPackage
 				}
 				$documentOrder->setField('SUBORDINATES', '');
 			}
+
+			//region Presset - генерируем фэйковую отгрузку
+			/*
+			 * генерируем фэйковую отгрузку, если выполнены условия
+			 * 1 обмен с новым модулем от 1С,
+			 * 2 отгрузки не переданы в подчиненных документах
+			 * 3 все отгрузки по заказу в БУС в статусе не отгружено
+			 * 4 и от 1С в табличной части заказа передана ORDER_DELIVERY
+			 * */
+			if(!$this->hasDocumentByTypeId(static::getShipmentEntityTypeId(), $documents))
+			{
+				if($this->deliveryServiceExists($itemsOrder))
+				{
+					//$deliveryItem
+					$entityOrder = $this->convertDocument($documentOrder);
+					if($entityOrder->getFieldValues()['TRAITS']['ID']>0)
+					{
+						self::load($entityOrder, ['ID'=>$entityOrder->getFieldValues()['TRAITS']['ID']]);
+						/** @var Order $order */
+						$order = $entityOrder->getEntity();
+						if(!$order->isShipped())
+						{
+							$shipmentList = [];
+							$shipmentIsShipped = false;
+							/** @var Shipment $shipment */
+							foreach ($order->getShipmentCollection() as $shipment)
+							{
+								if($shipment->isShipped())
+								{
+									$shipmentIsShipped = true;
+									break;
+								}
+
+								if(!$shipment->isSystem())
+								{
+									$shipmentList[] = $shipment->getFieldValues();
+								}
+							}
+
+							if(!$shipmentIsShipped)
+							{
+								if(count($shipmentList)>0)
+								{
+									//системная и реальная отгрузка
+									$externalId = current($shipmentList)['ID_1C'];
+									$shipmentFields['ID_1C'] = strlen($externalId)<=0? $documentOrder->getField('ID_1C'):$externalId;
+									$shipmentFields['ID'] = current($shipmentList)['ID'];
+								}
+								else
+								{
+									//только системная отгрузка
+									$shipmentFields['ID_1C'] = $documentOrder->getField('ID_1C');
+								}
+								// колличество и вся табличная часть всегда береться из заказа т.к. все отгрузки вводятся в 1С и на сайте вообще не может измениться что-то в отгрузке. (требования 1С)
+								$shipmentFields['ITEMS'] = $itemsOrder;
+
+								$documentShipment = new ShipmentDocument();
+								$documentShipment->setFields($shipmentFields);
+								$documents[] = $documentShipment;
+							}
+						}
+					}
+				}
+			}
+			//endregion
 		}
 		return parent::convert($documents);
 	}
@@ -117,5 +194,14 @@ final class ImportOneCSubordinateSale extends ImportOneCPackage
 	protected function documentFactoryCreate($typeId)
 	{
 		return DocumentFactory::create($typeId);
+	}
+
+	/**
+	 * @param $typeId
+	 * @return ImportBase
+	 */
+	protected function entityFactoryCreate($typeId)
+	{
+		return EntityImportFactory::create($typeId);
 	}
 }

@@ -10,7 +10,9 @@ use Bitrix\Main\Localization\Loc;
 use Bitrix\Sale\Exchange\Entity\EntityImport;
 use Bitrix\Sale\Exchange\Entity\ShipmentImport;
 use Bitrix\Sale\Exchange\Entity\UserProfileImport;
+use Bitrix\Sale\Exchange\OneC\ConverterFactory;
 use Bitrix\Sale\Exchange\OneC\DocumentBase;
+use Bitrix\Sale\Exchange\OneC\DocumentType;
 use Bitrix\Sale\Internals\Fields;
 use Bitrix\Sale\Result;
 
@@ -107,11 +109,9 @@ abstract class ImportOneCBase extends ImportPattern
 
 		$fieldsCriterion = $fields = &$params['TRAITS'];
 
-		$converter = OneC\Converter::getInstance($item->getOwnerTypeId());
-		$converter->loadSettings($item->getSettings());
+		$converter = ConverterFactory::create($item->getOwnerTypeId());
+		$converter::sanitizeFields($item->getEntity(), $fields, $item->getSettings());
 
-		/** @var OneC\Converter $converter*/
-		$converter->sanitizeFields($item->getEntity(), $fields);
 		$item->refreshData($fields);
 
 		$criterion = $item->getCurrentCriterion($item->getEntity());
@@ -169,13 +169,19 @@ abstract class ImportOneCBase extends ImportPattern
 	 */
 	protected function convertDocument(DocumentBase $document)
 	{
-		$settings = ManagerImport::getSettingsByType($document->getOwnerEntityTypeId());
+		$entityTypeId = $this->resolveOwnerEntityTypeId($document->getTypeId());
+		$settings = ManagerImport::getSettingsByType($entityTypeId);
 
-		$convertor = $this->converterFactoryCreate($document->getOwnerEntityTypeId());
-		$convertor->loadSettings($settings);
+		$convertor = $this->converterFactoryCreate($document->getTypeId());
+		$convertor->init(
+			$settings,
+			$entityTypeId,
+			$document->getTypeId()
+		);
+
 		$fields = $convertor->resolveParams($document);
 
-		$loader = Entity\EntityImportLoaderFactory::create($document->getOwnerEntityTypeId());
+		$loader = Entity\EntityImportLoaderFactory::create($entityTypeId);
 		$loader->loadSettings($settings);
 
 		if(strlen($document->getId())>0)
@@ -186,11 +192,15 @@ abstract class ImportOneCBase extends ImportPattern
 		if(!empty($fieldsEntity['ID']))
 			$fields['TRAITS']['ID'] = $fieldsEntity['ID'];
 
-		$entityImport = ManagerImport::create($document->getOwnerEntityTypeId());
+		$entityImport = $this->entityFactoryCreate($entityTypeId);
+		ManagerImport::configure($entityImport);
+
 		$entityImport->setFields($fields);
 
 		return $entityImport;
 	}
+
+	abstract protected function resolveOwnerEntityTypeId($typeId);
 
 	/**
 	 * @param array $fields

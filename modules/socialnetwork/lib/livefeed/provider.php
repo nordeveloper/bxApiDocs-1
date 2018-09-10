@@ -31,6 +31,8 @@ abstract class Provider
 	const DATA_ENTITY_TYPE_PHOTOGALLERY_PHOTO = 'PHOTO_PHOTO';
 	const DATA_ENTITY_TYPE_LISTS_ITEM = 'LISTS_NEW_ELEMENT';
 	const DATA_ENTITY_TYPE_WIKI = 'WIKI';
+	const DATA_ENTITY_TYPE_TIMEMAN_ENTRY = 'TIMEMAN_ENTRY';
+	const DATA_ENTITY_TYPE_TIMEMAN_REPORT = 'TIMEMAN_REPORT';
 
 	const PERMISSION_DENY = 'D';
 	const PERMISSION_READ = 'I';
@@ -144,6 +146,12 @@ abstract class Provider
 			case self::DATA_ENTITY_TYPE_WIKI:
 				$provider = new \Bitrix\Socialnetwork\Livefeed\Wiki();
 				break;
+			case self::DATA_ENTITY_TYPE_TIMEMAN_ENTRY:
+				$provider = new \Bitrix\Socialnetwork\Livefeed\TimemanEntry();
+				break;
+			case self::DATA_ENTITY_TYPE_TIMEMAN_REPORT:
+				$provider = new \Bitrix\Socialnetwork\Livefeed\TimemanReport();
+				break;
 			default:
 				$provider = false;
 		}
@@ -203,12 +211,22 @@ abstract class Provider
 			{
 				if ($this->getType() == Provider::TYPE_POST)
 				{
+					$filter = array(
+						'EVENT_ID' => $eventId
+					);
+
+					if ($this->getId() == LogEvent::PROVIDER_ID)
+					{
+						$filter['=ID'] = $this->entityId;
+					}
+					else
+					{
+						$filter['=SOURCE_ID'] = $this->entityId;
+					}
+
 					$res = \CSocNetLog::getList(
 						array(),
-						array(
-							'SOURCE_ID' => $this->entityId,
-							'EVENT_ID' => $eventId
-						),
+						$filter,
 						false,
 						array('nTopCount' => 1),
 						array('ID')
@@ -704,6 +722,14 @@ abstract class Provider
 					break;
 				case "calendar":
 					$contentEntityType = self::DATA_ENTITY_TYPE_CALENDAR_EVENT;
+					$contentEntityId = intval($event["SOURCE_ID"]);
+					break;
+				case "timeman_entry":
+					$contentEntityType = self::DATA_ENTITY_TYPE_TIMEMAN_ENTRY;
+					$contentEntityId = intval($event["SOURCE_ID"]);
+					break;
+				case "report":
+					$contentEntityType = self::DATA_ENTITY_TYPE_TIMEMAN_REPORT;
 					$contentEntityId = intval($event["SOURCE_ID"]);
 					break;
 				default:

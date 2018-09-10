@@ -95,7 +95,7 @@ class UserContentView
 		$contentId = (!empty($params['contentId']) ? $params['contentId'] : false);
 		$pageNum = (!empty($params['page']) ? intval($params['page']) : 1);
 		$pathToUserProfile = (!empty($params['pathToUserProfile']) ? $params['pathToUserProfile'] : '');
-		$pageSize = 7;
+		$pageSize = 10;
 
 		if (
 			!$contentId
@@ -252,11 +252,9 @@ class UserContentView
 			}
 			else
 			{
-				$userList = array();
+				$result['items'] = array();
 			}
 		}
-
-		$result['items'] = array_values($userList);
 
 		return $result;
 	}

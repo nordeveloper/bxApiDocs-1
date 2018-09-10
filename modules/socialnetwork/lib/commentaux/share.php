@@ -128,6 +128,10 @@ final class Share extends Base
 									$currentUserExtranet
 									&& $entityType == 'U'
 									&& !in_array($entityId, $availableUsersList)
+									&& (
+										!isset($params['mention'])
+										|| !$params['mention']
+									)
 								)
 								{
 									$hiddenEntity = true;

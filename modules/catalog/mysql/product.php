@@ -586,50 +586,27 @@ AND CAT_VAT.ACTIVE='Y'
 	 */
 	public static function GetVATDataByIDList(array $list)
 	{
-		$output = array();
-		foreach ($list as $index => $id)
-		{
-			$output[$id] = false;
-			$id = (int)$id;
-			if ($id <= 0)
-			{
-				unset($list[$index]);
-				continue;
-			}
-
-			if (!empty(static::$vatCache[$id]))
-			{
-				$output[$id] = static::$vatCache[$id];
-				unset($list[$index]);
-			}
-		}
-
-		if (!empty($list))
-		{
-			$vatDataList = static::loadVatInfoFromDB($list);
-		}
-
-		if (!empty($vatDataList) && is_array($vatDataList))
-		{
-			$output = $output + $vatDataList;
-		}
-
-		return $output;
+		$output = [];
+		if (empty($list))
+			return $output;
+		Main\Type\Collection::normalizeArrayValuesByInt($list, true);
+		if (empty($list))
+			return $output;
+		return self::loadVatInfoFromDB($list);
 	}
 
 	/**
-	 * @param $id
+	 * @param int $id
 	 *
-	 * @return bool|mixed
+	 * @return false|array
 	 */
 	public static function GetVATDataByID($id)
 	{
-		if (array_key_exists($id, static::$vatCache))
-		{
-			return static::$vatCache[$id];
-		}
-		$dataList = static::loadVatInfoFromDB(array($id));
-		return (!empty($dataList[$id]) ? $dataList[$id] : false);
+		$id = (int)$id;
+		if ($id <= 0)
+			return false;
+		$result = self::loadVatInfoFromDB([$id]);
+		return (isset($result[$id]) ? $result[$id] : false);
 	}
 
 	/**
@@ -639,48 +616,51 @@ AND CAT_VAT.ACTIVE='Y'
 	 */
 	private static function loadVatInfoFromDB(array $list)
 	{
-		global $DB;
-		$output = array();
-		foreach ($list as $index => $id)
+		$result = array_fill_keys($list, false);
+		$ids = [];
+		foreach ($list as $id)
 		{
-			$output[$id] = false;
-			$id = (int)$id;
-			if ($id <= 0)
+			if (isset(static::$vatCache[$id]))
 			{
-				unset($list[$index]);
-				continue;
-			}
-
-			if (!empty(static::$vatCache[$id]))
-			{
-				$output[$id] = static::$vatCache[$id];
-				unset($list[$index]);
+				$result[$id] = static::$vatCache[$id];
 			}
 			else
 			{
+				$ids[] = $id;
 				static::$vatCache[$id] = false;
 			}
 		}
-
-		if (!empty($list))
+		if (!empty($ids))
 		{
-			$query = "
-	SELECT CAT_PR.ID as PRODUCT_ID, CAT_VAT.*, CAT_PR.VAT_INCLUDED
-	FROM b_catalog_product CAT_PR
-	LEFT JOIN b_iblock_element BE ON (BE.ID = CAT_PR.ID)
-	LEFT JOIN b_catalog_iblock CAT_IB ON ((CAT_PR.VAT_ID IS NULL OR CAT_PR.VAT_ID = 0) AND CAT_IB.IBLOCK_ID = BE.IBLOCK_ID)
-	LEFT JOIN b_catalog_vat CAT_VAT ON (CAT_VAT.ID = IF((CAT_PR.VAT_ID IS NULL OR CAT_PR.VAT_ID = 0), CAT_IB.VAT_ID, CAT_PR.VAT_ID))
-	WHERE CAT_PR.ID IN (".join(', ', $list).")
-	AND CAT_VAT.ACTIVE='Y'
-	";
-			$res = $DB->Query($query);
-			while ($data = $res->Fetch())
+			$conn = Main\Application::getConnection();
+			$iterator = $conn->query(
+				"
+	select CAT_PR.ID as PRODUCT_ID, CAT_VAT.*, CAT_PR.VAT_INCLUDED
+	from b_catalog_product CAT_PR
+	left join b_iblock_element BE on (BE.ID = CAT_PR.ID)
+	left join b_catalog_iblock CAT_IB on ((CAT_PR.VAT_ID is null or CAT_PR.VAT_ID = 0) and CAT_IB.IBLOCK_ID = BE.IBLOCK_ID)
+	left join b_catalog_vat CAT_VAT on (CAT_VAT.ID = IF((CAT_PR.VAT_ID is null or CAT_PR.VAT_ID = 0), CAT_IB.VAT_ID, CAT_PR.VAT_ID))
+	where CAT_PR.ID in (".implode(', ', $ids).")
+	and CAT_VAT.ACTIVE='Y'
+	"
+			);
+			while ($row = $iterator->fetch())
 			{
-				static::$vatCache[$data['PRODUCT_ID']] = $output[$data['PRODUCT_ID']] = $data;
+				$productId = (int)$row['PRODUCT_ID'];
+				if (isset($row['TIMESTAMP_X']) && $row['TIMESTAMP_X'] instanceof Main\Type\DateTime)
+				{
+					/** @noinspection PhpUndefinedMethodInspection */
+					$row['TIMESTAMP_X'] = $row['TIMESTAMP_X']->toString();
+				}
+				static::$vatCache[$productId] = $row;
+				$result[$productId] = $row;
 			}
+			unset($productId, $row, $iterator);
+			unset($conn);
 		}
+		unset($ids);
 
-		return $output;
+		return $result;
 	}
 
 	public static function SetProductType($intID, $intTypeID)

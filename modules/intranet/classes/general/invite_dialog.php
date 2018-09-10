@@ -646,6 +646,93 @@ class CIntranetInviteDialog
 		}
 	}
 
+	public static function inviteIntegrator($SITE_ID, $email, $messageText, &$strError)
+	{
+		CUserOptions::SetOption("bitrix24", "integrator_message_text", $messageText);
+
+		$filter = array(
+			"=EMAIL"=> $email
+		);
+
+		$rsUser = UserTable::getList(array(
+			'filter' => $filter,
+			'select' => array("ID", "CONFIRM_CODE", "EXTERNAL_AUTH_ID", "UF_DEPARTMENT")
+		));
+
+		if  ($arUser = $rsUser->Fetch())
+		{
+			if (empty($arUser["CONFIRM_CODE"]))
+			{
+				$strError = GetMessage("BX24_INVITE_DIALOG_USER_EXIST_ERROR1", array("#EMAIL#" => $email));
+			}
+			else
+			{
+				$userData = array(
+					"EMAIL" => $email,
+					"REINVITE" => true,
+					"ID" => $arUser["ID"],
+					"CONFIRM_CODE" => $arUser["CONFIRM_CODE"],
+					"UF_DEPARTMENT" => $arUser["UF_DEPARTMENT"]
+				);
+
+				self::InviteUser($userData, $messageText, array('checkB24' => false));
+			}
+		}
+		else
+		{
+			$userData = array(
+				"EMAIL" => $email,
+				"REINVITE" => false
+			);
+
+			if (CModule::IncludeModule('iblock'))
+			{
+				$rsIBlock = CIBlock::GetList(array(), array("CODE" => "departments"));
+				$arIBlock = $rsIBlock->Fetch();
+				$iblockID = $arIBlock["ID"];
+
+				$db_up_department = CIBlockSection::GetList(
+					array(),
+					array(
+						"SECTION_ID" => 0,
+						"IBLOCK_ID" => $iblockID
+					)
+				);
+				if ($ar_up_department = $db_up_department->Fetch())
+				{
+					$arFields["UF_DEPARTMENT"] = $ar_up_department['ID'];
+				}
+			}
+
+			$arGroups = self::getAdminGroups($SITE_ID);
+			if (CModule::IncludeModule('bitrix24'))
+			{
+				$integratorGroupId = \CBitrix24::getIntegratorGroupId();
+				$arGroups[] = $integratorGroupId;
+			}
+			//register users
+			$userData["CONFIRM_CODE"] = randString(8);
+			$userData["GROUP_ID"] = $arGroups;
+			$userData["UF_DEPARTMENT"] = $arFields["UF_DEPARTMENT"];
+
+			$ID = self::RegisterUser($userData, $SITE_ID);
+			if(is_array($ID))
+			{
+				$arError = $ID;
+				return false;
+			}
+			else
+			{
+				$arCreatedUserId[] = $ID;
+				$userData['ID'] = $ID;
+
+				self::InviteUser($userData, $messageText, array('checkB24' => false));
+
+				return $ID;
+			}
+		}
+	}
+
 	public static function getUserGroups($SITE_ID, $bExtranetUser = false)
 	{
 		$arGroups = array();
@@ -674,6 +761,24 @@ class CIntranetInviteDialog
 			{
 				$arGroups[] = $arGroup["ID"];
 			}
+		}
+
+		return $arGroups;
+	}
+
+	public static function getAdminGroups($SITE_ID)
+	{
+		$arGroups = array(1);
+		$rsGroups = CGroup::GetList(
+			$o="",
+			$b="",
+			array(
+				"STRING_ID" => "PORTAL_ADMINISTRATION_".$SITE_ID
+			)
+		);
+		while($arGroup = $rsGroups->Fetch())
+		{
+			$arGroups[] = $arGroup["ID"];
 		}
 
 		return $arGroups;

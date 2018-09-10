@@ -291,7 +291,7 @@ class Version1 extends Base
 
 				switch ($rule['ENTITY_TYPE'])
 				{
-					case Internals\OrderRulesTable::ENTITY_TYPE_BASKET:
+					case Internals\OrderRulesTable::ENTITY_TYPE_BASKET_ITEM:
 						$ruleItem['BASKET_ID'] = $rule['ENTITY_ID'];
 						$index = $rule['ENTITY_ID'];
 						if (!isset($orderDiscountLink[$discountId]['RESULT']['BASKET']))
@@ -335,7 +335,7 @@ class Version1 extends Base
 			}
 			else
 			{
-				if ($rule['ENTITY_ID'] <= 0 || $rule['ENTITY_TYPE'] != Internals\OrderRulesTable::ENTITY_TYPE_BASKET)
+				if ($rule['ENTITY_ID'] <= 0 || $rule['ENTITY_TYPE'] != Internals\OrderRulesTable::ENTITY_TYPE_BASKET_ITEM)
 					continue;
 
 				$index = $rule['ENTITY_ID'];
@@ -475,7 +475,7 @@ class Version1 extends Base
 				$resultData['ORDER'][$data['ENTITY_DATA']['DELIVERY']['SHIPMENT_ID']] = $data['ENTITY_DATA']['DELIVERY'];
 			}
 
-			if ($data['ENTITY_TYPE'] == Internals\OrderDiscountDataTable::ENTITY_TYPE_BASKET)
+			if ($data['ENTITY_TYPE'] == Internals\OrderDiscountDataTable::ENTITY_TYPE_BASKET_ITEM)
 			{
 				if (!isset($resultData['DATA']['BASKET']))
 					$resultData['BASKET'] = array();

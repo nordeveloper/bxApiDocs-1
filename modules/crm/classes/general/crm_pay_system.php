@@ -13,7 +13,7 @@ class CCrmPaySystem
 	private static $arActFiles = array();
 	private static $arCrmCompatibleActs = array(
 		'bill', 'billua', 'billen', 'billde', 'billla', 'billkz', 'billby', 'billbr', 'billfr',
-		'paypal', 'yandexinvoice', 'yandex', 'yandexcheckout',/* 'alfabankb2b'*/
+		'paypal', 'yandexinvoice', 'yandex', 'yandexcheckout', 'invoicedocument'
 	);
 	private static $paySystems = null;
 	private static $defBuyerParamsMap = null;
@@ -1395,17 +1395,28 @@ class CCrmPaySystem
 		if(!empty($arPTIDs))
 			return $arPTIDs;
 
+		$siteId = '';
+		$siteIterator = Bitrix\Main\SiteTable::getList(array(
+			'select' => array('LID', 'LANGUAGE_ID'),
+			'filter' => array('=DEF' => 'Y', '=ACTIVE' => 'Y')
+		));
+		if ($defaultSite = $siteIterator->fetch())
+		{
+			$siteId = $defaultSite['LID'];
+		}
+		unset($defaultSite, $siteIterator);
+
 		$dbPersonType = CSalePersonType::GetList(
 				array('SORT' => "ASC", 'NAME' => 'ASC'),
-				array('NAME' => array('CRM_COMPANY', 'CRM_CONTACT'))
+				array('LID' => $siteId, 'CODE' => array('CRM_COMPANY', 'CRM_CONTACT'))
 		);
 
 		while($arPT = $dbPersonType->GetNext())
 		{
-			if($arPT['NAME'] == 'CRM_COMPANY')
+			if($arPT['CODE'] == 'CRM_COMPANY')
 				$arPTIDs['COMPANY'] = $arPT['ID'];
 
-			if($arPT['NAME'] == 'CRM_CONTACT')
+			if($arPT['CODE'] == 'CRM_CONTACT')
 				$arPTIDs['CONTACT'] = $arPT['ID'];
 		}
 
@@ -1430,7 +1441,7 @@ class CCrmPaySystem
 		);
 
 		while($arPT = $dbPersonType->GetNext())
-			$arReturn[$arPT['ID']] = GetMessage($arPT['NAME']."_PT");
+			$arReturn[$arPT['ID']] = GetMessage($arPT['CODE']."_PT");
 
 		return $arReturn;
 	}
@@ -1698,8 +1709,13 @@ class CCrmPaySystem
 				if (preg_match('/quote(_\w+)*$/i'.BX_UTF_PCRE_MODIFIER, $paySystem['~PSA_ACTION_FILE']))
 					continue;
 
-				if ($fullList || preg_match('/bill(\w+)*$/i'.BX_UTF_PCRE_MODIFIER, $paySystem['~PSA_ACTION_FILE']))
+				if ($fullList
+					|| preg_match('/bill(\w+)*$/i'.BX_UTF_PCRE_MODIFIER, $paySystem['~PSA_ACTION_FILE'])
+					|| preg_match('/document(\w+)*$/i'.BX_UTF_PCRE_MODIFIER, $paySystem['~PSA_ACTION_FILE'])
+				)
+				{
 					$arItems[$paySystem['~ID']] = $paySystem['~NAME'];
+				}
 			}
 
 		return $arItems;

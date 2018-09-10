@@ -4,6 +4,7 @@ namespace Bitrix\Crm\Ads;
 
 use Bitrix\Crm\WebForm\Form;
 use Bitrix\Crm\Ads\Form\FieldMapper;
+use Bitrix\Main\Config\Option;
 use Bitrix\Main\EventManager;
 use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\Type\DateTime;
@@ -371,6 +372,11 @@ class AdsForm extends AdsService
 	 */
 	public static function getTemporaryDisabledMessage($type)
 	{
+		if (Option::get('crm', 'enable_fb_lead_ads', 'N') === 'Y')
+		{
+			return null;
+		}
+
 		return Loc::getMessage('CRM_ADS_FORM_TYPE_ERR_DISABLED_' . strtoupper($type));
 	}
 }

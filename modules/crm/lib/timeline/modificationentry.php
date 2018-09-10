@@ -29,6 +29,7 @@ class ModificationEntry extends TimelineEntry
 
 		$settings = isset($params['SETTINGS']) && is_array($params['SETTINGS']) ? $params['SETTINGS'] : array();
 		$bindings = isset($params['BINDINGS']) && is_array($params['BINDINGS']) ? $params['BINDINGS'] : array();
+		$text = isset($params['TEXT']) ? $params['TEXT'] : null;
 
 		$result = TimelineTable::add(
 			array(
@@ -37,6 +38,7 @@ class ModificationEntry extends TimelineEntry
 				'CREATED' => new DateTime(),
 				'AUTHOR_ID' => $authorID,
 				'SETTINGS' => $settings,
+				'COMMENT' => $text,
 				'ASSOCIATED_ENTITY_TYPE_ID' => $entityTypeID,
 				'ASSOCIATED_ENTITY_ID' => $entityID
 			)

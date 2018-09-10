@@ -18,7 +18,7 @@ Loc::loadMessages(__FILE__);
 class ShipmentCollection
 	extends Internals\EntityCollection
 {
-	/** @var OrderBase */
+	/** @var Order */
 	protected $order;
 
 	/** @var array */
@@ -123,7 +123,9 @@ class ShipmentCollection
 	 */
 	public function createItem(Delivery\Services\Base $delivery = null)
 	{
-		$shipment = Shipment::create($this, $delivery);
+		/** @var Shipment $shipmentClassName */
+		$shipmentClassName = static::getItemCollectionClassName();
+		$shipment = $shipmentClassName::create($this, $delivery);
 		$this->addItem($shipment);
 
 		return $shipment;
@@ -133,7 +135,8 @@ class ShipmentCollection
 	 * Adding shipping to the collection
 	 *
 	 * @param Internals\CollectableEntity $shipment
-	 * @return Internals\CollectableEntity|void
+	 * @return Internals\CollectableEntity|Shipment
+	 * @throws Main\ObjectNotFoundException
 	 */
 	protected function addItem(Internals\CollectableEntity $shipment)
 	{
@@ -207,11 +210,11 @@ class ShipmentCollection
 	/**
 	 * Loaded from the database collection shipments Order
 	 *
-	 * @param OrderBase $order
+	 * @param Order $order
 	 * @return ShipmentCollection
 	 * @throws Main\ArgumentNullException
 	 */
-	public static function load(OrderBase $order)
+	public static function load(Order $order)
 	{
 		/** @var ShipmentCollection $shipmentCollection */
 		$shipmentCollection = static::createShipmentCollectionObject();
@@ -219,7 +222,9 @@ class ShipmentCollection
 
 		if ($order->getId() > 0)
 		{
-			$shipmentList = Shipment::loadForOrder($order->getId());
+			/** @var Shipment $shipmentClassName */
+			$shipmentClassName = static::getItemCollectionClassName();
+			$shipmentList = $shipmentClassName::loadForOrder($order->getId());
 			/** @var Shipment $shipment */
 			foreach ($shipmentList as $shipment)
 			{
@@ -234,12 +239,20 @@ class ShipmentCollection
 	/**
 	 * @return ShipmentCollection
 	 */
-	protected static function createShipmentCollectionObject()
+	private static function createShipmentCollectionObject()
 	{
-		$registry = Registry::getInstance(Registry::REGISTRY_TYPE_ORDER);
+		$registry = Registry::getInstance(static::getRegistryType());
 		$className = $registry->getShipmentCollectionClassName();
 
 		return new $className();
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function getRegistryType()
+	{
+		return Registry::REGISTRY_TYPE_ORDER;
 	}
 
 	/**
@@ -255,7 +268,10 @@ class ShipmentCollection
 			if ($shipment->isSystem())
 				return $shipment;
 		}
-		$shipment = Shipment::createSystem($this);
+
+		/** @var Shipment $shipmentClassName */
+		$shipmentClassName = static::getItemCollectionClassName();
+		$shipment = $shipmentClassName::createSystem($this);
 		$this->addItem($shipment);
 
 		return $shipment;
@@ -299,7 +315,7 @@ class ShipmentCollection
 		$itemsFromDb = array();
 		if ($order->getId() > 0)
 		{
-			$itemsFromDbList = Internals\ShipmentTable::getList(
+			$itemsFromDbList = static::getList(
 				array(
 					"filter" => array("ORDER_ID" => $order->getId()),
 					"select" => array("ID" , "DELIVERY_NAME", "DELIVERY_ID")
@@ -381,9 +397,21 @@ class ShipmentCollection
 				{
 					if ($isChanged)
 					{
-						OrderHistory::addLog('SHIPMENT', $order->getId(), $isNew ? 'SHIPMENT_ADD' : 'SHIPMENT_UPDATE', $shipment->getId(), $shipment, $logFields , OrderHistory::SALE_ORDER_HISTORY_LOG_LEVEL_1);
-						
-						OrderHistory::addAction(
+						$registry = Registry::getInstance(static::getRegistryType());
+
+						/** @var OrderHistory $orderHistory */
+						$orderHistory = $registry->getOrderHistoryClassName();
+						$orderHistory::addLog(
+							'SHIPMENT',
+							$order->getId(),
+							$isNew ? 'SHIPMENT_ADD' : 'SHIPMENT_UPDATE',
+							$shipment->getId(),
+							$shipment,
+							$logFields,
+							$orderHistory::SALE_ORDER_HISTORY_LOG_LEVEL_1
+						);
+
+						$orderHistory::addAction(
 							'SHIPMENT',
 							$order->getId(),
 							"SHIPMENT_SAVED",
@@ -414,14 +442,16 @@ class ShipmentCollection
 
 		foreach ($itemsFromDb as $k => $v)
 		{
+			$v['ENTITY_REGISTRY_TYPE'] = static::getRegistryType();
+
 			/** @var Main\Event $event */
 			$event = new Main\Event('sale', "OnBefore".self::$eventClassName."Deleted", array(
 					'VALUES' => $v,
 			));
 			$event->send();
 
-			Internals\ShipmentTable::deleteWithItems($k);
-			Internals\ShipmentExtraServiceTable::deleteByShipmentId($k);
+			$this->deleteInternal($k);
+			$this->deleteExtraServiceInternal($k);
 
 			/** @var Main\Event $event */
 			$event = new Main\Event('sale', "On".self::$eventClassName."Deleted", array(
@@ -431,7 +461,11 @@ class ShipmentCollection
 
 			if ($order->getId() > 0)
 			{
-				OrderHistory::addAction(
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var OrderHistory $orderHistory */
+				$orderHistory = $registry->getOrderHistoryClassName();
+				$orderHistory::addAction(
 					'SHIPMENT',
 					$order->getId(),
 					'SHIPMENT_REMOVED',
@@ -444,9 +478,13 @@ class ShipmentCollection
 					)
 				);
 
-				EntityMarker::deleteByFilter(array(
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var EntityMarker $entityMarker */
+				$entityMarker = $registry->getEntityMarkerClassName();
+				$entityMarker::deleteByFilter(array(
 					 '=ORDER_ID' => $order->getId(),
-					 '=ENTITY_TYPE' => EntityMarker::ENTITY_TYPE_SHIPMENT,
+					 '=ENTITY_TYPE' => $entityMarker::ENTITY_TYPE_SHIPMENT,
 					 '=ENTITY_ID' => $k,
 				 ));
 			}
@@ -455,7 +493,11 @@ class ShipmentCollection
 
 		if ($order->getId() > 0)
 		{
-			OrderHistory::collectEntityFields('SHIPMENT', $order->getId());
+			$registry = Registry::getInstance(static::getRegistryType());
+
+			/** @var OrderHistory $orderHistory */
+			$orderHistory = $registry->getOrderHistoryClassName();
+			$orderHistory::collectEntityFields('SHIPMENT', $order->getId());
 		}
 
 		return $result;
@@ -773,7 +815,11 @@ class ShipmentCollection
 			elseif ($r->hasWarnings())
 			{
 				$result->addWarnings($r->getWarnings());
-				EntityMarker::addMarker($order, $shipment, $r);
+
+				$registry = Registry::getInstance(static::getRegistryType());
+				/** @var EntityMarker $entityMarker */
+				$entityMarker = $registry->getEntityMarkerClassName();
+				$entityMarker::addMarker($order, $shipment, $r);
 				if (!$shipment->isSystem())
 				{
 					$shipment->setField('MARKED', 'Y');
@@ -825,7 +871,11 @@ class ShipmentCollection
 			$r = $shipment->tryUnreserve();
 			if (!$r->isSuccess())
 			{
-				EntityMarker::addMarker($order, $shipment, $r);
+
+				$registry = Registry::getInstance(static::getRegistryType());
+				/** @var EntityMarker $entityMarker */
+				$entityMarker = $registry->getEntityMarkerClassName();
+				$entityMarker::addMarker($order, $shipment, $r);
 				if (!$shipment->isSystem())
 				{
 					$shipment->setField('MARKED', 'Y');
@@ -1091,7 +1141,11 @@ class ShipmentCollection
 							$r = $shipment->tryReserve();
 							if (!$r->isSuccess())
 							{
-								EntityMarker::addMarker($order, $shipment, $r);
+								$registry = Registry::getInstance(static::getRegistryType());
+
+								/** @var EntityMarker $entityMarker */
+								$entityMarker = $registry->getEntityMarkerClassName();
+								$entityMarker::addMarker($order, $shipment, $r);
 								if (!$shipment->isSystem())
 								{
 									$shipment->setField('MARKED', 'Y');
@@ -1349,8 +1403,12 @@ class ShipmentCollection
 					{
 						throw new Main\ObjectNotFoundException('Entity "Order" not found');
 					}
-					
-					EntityMarker::addMarker($order, $shipment, $r);
+
+
+					$registry = Registry::getInstance(static::getRegistryType());
+					/** @var EntityMarker $entityMarker */
+					$entityMarker = $registry->getEntityMarkerClassName();
+					$entityMarker::addMarker($order, $shipment, $r);
 					if (!$shipment->isSystem())
 					{
 						$shipment->setField('MARKED', 'Y');
@@ -1460,7 +1518,9 @@ class ShipmentCollection
 		/** @var Shipment $shipment */
 		foreach ($collection as $shipment)
 		{
-			$r = Shipment::updateReservedFlag($shipment);
+			/** @var Shipment $shipmentClassName */
+			$shipmentClassName = static::getItemCollectionClassName();
+			$r = $shipmentClassName::updateReservedFlag($shipment);
 			if (!$r->isSuccess())
 			{
 				$result->addErrors($r->getErrors());
@@ -1475,4 +1535,38 @@ class ShipmentCollection
 		return $result;
 	}
 
+	/**
+	 * @return string
+	 */
+	private static function getItemCollectionClassName()
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+		return $registry->getShipmentClassName();
+	}
+
+	/**
+	 * @param array $parameters
+	 * @return Main\DB\Result
+	 */
+	public static function getList(array $parameters = array())
+	{
+		return Internals\ShipmentTable::getList($parameters);
+	}
+
+	/**
+	 * @param $primary
+	 * @return Entity\DeleteResult
+	 */
+	protected function deleteInternal($primary)
+	{
+		return Internals\ShipmentTable::deleteWithItems($primary);
+	}
+
+	/**
+	 * @param $shipmentId
+	 */
+	protected function deleteExtraServiceInternal($shipmentId)
+	{
+		Internals\ShipmentExtraServiceTable::deleteByShipmentId($shipmentId);
+	}
 }

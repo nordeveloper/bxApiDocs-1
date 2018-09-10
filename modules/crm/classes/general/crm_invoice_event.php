@@ -57,6 +57,11 @@ class CCrmInvoiceEvent extends CSaleOrderChange
 
 		return false;
 	}
+
+	protected static function getEntity()
+	{
+		return \Bitrix\Crm\Invoice\Internals\InvoiceChangeTable::getEntity();
+	}
 }
 
 class CCrmInvoiceEventFormat extends CSaleOrderChangeFormat
@@ -201,9 +206,9 @@ class CCrmInvoiceEventFormat extends CSaleOrderChangeFormat
 				{
 					$res = CSalePersonType::GetByID($value);
 					$value = "\"".$res["NAME"]."\"";
-					if ($res["NAME"] === 'CRM_CONTACT')
+					if ($res["CODE"] === 'CRM_CONTACT')
 						$value = '"'.GetMessage('CRM_PERSON_TYPE_CONTACT').'"';
-					else if ($res["NAME"] === 'CRM_COMPANY')
+					else if ($res["CODE"] === 'CRM_COMPANY')
 						$value = '"'.GetMessage('CRM_PERSON_TYPE_COMPANY').'"';
 				}
 

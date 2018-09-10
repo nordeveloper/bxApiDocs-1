@@ -24,6 +24,7 @@ class Library
 	const ID_REAL_BOT_FRAMEWORK_KIK_CONNECTOR = 'botframework.kik';
 	const ID_INSTAGRAM_CONNECTOR = 'instagram';
 	const ID_VIBER_CONNECTOR = 'viber';
+	const ID_YANDEX_CONNECTOR = 'yandex';
 	const ID_NETWORK_CONNECTOR = 'network';
 
 	const INSTAGRAM_MAX_COUNT = 100;
@@ -147,7 +148,8 @@ class Library
 		'facebookcomments',
 		'botframework.twilio',
 		'instagram',
-		'viber'
+		'viber',
+		'yandex'
 	);
 
 	/** @var array Association mime type of the file and its corresponding expansion */

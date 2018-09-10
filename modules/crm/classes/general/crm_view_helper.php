@@ -12,12 +12,16 @@ class CCrmViewHelper
 	private static $DEAL_STAGES = null;
 	private static $LEAD_STATUSES = null;
 	private static $QUOTE_STATUSES = null;
+	private static $ORDER_STATUSES = null;
 	private static $INVOICE_STATUSES = null;
+	private static $ORDER_SHIPMENT_STATUSES = null;
 
 	private static $ENABLE_DEAL_STAGE_COLORS = array();
 	private static $ENABLE_LEAD_STATUS_COLORS = null;
 	private static $ENABLE_QUOTE_STATUS_COLORS = null;
 	private static $ENABLE_INVOICE_STATUS_COLORS = null;
+	private static $ENABLE_ORDER_STATUS_COLORS = null;
+	private static $ENABLE_ORDER_SHIPMENT_STATUS_COLORS = null;
 
 	private static $USER_INFO_PROVIDER_MESSAGES_REGISTRED = false;
 
@@ -1848,6 +1852,7 @@ class CCrmViewHelper
 	{
 		return self::PrepareDealStages($categoryID);
 	}
+
 	protected static function PrepareDealStages($categoryID = 0)
 	{
 		if(!is_int($categoryID))
@@ -2235,6 +2240,31 @@ class CCrmViewHelper
 		$arParams['ENTITY_TYPE_NAME'] = CCrmOwnerType::ResolveName(CCrmOwnerType::Deal);
 		return self::RenderProgressControl($arParams);
 	}
+	public static function RenderOrderStatusControl($arParams)
+	{
+		if(!is_array($arParams))
+		{
+			$arParams = array();
+		}
+
+		$arParams['INFOS'] = self::PrepareOrderStatuses();
+		$arParams['FINAL_ID'] = \Bitrix\Crm\Order\OrderStatus::getFinalStatus();
+		$arParams['ENTITY_TYPE_NAME'] = CCrmOwnerType::ResolveName(CCrmOwnerType::Order);
+		return self::RenderProgressControl($arParams);
+	}
+	public static function RenderOrderShipmentStatusControl($arParams)
+	{
+		if(!is_array($arParams))
+		{
+			$arParams = array();
+		}
+
+		$arParams['INFOS'] = self::PrepareOrderShipmentStatuses();
+		$arParams['FINAL_ID'] = \Bitrix\Crm\Order\DeliveryStatus::getFinalStatus();
+		$arParams['ENTITY_TYPE_NAME'] = CCrmOwnerType::ResolveName(CCrmOwnerType::OrderShipment);
+		return self::RenderProgressControl($arParams);
+	}
+
 	public static function RenderLeadStatusControl($arParams)
 	{
 		if(!is_array($arParams))
@@ -2264,6 +2294,8 @@ class CCrmViewHelper
 		$dealTypeName = CCrmOwnerType::ResolveName(CCrmOwnerType::Deal);
 		$invoiceTypeName = CCrmOwnerType::ResolveName(CCrmOwnerType::Invoice);
 		$quoteTypeName = CCrmOwnerType::ResolveName(CCrmOwnerType::Quote);
+		$orderTypeName = CCrmOwnerType::ResolveName(CCrmOwnerType::Order);
+		$orderShipmentTypeName = CCrmOwnerType::ResolveName(CCrmOwnerType::OrderShipment);
 
 		$categoryID = isset($arParams['CATEGORY_ID']) ? $arParams['CATEGORY_ID'] : 0;
 		$infos = isset($arParams['INFOS']) ? $arParams['INFOS'] : null;
@@ -2285,6 +2317,14 @@ class CCrmViewHelper
 			{
 				$infos = self::PrepareInvoiceStatuses();
 			}
+			elseif($entityTypeName === $orderTypeName)
+			{
+				$infos = self::PrepareOrderStatuses();
+			}
+			elseif($entityTypeName === $orderShipmentTypeName)
+			{
+				$infos = self::PrepareOrderShipmentStatuses();
+			}
 		}
 
 		$enableCustomColors = false;
@@ -2304,6 +2344,14 @@ class CCrmViewHelper
 		elseif($entityTypeName === $invoiceTypeName)
 		{
 			$enableCustomColors = self::$ENABLE_INVOICE_STATUS_COLORS;
+		}
+		elseif($entityTypeName === $orderTypeName)
+		{
+			$enableCustomColors = self::$ENABLE_ORDER_STATUS_COLORS;
+		}
+		elseif($entityTypeName === $orderShipmentTypeName)
+		{
+			$enableCustomColors = self::$ENABLE_ORDER_SHIPMENT_STATUS_COLORS;
 		}
 
 		if(!is_array($infos) || empty($infos))
@@ -2333,6 +2381,14 @@ class CCrmViewHelper
 			{
 				$registrationScript = self::RenderInvoiceStatusSettings();
 			}
+			elseif($entityTypeName === $orderTypeName)
+			{
+				$registrationScript = self::RenderOrderStatusSettings();
+			}
+			elseif($entityTypeName === $orderShipmentTypeName)
+			{
+				$registrationScript = self::RenderOrderShipmentStatusSettings();
+			}
 		}
 
 		$finalID = isset($arParams['FINAL_ID']) ? $arParams['FINAL_ID'] : '';
@@ -2353,6 +2409,14 @@ class CCrmViewHelper
 			elseif($entityTypeName === $invoiceTypeName)
 			{
 				$finalID = 'P';
+			}
+			elseif($entityTypeName === $orderTypeName)
+			{
+				$finalID = \Bitrix\Crm\Order\OrderStatus::getFinalStatus();
+			}
+			elseif($entityTypeName === $orderShipmentTypeName)
+			{
+				$finalID = \Bitrix\Crm\Order\DeliveryStatus::getFinalStatus();
 			}
 		}
 
@@ -2694,6 +2758,17 @@ class CCrmViewHelper
 	{
 		return self::PrepareQuoteStatuses();
 	}
+
+	public static function GetOrderStatusInfos()
+	{
+		return self::PrepareOrderStatuses();
+	}
+
+	public static function GetOrderShipmentStatusInfos()
+	{
+		return self::PrepareOrderShipmentStatuses();
+	}
+
 	protected static function PrepareQuoteStatuses()
 	{
 		if(self::$QUOTE_STATUSES !== null)
@@ -2724,6 +2799,172 @@ class CCrmViewHelper
 
 		return self::$QUOTE_STATUSES;
 	}
+	protected static function PrepareOrderStatuses()
+	{
+		if(self::$ORDER_STATUSES !== null)
+		{
+			return self::$ORDER_STATUSES;
+		}
+
+		self::$ORDER_STATUSES = \Bitrix\Crm\Order\OrderStatus::getListInCrmFormat();
+
+		$enableCustomColors = false;
+		$colors = unserialize(COption::GetOptionString('crm', 'CONFIG_STATUS_ORDER_STATUS'));
+		if(!empty($colors))
+		{
+			foreach(self::$ORDER_STATUSES as $ID => &$item)
+			{
+				if(isset($colors[$ID]) && isset($colors[$ID]['COLOR']) && $colors[$ID]['COLOR'] !== '')
+				{
+					$item['COLOR'] = $colors[$ID]['COLOR'];
+					if(!$enableCustomColors)
+					{
+						$enableCustomColors = true;
+					}
+				}
+			}
+			unset($item);
+		}
+		self::$ENABLE_ORDER_STATUS_COLORS = $enableCustomColors;
+		return self::$ORDER_STATUSES;
+	}
+	protected static function PrepareOrderShipmentStatuses()
+	{
+		if(self::$ORDER_SHIPMENT_STATUSES !== null)
+		{
+			return self::$ORDER_SHIPMENT_STATUSES;
+		}
+
+		self::$ORDER_SHIPMENT_STATUSES = \Bitrix\Crm\Order\DeliveryStatus::getListInCrmFormat();
+
+		$enableCustomColors = false;
+		$colors = unserialize(COption::GetOptionString('crm', 'CONFIG_STATUS_ORDER_SHIPMENT_STATUS'));
+		if(!empty($colors))
+		{
+			foreach(self::$ORDER_SHIPMENT_STATUSES as $ID => &$item)
+			{
+				if(isset($colors[$ID]) && isset($colors[$ID]['COLOR']) && $colors[$ID]['COLOR'] !== '')
+				{
+					$item['COLOR'] = $colors[$ID]['COLOR'];
+					if(!$enableCustomColors)
+					{
+						$enableCustomColors = true;
+					}
+				}
+			}
+			unset($item);
+		}
+		self::$ENABLE_ORDER_SHIPMENT_STATUS_COLORS = $enableCustomColors;
+		return self::$ORDER_SHIPMENT_STATUSES;
+	}
+
+	public static function RenderOrderShipmentStatusSettings()
+	{
+		$result = array();
+		$isTresholdPassed = false;
+		foreach(self::PrepareOrderShipmentStatuses() as $status)
+		{
+			$info = array(
+				'id' => $status['STATUS_ID'],
+				'name' => $status['NAME'],
+				'sort' => intval($status['SORT']),
+				'color' => isset($status['COLOR']) ? $status['COLOR'] : ''
+			);
+
+			if($status['STATUS_ID'] === 'DF')
+			{
+				$isTresholdPassed = true;
+				$info['semantics'] = 'success';
+				$info['hint'] = GetMessage('CRM_ORDER_SHIPMENT_STATUS_MANAGER_APPROVED_STEP_HINT');
+			}
+			elseif($status['STATUS_ID'] === 'DD')
+			{
+				$info['semantics'] = 'failure';
+			}
+			elseif(!$isTresholdPassed)
+			{
+				$info['semantics'] = 'process';
+			}
+			else
+			{
+				$info['semantics'] = 'apology';
+			}
+			$result[] = $info;
+		}
+
+		$messages = array(
+			'dialogTitle' => GetMessage('CRM_ORDER_SHIPMENT_STATUS_MANAGER_DLG_TTL'),
+			'failureTitle' => GetMessage('CRM_ORDER_SHIPMENT_STATUS_MANAGER_FAILURE_TTL'),
+			'selectorTitle' => GetMessage('CRM_ORDER_SHIPMENT_STATUS_MANAGER_SELECTOR_TTL'),
+		);
+
+
+		return '<script type="text/javascript">'
+			.'BX.ready(function(){ if(typeof(BX.CrmOrderShipmentStatusManager) === "undefined") return;'
+			.'BX.CrmOrderShipmentStatusManager.messages = '.CUtil::PhpToJSObject($messages).';'.PHP_EOL
+			.'BX.CrmOrderShipmentStatusManager.infos = '.CUtil::PhpToJSObject($result).';});'
+			.'</script>';
+	}
+
+	public static function RenderOrderStatusSettings()
+	{
+		$result = array();
+		$isTresholdPassed = false;
+		foreach(self::PrepareOrderStatuses() as $status)
+		{
+			$info = array(
+				'id' => $status['STATUS_ID'],
+				'name' => $status['NAME'],
+				'sort' => intval($status['SORT']),
+				'color' => isset($status['COLOR']) ? $status['COLOR'] : ''
+			);
+
+			if($status['STATUS_ID'] === 'F')
+			{
+				$isTresholdPassed = true;
+				$info['semantics'] = 'success';
+				$info['hint'] = GetMessage('CRM_ORDER_STATUS_MANAGER_F_STEP_HINT');
+			}
+			elseif($status['STATUS_ID'] === 'D')
+			{
+				$info['semantics'] = 'failure';
+			}
+			elseif(!$isTresholdPassed)
+			{
+				$info['semantics'] = 'process';
+			}
+			else
+			{
+				$info['semantics'] = 'apology';
+			}
+			$result[] = $info;
+		}
+
+		$settings = array(
+			'imagePath' => '/bitrix/js/crm/images/',
+			'serverTime' => time() + CTimeZone::GetOffset()
+		);
+
+		$messages = array(
+			'dialogTitle' => GetMessage('CRM_ORDER_STATUS_MANAGER_DLG_TTL'),
+			'failureTitle' => GetMessage('CRM_ORDER_STATUS_MANAGER_FAILURE_TTL'),
+			'selectorTitle' => GetMessage('CRM_ORDER_STATUS_MANAGER_SELECTOR_TTL'),
+			'setDate' =>  GetMessage('CRM_ORDER_STATUS_MANAGER_SET_DATE'),
+			'dateLabelText' => GetMessage('CRM_ORDER_STATUS_MANAGER_DATE_LABEL'),
+			'payVoucherNumLabelText' => GetMessage('CRM_ORDER_STATUS_MANAGER_PAY_VOUCHER_NUM_LABEL'),
+			'commentLabelText' => GetMessage('CRM_ORDER_STATUS_MANAGER_COMMENT_LABEL'),
+			'notSpecified' => GetMessage('CRM_ORDER_STATUS_MANAGER_NOT_SPECIFIED')
+		);
+
+		return '<script type="text/javascript">'
+			.'BX.ready(function(){ if(typeof(BX.CrmOrderStatusManager) === "undefined") return;'
+			.'BX.CrmOrderStatusManager.infos = '.CUtil::PhpToJSObject($result).';'.PHP_EOL
+			.'BX.CrmOrderStatusManager.messages = '.CUtil::PhpToJSObject($messages).';'.PHP_EOL
+			.'BX.CrmOrderStatusManager.settings = '.CUtil::PhpToJSObject($settings).';'.PHP_EOL
+			.'BX.CrmOrderStatusManager.failureDialogEventsBind();});'.PHP_EOL
+			.'</script>';
+	}
+
 	public static function RenderQuoteStatusSettings()
 	{
 		$result = array();
@@ -2768,6 +3009,7 @@ class CCrmViewHelper
 		.'BX.ready(function(){ if(typeof(BX.CrmQuoteStatusManager) === "undefined") return;  BX.CrmQuoteStatusManager.infos = '.CUtil::PhpToJSObject($result).'; BX.CrmQuoteStatusManager.messages = '.CUtil::PhpToJSObject($messages).'; });'
 		.'</script>';
 	}
+
 	public static function GetFormFieldNames($formID)
 	{
 		if($formID === '')
@@ -2827,6 +3069,55 @@ class CCrmViewHelper
 		foreach(array_keys($infos) as $statusID)
 		{
 			$semanticID = CCrmQuote::GetSemanticID($statusID);
+			$infos[$statusID]['SEMANTICS'] = $semanticID;
+			if(!isset($infos[$statusID]['COLOR']))
+			{
+				if($semanticID === Bitrix\Crm\PhaseSemantics::SUCCESS)
+				{
+					$infos[$statusID]['COLOR'] = \CCrmViewHelper::SUCCESS_COLOR;
+				}
+				elseif($semanticID === Bitrix\Crm\PhaseSemantics::FAILURE)
+				{
+					$infos[$statusID]['COLOR'] = \CCrmViewHelper::FAILURE_COLOR;
+				}
+				else
+				{
+					$infos[$statusID]['COLOR'] = \CCrmViewHelper::PROCESS_COLOR;
+				}
+			}
+		}
+	}
+
+	public static function PrepareOrderShipmentStatusInfoExtraParams(array &$infos)
+	{
+		foreach($infos as $statusID => $status)
+		{
+			$semanticID = Bitrix\Crm\Order\DeliveryStatus::getSemanticId($status['STATUS_ID']);
+			$infos[$statusID]['SEMANTICS'] = $semanticID;
+
+			if(!isset($infos[$statusID]['COLOR']))
+			{
+				if($semanticID === Bitrix\Crm\PhaseSemantics::SUCCESS)
+				{
+					$infos[$statusID]['COLOR'] = \CCrmViewHelper::SUCCESS_COLOR;
+				}
+				elseif($semanticID === Bitrix\Crm\PhaseSemantics::FAILURE)
+				{
+					$infos[$statusID]['COLOR'] = \CCrmViewHelper::FAILURE_COLOR;
+				}
+				else
+				{
+					$infos[$statusID]['COLOR'] = \CCrmViewHelper::PROCESS_COLOR;
+				}
+			}
+		}
+	}
+
+	public static function PrepareOrderStatusInfoExtraParams(array &$infos)
+	{
+		foreach($infos as $statusID => $status)
+		{
+			$semanticID = Bitrix\Crm\Order\OrderStatus::getSemanticID($status['STATUS_ID']);
 			$infos[$statusID]['SEMANTICS'] = $semanticID;
 			if(!isset($infos[$statusID]['COLOR']))
 			{

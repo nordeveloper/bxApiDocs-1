@@ -3,43 +3,9 @@
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\EntityBankDetail;
-use Bitrix\Crm\EntityPreset;
-use Bitrix\DocumentGenerator\DataProvider;
 
-class BankDetail extends DataProvider
+class BankDetail extends BaseRequisite
 {
-	/**
-	 * Returns list of value names for this Provider.
-	 *
-	 * @return array
-	 */
-	public function getFields()
-	{
-		$fields = [];
-
-		$fieldNames = $this->getFieldNames();
-		foreach($fieldNames as $placeholder)
-		{
-			$fields[$placeholder] = [
-				'TITLE' => $this->getFieldsTitles()[$placeholder],
-			];
-		}
-
-		return $fields;
-	}
-
-	/**
-	 * Returns value by its name.
-	 *
-	 * @param string $name
-	 * @return mixed
-	 */
-	public function getValue($name)
-	{
-		$this->fetchData();
-		return parent::getValue($name);
-	}
-
 	/**
 	 * Loads data from the database.
 	 *
@@ -58,43 +24,31 @@ class BankDetail extends DataProvider
 		return $this->data;
 	}
 
-	/**
-	 * @return int
-	 */
-	protected function getCountryId()
+	protected function getInterfaceLanguageTitles()
 	{
-		return EntityPreset::getCurrentCountryId();
+		if($this->interfaceTitles === null)
+		{
+			$this->interfaceTitles = EntityBankDetail::getSingleInstance()->getFieldsTitles($this->getInterfaceCountryId());
+		}
+
+		return $this->interfaceTitles;
 	}
 
-	/**
-	 * @return array
-	 */
-	protected function getFieldsTitles()
+	protected function getDocumentLanguageTitles()
 	{
-		static $titles = false;
-		if(!$titles)
+		if($this->documentTitles === null)
 		{
-			$titles = EntityBankDetail::getSingleInstance()->getFieldsTitles($this->getCountryId());
+			$documentRegion = $this->getDocumentCountryId();
+			if($documentRegion == $this->getInterfaceCountryId())
+			{
+				$this->documentTitles = $this->getInterfaceLanguageTitles();
+			}
+			else
+			{
+				$this->documentTitles = EntityBankDetail::getSingleInstance()->getFieldsTitles($documentRegion);
+			}
 		}
 
-		return $titles;
-	}
-
-	/**
-	 * @return array
-	 */
-	protected function getFieldNames()
-	{
-		$countryFields = EntityBankDetail::getSingleInstance()->getRqFieldByCountry();
-		if(isset($countryFields[$this->getCountryId()]))
-		{
-			$fields = $countryFields[$this->getCountryId()];
-		}
-		else
-		{
-			$fields = EntityBankDetail::getSingleInstance()->getRqFields();
-		}
-
-		return $fields;
+		return $this->documentTitles;
 	}
 }

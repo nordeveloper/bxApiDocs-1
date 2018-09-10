@@ -1,4 +1,8 @@
 <?php
+
+use Bitrix\Main;
+use Bitrix\Sale;
+
 define('CRM_MODULE_CALENDAR_ID', 'calendar');
 
 // Permissions -->
@@ -18,6 +22,7 @@ define('SONET_CRM_COMPANY_ENTITY', 'CRMCOMPANY');
 define('SONET_CRM_DEAL_ENTITY', 'CRMDEAL');
 define('SONET_CRM_ACTIVITY_ENTITY', 'CRMACTIVITY');
 define('SONET_CRM_INVOICE_ENTITY', 'CRMINVOICE');
+define('SONET_CRM_ORDER_ENTITY', 'CRMORDER');
 //<-- Sonet entity types
 
 //region Entity View
@@ -28,6 +33,13 @@ define('BX_CRM_VIEW_KANBAN', 3);
 define('BX_CRM_VIEW_CALENDAR', 4);
 //endregion
 
+define('REGISTRY_TYPE_CRM_INVOICE', 'CRM_INVOICE');
+define('REGISTRY_TYPE_CRM_QUOTE', 'CRM_QUOTE');
+
+define('ENTITY_CRM_COMPANY', 'ENTITY_CRM_COMPANY');
+define('ENTITY_CRM_CONTACT', 'ENTITY_CRM_CONTACT');
+define('ENTITY_CRM_CONTACT_COMPANY_COLLECTION', 'ENTITY_CRM_CONTACT_COMPANY_COLLECTION');
+
 global $APPLICATION, $DBType, $DB;
 
 IncludeModuleLangFile(__FILE__);
@@ -35,14 +47,6 @@ IncludeModuleLangFile(__FILE__);
 require_once($_SERVER['DOCUMENT_ROOT'].BX_ROOT.'/modules/crm/functions.php');
 require_once($_SERVER['DOCUMENT_ROOT'].BX_ROOT.'/modules/crm/classes/general/crm_usertypecrmstatus.php');
 require_once($_SERVER['DOCUMENT_ROOT'].BX_ROOT.'/modules/crm/classes/general/crm_usertypecrm.php');
-
-$classAliases = [
-	['Bitrix\Crm\Communication\Type', 'Bitrix\Crm\CommunicationType'],
-];
-foreach ($classAliases as $classAlias)
-{
-	class_alias($classAlias[0], $classAlias[1]);
-}
 
 CModule::AddAutoloadClasses(
 	'crm',
@@ -207,6 +211,8 @@ CModule::AddAutoloadClasses(
 		'CCrmProductFileControl' => 'classes/general/crm_product_file.php',
 		'CCrmProductPropsHelper' => 'classes/general/crm_productprops_helper.php',
 		'CCrmProductSectionHelper' => 'classes/general/crm_product_section_helper.php',
+		'CCrmTaxEntity' => 'lib/invoice/compatible/taxentity.php',
+		'CCrmInvoiceTax' => 'lib/invoice/compatible/invoicetax.php',
 		'\Bitrix\Crm\Honorific' => 'lib/honorific.php',
 		'\Bitrix\Crm\Category\DealCategory' => 'lib/category/dealcategory.php',
 		'\Bitrix\Crm\Conversion\LeadConverter' => 'lib/conversion/leadconverter.php',
@@ -267,8 +273,29 @@ CModule::AddAutoloadClasses(
 		'\Bitrix\Crm\Recurring\DateType\Week' => 'lib/recurring/datetype/week.php',
 		'\Bitrix\Crm\Recurring\DateType\Year' => 'lib/recurring/datetype/year.php',
 		'\Bitrix\Crm\InvoiceRecurTable' => 'lib/invoicerecur.php',
+		'\Bitrix\Crm\Order\Matcher\Internals\OrderPropsMatchTable' => 'lib/order/matcher/internals/orderpropsmatchtable.php',
+		'\Bitrix\Crm\Order\PropertyTable' => 'lib/order/propertytable.php',
+		'\Bitrix\Crm\Order\Matcher\Internals\QueueTable' => 'lib/order/matcher/internals/queuetable.php',
+		'\Bitrix\Crm\Order\Matcher\Internals\FormTable' => 'lib/order/matcher/internals/formtable.php',
+		'\Bitrix\Crm\Invoice\Internals\InvoiceDiscountTable' => 'lib/invoice/internals/invoicediscount.php',
+		'\Bitrix\Crm\Invoice\Internals\InvoiceCouponsTable' => 'lib/invoice/internals/invoicediscount.php',
+		'\Bitrix\Crm\Invoice\Internals\InvoiceModulesTable' => 'lib/invoice/internals/invoicediscount.php',
+		'\Bitrix\Crm\Invoice\Internals\InvoiceDiscountDataTable' => 'lib/invoice/internals/invoicediscount.php',
+		'\Bitrix\Crm\Invoice\Internals\InvoiceRulesTable' => 'lib/invoice/internals/invoicediscount.php',
+		'\Bitrix\Crm\Invoice\Internals\InvoiceRulesDescrTable' => 'lib/invoice/internals/invoicediscount.php',
+		'\Bitrix\Crm\Invoice\Internals\InvoiceRoundTable' => 'lib/invoice/internals/invoiceround.php',
+		'\Bitrix\Crm\Communication\Type' => 'lib/communication/type.php',
 	)
 );
+
+
+$classAliases = [
+	['Bitrix\Crm\Communication\Type', 'Bitrix\Crm\CommunicationType'],
+];
+foreach ($classAliases as $classAlias)
+{
+	class_alias($classAlias[0], $classAlias[1]);
+}
 
 CJSCore::RegisterExt('crm_activity_planner', array(
 	'js' => array('/bitrix/js/crm/activity_planner.js', '/bitrix/js/crm/communication_search.js'),

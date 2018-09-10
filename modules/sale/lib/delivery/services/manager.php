@@ -1070,13 +1070,12 @@ class Manager
 	protected static function deleteRelatedEntities($deliveryId)
 	{
 		$con = \Bitrix\Main\Application::getConnection();
-		$sqlHelper = $con->getSqlHelper();
-		$id = $sqlHelper->forSql($deliveryId);
+		$deliveryId = (int)$deliveryId;
 
-		$con->queryExecute("DELETE FROM b_sale_service_rstr WHERE SERVICE_ID=".$id);
-		$con->queryExecute("DELETE FROM b_sale_delivery2location WHERE DELIVERY_ID=".$id);
-		$con->queryExecute("DELETE FROM b_sale_delivery2paysystem WHERE DELIVERY_ID=".$id);
-		$con->queryExecute("DELETE FROM b_sale_delivery_es WHERE DELIVERY_ID=".$id);
+		$con->queryExecute("DELETE FROM b_sale_service_rstr WHERE SERVICE_ID=".$deliveryId);
+		$con->queryExecute("DELETE FROM b_sale_delivery2location WHERE DELIVERY_ID=".$deliveryId);
+		$con->queryExecute("DELETE FROM b_sale_delivery2paysystem WHERE DELIVERY_ID=".$deliveryId);
+		$con->queryExecute("DELETE FROM b_sale_delivery_es WHERE DELIVERY_ID=".$deliveryId);
 
 		$dbRes = Table::getList(array(
 			'filter' => array(

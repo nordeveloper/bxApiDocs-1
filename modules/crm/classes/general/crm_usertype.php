@@ -325,7 +325,8 @@ class CCrmUserType
 					CCrmOwnerType::LeadName,
 					CCrmOwnerType::DealName,
 					CCrmOwnerType::ContactName,
-					CCrmOwnerType::CompanyName
+					CCrmOwnerType::CompanyName,
+					CCrmOwnerType::OrderName
 				);
 				foreach($supportedEntityTypeNames as $entityTypeName)
 				{
@@ -710,13 +711,13 @@ class CCrmUserType
 			return true;
 		}
 
-		// 2. Try to interpret value as enum VALUE
+		// 2. Try to interpret value as enum VALUE or XML_ID
 		$uv = strtoupper(trim($value));
 
 		$success = false;
 		foreach($enums as $enumID => &$enum)
 		{
-			if(strtoupper($enum[$fieldName]) === $uv)
+			if(strtoupper($enum[$fieldName]) === $uv || (isset($enum['XML_ID']) && $enum['XML_ID'] === $value))
 			{
 				$ID = $enumID;
 				$success = true;
@@ -778,6 +779,10 @@ class CCrmUserType
 			elseif($prefix === 'D')
 			{
 				$valueType = CCrmOwnerType::Deal;
+			}
+			elseif($prefix === 'O')
+			{
+				$valueType = CCrmOwnerType::Order;
 			}
 
 			if($valueType !== CCrmOwnerType::Undefined && $valueType !== $type)
@@ -1481,6 +1486,12 @@ class CCrmUserType
 										$link = CComponentEngine::MakePathFromTemplate(COption::GetOptionString('crm', 'path_to_deal_show'), array('deal_id' => $CID));
 										$title = $arList[$KEY]['DEAL'][$CID]['TITLE'];
 										$prefix = 'D';
+									}
+									elseif ($FIELD_VALUE_NAME == 'ORDER')
+									{
+										$link = CComponentEngine::MakePathFromTemplate(COption::GetOptionString('crm', 'path_to_order_details'), array('order_id' => $CID));
+										$title = $arList[$KEY]['ORDER'][$CID]['TITLE'];
+										$prefix = 'O';
 									}
 
 									$sname = htmlspecialcharsbx($title);

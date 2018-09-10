@@ -151,6 +151,7 @@ class BindingSelector
 	{
 		$list = array();
 		$isDealAdded = false;
+		$isOrdersAdded = false;
 		$isReturnCustomerLeadAdded = false;
 
 		/**
@@ -175,6 +176,19 @@ class BindingSelector
 				);
 
 				$isReturnCustomerLeadAdded = true;
+			}
+
+			if (!empty($selector->getCompanyOrders()))
+			{
+				foreach ($selector->getCompanyOrders() as $orderId)
+				{
+					$list[] = array(
+						'OWNER_TYPE_ID' => \CCrmOwnerType::Order,
+						'OWNER_ID' => $orderId
+					);
+				}
+
+				$isOrdersAdded = true;
 			}
 
 			$list[] = array(
@@ -219,6 +233,17 @@ class BindingSelector
 					'OWNER_TYPE_ID' => \CCrmOwnerType::Lead,
 					'OWNER_ID' => $selector->getContactReturnCustomerLeadId()
 				);
+			}
+
+			if (!empty($selector->getContactOrders()) && !$isOrdersAdded)
+			{
+				foreach ($selector->getContactOrders() as $orderId)
+				{
+					$list[] = array(
+						'OWNER_TYPE_ID' => \CCrmOwnerType::Order,
+						'OWNER_ID' => $orderId
+					);
+				}
 			}
 
 			$list[] = array(

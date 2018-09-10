@@ -93,7 +93,7 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 		}
 
 		$result = array(
-			'id' => $checkInfo['unique_id'],
+			'id' => static::buildUuid(static::UUID_TYPE_CHECK, $checkInfo['unique_id']),
 			'inn' => $this->getValueFromSettings('SERVICE', 'INN'),
 			'group' => $this->getField('NUMBER_KKM') ?: null,
 			'key' => $this->getValueFromSettings('SECURITY', 'KEY_SIGN') ?: null,
@@ -640,16 +640,18 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 	 */
 	public static function extractSettingsFromRequest(Main\HttpRequest $request)
 	{
+		global $APPLICATION;
+
 		$settings = parent::extractSettingsFromRequest($request);
 		$files = $request->getFile('SETTINGS');
 
 		foreach ($settings['SECURITY'] as $fieldId => $field)
 		{
-			if ($files['error']['SECURITY'][$fieldId] === 0
-				&& $files['tmp_name']['SECURITY'][$fieldId]
+			if ($files['error']['SECURITY'][$fieldId.'_FILE'] === 0
+				&& $files['tmp_name']['SECURITY'][$fieldId.'_FILE']
 			)
 			{
-				$content = file_get_contents($files['tmp_name']['SECURITY'][$fieldId]);
+				$content = $APPLICATION->GetFileContent($files['tmp_name']['SECURITY'][$fieldId.'_FILE']);
 				$settings['SECURITY'][$fieldId] = $content ?: '';
 			}
 		}

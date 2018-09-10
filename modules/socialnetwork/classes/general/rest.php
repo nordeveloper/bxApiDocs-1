@@ -3,6 +3,7 @@ use Bitrix\Socialnetwork\ComponentHelper;
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
 use Bitrix\Rest\RestException;
+use Bitrix\Main\ModuleManager;
 
 if(!CModule::IncludeModule('rest'))
 	return;
@@ -125,7 +126,7 @@ class CSocNetLogRestService extends IRestService
 			);
 
 			$extranetSiteId = false;
-			if (\Bitrix\Main\ModuleManager::isModuleInstalled('extranet'))
+			if (ModuleManager::isModuleInstalled('extranet'))
 			{
 				$extranetSiteId = Option::get("extranet", "extranet_site");
 			}
@@ -538,6 +539,15 @@ class CSocNetLogRestService extends IRestService
 			"HAS_SOCNET_ALL" => "N"
 		);
 
+		$emailUserAllowed = (
+			ModuleManager::isModuleInstalled('mail')
+			&& ModuleManager::isModuleInstalled('intranet')
+			&& (
+				!Loader::includeModule('bitrix24')
+				|| \CBitrix24::isEmailConfirmed()
+			)
+		);
+
 		if (
 			!empty($arFields["DEST"])
 			&& is_array($arFields["DEST"])
@@ -547,6 +557,13 @@ class CSocNetLogRestService extends IRestService
 				'ERROR_MESSAGE' => false,
 				'PUBLISH_STATUS' => $postFields['PUBLISH_STATUS']
 			);
+
+			if ($emailUserAllowed)
+			{
+				$destinationList = $arFields["DEST"];
+				ComponentHelper::processBlogPostNewMailUserDestinations($destinationList);
+				$arFields["DEST"] = array_unique($destinationList);
+			}
 
 			$postFields["SOCNET_RIGHTS"] = ComponentHelper::checkBlogPostDestinationList(array(
 				'DEST' => $arFields["DEST"],
@@ -562,6 +579,27 @@ class CSocNetLogRestService extends IRestService
 		}
 		elseif (!empty($arFields["SPERM"]))
 		{
+			if ($emailUserAllowed)
+			{
+				$pseudoHttpPostFields = array(
+					'SPERM' => $arFields["SPERM"],
+					'INVITED_USER_NAME' => (!empty($arFields["INVITED_USER_NAME"]) && is_array($arFields["INVITED_USER_NAME"]) ? $arFields["INVITED_USER_NAME"] : array()),
+					'INVITED_USER_LAST_NAME' => (!empty($arFields["INVITED_USER_NAME"]) && is_array($arFields["INVITED_USER_LAST_NAME"]) ? $arFields["INVITED_USER_LAST_NAME"] : array()),
+					'INVITED_USER_CRM_ENTITY' => (!empty($arFields["INVITED_USER_CRM_ENTITY"]) && is_array($arFields["INVITED_USER_CRM_ENTITY"]) ? $arFields["INVITED_USER_CRM_ENTITY"] : array()),
+					'INVITED_USER_CREATE_CRM_CONTACT' => (!empty($arFields["INVITED_USER_CREATE_CRM_CONTACT"]) && is_array($arFields["INVITED_USER_CREATE_CRM_CONTACT"]) ? $arFields["INVITED_USER_CREATE_CRM_CONTACT"] : array()),
+				);
+				$temporaryParams = array(
+					"ALLOW_EMAIL_INVITATION" => true
+				);
+				ComponentHelper::processBlogPostNewMailUser($pseudoHttpPostFields, $temporaryParams);
+				if (!empty($temporaryParams["ERROR_MESSAGE"]))
+				{
+					throw new Exception($temporaryParams["ERROR_MESSAGE"]);
+				}
+
+				$arFields["SPERM"] = $pseudoHttpPostFields['SPERM'];
+			}
+
 			$resultFields = array(
 				'ERROR_MESSAGE' => false,
 				'PUBLISH_STATUS' => $postFields['PUBLISH_STATUS'],
@@ -822,6 +860,21 @@ class CSocNetLogRestService extends IRestService
 
 		if (!empty($arFields["DEST"]))
 		{
+
+			if (
+				ModuleManager::isModuleInstalled('mail')
+				&& ModuleManager::isModuleInstalled('intranet')
+				&& (
+					!Loader::includeModule('bitrix24')
+					|| \CBitrix24::isEmailConfirmed()
+				)
+			)
+			{
+				$destinationList = $arFields["DEST"];
+				ComponentHelper::processBlogPostNewMailUserDestinations($destinationList);
+				$arFields["DEST"] = array_unique($destinationList);
+			}
+
 			$resultFields = array(
 				'ERROR_MESSAGE' => false,
 				'PUBLISH_STATUS' => $updateFields['PUBLISH_STATUS']
@@ -1067,6 +1120,20 @@ class CSocNetLogRestService extends IRestService
 
 		$blogPostPermsNewList = $arFields['DEST'];
 
+		foreach($blogPostPermsNewList as $key => $code)
+		{
+			if (
+				!preg_match('/^SG(\d+)$/', $code, $matches)
+				&& !preg_match('/^U(\d+)$/', $code, $matches)
+				&& !preg_match('/^UE(.+)$/', $code, $matches)
+				&& !preg_match('/^DR(\d+)$/', $code, $matches)
+				&& $code != 'UA'
+			)
+			{
+				unset($blogPostPermsNewList[$key]);
+			}
+		}
+
 		if(empty($blogPostPermsNewList))
 		{
 			throw new Exception('Wrong destinations');
@@ -1099,6 +1166,19 @@ class CSocNetLogRestService extends IRestService
 			'ERROR_MESSAGE' => false,
 			'PUBLISH_STATUS' => BLOG_PUBLISH_STATUS_PUBLISH
 		);
+
+		if (ModuleManager::isModuleInstalled('mail')
+			&& ModuleManager::isModuleInstalled('intranet')
+			&& (
+				!Loader::includeModule('bitrix24')
+				|| \CBitrix24::isEmailConfirmed()
+			)
+		)
+		{
+			$destinationList = $blogPostPermsNewList;
+			ComponentHelper::processBlogPostNewMailUserDestinations($destinationList);
+			$blogPostPermsNewList = array_unique($destinationList);
+		}
 
 		$permsNew = ComponentHelper::checkBlogPostDestinationList(array(
 			'DEST' => $blogPostPermsNewList,
@@ -1866,7 +1946,7 @@ class CSocNetLogRestService extends IRestService
 		$tzOffset = \CTimeZone::getOffset();
 
 		$cacheTtl = 2592000;
-		$cacheId = 'blog_post_socnet_general_'.$postId.'_'.LANGUAGE_ID.($tzOffset <> 0 ? "_".$tzOffset : "")."_".Bitrix\Main\Context::getCurrent()->getCulture()->getDateTimeFormat();
+		$cacheId = 'blog_post_socnet_general_'.$postId.'_'.LANGUAGE_ID.($tzOffset <> 0 ? "_".$tzOffset : "")."_".Bitrix\Main\Context::getCurrent()->getCulture()->getDateTimeFormat()."_rest";
 		$cacheDir = ComponentHelper::getBlogPostCacheDir(array(
 			'TYPE' => 'post_general',
 			'POST_ID' => $postId
@@ -2031,9 +2111,14 @@ class CSocNetLogRestService extends IRestService
 			}
 		}
 
-		if (isset($arFields["IMAGE_ID"]))
+		if(isset($arFields['IMAGE']))
 		{
-			unset($arFields["IMAGE_ID"]);
+			$arFields['IMAGE_ID'] = \CRestUtil::saveFile($arFields['IMAGE']);
+			if(!$arFields['IMAGE_ID'])
+			{
+				unset($arFields['IMAGE_ID']);
+			}
+			unset($arFields['IMAGE']);
 		}
 
 		if (
@@ -2071,7 +2156,7 @@ class CSocNetLogRestService extends IRestService
 			$arFields['PROJECT_DATE_FINISH'] = \CRestUtil::unConvertDate($arFields['PROJECT_DATE_FINISH']);
 		}
 
-		$groupID = CSocNetGroup::CreateGroup($USER->GetID(), $arFields, false);
+		$groupID = CSocNetGroup::createGroup($USER->GetID(), $arFields, false);
 
 		if($groupID <= 0)
 		{
@@ -2106,9 +2191,14 @@ class CSocNetLogRestService extends IRestService
 			}
 		}
 
-		if (isset($arFields["IMAGE_ID"]))
+		if(isset($arFields['IMAGE']))
 		{
-			unset($arFields["IMAGE_ID"]);
+			$arFields['IMAGE_ID'] = \CRestUtil::saveFile($arFields['IMAGE']);
+			if(!$arFields['IMAGE_ID'])
+			{
+				$arFields['IMAGE_ID'] = array('del' => 'Y');
+			}
+			unset($arFields['IMAGE']);
 		}
 
 		if (!empty($arFields['PROJECT_DATE_START']))

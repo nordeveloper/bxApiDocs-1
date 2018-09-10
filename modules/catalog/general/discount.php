@@ -2141,7 +2141,7 @@ class CAllCatalogDiscount
 			'DISCOUNT' => $currentDiscount,
 			'PERCENT' => (
 				$calculatePrice > 0 && $currentDiscount > 0
-				? roundEx((100*$currentDiscount)/$calculatePrice, 0)
+				? round((100*$currentDiscount)/$calculatePrice, 0)
 				: 0
 			),
 			'VAT_RATE' => $priceData['VAT_RATE'],

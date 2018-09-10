@@ -297,6 +297,33 @@ class SmsManager
 				}
 			}
 		}
+		elseif ($entityTypeId === \CCrmOwnerType::Order)
+		{
+			$dbRes = \Bitrix\Crm\Order\ContactCompanyCollection::getList(array(
+				'select' => array('ENTITY_ID', 'ENTITY_TYPE_ID'),
+				'filter' => array(
+					'=ORDER_ID' => $entityId,
+					'IS_PRIMARY' => 'Y'
+				)
+			));
+			while ($entity = $dbRes->fetch())
+			{
+				if ((int)$entity['ENTITY_TYPE_ID'] === \CCrmOwnerType::Contact)
+				{
+					$communications[] = static::prepareEntityCommunications(
+						\CCrmOwnerType::Contact,
+						$entity['ENTITY_ID']
+					);
+				}
+				elseif ((int)$entity['ENTITY_TYPE_ID'] === \CCrmOwnerType::Company)
+				{
+					$communications[] = static::prepareEntityCommunications(
+						\CCrmOwnerType::Company,
+						$entity['ENTITY_ID']
+					);
+				}
+			}
+		}
 
 		$communications = array_filter($communications);
 

@@ -147,6 +147,7 @@ Loader::registerAutoLoadClasses(
 		'CCatalogMeasureResult' => $strDBType.'/measure.php',
 		'CCatalogMeasureClassifier' => 'general/unit_classifier.php',
 		'CCatalogMeasureAdminResult' => 'general/measure_result.php',
+		'CCatalogMeasureAdminUiResult' => 'general/measure_result.php',
 		'CCatalogMeasureRatio' => $strDBType.'/measure_ratio.php',
 		'CCatalogProductSet' => $strDBType.'/product_set.php',
 		'CCatalogAdminTools' => 'general/admin_tools.php',

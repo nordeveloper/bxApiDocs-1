@@ -1,10 +1,28 @@
 <?php
 namespace Bitrix\Crm\Security;
+
+use \Bitrix\Crm\Order;
+
 class EntityAuthorization
 {
-	public static function IsAuthorized()
+	public static function getCurrentUserID()
+	{
+		return \CCrmSecurityHelper::GetCurrentUserID();
+	}
+
+	public static function isAuthorized()
 	{
 		return \CCrmSecurityHelper::GetCurrentUser()->IsAuthorized();
+	}
+
+	public static function isAdmin($userID)
+	{
+		return \CCrmPerms::IsAdmin($userID);
+	}
+
+	public static function getUserPermissions($userID)
+	{
+		return \CCrmPerms::GetUserPermissions($userID);
 	}
 
 	public static function checkPermission($permissionTypeID, $entityTypeID, $entityID = 0, $userPermissions = null)
@@ -65,6 +83,18 @@ class EntityAuthorization
 		{
 			return \CCrmCompany::CheckCreatePermission($userPermissions);
 		}
+		elseif($entityTypeID === \CCrmOwnerType::Order)
+		{
+			return Order\Permissions\Order::checkCreatePermission($userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderPayment)
+		{
+			return Order\Permissions\Payment::checkCreatePermission($userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderShipment)
+		{
+			return Order\Permissions\Shipment::checkCreatePermission($userPermissions);
+		}
 
 		$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);
 		$permissionEntityType = \CCrmPerms::ResolvePermissionEntityType($entityTypeName);
@@ -111,7 +141,19 @@ class EntityAuthorization
 		{
 			return \CCrmCompany::CheckReadPermission($entityID, $userPermissions);
 		}
-		
+		elseif($entityTypeID === \CCrmOwnerType::Order)
+		{
+			return Order\Permissions\Order::checkReadPermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderPayment)
+		{
+			return Order\Permissions\Payment::checkReadPermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderShipment)
+		{
+			return Order\Permissions\Shipment::checkReadPermission($entityID, $userPermissions);
+		}
+
 		$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);
 		$permissionEntityType = \CCrmPerms::ResolvePermissionEntityType($entityTypeName, $entityID);
 
@@ -157,6 +199,18 @@ class EntityAuthorization
 		elseif($entityTypeID === \CCrmOwnerType::Company)
 		{
 			return \CCrmCompany::CheckUpdatePermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Order)
+		{
+			return Order\Permissions\Order::checkUpdatePermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderPayment)
+		{
+			return Order\Permissions\Payment::checkUpdatePermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderShipment)
+		{
+			return Order\Permissions\Shipment::checkUpdatePermission($entityID, $userPermissions);
 		}
 
 		$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);
@@ -204,6 +258,18 @@ class EntityAuthorization
 		elseif($entityTypeID === \CCrmOwnerType::Company)
 		{
 			return \CCrmCompany::CheckDeletePermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Order)
+		{
+			return Order\Permissions\Order::checkDeletePermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderPayment)
+		{
+			return Order\Permissions\Payment::checkDeletePermission($entityID, $userPermissions);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::OrderShipment)
+		{
+			return Order\Permissions\Shipment::checkDeletePermission($entityID, $userPermissions);
 		}
 
 		$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);

@@ -5,4 +5,5 @@ $MESS["SALE_DLVR_HANDL_SMPL_TAB_MAIN"] = "Настройка тарифов";
 $MESS["SALE_DLVR_HANDL_SMPL_TAB_MAIN_DESCR"] = "Настройка тарифов службы доставки";
 $MESS["SALE_DLVR_HANDL_SMPL_DEFAULT"] = "По умолчанию";
 $MESS["SALE_DLVR_HANDL_SMPL_CURRENCY"] = "Валюта";
+$MESS["SALE_DLVR_HANDL_SMPL_TITLE2"] = "Служба доставки по группам местоположений";
 ?>

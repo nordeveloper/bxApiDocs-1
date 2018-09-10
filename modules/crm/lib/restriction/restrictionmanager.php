@@ -196,7 +196,7 @@ class RestrictionManager
 			array(
 				'ID' => 'crm_deal_category',
 				'TITLE' => GetMessage('CRM_RESTR_MGR_DEAL_CATEGORY_POPUP_TITLE'),
-				'CONTENT' => GetMessage('CRM_RESTR_MGR_DEAL_CATEGORY_POPUP_CONTENT')
+				'CONTENT' => GetMessage('CRM_RESTR_MGR_DEAL_CATEGORY_POPUP_CONTENT_2')
 			)
 		);
 

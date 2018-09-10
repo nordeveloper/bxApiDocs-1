@@ -84,6 +84,37 @@ class BaseComponent extends \CBitrixComponent
 		return $this->mode;
 	}
 
+	public static function prepareMultifieldsForSave(array $data, array &$entityFields)
+	{
+		foreach($data as $item)
+		{
+			$typeID = isset($item['TYPE_ID']) ? $item['TYPE_ID'] : '';
+			$value = isset($item['VALUE']) ? $item['VALUE'] : '';
+			if($typeID === '' || $value === '')
+			{
+				continue;
+			}
+
+			if($typeID === 'EMAIL' && !check_email($value))
+			{
+				continue;
+			}
+
+			if(!isset($entityFields['FM']))
+			{
+				$entityFields['FM'] = array();
+			}
+
+			if(!isset($entityFields['FM'][$typeID]))
+			{
+				$entityFields['FM'][$typeID] = array();
+			}
+
+			$qty = count($entityFields['FM'][$typeID]);
+			$entityFields['FM'][$typeID]["n{$qty}"] = array('VALUE' => $value, 'VALUE_TYPE' => 'WORK');
+		}
+	}
+
 	protected static function prepareMultifieldData($entityTypeID, $entityID, $typeID, array &$data)
 	{
 		$dbResult = \CCrmFieldMulti::GetList(
@@ -119,7 +150,7 @@ class BaseComponent extends \CBitrixComponent
 
 			//Is required for phone & email & messenger menu
 			if($typeID === 'PHONE' || $typeID === 'EMAIL'
-				|| ($typeID === 'IM' && preg_match('/^imol|/', $value) === 1)
+				|| ($typeID === 'IM' && preg_match('/^imol\|/', $value) === 1)
 			)
 			{
 				$formattedValue = $typeID === 'PHONE'

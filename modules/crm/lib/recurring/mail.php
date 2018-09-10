@@ -4,14 +4,13 @@ namespace Bitrix\Crm\Recurring;
 use Bitrix\Main\Type\Date,
 	Bitrix\Main\Type\DateTime,
 	Bitrix\Main\Localization\Loc,
-	Bitrix\Main\Entity,
-	Bitrix\Sale\Order,
 	Bitrix\Main\Loader,
 	Bitrix\Sale\PaySystem,
 	Bitrix\Main,
 	Bitrix\Disk,
 	Bitrix\Crm\Integration\StorageType,
 	Bitrix\Crm\Integration\StorageManager,
+	Bitrix\Crm\Invoice\Invoice,
 	Bitrix\Main\Result;
 
 Loc::loadMessages(__FILE__);
@@ -498,7 +497,7 @@ class Mail
 		if (!Loader::includeModule('sale'))
 			return false;
 		$siteId = "";
-		$invoice = Order::load($invoiceId);
+		$invoice = Invoice::load($invoiceId);
 		$paymentCollection = $invoice->getPaymentCollection();
 		/** @var \Bitrix\Sale\Payment $payment */
 		$payment = $paymentCollection->current();
@@ -506,7 +505,7 @@ class Mail
 
 		$action = new \CSalePaySystemAction();
 
-		$dbRes = Order::getList(
+		$dbRes = Invoice::getList(
 			array(
 				'select' => array('*', 'UF_DEAL_ID', 'UF_QUOTE_ID', 'UF_COMPANY_ID', 'UF_CONTACT_ID', 'UF_MYCOMPANY_ID'),
 				'filter' => array('ID' => $invoiceId)
@@ -515,7 +514,7 @@ class Mail
 		if ($data = $dbRes->fetch())
 		{
 			$paymentData = is_array($data) ? \CCrmInvoice::PrepareSalePaymentData($data, array('PUBLIC_LINK_MODE' => 'Y')) : null;
-			$action->InitParamArrays($data, $invoiceId, '', $paymentData);
+			$action->InitParamArrays($data, $invoiceId, '', $paymentData, array(), array(), REGISTRY_TYPE_CRM_INVOICE);
 			$siteId = $data['LID'];
 		}
 

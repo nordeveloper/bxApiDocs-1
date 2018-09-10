@@ -186,7 +186,18 @@ class ElementProperty extends Base
 					{
 						if(strlen($property["USER_TYPE"]))
 						{
-							$value = new ElementPropertyUserField($propertyValues, $property);
+							if (is_array($propertyValues))
+							{
+								$value = array();
+								foreach ($propertyValues as $propertyValue)
+								{
+									$value[] = new ElementPropertyUserField($propertyValue, $property);
+								}
+							}
+							else
+							{
+								$value = new ElementPropertyUserField($propertyValues, $property);
+							}
 						}
 						else
 						{

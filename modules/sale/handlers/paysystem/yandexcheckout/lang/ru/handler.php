@@ -7,6 +7,7 @@ $MESS["SALE_HPS_YANDEX_CHECKOUT_WEBMONEY"] = "Webmoney";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_ALFABANK"] = "Альфа-Клик";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_CASH"] = "Оплата наличными в терминале";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_SMART"] = "Умный платеж";
+$MESS["SALE_HPS_YANDEX_CHECKOUT_MOBILE_BALANCE"] = "Баланс телефона";
 
 $MESS["SALE_HPS_YANDEX_CHECKOUT_HTTP_STATUS_400"] = "Неправильный запрос. Некорректное взаимодействие с API Яндекс.Касса";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_HTTP_STATUS_401"] = "Ошибка аутентификации. Проверьте настройки подключения платежной системы";

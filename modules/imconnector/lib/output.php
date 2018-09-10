@@ -14,6 +14,7 @@ use \Bitrix\Main\Event,
 use \Bitrix\ImOpenLines\Network,
 	\Bitrix\ImOpenLines\LiveChatManager;
 use	\Bitrix\ImConnector\Connectors\Viber,
+	\Bitrix\ImConnector\Connectors\Yandex,
 	\Bitrix\ImConnector\Connectors\Instagram,
 	\Bitrix\ImConnector\Connectors\BotFramework;
 
@@ -100,6 +101,8 @@ final class Output
 	 * @param string $connector ID connector.
 	 * @param string|bool $line ID open line.
 	 * @param bool $ignoreDeactivatedConnector
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
 	function __construct($connector, $line = false, $ignoreDeactivatedConnector = false)
 	{
@@ -217,6 +220,9 @@ final class Output
 	 *
 	 * @param array $data An array of data describing the message.
 	 * @return Result
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\LoaderException
 	 */
 	public function sendMessage(array $data)
 	{
@@ -243,6 +249,8 @@ final class Output
 					$value = Viber::sendMessageProcessing($value, $this->connector);
 					//Hack is designed for the Instagram
 					$value = Instagram::sendMessageProcessing($value, $this->connector);
+					//Hack is designed for the Yandex
+					$value = Yandex::sendMessageProcessing($value, $this->connector);
 
 					$data[$cell] = $value;
 				}
@@ -386,6 +394,8 @@ final class Output
 	 *
 	 * @param string $lineId ID of the deleted lines.
 	 * @return Result
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
 	public static function deleteLine($lineId)
 	{
@@ -409,7 +419,9 @@ final class Output
 	 *
 	 * @param string $lineId ID Line.
 	 * @return Result
-	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\LoaderException
 	 */
 	public static function infoConnectorsLine($lineId)
 	{
@@ -526,6 +538,8 @@ final class Output
 	 * Returns a list of the existing connectors.
 	 *
 	 * @return Result
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
 	public static function listConnector()
 	{
@@ -566,6 +580,8 @@ final class Output
 	 *
 	 * @param string $id ID connector.
 	 * @return Result
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
 	public static function isConnector($id)
 	{
@@ -597,6 +613,8 @@ final class Output
 	 * @param string $name The name of the called method.
 	 * @param array $arguments The set of parameters passed to the method.
 	 * @return Result
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
 	public static function __callStatic($name, $arguments)
 	{

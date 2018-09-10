@@ -442,7 +442,7 @@ class CSaleViewedProduct extends CAllSaleViewedProduct
 	 * @param array $arSelectFields			Select fields.
 	 * @return bool|CDBResult
 	 */
-	public function GetList($arOrder = array("ID"=>"DESC"), $arFilter = array(), $arGroupBy = false, $arNavStartParams = false, $arSelectFields = array())
+	public static function GetList($arOrder = array("ID"=>"DESC"), $arFilter = array(), $arGroupBy = false, $arNavStartParams = false, $arSelectFields = array())
 	{
 		global $DB;
 

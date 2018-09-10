@@ -15,17 +15,55 @@ final class CreateTask extends Base
 	const POST_TEXT = 'commentAuxCreateTask';
 	const SOURCE_TYPE_BLOG_POST = 'BLOG_POST';
 	const SOURCE_TYPE_TASK = 'TASK';
-	const SOURCE_TYPE_BLOG_COMMENT = 'BLOG_COMMENT';
 	const SOURCE_TYPE_FORUM_TOPIC = 'FORUM_TOPIC';
+	const SOURCE_TYPE_CALENDAR_EVENT = 'CALENDAR_EVENT';
+	const SOURCE_TYPE_TIMEMAN_ENTRY = 'TIMEMAN_ENTRY';
+	const SOURCE_TYPE_TIMEMAN_REPORT = 'TIMEMAN_REPORT';
+	const SOURCE_TYPE_LOG_ENTRY = 'LOG_ENTRY';
+	const SOURCE_TYPE_PHOTO_ALBUM = 'PHOTO_ALBUM';
+	const SOURCE_TYPE_PHOTO_PHOTO = 'PHOTO_PHOTO';
+	const SOURCE_TYPE_WIKI = 'WIKI';
+	const SOURCE_TYPE_LISTS_NEW_ELEMENT = 'LISTS_NEW_ELEMENT';
+
+	const SOURCE_TYPE_BLOG_COMMENT = 'BLOG_COMMENT';
 	const SOURCE_TYPE_FORUM_POST = 'FORUM_POST';
 	const SOURCE_TYPE_LOG_COMMENT = 'LOG_COMMENT';
 
-	private $postTypeList = array(self::SOURCE_TYPE_BLOG_POST, self::SOURCE_TYPE_TASK, self::SOURCE_TYPE_FORUM_TOPIC);
-	private $commentTypeList = array(self::SOURCE_TYPE_BLOG_COMMENT, self::SOURCE_TYPE_FORUM_POST, self::SOURCE_TYPE_LOG_COMMENT);
+	private $postTypeList = array(
+		self::SOURCE_TYPE_BLOG_POST,
+		self::SOURCE_TYPE_TASK,
+		self::SOURCE_TYPE_FORUM_TOPIC,
+		self::SOURCE_TYPE_CALENDAR_EVENT,
+		self::SOURCE_TYPE_TIMEMAN_ENTRY,
+		self::SOURCE_TYPE_TIMEMAN_REPORT,
+		self::SOURCE_TYPE_LOG_ENTRY,
+		self::SOURCE_TYPE_PHOTO_ALBUM,
+		self::SOURCE_TYPE_PHOTO_PHOTO,
+		self::SOURCE_TYPE_WIKI,
+		self::SOURCE_TYPE_LISTS_NEW_ELEMENT
+	);
+	private $commentTypeList = array(
+		self::SOURCE_TYPE_BLOG_COMMENT,
+		self::SOURCE_TYPE_FORUM_POST,
+		self::SOURCE_TYPE_LOG_COMMENT
+	);
 
 	private $sourceTypeList = array(
-		self::SOURCE_TYPE_BLOG_POST, self::SOURCE_TYPE_TASK, self::SOURCE_TYPE_FORUM_TOPIC,
-		self::SOURCE_TYPE_BLOG_COMMENT, self::SOURCE_TYPE_FORUM_POST, self::SOURCE_TYPE_LOG_COMMENT
+		self::SOURCE_TYPE_BLOG_POST,
+		self::SOURCE_TYPE_TASK,
+		self::SOURCE_TYPE_FORUM_TOPIC,
+		self::SOURCE_TYPE_CALENDAR_EVENT,
+		self::SOURCE_TYPE_TIMEMAN_ENTRY,
+		self::SOURCE_TYPE_TIMEMAN_REPORT,
+		self::SOURCE_TYPE_LOG_ENTRY,
+		self::SOURCE_TYPE_PHOTO_ALBUM,
+		self::SOURCE_TYPE_PHOTO_PHOTO,
+		self::SOURCE_TYPE_WIKI,
+		self::SOURCE_TYPE_LISTS_NEW_ELEMENT,
+
+		self::SOURCE_TYPE_BLOG_COMMENT,
+		self::SOURCE_TYPE_FORUM_POST,
+		self::SOURCE_TYPE_LOG_COMMENT
 	);
 
 	public function getParamsFromFields($fields = array())
@@ -158,18 +196,17 @@ final class CreateTask extends Base
 
 				$suffix = (isset($options['suffix']) ? $options['suffix'] : '');
 
-				$commentLinkText = Loc::getMessage('SONET_COMMENTAUX_CREATETASK_'.$params['sourcetype'].(!empty($suffix) ? '_'.$suffix : '').'_LINK');
-
-				$result = Loc::getMessage('SONET_COMMENTAUX_CREATETASK_BLOG_COMMENT', array(
+				$result = Loc::getMessage('SONET_COMMENTAUX_CREATETASK_COMMENT_'.$params['sourcetype'].(!empty($suffix) ? '_'.$suffix : ''), array(
 					'#TASK_NAME#' => (!empty($taskPath) ? '[URL='.$taskPath.']'.$taskTitle.'[/URL]' : $taskTitle),
-					'#COMMENT_LINK#' => (!empty($commentPath) ? '[URL='.$commentPath.']'.$commentLinkText.'[/URL]' : $commentLinkText)
+					'#A_BEGIN#' => (!empty($commentPath) ? '[URL='.$commentPath.']' : ''),
+					'#A_END#' => (!empty($commentPath) ? '[/URL]' : '')
 				));
+
 			}
 			elseif (in_array($params['sourcetype'], $this->postTypeList))
 			{
-				$result = Loc::getMessage('SONET_COMMENTAUX_CREATETASK_POST', array(
+				$result = Loc::getMessage('SONET_COMMENTAUX_CREATETASK_POST_'.$params['sourcetype'], array(
 					'#TASK_NAME#' => (!empty($taskPath) ? '[URL='.$taskPath.']'.$taskTitle.'[/URL]' : $taskTitle),
-					'#POST_NAME#' => Loc::getMessage('SONET_COMMENTAUX_CREATETASK_'.$params['sourcetype'].'_LINK')
 				));
 			}
 

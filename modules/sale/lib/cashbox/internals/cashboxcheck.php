@@ -81,7 +81,11 @@ class CashboxCheckTable extends DataManager
 					'=this.ID' => 'ref.CHECK_ID'
 				),
 				'join_type' => 'INNER'
-			)
+			),
+			'ENTITY_REGISTRY_TYPE' => array(
+				'data_type' => 'string',
+				'required' => true
+			),
 		);
 	}
 }

@@ -78,6 +78,9 @@ class PersonTypeTable extends Main\Entity\DataManager
 				'required' => true,
 				'validation' => array(__CLASS__, 'validateName'),
 			),
+			'CODE' => array(
+				'data_type' => 'string',
+			),
 			'SORT' => array(
 				'data_type' => 'integer'
 			),

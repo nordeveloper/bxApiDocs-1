@@ -74,7 +74,12 @@ class CCrmStatus
 			'COMPANY_TYPE' => array('ID' =>'COMPANY_TYPE', 'NAME' => GetMessage('CRM_STATUS_TYPE_COMPANY_TYPE')),
 			'EMPLOYEES' => array('ID' =>'EMPLOYEES', 'NAME' => GetMessage('CRM_STATUS_TYPE_EMPLOYEES')),
 			'INDUSTRY' => array('ID' =>'INDUSTRY', 'NAME' => GetMessage('CRM_STATUS_TYPE_INDUSTRY')),
-			'DEAL_TYPE' => array('ID' =>'DEAL_TYPE', 'NAME' => GetMessage('CRM_STATUS_TYPE_DEAL_TYPE'))
+			'DEAL_TYPE' => array('ID' =>'DEAL_TYPE', 'NAME' => GetMessage('CRM_STATUS_TYPE_DEAL_TYPE')),
+			'INVOICE_STATUS' => array(
+				'ID' =>'INVOICE_STATUS',
+				'NAME' => GetMessage('CRM_STATUS_TYPE_INVOICE_STATUS'),
+				'SEMANTIC_INFO' => self::GetInvoiceStatusSemanticInfo()
+			)
 		);
 
 		if(DealCategory::isCustomized())
@@ -108,13 +113,6 @@ class CCrmStatus
 		{
 			$arEntityType['PRODUCT'] = array('ID' => 'PRODUCT', 'NAME' => GetMessage('CRM_STATUS_TYPE_PRODUCT'));
 		}
-
-		CCrmStatusInvoice::prepareStatusEntityInfos($arEntityType);
-
-		$events = GetModuleEvents("crm", "OnGetEntityTypes");
-
-		while($arEvent = $events->Fetch())
-			$arEntityType = ExecuteModuleEventEx($arEvent, array($arEntityType));
 
 		return $arEntityType;
 	}
@@ -158,7 +156,7 @@ class CCrmStatus
 
 		if (!is_set($arFields, 'SYSTEM'))
 			$arFields['SYSTEM'] = 'N';
-		
+
 		if (!is_set($arFields, 'STATUS_ID'))
 			$arFields['STATUS_ID'] = '';
 
@@ -173,6 +171,13 @@ class CCrmStatus
 			{
 				$statusID = !empty($arFields['STATUS_ID']) ? $arFields['STATUS_ID'] : $this->GetNextStatusId();
 			}
+		}
+		elseif(DealCategory::hasStatusEntity($this->entityId))
+		{
+			$statusID = DealCategory::prepareStageID(
+				DealCategory::convertFromStatusEntityID($this->entityId),
+				DealCategory::removeStageNamespaceID($statusID)
+			);
 		}
 
 		$arFields_i = Array(
@@ -202,12 +207,15 @@ class CCrmStatus
 			(is_set($arFields['SORT']) && !intval($arFields['SORT']) > 0))
 			$arFields['SORT'] = 10;
 
-		$arFields_u = Array(
-			'NAME'		=> $arFields['NAME'],
-			'SORT'		=> IntVal($arFields['SORT']),
+		$arFields_u = array(
+			'NAME'   => $arFields['NAME'],
+			'SORT'   => intval($arFields['SORT'])
 		);
-		if (is_set($arFields, 'SYSTEM'))
-			$arFields_u['SYSTEM'] == 'Y'? 'Y': 'N';
+
+		if (isset($arFields['SYSTEM']))
+		{
+			$arFields_u['SYSTEM'] = ($arFields['SYSTEM'] === 'Y' ? 'Y' : 'N');
+		}
 
 		if(is_array($arOptions)
 			&& isset($arOptions['ENABLE_STATUS_ID'])
@@ -215,6 +223,14 @@ class CCrmStatus
 			&& isset($arFields['STATUS_ID']))
 		{
 			$arFields_u['STATUS_ID'] = $arFields['STATUS_ID'];
+		}
+
+		if(is_array($arOptions)
+			&& isset($arOptions['ENABLE_NAME_INIT'])
+			&& $arOptions['ENABLE_NAME_INIT']
+			&& isset($arFields['NAME_INIT']))
+		{
+			$arFields_u['NAME_INIT'] = $arFields['NAME_INIT'];
 		}
 
 		global $DB;
@@ -225,6 +241,7 @@ class CCrmStatus
 		self::ClearCachedStatuses($this->entityId);
 		return $ID;
 	}
+
 	public function Delete($ID)
 	{
 		$this->LAST_ERROR = '';
@@ -235,8 +252,11 @@ class CCrmStatus
 		self::ClearCachedStatuses($this->entityId);
 		return $res;
 	}
+
 	public static function GetList($arSort=array(), $arFilter=Array())
 	{
+		$sqlHelper = $connection = \Bitrix\Main\Application::getConnection()->getSqlHelper();
+
 		global $DB;
 		$arSqlSearch = Array();
 		if (is_array($arFilter))
@@ -264,7 +284,7 @@ class CCrmStatus
 						$arSqlSearch[] = "CS.SORT = '".$DB->ForSql($val)."'";
 					break;
 					case 'SYSTEM':
-						$arSqlSearch[] = ($val=='Y') ? "CS.SYSTEM='Y'" : "CS.SYSTEM='N'";
+						$arSqlSearch[] = "CS.".$sqlHelper->quote('SYSTEM')."='".(($val=='Y') ? 'Y' : 'N')."'";
 					break;
 				}
 			}
@@ -281,7 +301,7 @@ class CCrmStatus
 				case 'STATUS_ID':	$sOrder .= ', CS.STATUS_ID '.$ord; break;
 				case 'NAME':	$sOrder .= ', CS.NAME '.$ord; break;
 				case 'SORT':	$sOrder .= ', CS.SORT '.$ord; break;
-				case 'SYSTEM':	$sOrder .= ', CS.SYSTEM '.$ord; break;
+				case 'SYSTEM':	$sOrder .= ", CS.".$sqlHelper->quote('SYSTEM')." ".$ord; break;
 			}
 		}
 
@@ -289,16 +309,9 @@ class CCrmStatus
 			$sOrder = 'CS.ID DESC';
 
 		$strSqlOrder = ' ORDER BY '.TrimEx($sOrder,',');
-
 		$strSqlSearch = GetFilterSqlSearch($arSqlSearch);
-		$strSql = "
-			SELECT
-				CS.ID, CS.ENTITY_ID, CS.STATUS_ID, CS.NAME, CS.NAME_INIT, CS.SORT, CS.SYSTEM
-			FROM
-				b_crm_status CS
-			WHERE
-			$strSqlSearch
-			$strSqlOrder";
+
+		$strSql = "SELECT CS.* FROM b_crm_status CS WHERE {$strSqlSearch} {$strSqlOrder}";
 		$res = $DB->Query($strSql, false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
 
 		return $res;
@@ -346,19 +359,6 @@ class CCrmStatus
 		global $DB;
 		$arStatus = array();
 
-		if(!$internalOnly)
-		{
-			$events = GetModuleEvents("crm", "OnCrmStatusGetList");
-			while($arEvent = $events->Fetch())
-			{
-				$arStatus = ExecuteModuleEventEx($arEvent, array($entityId));
-
-				if(!empty($arStatus))
-					return $arStatus;
-			}
-		}
-
-
 		if(CACHED_b_crm_status===false)
 		{
 			$squery = "
@@ -372,6 +372,7 @@ class CCrmStatus
 			{
 				$arStatus[$row['STATUS_ID']] = $row;
 			}
+
 			return $arStatus;
 		}
 		else
@@ -394,11 +395,20 @@ class CCrmStatus
 				{
 					$arStatus[$row['STATUS_ID']] = $row;
 				}
+
 				self::SetCachedStatuses($entityId, $arStatus);
 			}
 			return $arStatus;
 		}
 	}
+	public static function GetEntityID($statusId)
+	{
+		global $DB;
+		$res = $DB->Query("SELECT ENTITY_ID FROM b_crm_status WHERE STATUS_ID ='{$DB->ForSql($statusId)}'", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
+		$fields = is_object($res) ? $res->Fetch() : array();
+		return isset($fields['ENTITY_ID']) ? $fields['ENTITY_ID'] : '';
+	}
+
 	public static function GetFirstStatusID($entityId, $internalOnly = false)
 	{
 		$arStatusList = self::GetStatusList($entityId, $internalOnly);
@@ -522,6 +532,10 @@ class CCrmStatus
 		{
 			$items = self::GetDefaultCallListStates();
 		}
+		elseif($entityId === 'INVOICE_STATUS')
+		{
+			$items = self::GetDefaultInvoiceStatuses();
+		}
 
 		if ($statusId !== null)
 		{
@@ -632,6 +646,13 @@ class CCrmStatus
 				'SORT' => 78,
 				'SYSTEM' => 'Y'
 			),
+			array(
+				'NAME' => GetMessage('CRM_STATUS_TYPE_SOURCE_STORE'),
+				'STATUS_ID' => 'STORE',
+				'SORT' => 79,
+				'SYSTEM' => 'Y'
+			),
+
 			array(
 				'NAME' => GetMessage('CRM_STATUS_TYPE_SOURCE_OTHER'),
 				'STATUS_ID' => 'OTHER',
@@ -780,6 +801,36 @@ class CCrmStatus
 				'STATUS_ID' => 'APOLOGY',
 				'SORT' => 50,
 				'SYSTEM' => 'N'
+			)
+		);
+	}
+
+	public static function GetDefaultInvoiceStatuses()
+	{
+		return array(
+			array(
+				'NAME' => GetMessage('CRM_INVOICE_STATUS_NEW'),
+				'STATUS_ID' => 'N',
+				'SORT' => 100,
+				'SYSTEM' => 'Y'
+			),
+			array(
+				'NAME' => GetMessage('CRM_INVOICE_STATUS_SENT'),
+				'STATUS_ID' => 'S',
+				'SORT' => 110,
+				'SYSTEM' => 'N'
+			),
+			array(
+				'NAME' => GetMessage('CRM_INVOICE_STATUS_PAID'),
+				'STATUS_ID' => 'P',
+				'SORT' => 130,
+				'SYSTEM' => 'Y'
+			),
+			array(
+				'NAME' => GetMessage('CRM_INVOICE_STATUS_REFUSED'),
+				'STATUS_ID' => 'D',
+				'SORT' => 140,
+				'SYSTEM' => 'Y'
 			)
 		);
 	}

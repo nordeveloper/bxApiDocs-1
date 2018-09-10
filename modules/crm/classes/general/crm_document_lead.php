@@ -344,7 +344,7 @@ class CCrmDocumentLead extends CCrmDocument
 				{
 					foreach ($customerFields as $customerField)
 					{
-						if (empty($arFields[$customerField]) && !empty($contact[$customerField]))
+						if (array_key_exists($customerField, $arFields) && !empty($contact[$customerField]))
 						{
 							$arFields[$customerField] = $contact[$customerField];
 						}
@@ -353,7 +353,11 @@ class CCrmDocumentLead extends CCrmDocument
 			}
 			if ($arFields['COMPANY_ID'] > 0 && empty($arFields['COMPANY_TITLE']))
 			{
-				$arFields['COMPANY_TITLE'] = CCrmOwnerType::GetCaption(CCrmOwnerType::Company, $arFields['COMPANY_ID'], false);
+				$dbRes = \CCrmCompany::GetListEx([], ['=ID' => $arFields['COMPANY_ID'], 'CHECK_PERMISSIONS' => 'N'],
+					false, false, ['TITLE']
+				);
+				$arRes = $dbRes ? $dbRes->Fetch() : null;
+				$arFields['COMPANY_TITLE'] = $arRes ? $arRes['TITLE'] : '';
 			}
 		}
 
@@ -500,7 +504,7 @@ class CCrmDocumentLead extends CCrmDocument
 		return $id;
 	}
 
-	static public function UpdateDocument($documentId, $arFields)
+	public static function UpdateDocument($documentId, $arFields, $modifiedById = null)
 	{
 		global $DB;
 
@@ -614,6 +618,11 @@ class CCrmDocumentLead extends CCrmDocument
 
 		$DB->StartTransaction();
 
+		if ($modifiedById > 0)
+		{
+			$arFields['MODIFY_BY_ID'] = $modifiedById;
+		}
+
 		$CCrmEntity = new CCrmLead(false);
 		$res = $CCrmEntity->Update(
 			$arDocumentID['ID'],
@@ -656,7 +665,31 @@ class CCrmDocumentLead extends CCrmDocument
 	public function getDocumentName($documentId)
 	{
 		$arDocumentID = self::GetDocumentInfo($documentId);
-		return CCrmOwnerType::GetCaption(CCrmOwnerType::Lead, $arDocumentID['ID'], false);
+		$caption = '';
+
+		$dbRes = CCrmLead::GetListEx([], ['=ID' => $arDocumentID['ID'], 'CHECK_PERMISSIONS' => 'N'],
+			false, false,
+			['TITLE', 'HONORIFIC', 'NAME', 'SECOND_NAME', 'LAST_NAME']
+		);
+		$arRes = $dbRes ? $dbRes->Fetch() : null;
+
+		if ($arRes)
+		{
+			$caption = isset($arRes['TITLE']) ? $arRes['TITLE'] : '';
+			if ($caption === '')
+			{
+				$caption = CCrmLead::PrepareFormattedName(
+					array(
+						'HONORIFIC'   => isset($arRes['HONORIFIC']) ? $arRes['HONORIFIC'] : '',
+						'NAME'        => isset($arRes['NAME']) ? $arRes['NAME'] : '',
+						'SECOND_NAME' => isset($arRes['SECOND_NAME']) ? $arRes['SECOND_NAME'] : '',
+						'LAST_NAME'   => isset($arRes['LAST_NAME']) ? $arRes['LAST_NAME'] : ''
+					)
+				);
+			}
+		}
+
+		return $caption;
 	}
 
 	public static function normalizeDocumentId($documentId)

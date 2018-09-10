@@ -51,6 +51,9 @@ class LogTable extends Entity\DataManager
 			'MESSAGE' => array(
 				'data_type' => 'text',
 			),
+			'TEXT_MESSAGE' => array(
+				'data_type' => 'text',
+			),
 			'URL' => array(
 				'data_type' => 'string',
 			),

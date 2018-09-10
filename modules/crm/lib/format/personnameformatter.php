@@ -133,6 +133,29 @@ class PersonNameFormatter
 		}
 		return self::$formatString;
 	}
+	public static function tryParseFormatID($format, $defaultFormatID = '')
+	{
+		$format = str_replace(
+			array(',',  '#NAME_SHORT#', '#SECOND_NAME_SHORT#'),
+			array('',   '#NAME#',       '#SECOND_NAME#'),
+			$format
+		);
+
+		switch($format)
+		{
+			case self::FirstLastFormat:
+				return self::FirstLast;
+			case self::FirstSecondLastFormat:
+				return self::FirstSecondLast;
+			case self::LastFirstFormat:
+				return self::LastFirst;
+			case self::LastFirstSecondFormat:
+				return self::LastFirstSecond;
+			case self::HonorificLastFormat:
+				return self::HonorificLast;
+		}
+		return $defaultFormatID !== '' ? $defaultFormatID : self::FirstLastFormat;
+	}
 	public static function tryParseName($name, $formatID, &$nameParts)
 	{
 		if(!is_string($name) || $name === '')
@@ -144,6 +167,11 @@ class PersonNameFormatter
 		if(!self::isDefined($formatID))
 		{
 			throw new Main\NotSupportedException("Format: '{$formatID}' is not supported in current context");
+		}
+
+		if($formatID === self::Dflt)
+		{
+			$formatID = self::tryParseFormatID(\CSite::GetNameFormat(false));
 		}
 
 		if($formatID === self::FirstSecondLast || $formatID === self::LastFirstSecond)
@@ -202,6 +230,15 @@ class PersonNameFormatter
 			return true;
 		}
 
-		return false;
+		if($formatID === self::FirstLast || $formatID === self::FirstSecondLast)
+		{
+			$nameParts['NAME'] = $name;
+		}
+		else//if($formatID === self::LastFirst || $formatID === self::LastFirstSecond
+		{
+			$nameParts['LAST_NAME'] = $name;
+		}
+
+		return true;
 	}
 }

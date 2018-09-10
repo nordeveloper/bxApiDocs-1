@@ -382,7 +382,7 @@ class OrderEdit
 		return $userId;
 	}
 
-	protected static function getUserId($order, $formData, $createUserIfNeed, \Bitrix\Sale\Result &$result)
+	public static function getUserId($order, $formData, $createUserIfNeed, \Bitrix\Sale\Result &$result)
 	{
 		if(intval($formData["USER_ID"]) > 0)
 			return intval($formData["USER_ID"]);
@@ -627,7 +627,7 @@ class OrderEdit
 		return $order;
 	}
 
-	protected static function isBasketItemNew($basketCode)
+	public static function isBasketItemNew($basketCode)
 	{
 		return (strpos($basketCode, 'n') === 0) && ($basketCode != self::BASKET_CODE_NEW);
 	}
@@ -1013,14 +1013,6 @@ class OrderEdit
 			$result->addError(new EntityError(Loc::getMessage("SALE_ORDEREDIT_ERROR_NO_PRODUCTS")));
 		}
 
-		if($productAdded)
-		{
-			$res = $basket->refreshData(array('PRICE', 'COUPONS'));
-
-			if (!$res->isSuccess())
-				$result->addErrors($res->getErrors());
-		}
-
 		return $order;
 	}
 
@@ -1031,7 +1023,7 @@ class OrderEdit
 	 *
 	 * @return \Bitrix\Sale\Result
 	 */
-	protected static function fillSimpleFields(Order $order, array $formData, $userId = 0)
+	public static function fillSimpleFields(Order $order, array $formData, $userId = 0)
 	{
 		$result = new \Bitrix\Sale\Result();
 		if(isset($formData["ORDER"]["RESPONSIBLE_ID"]))
@@ -1317,11 +1309,6 @@ class OrderEdit
 					$product['PRICE'] = $productData['PRICE'];
 				elseif(isset($product['BASE_PRICE']))
 					$product['PRICE'] = $product['BASE_PRICE'] - $product['DISCOUNT_PRICE'];
-
-				$discount = $order->getDiscount();
-
-				if ($discount instanceof Discount)
-					$discount->setBasketItemData($basketCode, $data[$basketCode]);
 			}
 
 			if($item->getField("MODULE") == "catalog")
@@ -1490,10 +1477,6 @@ class OrderEdit
 				$product['PRICE'] = $productData['PRICE'];
 			elseif(isset($product['BASE_PRICE']))
 				$product['PRICE'] = $product['BASE_PRICE'] - $product['DISCOUNT_PRICE'];
-
-			$discount = $order->getDiscount();
-			if ($discount instanceof Discount)
-				$discount->setBasketItemData($basketCode, $data[$basketCode]);
 		}
 
 		if(!self::$isTrustProductFormData)
@@ -1568,7 +1551,7 @@ class OrderEdit
 		return true;
 	}
 
-	protected static function setBasketItemFields(\Bitrix\Sale\BasketItem &$item, array $fields = array())
+	public static function setBasketItemFields(\Bitrix\Sale\BasketItem &$item, array $fields = array())
 	{
 		$result = $item->setFields($fields);
 

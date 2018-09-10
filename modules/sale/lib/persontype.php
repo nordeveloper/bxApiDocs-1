@@ -30,11 +30,20 @@ class PersonType
 	}
 
 	/**
-	 * @return PersonType
+	 * @return string
 	 */
-	protected static function createPersonTypeObject()
+	public static function getRegistryType()
 	{
-		$registry = Registry::getInstance(Registry::REGISTRY_TYPE_ORDER);
+		return Registry::REGISTRY_TYPE_ORDER;
+	}
+
+	/**
+	 * @return mixed
+	 * @throws ArgumentException
+	 */
+	private static function createPersonTypeObject()
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
 		$personTypeClassName = $registry->getPersonTypeClassName();
 
 		return new $personTypeClassName();
@@ -92,28 +101,6 @@ class PersonType
 	{
 		$res = PersonTypeTable::getList($filter)->fetchAll();
 		return $res;
-	}
-
-	/**
-	 * @param $personTypeId
-	 * @param $siteId
-	 * @return bool
-	 */
-	public static function checkCorrect($personTypeId, $siteId)
-	{
-		if (static::getList(array(
-			'filter' => array(
-				"ID" => $personTypeId,
-				"LID" => $siteId,
-				"ACTIVE" => "Y"
-			)))->fetch())
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
 	}
 
 	/**

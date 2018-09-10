@@ -2,16 +2,11 @@
 
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
-use Bitrix\Crm\EntityPreset;
 use Bitrix\Crm\EntityRequisite;
 use Bitrix\Crm\RequisiteAddress;
-use Bitrix\DocumentGenerator\DataProvider;
-use Bitrix\DocumentGenerator\DataProviderManager;
 
-class Requisite extends DataProvider
+class Requisite extends BaseRequisite
 {
-	protected $countryId;
-
 	/**
 	 * Returns list of value names for this Provider.
 	 *
@@ -19,31 +14,19 @@ class Requisite extends DataProvider
 	 */
 	public function getFields()
 	{
-		$fields = [];
-		$titles = $this->getFieldsTitles();
-		foreach(EntityRequisite::getSingleInstance()->getRqFieldsCountryMap() as $field => $countries)
+		if($this->fields === null)
 		{
-			if(in_array($this->getCountryId(), $countries))
-			{
-				$fields[$field] = ['TITLE' => $titles[$field]];
-			}
+			parent::getFields();
+			$this->fields = array_merge($this->fields, $this->getAddressFields());
 		}
-		foreach($titles as $placeholder => $title)
-		{
-			if(strpos($placeholder, 'UF_CRM') === 0)
-			{
-				$fields[$placeholder] = ['TITLE' => $title];
-			}
-		}
-		$fields = array_merge($fields, $this->getAddressFields());
 
-		return $fields;
+		return $this->fields;
 	}
 
 	/**
 	 * @return array
 	 */
-	protected function getAddressFields()
+	public function getAddressFields()
 	{
 		static $addressFields = false;
 		if($addressFields === false)
@@ -55,6 +38,7 @@ class Requisite extends DataProvider
 					'VALUE' => 'PRIMARY_ADDRESS_RAW',
 					'OPTIONS' => [
 						'TYPE_ID' => 1,
+						'COUNTRY_ID' => $this->getDocumentCountryId(),
 					],
 				],
 				'REGISTERED_ADDRESS' => [
@@ -63,6 +47,7 @@ class Requisite extends DataProvider
 					'VALUE' => 'REGISTERED_ADDRESS_RAW',
 					'OPTIONS' => [
 						'TYPE_ID' => 6,
+						'COUNTRY_ID' => $this->getDocumentCountryId(),
 					],
 				],
 				'HOME_ADDRESS' => [
@@ -71,6 +56,7 @@ class Requisite extends DataProvider
 					'VALUE' => 'HOME_ADDRESS_RAW',
 					'OPTIONS' => [
 						'TYPE_ID' => 4,
+						'COUNTRY_ID' => $this->getDocumentCountryId(),
 					],
 				],
 				'BENEFICIARY_ADDRESS' => [
@@ -79,23 +65,12 @@ class Requisite extends DataProvider
 					'VALUE' => 'BENEFICIARY_ADDRESS_RAW',
 					'OPTIONS' => [
 						'TYPE_ID' => 9,
+						'COUNTRY_ID' => $this->getDocumentCountryId(),
 					],
 				],
 			];
 		}
 		return $addressFields;
-	}
-
-	/**
-	 * Returns value by its name.
-	 *
-	 * @param string $name
-	 * @return mixed
-	 */
-	public function getValue($name)
-	{
-		$this->fetchData();
-		return parent::getValue($name);
 	}
 
 	/**
@@ -156,49 +131,36 @@ class Requisite extends DataProvider
 	}
 
 	/**
-	 * @return int
+	 * @return array
 	 */
-	protected function getCountryId()
+	protected function getInterfaceLanguageTitles()
 	{
-		if(!$this->countryId)
+		if($this->interfaceTitles === null)
 		{
-			$currentRegion = DataProviderManager::getInstance()->getCurrentRegion($this);
-			$this->countryId = $this->getCountryMap()[$currentRegion];
-			if(!$this->countryId)
+			$this->interfaceTitles = EntityRequisite::getSingleInstance()->getFieldsTitles($this->getInterfaceCountryId());
+		}
+
+		return $this->interfaceTitles;
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getDocumentLanguageTitles()
+	{
+		if($this->documentTitles === null)
+		{
+			$documentRegion = $this->getDocumentCountryId();
+			if($documentRegion == $this->getInterfaceCountryId())
 			{
-				$this->countryId = 1;
+				$this->documentTitles = $this->getInterfaceLanguageTitles();
+			}
+			else
+			{
+				$this->documentTitles = EntityRequisite::getSingleInstance()->getFieldsTitles($documentRegion);
 			}
 		}
 
-		return $this->countryId;
-	}
-
-	/**
-	 * @return array
-	 */
-	protected function getFieldsTitles()
-	{
-		static $titles = false;
-		if(!$titles)
-		{
-			$titles = EntityRequisite::getSingleInstance()->getFieldsTitles($this->getCountryId());
-		}
-
-		return $titles;
-	}
-
-	/**
-	 * @return array
-	 */
-	protected function getCountryMap()
-	{
-		return [
-			'ru' => 1,
-			'by' => 4,
-			'kz' => 6,
-			'ua' => 14,
-			'de' => 46,
-			'us' => 122,
-		];
+		return $this->documentTitles;
 	}
 }

@@ -70,6 +70,11 @@ class WaitEntry
 			EntityCounterManager::reset($counterCodes, array());
 		}
 
+		if(!\Bitrix\Crm\Agent\Activity\WaitAgent::isActive())
+		{
+			\Bitrix\Crm\Agent\Activity\WaitAgent::activate();
+		}
+
 		return $result;
 	}
 	public static function getByID($ID)

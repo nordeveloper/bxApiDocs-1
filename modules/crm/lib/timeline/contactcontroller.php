@@ -10,6 +10,11 @@ Loc::loadMessages(__FILE__);
 
 class ContactController extends EntityController
 {
+	//region Event Names
+	const ADD_EVENT_NAME = 'timeline_contact_add';
+	const REMOVE_EVENT_NAME = 'timeline_contact_remove';
+	//endregion
+
 	//region Singleton
 	/** @var ContactController|null */
 	protected static $instance = null;
@@ -78,7 +83,7 @@ class ContactController extends EntityController
 		$enableHistoryPush = $historyEntryID > 0;
 		if($enableHistoryPush && Main\Loader::includeModule('pull'))
 		{
-			$pushParams = array();
+			$pushParams = array('ID' => $ownerID);
 			if($enableHistoryPush)
 			{
 				$historyFields = TimelineEntry::getByID($historyEntryID);
@@ -91,12 +96,12 @@ class ContactController extends EntityController
 				}
 			}
 
-			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Contact, $ownerID);
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Contact, 0);
 			\CPullWatch::AddToStack(
 				$tag,
 				array(
 					'module_id' => 'crm',
-					'command' => 'timeline_contact_add',
+					'command' => self::ADD_EVENT_NAME,
 					'params' => $pushParams,
 				)
 			);
@@ -142,6 +147,33 @@ class ContactController extends EntityController
 			);
 		}
 	}
+	public function onDelete($ownerID, array $params)
+	{
+		if(!is_int($ownerID))
+		{
+			$ownerID = (int)$ownerID;
+		}
+		if($ownerID <= 0)
+		{
+			throw new Main\ArgumentException('Owner ID must be greater than zero.', 'ownerID');
+		}
+
+		if(Main\Loader::includeModule('pull'))
+		{
+			$pushParams = array('ID' => $ownerID);
+
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Contact, 0);
+			\CPullWatch::AddToStack(
+				$tag,
+				array(
+					'module_id' => 'crm',
+					'command' => self::REMOVE_EVENT_NAME,
+					'params' => $pushParams,
+				)
+			);
+		}
+	}
+
 	public function onLink($ownerID, array $params)
 	{
 		$fields = isset($params['FIELDS']) && is_array($params['FIELDS']) ? $params['FIELDS'] : null;
@@ -226,6 +258,15 @@ class ContactController extends EntityController
 			);
 		}
 	}
+
+	public function getSupportedPullCommands()
+	{
+		return array(
+			'add' => self::ADD_EVENT_NAME,
+			'remove' => self::REMOVE_EVENT_NAME
+		);
+	}
+
 	/**
 	 * Register existed entity in retrospect mode.
 	 * @param int $ownerID Entity ID

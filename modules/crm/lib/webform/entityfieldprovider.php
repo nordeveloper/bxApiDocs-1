@@ -66,6 +66,8 @@ class EntityFieldProvider
 			Internals\FieldTable::TYPE_ENUM_TEXT,
 			Internals\FieldTable::TYPE_ENUM_INT,
 			Internals\FieldTable::TYPE_ENUM_FLOAT,
+			Internals\FieldTable::TYPE_ENUM_DATE,
+			Internals\FieldTable::TYPE_ENUM_DATETIME,
 		);
 		foreach($fieldsTree as $entityName => $entityFields)
 		{

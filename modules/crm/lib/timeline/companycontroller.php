@@ -11,6 +11,11 @@ Loc::loadMessages(__FILE__);
 
 class CompanyController extends EntityController
 {
+	//region Event Names
+	const ADD_EVENT_NAME = 'timeline_company_add';
+	const REMOVE_EVENT_NAME = 'timeline_company_remove';
+	//endregion
+
 	//region Singleton
 	/** @var CompanyController|null */
 	protected static $instance = null;
@@ -79,7 +84,7 @@ class CompanyController extends EntityController
 		$enableHistoryPush = $historyEntryID > 0;
 		if($enableHistoryPush && Main\Loader::includeModule('pull'))
 		{
-			$pushParams = array();
+			$pushParams = array('ID' => $ownerID);
 			if($enableHistoryPush)
 			{
 				$historyFields = TimelineEntry::getByID($historyEntryID);
@@ -92,7 +97,7 @@ class CompanyController extends EntityController
 				}
 			}
 
-			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Company, $ownerID);
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Company, 0);
 			\CPullWatch::AddToStack(
 				$tag,
 				array(
@@ -143,6 +148,34 @@ class CompanyController extends EntityController
 			);
 		}
 	}
+
+	public function onDelete($ownerID, array $params)
+	{
+		if(!is_int($ownerID))
+		{
+			$ownerID = (int)$ownerID;
+		}
+		if($ownerID <= 0)
+		{
+			throw new Main\ArgumentException('Owner ID must be greater than zero.', 'ownerID');
+		}
+
+		if(Main\Loader::includeModule('pull'))
+		{
+			$pushParams = array('ID' => $ownerID);
+
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Company, 0);
+			\CPullWatch::AddToStack(
+				$tag,
+				array(
+					'module_id' => 'crm',
+					'command' => self::REMOVE_EVENT_NAME,
+					'params' => $pushParams,
+				)
+			);
+		}
+	}
+
 	public function onLink($ownerID, array $params)
 	{
 		$fields = isset($params['FIELDS']) && is_array($params['FIELDS']) ? $params['FIELDS'] : null;
@@ -209,6 +242,15 @@ class CompanyController extends EntityController
 			);
 		}
 	}
+
+	public function getSupportedPullCommands()
+	{
+		return array(
+			'add' => self::ADD_EVENT_NAME,
+			'remove' => self::REMOVE_EVENT_NAME
+		);
+	}
+
 	/**
 	 * Register existed entity in retrospect mode.
 	 * @param int $ownerID Entity ID

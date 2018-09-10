@@ -20,6 +20,17 @@ class EntityController extends Controller
 	public function onDelete($entityID, array $params)
 	{
 	}
+
+	public function getSupportedPullCommands()
+	{
+		return array();
+	}
+
+	public function prepareEntityPushTag($entityID)
+	{
+		return TimelineEntry::prepareEntityPushTag($this->getEntityTypeID(), $entityID);
+	}
+
 	/**
 	 * Register existed entity in retrospect mode.
 	 * @param int $ownerID Entity ID

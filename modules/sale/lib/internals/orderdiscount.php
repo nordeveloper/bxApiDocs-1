@@ -304,6 +304,7 @@ class OrderDiscountTable extends Main\Entity\DataManager
 
 	/**
 	 * Return discount modules list.
+	 * @deprecated
 	 *
 	 * @param array $discount			Discount data.
 	 * @return array

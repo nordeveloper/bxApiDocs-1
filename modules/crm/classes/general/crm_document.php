@@ -6,14 +6,15 @@ IncludeModuleLangFile(__FILE__);
 
 class CCrmDocument
 {
+	private static $UNGROUPED_USERS = array();
 	private static $USER_GROUPS = array();
 	private static $USER_PERMISSION_CHECK = array();
 	private static $webFormSelectList;
 
-	static public function GetDocumentFieldTypes($documentType)
+	public static function GetDocumentFieldTypes($documentType)
 	{
 		global $USER_FIELD_MANAGER;
-		$arDocumentID = self::GetDocumentInfo($documentType.'_0');
+		$arDocumentID = static::GetDocumentInfo($documentType.'_0');
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -65,17 +66,17 @@ class CCrmDocument
 		return $arResult;
 	}
 
-	static public function GetFieldInputControl($documentType, $arFieldType, $arFieldName, $fieldValue, $bAllowSelection = false, $publicMode = false)
+	public static function GetFieldInputControl($documentType, $arFieldType, $arFieldName, $fieldValue, $bAllowSelection = false, $publicMode = false)
 	{
 		global $USER_FIELD_MANAGER, $APPLICATION;
 
-		$arDocumentID = self::GetDocumentInfo($documentType.'_0');
+		$arDocumentID = static::GetDocumentInfo($documentType.'_0');
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
 		static $arDocumentFieldTypes = array();
 		if (!array_key_exists($documentType, $arDocumentFieldTypes))
-			$arDocumentFieldTypes[$documentType] = self::GetDocumentFieldTypes($documentType);
+			$arDocumentFieldTypes[$documentType] = static::GetDocumentFieldTypes($documentType);
 
 		$arFieldType["BaseType"] = "string";
 		$arFieldType["Complex"] = false;
@@ -532,12 +533,12 @@ class CCrmDocument
 		return $s;
 	}
 
-	static public function GetFieldInputControlOptions($documentType, &$arFieldType, $jsFunctionName, &$value)
+	public static function GetFieldInputControlOptions($documentType, &$arFieldType, $jsFunctionName, &$value)
 	{
 		$result = '';
 		static $arDocumentFieldTypes = array();
 		if (!array_key_exists($documentType, $arDocumentFieldTypes))
-			$arDocumentFieldTypes[$documentType] = self::GetDocumentFieldTypes($documentType);
+			$arDocumentFieldTypes[$documentType] = static::GetDocumentFieldTypes($documentType);
 
 		if (!array_key_exists($arFieldType['Type'], $arDocumentFieldTypes[$documentType])
 			|| !$arDocumentFieldTypes[$documentType][$arFieldType['Type']]['Complex'])
@@ -688,12 +689,12 @@ class CCrmDocument
 		return $result;
 	}
 
-	static public function GetFieldInputValue($documentType, $arFieldType, $arFieldName, $arRequest, &$arErrors)
+	public static function GetFieldInputValue($documentType, $arFieldType, $arFieldName, $arRequest, &$arErrors)
 	{
 		if (strpos($documentType, '_') === false)
 			$documentType .= '_0';
 
-		$arDocumentID = self::GetDocumentInfo($documentType);
+		$arDocumentID = static::GetDocumentInfo($documentType);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -982,17 +983,17 @@ class CCrmDocument
 		return $result;
 	}
 
-	static public function GetFieldInputValuePrintable($documentType, $arFieldType, $fieldValue)
+	public static function GetFieldInputValuePrintable($documentType, $arFieldType, $fieldValue)
 	{
-		return self::PreparePrintableValue(self::GetDocumentInfo($documentType.'_0'), '', $arFieldType, $fieldValue);
+		return static::PreparePrintableValue(static::GetDocumentInfo($documentType.'_0'), '', $arFieldType, $fieldValue);
 	}
 
-	static public function GetFieldValuePrintable($documentId, $fieldName, $fieldType, $fieldValue, $arFieldType)
+	public static function GetFieldValuePrintable($documentId, $fieldName, $fieldType, $fieldValue, $arFieldType)
 	{
-		return self::PreparePrintableValue(self::GetDocumentInfo($documentId), $fieldName, $arFieldType, $fieldValue);
+		return static::PreparePrintableValue(static::GetDocumentInfo($documentId), $fieldName, $arFieldType, $fieldValue);
 	}
 
-	static protected function PreparePrintableValue($arDocumentID, $fieldName, $arFieldType, $fieldValue)
+	protected static function PreparePrintableValue($arDocumentID, $fieldName, $arFieldType, $fieldValue)
 	{
 		global $USER_FIELD_MANAGER, $APPLICATION;
 		if (empty($arDocumentID))
@@ -1121,12 +1122,12 @@ class CCrmDocument
 					$result = array();
 					foreach($fieldValue as $value)
 					{
-						$result[] = self::PrepareCrmUserTypeValueView($value, $defaultTypeName);
+						$result[] = static::PrepareCrmUserTypeValueView($value, $defaultTypeName);
 					}
 				}
 				else
 				{
-					$result = self::PrepareCrmUserTypeValueView($fieldValue, $defaultTypeName);
+					$result = static::PrepareCrmUserTypeValueView($fieldValue, $defaultTypeName);
 				}
 			}
 			else
@@ -1177,9 +1178,9 @@ class CCrmDocument
 		return $result;
 	}
 
-	static public function GetGUIFieldEdit($documentType, $formName, $fieldName, $fieldValue, $arDocumentField = null, $bAllowSelection = false)
+	public static function GetGUIFieldEdit($documentType, $formName, $fieldName, $fieldValue, $arDocumentField = null, $bAllowSelection = false)
 	{
-		return self::GetFieldInputControl(
+		return static::GetFieldInputControl(
 			$documentType,
 			$arDocumentField,
 			array('Form' => $formName, 'Field' => $fieldName),
@@ -1188,19 +1189,19 @@ class CCrmDocument
 		);
 	}
 
-	static public function SetGUIFieldEdit($documentType, $fieldName, $arRequest, &$arErrors, $arDocumentField = null)
+	public static function SetGUIFieldEdit($documentType, $fieldName, $arRequest, &$arErrors, $arDocumentField = null)
 	{
-		return self::GetFieldInputValue($documentType, $arDocumentField, array('Field' => $fieldName), $arRequest, $arErrors);
+		return static::GetFieldInputValue($documentType, $arDocumentField, array('Field' => $fieldName), $arRequest, $arErrors);
 	}
 
-	static public function GetJSFunctionsForFields()
+	public static function GetJSFunctionsForFields()
 	{
 		return '';
 	}
 
-	static public function GetDocumentAdminPage($documentId)
+	public static function GetDocumentAdminPage($documentId)
 	{
-		$arDocumenInfo = self::GetDocumentInfo($documentId);
+		$arDocumenInfo = static::GetDocumentInfo($documentId);
 		if (empty($arDocumenInfo))
 			return null;
 
@@ -1212,9 +1213,9 @@ class CCrmDocument
 			? CCrmOwnerType::GetEntityShowPath($entityTypeID, $entityID, false) : null;
 	}
 
-	static public function GetDocument($documentId)
+	public static function GetDocument($documentId)
 	{
-		$arDocumentID = self::GetDocumentInfo($documentId);
+		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -1380,14 +1381,14 @@ class CCrmDocument
 
 							if(!$isFieldMultiple)
 							{
-								$objDocument[$userFieldName.'_PRINTABLE'] = self::PrepareCrmUserTypeValueView($fieldValue, $defaultTypeName);
+								$objDocument[$userFieldName.'_PRINTABLE'] = static::PrepareCrmUserTypeValueView($fieldValue, $defaultTypeName);
 							}
 							elseif(is_array($fieldValue))
 							{
 								$views = array();
 								foreach($fieldValue as $value)
 								{
-									$views[] = self::PrepareCrmUserTypeValueView($value, $defaultTypeName);
+									$views[] = static::PrepareCrmUserTypeValueView($value, $defaultTypeName);
 								}
 
 								$objDocument[$userFieldName.'_PRINTABLE'] = $views;
@@ -1396,7 +1397,7 @@ class CCrmDocument
 						}
 						elseif ($fieldTypeID == 'enumeration')
 						{
-							self::ExternalizeEnumerationField($objDocument, $userFieldName);
+							static::ExternalizeEnumerationField($objDocument, $userFieldName);
 						}
 						elseif ($fieldTypeID === 'boolean')
 						{
@@ -1549,7 +1550,7 @@ class CCrmDocument
 		return $fields;
 	}
 
-	static protected function ExternalizeEnumerationField(array &$fields, $name)
+	protected static function ExternalizeEnumerationField(array &$fields, $name)
 	{
 		$value = isset($fields[$name]) ? $fields[$name] : null;
 		$valueInfos = array();
@@ -1588,7 +1589,7 @@ class CCrmDocument
 			$fields["{$name}_PRINTABLE"] = implode(', ', $labels);
 		}
 	}
-	static protected function InternalizeEnumerationField($entityTypeID, array &$fields, $name)
+	protected static function InternalizeEnumerationField($entityTypeID, array &$fields, $name)
 	{
 		if(!isset($fields[$name]))
 		{
@@ -1671,14 +1672,14 @@ class CCrmDocument
 		}
 	}
 
-	static public function GetDocumentForHistory($documentId, $historyIndex)
+	public static function GetDocumentForHistory($documentId, $historyIndex)
 	{
 		global $USER_FIELD_MANAGER;
-		$arDocumentID = self::GetDocumentInfo($documentId);
+		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
-		$arResult = self::GetDocument($documentId);
+		$arResult = static::GetDocument($documentId);
 
 		switch ($arDocumentID['TYPE'])
 		{
@@ -1727,9 +1728,9 @@ class CCrmDocument
 		return $arResult;
 	}
 
-	static public function RecoverDocumentFromHistory($documentId, $arDocument)
+	public static function RecoverDocumentFromHistory($documentId, $arDocument)
 	{
-		$arDocumentID = self::GetDocumentInfo($documentId);
+		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -1757,29 +1758,29 @@ class CCrmDocument
 
 		$res = $CCrmEntity->Update($arDocumentID['ID'], $arFields);
 		if (intVal($arFields['WF_STATUS_ID']) > 1 && intVal($arFields['WF_PARENT_ELEMENT_ID']) <= 0)
-			self::UnpublishDocument($documentId);
+			static::UnpublishDocument($documentId);
 		if (!$res)
 			throw new Exception($CCrmEntity->LAST_ERROR);
 
 		return true;
 	}
 
-	static public function LockDocument($documentId, $workflowId)
+	public static function LockDocument($documentId, $workflowId)
 	{
 		return true;
 	}
 
-	static public function UnlockDocument($documentId, $workflowId)
+	public static function UnlockDocument($documentId, $workflowId)
 	{
 		return true;
 	}
 
-	static public function IsDocumentLocked($documentId, $workflowId)
+	public static function IsDocumentLocked($documentId, $workflowId)
 	{
 		return false;
 	}
 
-	static protected function PrepareUserGroups($userId)
+	protected static function PrepareUserGroups($userId)
 	{
 		$userId = intval($userId);
 		if(!isset(self::$USER_GROUPS[$userId]))
@@ -1803,9 +1804,9 @@ class CCrmDocument
 		return CCrmPerms::ResolvePermissionEntityType($entityTypeName, $entityID, $operationParams);
 	}
 
-	static function CanUserOperateDocument($operation, $userId, $documentId, $arParameters = array())
+	public static function CanUserOperateDocument($operation, $userId, $documentId, $arParameters = array())
 	{
-		$arDocumentID = self::GetDocumentInfo($documentId);
+		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -1821,7 +1822,7 @@ class CCrmDocument
 		{
 			if (!array_key_exists('UserGroups', $arParameters))
 			{
-				$arParameters['UserGroups'] = self::PrepareUserGroups($userId);
+				$arParameters['UserGroups'] = static::PrepareUserGroups($userId);
 				if (!array_key_exists('CreatedBy', $arParameters))
 				{
 					$responsibleID = CCrmOwnerType::GetResponsibleID(
@@ -1850,7 +1851,7 @@ class CCrmDocument
 			return true;
 		}
 
-		$permissionEntity = self::ResolvePermissionEntity($arDocumentID, $arParameters);
+		$permissionEntity = static::ResolvePermissionEntity($arDocumentID, $arParameters);
 		$userPermissions = CCrmPerms::GetUserPermissions($userId);
 		if ($arDocumentID['ID'] > 0)
 		{
@@ -1876,9 +1877,9 @@ class CCrmDocument
 		return $result;
 	}
 
-	static function CanUserOperateDocumentType($operation, $userId, $documentType, $arParameters = array())
+	public static function CanUserOperateDocumentType($operation, $userId, $documentType, $arParameters = array())
 	{
-		$arDocumentID = self::GetDocumentInfo($documentType.'_0');
+		$arDocumentID = static::GetDocumentInfo($documentType.'_0');
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -1886,7 +1887,7 @@ class CCrmDocument
 		if (!array_key_exists('AllUserGroups', $arParameters))
 		{
 			if (!array_key_exists('UserGroups', $arParameters))
-				$arParameters['UserGroups'] = self::PrepareUserGroups($userId);
+				$arParameters['UserGroups'] = static::PrepareUserGroups($userId);
 
 			$arParameters['AllUserGroups'] = $arParameters['UserGroups'];
 			$arParameters['AllUserGroups'][] = 'Author';
@@ -1901,7 +1902,7 @@ class CCrmDocument
 			return true;
 		}
 
-		$permissionEntity = self::ResolvePermissionEntity($arDocumentID, $arParameters);
+		$permissionEntity = static::ResolvePermissionEntity($arDocumentID, $arParameters);
 		$userPermissions = CCrmPerms::GetUserPermissions($userId);
 
 		if ($operation == \CBPCanUserOperateOperation::CreateWorkflow)
@@ -1928,9 +1929,9 @@ class CCrmDocument
 		return CCrmAuthorizationHelper::CheckCreatePermission($permissionEntity, $userPermissions);
 	}
 
-	static public function DeleteDocument($documentId)
+	public static function DeleteDocument($documentId)
 	{
-		$arDocumentID = self::GetDocumentInfo($documentId);
+		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -1954,35 +1955,32 @@ class CCrmDocument
 		if($CCrmEntity !== null)
 		{
 			$CCrmEntity->Delete($arDocumentID['ID'], array(
-				'CURRENT_USER' => self::getSystemUserId()
+				'CURRENT_USER' => static::getSystemUserId()
 			));
 		}
 	}
 
-
-	static public function PublishDocument($documentId)
+	public static function PublishDocument($documentId)
 	{
 		return false;
 	}
 
-
-	static public function UnpublishDocument($documentId)
+	public static function UnpublishDocument($documentId)
 	{
 	}
 
-	static public function GetAllowableOperations($documentType)
+	public static function GetAllowableOperations($documentType)
 	{
 		return array();
 	}
 
-	private static $UNGROUPED_USERS = array();
-	static public function GetAllowableUserGroups($documentType)
+	public static function GetAllowableUserGroups($documentType)
 	{
 		$documentType = trim($documentType);
 		if (strlen($documentType) <= 0)
 			return false;
 
-		$arDocumentID = self::GetDocumentInfo($documentType);
+		$arDocumentID = static::GetDocumentInfo($documentType);
 		if ($arDocumentID !== false)
 			$documentType = $arDocumentID['TYPE'];
 
@@ -2049,12 +2047,12 @@ class CCrmDocument
 		return $arResult;
 	}
 
-	static public function GetUsersFromUserGroup($group, $documentId)
+	public static function GetUsersFromUserGroup($group, $documentId)
 	{
 		$groupLc = strtolower($group);
 		if ($groupLc == 'author')
 		{
-			$arDocumentID = self::GetDocumentInfo($documentId);
+			$arDocumentID = static::GetDocumentInfo($documentId);
 			if (empty($arDocumentID))
 			{
 				return array();
@@ -2125,9 +2123,9 @@ class CCrmDocument
 		return $arResult;
 	}
 
-	static public function GetDocumentType($documentId)
+	public static function GetDocumentType($documentId)
 	{
-		$arDocumentID = self::GetDocumentInfo($documentId);
+		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
 		{
 			throw new CBPArgumentNullException('documentId');
@@ -2164,37 +2162,49 @@ class CCrmDocument
 
 		$cnt = count($arDocumentId);
 		if ($cnt < 1)
+		{
 			return false;
+		}
 		if ($cnt < 2)
+		{
 			$arDocumentId[] = 0;
+		}
+
+		static $arMap = [
+			'LEAD' => "CCrmDocumentLead",
+			'CONTACT' => "CCrmDocumentContact",
+			'DEAL' => "CCrmDocumentDeal",
+			'COMPANY' => "CCrmDocumentCompany",
+			'ORDER' => \Bitrix\Crm\Integration\BizProc\Document\Order::class,
+			'INVOICE' => \Bitrix\Crm\Integration\BizProc\Document\Invoice::class
+		];
 
 		$arDocumentId[0] = strtoupper($arDocumentId[0]);
-		if (!in_array($arDocumentId[0], array('LEAD', 'CONTACT', 'DEAL', 'COMPANY')))
+		if (!isset($arMap[$arDocumentId[0]]))
+		{
 			return false;
-		$arDocumentId[1] = intval($arDocumentId[1]);
-
-		static $arMap = array('LEAD' => "CCrmDocumentLead", 'CONTACT' => "CCrmDocumentContact", 'DEAL' => "CCrmDocumentDeal", 'COMPANY' => "CCrmDocumentCompany");
+		}
 
 		return array(
 			'TYPE' => $arDocumentId[0],
-			'ID' => $arDocumentId[1],
+			'ID' => (int) $arDocumentId[1],
 			'DOCUMENT_TYPE' => array("crm", $arMap[$arDocumentId[0]], $arDocumentId[0])
 		);
 	}
 
-	static public function SetPermissions($documentId, $arPermissions)
+	public static function SetPermissions($documentId, $arPermissions)
 	{
-		$arDocumentID = self::GetDocumentInfo($documentId);
+		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 	}
 
-	static public function AddDocumentField($documentType, $arFields)
+	public static function AddDocumentField($documentType, $arFields)
 	{
 		if (strpos($documentType, '_') === false)
 			$documentType .= '_0';
 
-		$arDocumentID = self::GetDocumentInfo($documentType);
+		$arDocumentID = static::GetDocumentInfo($documentType);
 		if (empty($arDocumentID))
 			throw new CBPArgumentNullException('documentId');
 
@@ -2475,7 +2485,7 @@ class CCrmDocument
 			return 0;
 		}
 
-		$documentInfo = self::GetDocumentInfo($documentId[2]);
+		$documentInfo = static::GetDocumentInfo($documentId[2]);
 		$entityTypeName = isset($documentInfo['TYPE']) ? $documentInfo['TYPE'] : '';
 		$entityId = isset($documentInfo['ID']) ? intval($documentInfo['ID']) : 0;
 
@@ -2489,9 +2499,9 @@ class CCrmDocument
 	public static function GetUserGroups($documentType, $documentId, $userId)
 	{
 		$userId = intval($userId);
-		$result = self::PrepareUserGroups($userId);
+		$result = static::PrepareUserGroups($userId);
 
-		if($userId === self::GetDocumentAuthorID($documentId))
+		if($userId === static::GetDocumentAuthorID($documentId))
 		{
 			$result[] = 'author';
 		}
@@ -2684,5 +2694,16 @@ class CCrmDocument
 		}
 
 		return $fields;
+	}
+
+	public static function isFeatureEnabled($documentType, $feature)
+	{
+		$supported = [
+			//\CBPDocumentService::FEATURE_MARK_MODIFIED_FIELDS,
+			'FEATURE_SET_MODIFIED_BY',
+			// TODO: replace to \CBPDocumentService::FEATURE_SET_MODIFIED_BY after bizproc will be released
+		];
+
+		return in_array($feature, $supported);
 	}
 }

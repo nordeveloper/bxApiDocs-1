@@ -96,6 +96,7 @@ $arClasses = array(
 	'\Bitrix\Iblock\InheritedProperty\IblockValues' => "lib/inheritedproperty/iblockvalues.php",
 	'\Bitrix\Iblock\InheritedProperty\SectionTemplates' => "lib/inheritedproperty/sectiontemplates.php",
 	'\Bitrix\Iblock\InheritedProperty\SectionValues' => "lib/inheritedproperty/sectionvalues.php",
+	'\Bitrix\Iblock\InheritedProperty\ValuesQueue' => "lib/inheritedproperty/valuesqueue.php",
 	'\Bitrix\Iblock\Model\Section' => "lib/model/section.php",
 	'\Bitrix\Iblock\PropertyIndex\Dictionary' => "lib/propertyindex/dictionary.php",
 	'\Bitrix\Iblock\PropertyIndex\Element' => "lib/propertyindex/element.php",

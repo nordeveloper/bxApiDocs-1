@@ -726,7 +726,7 @@ class OrderShipment
 		return array('SHIPMENT' => $data);
 	}
 
-	protected static function getStoresList($deliveryId, $storeId)
+	public static function getStoresList($deliveryId, $storeId)
 	{
 		$result = array();
 

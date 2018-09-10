@@ -1,6 +1,12 @@
 <?php
+
+use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\UserGroupTable;
+
 class CCrmSaleHelper
 {
+	private static $listUserIdWithShopAccess = array();
+
 	public static function Calculate($productRows, $currencyID, $personTypeID, $enableSaleDiscount = false, $siteId = SITE_ID, $arOptions = array())
 	{
 		if(!CModule::IncludeModule('sale'))
@@ -39,7 +45,9 @@ class CCrmSaleHelper
 		unset($item);
 
 		$errors = array();
-		$cartItems = CSaleBasket::DoGetUserShoppingCart($siteId, $saleUserId, $cartItems, $errors, array(), 0, true);
+		$cartItems = Bitrix\Crm\Invoice\Compatible\BasketHelper::doGetUserShoppingCart(
+			$siteId, $saleUserId, $cartItems, $errors, 0, true
+		);
 
 		foreach ($cartItems as &$item)
 		{
@@ -85,7 +93,6 @@ class CCrmSaleHelper
 		{
 			$options['CART_FIX'] = 'Y';
 		}
-
 
 		$result = CSaleOrder::DoCalculateOrder(
 			$siteId,
@@ -161,8 +168,8 @@ class CCrmSaleHelper
 			$exclusivePrice = isset($v['PRICE_EXCLUSIVE'])
 				? doubleval($v['PRICE_EXCLUSIVE'])
 				: (($taxRate !== 0.0)
-					? CCrmProductRow::CalculateExclusivePrice($item['PRICE'], $taxRate)
-					: $item['PRICE']);
+					? CCrmProductRow::CalculateExclusivePrice($inclusivePrice, $taxRate)
+					: $inclusivePrice);
 			$isTaxIncluded = isset($v['TAX_INCLUDED']) && $v['TAX_INCLUDED'] === 'Y';
 
 			$item['VAT_INCLUDED'] = $isTaxIncluded ? 'Y' : 'N';
@@ -170,7 +177,7 @@ class CCrmSaleHelper
 			$item['PRICE_DEFAULT'] = $item['PRICE'];
 
 			$item['CURRENCY'] = $currencyID;
-			
+
 			// discount info
 			$item['CRM_PR_FIELDS'] = array();
 			$item['CRM_PR_FIELDS']['DISCOUNT_TYPE_ID'] = isset($v['DISCOUNT_TYPE_ID']) ?
@@ -179,7 +186,7 @@ class CCrmSaleHelper
 				round(doubleval($v['DISCOUNT_RATE']), 2) : 0.0;
 			$item['CRM_PR_FIELDS']['DISCOUNT_SUM'] = isset($v['DISCOUNT_SUM']) ?
 				round(doubleval($v['DISCOUNT_SUM']), 2) : 0.0;
-			
+
 			// tax info
 			$allowLDTax = CCrmTax::isTaxMode();
 			if ($allowLDTax)
@@ -295,4 +302,397 @@ class CCrmSaleHelper
 		return $locationPropertyId;
 	}
 
+	public static function getShopGroupIdByType($type)
+	{
+		$groupId = null;
+		$queryObject = CGroup::getList($by = "ID", $order = "ASC", array("STRING_ID" => "CRM_SHOP_".strtoupper($type)));
+		if ($group = $queryObject->fetch())
+		{
+			$groupId = $group["ID"];
+		}
+		return $groupId;
+	}
+
+	/**
+	 * @param string $type
+	 * @return bool|mixed
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function isShopAccess($type = "")
+	{
+		$shopEnabled = \Bitrix\Main\Config\Option::get("crm", "crm_shop_enabled", "N");
+		if ($shopEnabled == "N")
+		{
+			return false;
+		}
+
+		global $USER;
+
+		if (!is_object($USER))
+		{
+			return false;
+		}
+
+		$userId = $USER->GetID();
+
+		if (array_key_exists($userId, self::$listUserIdWithShopAccess))
+		{
+			if (isset(self::$listUserIdWithShopAccess[$userId][$type]))
+			{
+				return !empty(self::$listUserIdWithShopAccess[$userId][$type]);
+			}
+		}
+
+		if ($USER->isAdmin())
+		{
+			self::$listUserIdWithShopAccess[$userId] = array($type => true);
+			return true;
+		}
+
+		$listGroupId = array();
+		if ($type)
+		{
+			$listGroupId[] = self::getShopGroupIdByType($type);
+		}
+		else
+		{
+			$listGroupId[] = self::getShopGroupIdByType("admin");
+			$listGroupId[] = self::getShopGroupIdByType("manager");
+		}
+
+		if ($userId && $listGroupId)
+		{
+			$listCurrentGroupId = array();
+			$groupListObject = CUser::getUserGroupList($userId);
+			while($groupList = $groupListObject->fetch())
+			{
+				$listCurrentGroupId[] = $groupList["GROUP_ID"];
+			}
+
+			$isAccess = false;
+			foreach ($listGroupId as $groupId)
+			{
+				if (in_array($groupId, $listCurrentGroupId))
+				{
+					$isAccess = true;
+				}
+			}
+
+			$isAccess = ($isAccess ? $isAccess : self::setUserToShopGroup($userId, $type));
+
+			self::$listUserIdWithShopAccess[$userId] = array($type => $isAccess);
+			return $isAccess;
+		}
+		else
+		{
+			self::$listUserIdWithShopAccess[$userId] = array($type => false);
+			return false;
+		}
+	}
+
+	/**
+	 * @param $userId
+	 * @param $type
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function setUserToShopGroup($userId, $type)
+	{
+		$isAccess = false;
+
+		if (CModule::IncludeModule("bitrix24") && CBitrix24::IsPortalAdmin($userId))
+		{
+			self::addUserToShopGroup(array($userId));
+			$isAccess = true;
+		}
+		else
+		{
+			$listUserId = self::getListUserIdFromCrmRoles();
+			if (in_array($userId, $listUserId))
+			{
+				$CrmPerms = new CCrmPerms($userId);
+				if ($type == "admin" && !$CrmPerms->havePerm("CONFIG", BX_CRM_PERM_CONFIG, "WRITE"))
+				{
+					$isAccess = false;
+				}
+				else
+				{
+					self::addUserToShopGroup(array($userId));
+					$isAccess = true;
+				}
+			}
+		}
+
+		return $isAccess;
+	}
+
+	/**
+	 * @param array $listUserId
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function addUserToShopGroup($listUserId = array())
+	{
+		if (IsModuleInstalled("bitrix24"))
+		{
+			if (empty($listUserId))
+			{
+				$listUserId = self::getListUserIdFromCrmRoles();
+			}
+
+			if ($listUserId)
+			{
+				foreach ($listUserId as $userId)
+				{
+					$CrmPerms = new CCrmPerms($userId);
+					if ($CrmPerms->havePerm("CONFIG", BX_CRM_PERM_CONFIG, "WRITE"))
+					{
+						$groupId = self::getShopGroupIdByType("admin");
+					}
+					else
+					{
+						$groupId = self::getShopGroupIdByType("manager");
+					}
+					if ($groupId)
+					{
+						$queryObject = UserGroupTable::getByPrimary(
+							array("GROUP_ID" => $groupId, "USER_ID" => $userId),
+							array("select" => array("GROUP_ID"))
+						);
+						if (!$queryObject->fetch())
+						{
+							UserGroupTable::add(array("GROUP_ID" => $groupId, "USER_ID" => $userId));
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public static function runAgentAddGroupToShop()
+	{
+		global $APPLICATION;
+
+		$groupObject = new CGroup;
+
+		$groupsData = array(
+			array(
+				"ACTIVE" => "Y",
+				"C_SORT" => 100,
+				"NAME" => Loc::getMessage("SALE_USER_GROUP_SHOP_ADMIN_NAME"),
+				"STRING_ID" => "CRM_SHOP_ADMIN",
+				"DESCRIPTION" => Loc::getMessage("SALE_USER_GROUP_SHOP_ADMIN_DESC"),
+				"BASE_RIGHTS" => array("sale" => "W"),
+				"TASK_RIGHTS" => array("catalog" => "W", "main" => "R", "iblock" => "X")
+			),
+			array(
+				"ACTIVE" => "Y",
+				"C_SORT" => 100,
+				"NAME" => Loc::getMessage("SALE_USER_GROUP_SHOP_MANAGER_NAME"),
+				"STRING_ID" => "CRM_SHOP_MANAGER",
+				"DESCRIPTION" => Loc::getMessage("SALE_USER_GROUP_SHOP_MANAGER_DESC"),
+				"BASE_RIGHTS" => array("sale" => "U"),
+				"TASK_RIGHTS" => array("catalog" => "W", "iblock" => "W")
+			),
+		);
+
+		foreach ($groupsData as $groupData)
+		{
+			$groupId = $groupObject->add($groupData);
+			if (strlen($groupObject->LAST_ERROR) <= 0 && $groupId)
+			{
+				foreach($groupData["BASE_RIGHTS"] as $moduleId => $letter)
+				{
+					$APPLICATION->delGroupRight($moduleId, array($groupId), false);
+					$APPLICATION->setGroupRight($moduleId, $groupId, $letter, false);
+				}
+				foreach($groupData["TASK_RIGHTS"] as $moduleId => $letter)
+				{
+					switch ($moduleId)
+					{
+						case "iblock":
+							if (CModule::includeModule("iblock"))
+							{
+								CIBlockRights::setGroupRight($groupId, "CRM_PRODUCT_CATALOG", $letter);
+							}
+							break;
+						default:
+							CGroup::SetModulePermission($groupId, $moduleId, CTask::GetIdByLetter($letter, $moduleId));
+							CGroup::SetModulePermission($groupId, $moduleId, CTask::GetIdByLetter($letter, $moduleId));
+					}
+				}
+			}
+		}
+
+		if (IsModuleInstalled("bitrix24"))
+		{
+			CCrmSaleHelper::addUserToShopGroup();
+		}
+
+		return "";
+	}
+
+	/**
+	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 */
+	public static function deleteUserFromShopGroup()
+	{
+		if (IsModuleInstalled("bitrix24"))
+		{
+			$listGroupId = array(self::getShopGroupIdByType("admin"), self::getShopGroupIdByType("manager"));
+			$connection = Bitrix\Main\Application::getConnection();
+			if ($connection->isTableExists("b_user_group"))
+			{
+				foreach ($listGroupId as $groupId)
+				{
+					$groupId = intval($groupId);
+					if ($groupId)
+					{
+						$listUserId = array();
+						foreach (CGroup::getGroupUser($groupId) as $userId)
+						{
+							$listUserId[] = $userId;
+						}
+						if ($listUserId)
+						{
+							$strSql = "DELETE FROM b_user_group WHERE GROUP_ID = $groupId and USER_ID IN (" .
+								implode(',', $listUserId) . ")";
+							$connection->queryExecute($strSql);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function getListUserIdFromCrmRoles()
+	{
+		$listUserId = array();
+
+		$cacheTime = 86400;
+		$cacheId = "crm-list-crm-roles";
+		$cacheDir = "/crm/list_crm_roles/";
+		$cache = new CPHPCache;
+
+		if ($cache->initCache($cacheTime, $cacheId, $cacheDir))
+		{
+			$listUserId = $cache->getVars();
+		}
+		else
+		{
+			$cache->startDataCache();
+
+			$objectQuery = CCrmRole::getRelation();
+			while ($relation = $objectQuery->fetch())
+			{
+				$relationCode = $relation["RELATION"];
+				if (preg_match('/^(U|IU)[0-9]+$/', $relationCode, $matches))
+				{
+					if (!empty($matches[1]))
+					{
+						$listUserId[str_replace($matches[1], "", $relationCode)] = true;
+					}
+				}
+				elseif (preg_match('/^(G)[0-9]+$/', $relationCode, $matches))
+				{
+					if (!empty($matches[1]))
+					{
+						$groupId = str_replace($matches[1], "", $relationCode);
+						foreach (CGroup::getGroupUser($groupId) as $userId)
+						{
+							$listUserId[$userId] = true;
+						}
+					}
+				}
+				elseif (preg_match('/^(D|DR)[0-9]+$/', $relationCode, $matches))
+				{
+					if (!empty($matches[1]))
+					{
+						$listDepartmentId = array();
+						$listDepartmentId[] = str_replace($matches[1], "", $relationCode);
+						if ($matches[1] == "DR" && CModule::includeModule("iblock"))
+						{
+							$currentDepartmentId = current($listDepartmentId);
+							if ($currentDepartmentId)
+							{
+								$parentSectionObject = CIBlockSection::getList(array(),
+									array("=ID" => $currentDepartmentId));
+								$parentSection = $parentSectionObject->getNext();
+								$sectionFilter = array (
+									"LEFT_MARGIN" => $parentSection["LEFT_MARGIN"],
+									"RIGHT_MARGIN" => $parentSection["RIGHT_MARGIN"],
+									"IBLOCK_ID" => $parentSection["IBLOCK_ID"]
+								);
+								$sectionObject = CIBlockSection::getList(array("left_margin"=>"asc"), $sectionFilter);
+								while($section = $sectionObject->getNext())
+								{
+									$listDepartmentId[] =  $section["ID"];
+								}
+							}
+						}
+						if ($listDepartmentId)
+						{
+							$connection = Bitrix\Main\Application::getConnection();
+							if ($connection->isTableExists("b_user") && $connection->isTableExists("b_uts_user")
+								&& $connection->isTableExists("b_utm_user"))
+							{
+								$strSql = "
+								SELECT user.ID AS ID
+								FROM b_user user
+								LEFT JOIN b_uts_user uts_object ON user.ID = uts_object.VALUE_ID
+								WHERE user.ID IN (SELECT inner_user.ID AS ID FROM b_user inner_user
+								LEFT JOIN b_utm_user utm_object ON utm_object.VALUE_ID = inner_user.ID
+								WHERE (utm_object.VALUE_INT in (".implode(',', $listDepartmentId).")))
+								ORDER BY user.ID DESC
+							";
+								$result = $connection->query($strSql);
+								while ($user = $result->fetch())
+								{
+									$listUserId[$user["ID"]] = true;
+								}
+							}
+						}
+					}
+				}
+				elseif (preg_match("/^SG([0-9]+)_[A-Z]$/", $relationCode, $matches) && CModule::includeModule("socialnetwork"))
+				{
+					$groupId = (int)$matches[1];
+					$role = (isset($matches[2]) ? $matches[2] : "K");
+					$userToGroup = Bitrix\Socialnetwork\UserToGroupTable::getList(array(
+						"filter" => array("=GROUP_ID" => $groupId, "@ROLE" => $role),
+						"select" => array("USER_ID")
+					));
+					while($user = $userToGroup->fetch())
+					{
+						$listUserId[$user["USER_ID"]] = true;
+					}
+				}
+			}
+			$listUserId = array_keys($listUserId);
+
+			if (!empty($listUserId))
+			{
+				$cache->endDataCache($listUserId);
+			}
+		}
+
+		return $listUserId;
+	}
 }

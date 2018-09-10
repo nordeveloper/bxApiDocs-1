@@ -115,7 +115,7 @@ final class Manager
 					'HANDLER' => $cashbox['HANDLER'],
 					'ENABLED' => $cashbox['PRESENTLY_ENABLED'],
 					'DATE_LAST_CHECK' => new DateTime(),
-					'EMAIL' => Main\Config\Option::get('main', 'email_from'),
+					'EMAIL' => self::getCashboxDefaultEmail(),
 				)
 			);
 
@@ -141,6 +141,39 @@ final class Manager
 				));
 			}
 		}
+	}
+
+	/**
+	 * @return string
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	private static function getCashboxDefaultEmail()
+	{
+		$email = Main\Config\Option::get('main', 'email_from');
+		if (!$email)
+		{
+			$dbRes = Main\UserGroupTable::getList([
+				'select' => ['EMAIL' => 'USER.EMAIL'],
+				'filter' => [
+					'=GROUP_ID' => 1
+				],
+				'order' => [
+					'USER.ID' => 'ASC'
+				]
+			]);
+
+			$data = $dbRes->fetch();
+			if ($data)
+			{
+				$email = $data['EMAIL'];
+			}
+		}
+
+		return $email;
 	}
 
 	/**

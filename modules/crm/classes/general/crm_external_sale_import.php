@@ -870,12 +870,27 @@ class CCrmExternalSaleImport
 
 		$dealId = 0;
 		$dealTitle = "";
+		$dealCategoryId = 0;
 
-		$dbDeal = CCrmDeal::GetList(array(), array("ORIGINATOR_ID" => $this->externalSaleId, "ORIGIN_ID" => $arOrder["ID"], "CHECK_PERMISSIONS" => "N"));
+		$dbDeal = CCrmDeal::GetListEx(
+			array(),
+			array(
+				"ORIGINATOR_ID" => $this->externalSaleId,
+				"ORIGIN_ID" => $arOrder["ID"],
+				"CHECK_PERMISSIONS" => "N"
+			)
+		);
 		if ($arDeal = $dbDeal->Fetch())
 		{
-			$dealId = $arDeal["ID"];
-			$dealTitle = $arDeal["TITLE"];
+			$dealId = (int)$arDeal["ID"];
+			if(isset($arDeal["TITLE"]))
+			{
+				$dealTitle = $arDeal["TITLE"];
+			}
+			if(isset($arDeal["CATEGORY_ID"]))
+			{
+				$dealCategoryId = (int)$arDeal["CATEGORY_ID"];
+			}
 		}
 
 		$newDeal = ($dealId == 0);
@@ -903,13 +918,15 @@ class CCrmExternalSaleImport
 		if ($companyId != null && intval($companyId) > 0)
 			$arFields["COMPANY_ID"] = $companyId;
 
-		static $arStageList = null;
-		if ($arStageList == null)
-			$arStageList = CCrmStatus::GetStatusList('DEAL_STAGE');
-
 		// Prevent reset stage for existed deals
-		if ($newDeal && array_key_exists("NEW", $arStageList))
-			$arFields["STAGE_ID"] = "NEW";
+		if ($newDeal)
+		{
+			$arStageList = Bitrix\Crm\Category\DealCategory::getStageList($dealCategoryId);
+			if(!empty($arStageList))
+			{
+				$arFields["STAGE_ID"] = current(array_keys($arStageList));
+			}
+		}
 
 		$arAdditionalInfo = array();
 		if ($contactId != null && intval($contactId) > 0)
@@ -927,6 +944,7 @@ class CCrmExternalSaleImport
 				$arAdditionalInfo['COMPANY_FULL_NAME'] = $arOrder["CONTRACTOR"]["NAME"];
 		}
 
+
 		if (is_array($arOrder["PROPERTIES"]))
 		{
 			foreach ($arOrder["PROPERTIES"] as $arProp)
@@ -942,37 +960,25 @@ class CCrmExternalSaleImport
 
 				switch (strtoupper($arProp["NAME"]))
 				{
-					case 'FINALSTATUS':
-						if ($arProp["VALUE"] == 'true')
-						{
-							$arFields["CLOSED"] = "Y";
-							//$arFields["CLOSEDATE"] = $arOrder["DATE_UPDATE"];
-						}
-						else
-						{
-							$arFields["CLOSED"] = "N";
-							//$arFields["CLOSEDATE"] = false;
-						}
-						break;
 					case 'CANCELED':
 						if ($arProp["VALUE"] == 'true')
 						{
-							if (array_key_exists("LOSE", $arStageList))
-								$arFields["STAGE_ID"] = "LOSE";
+							$arFields["STAGE_ID"] = \Bitrix\Crm\Category\DealCategory::prepareStageID(
+								$dealCategoryId,
+								"LOSE"
+							);
 							$arFields["PROBABILITY"] = 0;
 						}
 						break;
 					case 'ORDERPAID':
 						if ($arProp["VALUE"] == 'true')
 						{
-							if (array_key_exists("WON", $arStageList))
-								$arFields["STAGE_ID"] = "WON";
+							$arFields["STAGE_ID"] = \Bitrix\Crm\Category\DealCategory::prepareStageID(
+								$dealCategoryId,
+								"WON"
+							);
 							$arFields["PROBABILITY"] = 100;
 						}
-						break;
-					case 'ORDERSTATUS':
-						//$arFields["CLOSED"] = "Y";
-						//$arFields["CLOSEDATE"] = $arOrder["DATE_UPDATE"];
 						break;
 				}
 			}
@@ -983,6 +989,12 @@ class CCrmExternalSaleImport
 		$accountNumber = isset($arOrder["ACCOUNT_NUMBER"]) && $arOrder["ACCOUNT_NUMBER"] !== ''
 			? $arOrder["ACCOUNT_NUMBER"] : $arOrder["ID"];
 
+		$assignedById = isset($this->arExternalSale["RESPONSIBLE"]) ? (int)$this->arExternalSale["RESPONSIBLE"] : 0;
+		if ($assignedById <= 0)
+		{
+			$assignedById = 1;
+		}
+
 		$obj = new CCrmDeal(false);
 		if ($dealId == 0)
 		{
@@ -991,14 +1003,21 @@ class CCrmExternalSaleImport
 			$arFields["TYPE_ID"] = 'SALE';
 			$arFields["CLOSEDATE"] = ConvertTimeStamp(time() + CTimeZone::GetOffset() + 86400, "FULL");
 			if (!isset($arFields["PROBABILITY"]))
+			{
 				$arFields["PROBABILITY"] = $this->arExternalSale["PROBABILITY"];
-			$assignedById = $this->arExternalSale["RESPONSIBLE"];
-			if ($assignedById > 0)
-				$arFields["ASSIGNED_BY_ID"] = $assignedById;
+			}
+			$arFields["ASSIGNED_BY_ID"] = $assignedById;
 
 			self::AddTrace(array('ADD DEAL' => $arFields));
 
-			$res = $obj->Add($arFields, true, array('DISABLE_USER_FIELD_CHECK' => true));
+			$res = $obj->Add(
+				$arFields,
+				true,
+				array(
+					'DISABLE_USER_FIELD_CHECK' => true,
+					'CURRENT_USER' => $assignedById
+				)
+			);
 			if($res > 0)
 			{
 				$dealId = (int)$res;
@@ -1017,8 +1036,16 @@ class CCrmExternalSaleImport
 
 			self::AddTrace(array("UPDATE DEAL: {$dealId}" => $arFields));
 
-			// Disable properties change events generation ($bCompare = false) and user fields check 'DISABLE_USER_FIELD_CHECK' = true.
-			$res = $obj->Update($dealId, $arFields, false, true, array('DISABLE_USER_FIELD_CHECK' => true));
+			$res = $obj->Update(
+				$dealId,
+				$arFields,
+				true,
+				true,
+				array(
+					'DISABLE_USER_FIELD_CHECK' => true,
+					'CURRENT_USER' => $assignedById
+				)
+			);
 			if($res)
 			{
 				$this->arImportResult->numberOfUpdatedDeals++;

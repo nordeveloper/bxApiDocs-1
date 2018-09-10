@@ -217,7 +217,7 @@ class Helper
 
 		$call = Call::create($callFields);
 
-		if($callFields['INCOMING'] == \CVoxImplantMain::CALL_INCOMING)
+		if($call->getIncoming() == \CVoxImplantMain::CALL_INCOMING)
 		{
 			\CVoxImplantCrmHelper::StartCallTrigger($callId);
 		}
@@ -234,7 +234,7 @@ class Helper
 				)
 			);
 
-			if($createResult)
+			if(!$createResult)
 			{
 				$leadCreationError = \CVoxImplantCrmHelper::$lastError;
 			}
@@ -253,10 +253,10 @@ class Helper
 		}
 
 		$resultData = array(
-			'CALL_ID' => $callFields['CALL_ID'],
-			'CRM_CREATED_LEAD' => $callFields['CRM_LEAD'],
-			'CRM_ENTITY_TYPE' => $callFields['CRM_ENTITY_TYPE'],
-			'CRM_ENTITY_ID' => $callFields['CRM_ENTITY_ID'],
+			'CALL_ID' => $call->getCallId(),
+			'CRM_CREATED_LEAD' => $call->getCrmLead(),
+			'CRM_ENTITY_TYPE' => $call->getCrmEntityType(),
+			'CRM_ENTITY_ID' => $call->getCrmEntityId(),
 		);
 
 		if(isset($leadCreationError))

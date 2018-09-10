@@ -661,7 +661,7 @@ class CAllSocNetGroup
 	/***************************************/
 	/************  ACTIONS  ****************/
 	/***************************************/
-	public static function CreateGroup($ownerID, $arFields, $bAutoSubscribe = true)
+	public static function createGroup($ownerID, $arFields, $bAutoSubscribe = true)
 	{
 		global $APPLICATION, $DB;
 

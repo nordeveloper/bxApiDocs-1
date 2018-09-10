@@ -178,7 +178,7 @@ function getDirectoryTableRow(addNew)
 				BX('hlb_directory_title_tr').style.display = 'none';
 
 				BX.ajax.post(
-					'/bitrix/admin/highloadblock_directory_ajax.php',
+					'highloadblock_directory_ajax.php',
 					{
 						lang: BX.message('LANGUAGE_ID'),
 						sessid: BX.bitrix_sessid(),
@@ -200,7 +200,7 @@ function getDirectoryTableRow(addNew)
 		if (addNew === 'row')
 		{
 			BX.ajax.loadJSON(
-				'/bitrix/admin/highloadblock_directory_ajax.php',
+				'highloadblock_directory_ajax.php',
 				{
 					lang: BX.message('LANGUAGE_ID'),
 					sessid: BX.bitrix_sessid(),

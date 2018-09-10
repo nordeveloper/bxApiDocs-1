@@ -59,7 +59,7 @@ class EntityCounterType
 	{
 		if($typeID === EntityCounterType::IDLE)
 		{
-			return $entityTypeID === \CCrmOwnerType::Deal || $entityTypeID === \CCrmOwnerType::Lead;
+			return $entityTypeID === \CCrmOwnerType::Deal || $entityTypeID === \CCrmOwnerType::Lead || $entityTypeID === \CCrmOwnerType::Order;
 		}
 		return true;
 	}
@@ -226,7 +226,7 @@ class EntityCounterType
 		}
 
 		if(\CCrmUserCounterSettings::GetValue(\CCrmUserCounterSettings::ReckonActivitylessItems, true)
-			&& ($entityTypeID === \CCrmOwnerType::Deal || $entityTypeID === \CCrmOwnerType::Lead))
+			&& ($entityTypeID === \CCrmOwnerType::Deal || $entityTypeID === \CCrmOwnerType::Lead || $entityTypeID === \CCrmOwnerType::Order))
 		{
 			$items[self::IDLE] = GetMessage('CRM_ENTITY_COUNTER_TYPE_FILTER_IDLE');
 		}

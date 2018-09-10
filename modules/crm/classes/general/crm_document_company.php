@@ -408,7 +408,7 @@ class CCrmDocumentCompany extends CCrmDocument
 		return $ID;
 	}
 
-	static public function UpdateDocument($documentId, $arFields)
+	public static function UpdateDocument($documentId, $arFields, $modifiedById = null)
 	{
 		global $DB;
 
@@ -521,6 +521,11 @@ class CCrmDocumentCompany extends CCrmDocument
 		$DB->StartTransaction();
 		$CCrmEntity = new CCrmCompany(false);
 
+		if ($modifiedById > 0)
+		{
+			$arFields['MODIFY_BY_ID'] = $modifiedById;
+		}
+
 		$res = $CCrmEntity->Update(
 			$arDocumentID['ID'],
 			$arFields,
@@ -560,7 +565,11 @@ class CCrmDocumentCompany extends CCrmDocument
 	public function getDocumentName($documentId)
 	{
 		$arDocumentID = self::GetDocumentInfo($documentId);
-		return CCrmOwnerType::GetCaption(CCrmOwnerType::Company, $arDocumentID['ID'], false);
+		$dbRes = CCrmCompany::GetListEx([], ['=ID' => $arDocumentID['ID'], 'CHECK_PERMISSIONS' => 'N'],
+			false, false, ['TITLE']
+		);
+		$arRes = $dbRes ? $dbRes->Fetch() : null;
+		return $arRes ? $arRes['TITLE'] : '';
 	}
 
 	public static function normalizeDocumentId($documentId)

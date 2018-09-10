@@ -9,3 +9,5 @@ $psDescription = GetMessage("SBLP_DDESCR");
 $isAffordPdf = true;
 
 include \Bitrix\Main\Application::getDocumentRoot().'/bitrix/modules/sale/handlers/paysystem/billde/.description.php';
+
+$data['DOMAIN'] = \Bitrix\Sale\PaySystem\Manager::HANDLER_DOMAIN_NONE;

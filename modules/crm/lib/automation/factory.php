@@ -15,11 +15,17 @@ class Factory
 {
 	private static $supportedEntityTypes = array(
 		\CCrmOwnerType::Lead,
-		\CCrmOwnerType::Deal
+		\CCrmOwnerType::Deal,
+		\CCrmOwnerType::Order,
+		//\CCrmOwnerType::Invoice,
 	);
 
 	private static $triggerRegistry;
 	private static $featuresCache = array();
+
+	private static $targets = [];
+
+	private static $newActivities = [];
 
 	public static function isAutomationAvailable($entityTypeId, $ignoreLicense = false)
 	{
@@ -84,8 +90,7 @@ class Factory
 		if (empty($entityId) || !static::isAutomationAvailable($entityTypeId, $ignoreLicense))
 			return;
 
-		$automationTarget = static::createTarget($entityTypeId);
-		$automationTarget->setEntityById($entityId);
+		$automationTarget = static::getTarget($entityTypeId, $entityId);
 		$automationTarget->getRuntime()->onDocumentAdd();
 	}
 
@@ -96,8 +101,11 @@ class Factory
 
 		static::doAutocompleteActivities($entityTypeId, $entityId);
 
-		$automationTarget = static::createTarget($entityTypeId);
+		$automationTarget = static::getTarget($entityTypeId, $entityId);
+
+		//refresh target entity fields
 		$automationTarget->setEntityById($entityId);
+
 		$automationTarget->getRuntime()->onDocumentStatusChanged();
 	}
 
@@ -119,11 +127,42 @@ class Factory
 		{
 			return new Target\LeadTarget();
 		}
+		elseif ($entityTypeId === \CCrmOwnerType::Order)
+		{
+			return new Target\OrderTarget();
+		}
+		elseif ($entityTypeId === \CCrmOwnerType::Invoice)
+		{
+			return new Target\InvoiceTarget();
+		}
 		else
 		{
 			$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeId);
 			throw new NotSupportedException("Entity '{$entityTypeName}' not supported in current context.");
 		}
+	}
+
+	public static function getTarget($entityTypeId, $entityId)
+	{
+		if (isset(self::$targets[$entityTypeId]) && isset(self::$targets[$entityTypeId][$entityId]))
+		{
+			return self::$targets[$entityTypeId][$entityId];
+		}
+		$target = self::createTarget($entityTypeId);
+		$target->setEntityById($entityId);
+
+		self::setTarget($target);
+
+		return $target;
+	}
+
+	private static function setTarget(Target\BaseTarget $target)
+	{
+		if (!isset(self::$targets[$target->getEntityTypeId()]))
+		{
+			self::$targets[$target->getEntityTypeId()] = [];
+		}
+		self::$targets[$target->getEntityTypeId()][$target->getEntityId()] = $target;
 	}
 
 	/**
@@ -146,18 +185,19 @@ class Factory
 		{
 			self::$triggerRegistry = [];
 			foreach ([
-					 Trigger\EmailTrigger::className(),
-					 Trigger\EmailReadTrigger::className(),
-					 Trigger\EmailLinkTrigger::className(),
-					 Trigger\CallTrigger::className(),
-					 Trigger\MissedCallTrigger::className(),
-					 Trigger\WebFormTrigger::className(),
-					 Trigger\InvoiceTrigger::className(),
-					 Trigger\WebHookTrigger::className(),
-					 Trigger\VisitTrigger::className(),
-					 Trigger\GuestReturnTrigger::className(),
-					 Trigger\OpenLineTrigger::className(),
-					 Trigger\AppTrigger::className()
+					Trigger\EmailTrigger::className(),
+					Trigger\EmailReadTrigger::className(),
+					Trigger\EmailLinkTrigger::className(),
+					Trigger\CallTrigger::className(),
+					Trigger\MissedCallTrigger::className(),
+					Trigger\WebFormTrigger::className(),
+					Trigger\InvoiceTrigger::className(),
+					Trigger\PaymentTrigger::className(),
+					Trigger\WebHookTrigger::className(),
+					Trigger\VisitTrigger::className(),
+					Trigger\GuestReturnTrigger::className(),
+					Trigger\OpenLineTrigger::className(),
+					Trigger\AppTrigger::className()
 				 ]
 				 as $triggerClass
 			)
@@ -230,6 +270,11 @@ class Factory
 		return ($template->getId() > 0 && ($template->isExternalModified() || count($template->getRobots()) > 0));
 	}
 
+	public static function registerActivity($id)
+	{
+		static::$newActivities[$id] = true;
+	}
+
 	private static function doAutocompleteActivities($entityTypeId, $entityId)
 	{
 		$result = ActivityTable::getList(array(
@@ -245,7 +290,14 @@ class Factory
 
 		while ($row = $result->fetch())
 		{
-			\CCrmActivity::SetAutoCompleted($row['ID']);
+			if (!isset(static::$newActivities[$row['ID']]))
+			{
+				\CCrmActivity::SetAutoCompleted($row['ID']);
+			}
+			else
+			{
+				unset(static::$newActivities[$row['ID']]);
+			}
 		}
 	}
 }

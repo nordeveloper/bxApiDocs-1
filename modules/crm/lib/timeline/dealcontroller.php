@@ -13,6 +13,11 @@ Loc::loadMessages(__FILE__);
 
 class DealController extends EntityController
 {
+	//region Event Names
+	const ADD_EVENT_NAME = 'timeline_deal_add';
+	const REMOVE_EVENT_NAME = 'timeline_deal_remove';
+	//endregion
+
 	//region Singleton
 	/** @var DealController|null */
 	protected static $instance = null;
@@ -118,7 +123,7 @@ class DealController extends EntityController
 		$enableHistoryPush = $historyEntryID > 0;
 		if($enableHistoryPush && Main\Loader::includeModule('pull'))
 		{
-			$pushParams = array();
+			$pushParams = array('ID' => $ownerID);
 			if($enableHistoryPush)
 			{
 				$historyFields = TimelineEntry::getByID($historyEntryID);
@@ -131,12 +136,12 @@ class DealController extends EntityController
 				}
 			}
 
-			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Deal, $ownerID);
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Deal, 0);
 			\CPullWatch::AddToStack(
 				$tag,
 				array(
 					'module_id' => 'crm',
-					'command' => 'timeline_deal_add',
+					'command' => self::ADD_EVENT_NAME,
 					'params' => $pushParams,
 				)
 			);
@@ -320,6 +325,42 @@ class DealController extends EntityController
 		}
 		//endregion
 	}
+
+	public function onDelete($ownerID, array $params)
+	{
+		if(!is_int($ownerID))
+		{
+			$ownerID = (int)$ownerID;
+		}
+		if($ownerID <= 0)
+		{
+			throw new Main\ArgumentException('Owner ID must be greater than zero.', 'ownerID');
+		}
+
+		if(Main\Loader::includeModule('pull'))
+		{
+			$pushParams = array('ID' => $ownerID);
+
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Deal, 0);
+			\CPullWatch::AddToStack(
+				$tag,
+				array(
+					'module_id' => 'crm',
+					'command' => self::REMOVE_EVENT_NAME,
+					'params' => $pushParams,
+				)
+			);
+		}
+	}
+
+	public function getSupportedPullCommands()
+	{
+		return array(
+			'add' => self::ADD_EVENT_NAME,
+			'remove' => self::REMOVE_EVENT_NAME
+		);
+	}
+
 	/**
 	 * Register existed entity in retrospect mode.
 	 * @param int $ownerID Entity ID

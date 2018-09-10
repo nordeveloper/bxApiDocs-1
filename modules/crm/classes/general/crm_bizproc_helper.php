@@ -22,6 +22,14 @@ class CCrmBizProcHelper
 		{
 			$docName = 'CCrmDocumentDeal';
 		}
+		elseif($ownerTypeID === CCrmOwnerType::Order)
+		{
+			$docName = \Bitrix\Crm\Integration\BizProc\Document\Order::class;
+		}
+		elseif($ownerTypeID === CCrmOwnerType::Invoice)
+		{
+			$docName = \Bitrix\Crm\Integration\BizProc\Document\Invoice::class;
+		}
 
 		return $docName;
 	}
@@ -260,6 +268,60 @@ class CCrmBizProcHelper
 
 		$result = CBPTaskService::GetList(array(), $filter, array(), false, array());
 		return is_int($result) ? $result : 0;
+	}
+
+	public static function getDocumentResponsibleId(array $documentId)
+	{
+		$result = 0;
+
+		if (count($documentId) !== 3 || $documentId[0] !== 'crm')
+		{
+			return $result;
+		}
+
+		list($entityTypeName, $entityId) = explode('_', $documentId[2]);
+
+		switch($entityTypeName)
+		{
+			case CCrmOwnerType::LeadName:
+				{
+					$dbRes = CCrmLead::GetListEx([], array('=ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'), false, false, array('ASSIGNED_BY_ID'));
+					$arRes = $dbRes ? $dbRes->Fetch() : null;
+					$result = $arRes ? intval($arRes['ASSIGNED_BY_ID']) : 0;
+					break;
+				}
+			case CCrmOwnerType::ContactName:
+				{
+					$dbRes = CCrmContact::GetListEx([], array('=ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'), false, false, array('ASSIGNED_BY_ID'));
+					$arRes = $dbRes ? $dbRes->Fetch() : null;
+					$result = $arRes ? intval($arRes['ASSIGNED_BY_ID']) : 0;
+					break;
+				}
+			case CCrmOwnerType::CompanyName:
+				{
+					$dbRes = CCrmCompany::GetListEx([], array('=ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'), false, false, array('ASSIGNED_BY_ID'));
+					$arRes = $dbRes ? $dbRes->Fetch() : null;
+					$result = $arRes ? intval($arRes['ASSIGNED_BY_ID']) : 0;
+					break;
+				}
+			case CCrmOwnerType::DealName:
+				{
+					$dbRes = CCrmDeal::GetListEx([], array('=ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'), false, false, array('ASSIGNED_BY_ID'));
+					$arRes = $dbRes ? $dbRes->Fetch() : null;
+					$result = $arRes ? intval($arRes['ASSIGNED_BY_ID']) : 0;
+					break;
+				}
+
+			case CCrmOwnerType::OrderName:
+				{
+					$dbRes = Bitrix\Crm\Order\Order::getList(array('filter' => array('=ID' => $entityId), 'select' => array('RESPONSIBLE_ID')));
+					$arRes = $dbRes ? $dbRes->fetch() : null;
+					$result = $arRes ? intval($arRes['RESPONSIBLE_ID']) : 0;
+					break;
+				}
+		}
+
+		return $result;
 	}
 }
 

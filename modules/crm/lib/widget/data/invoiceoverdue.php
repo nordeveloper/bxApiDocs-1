@@ -374,7 +374,7 @@ class InvoiceOverdue extends InvoiceDataSource
 		return array(
 			'__CONDITIONS' => array(
 				array(
-					'SQL' => 'sale_internals_order.ID IN ('.$query->getQuery().')'
+					'SQL' => 'crm_invoice_internals_invoice.ID IN ('.$query->getQuery().')'
 				)
 			)
 		);

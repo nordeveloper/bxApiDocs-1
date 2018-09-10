@@ -144,8 +144,8 @@ class CCrmFields
 				'NAME' => GetMessage('CRM_FIELDS_QUOTE'),
 				'DESC' => GetMessage('CRM_FIELDS_QUOTE_DESC')
 			),
-			'ORDER'=> array(
-				'ID' =>'ORDER',
+			'CRM_INVOICE'=> array(
+				'ID' =>'CRM_INVOICE',
 				'NAME' => GetMessage('CRM_FIELDS_INVOICE'),
 				'DESC' => GetMessage('CRM_FIELDS_INVOICE_DESC')
 			)

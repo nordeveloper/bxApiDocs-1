@@ -4,56 +4,88 @@ namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\ContactTable;
 use Bitrix\DocumentGenerator\Nameable;
+use Bitrix\DocumentGenerator\Value\Name;
 
 class Contact extends CrmEntityDataProvider implements Nameable
 {
 	protected $bankDetailIds;
+	protected $nameData = [];
 
 	/**
 	 * @return array
 	 */
 	public function getFields()
 	{
-		$fields = parent::getFields();
-		$fields['FORMATTED_NAME'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_FORMATTED_NAME_TITLE'),
-			'VALUE' => function()
-			{
-				return \CCrmContact::PrepareFormattedName([
-					'HONORIFIC' => $this->getValue('HONORIFIC'),
-					'NAME' => $this->getValue('NAME'),
-					'SECOND_NAME' => $this->getValue('SECOND_NAME'),
-					'LAST_NAME' => $this->getValue('LAST_NAME'),
-				]);
-			}
-		];
-		$fields['TYPE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_CONTACT_TYPE_TITLE'),];
-		$fields['SOURCE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_CONTACT_SOURCE_TITLE'),];
-		$fields['EMAIL_HOME'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_HOME_TITLE'),
-		];
-		$fields['EMAIL_WORK'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_WORK_TITLE'),
-		];
-		$fields['PHONE_MOBILE'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_MOBILE_TITLE'),
-		];
-		$fields['PHONE_WORK'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_WORK_TITLE'),
-		];
-		$fields['IMOL'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_IMOL_TITLE'),
-		];
-
-		if(isset($this->getOptions()['DISABLE_MY_COMPANY']))
+		if($this->fields === null)
 		{
-			unset($fields['MY_COMPANY']);
+			parent::getFields();
+			$this->fields['HONORIFIC_NAME'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_CONTACT_HONORIFIC_TITLE'),
+				'VALUE' => [$this, 'getHonorificName'],
+			];
+			$this->fields['FORMATTED_NAME'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_FORMATTED_NAME_TITLE'),
+				'VALUE' => [$this, 'getFormattedName'],
+			];
+			$this->fields['ADDRESS']['VALUE'] = [$this, 'getAddress'];
+			$this->fields['TYPE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_CONTACT_TYPE_TITLE'),];
+			$this->fields['SOURCE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_CONTACT_SOURCE_TITLE'),];
+			$this->fields['EMAIL_HOME'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_HOME_TITLE'),
+			];
+			$this->fields['EMAIL_WORK'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_WORK_TITLE'),
+			];
+			$this->fields['PHONE_MOBILE'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_MOBILE_TITLE'),
+			];
+			$this->fields['PHONE_WORK'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_WORK_TITLE'),
+			];
+			$this->fields['IMOL'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_IMOL_TITLE'),
+			];
+			$this->fields['NAME']['VALUE'] = [$this, 'getNameData'];
+			$this->fields['NAME']['TYPE'] = static::FIELD_TYPE_NAME;
+			$this->fields['NAME']['FORMAT'] = ['format' => '#NAME#'];
+
+			$this->fields['SECOND_NAME']['VALUE'] = [$this, 'getNameData'];
+			$this->fields['SECOND_NAME']['TYPE'] = static::FIELD_TYPE_NAME;
+			$this->fields['SECOND_NAME']['FORMAT'] = ['format' => '#SECOND_NAME#'];
+
+			$this->fields['LAST_NAME']['VALUE'] = [$this, 'getNameData'];
+			$this->fields['LAST_NAME']['TYPE'] = static::FIELD_TYPE_NAME;
+			$this->fields['LAST_NAME']['FORMAT'] = ['format' => '#LAST_NAME#'];
+
+			if(isset($this->getOptions()['DISABLE_MY_COMPANY']))
+			{
+				unset($this->fields['MY_COMPANY']);
+			}
+
+			unset($this->fields['COMPANY']);
+			unset($this->fields['CONTACT']);
 		}
 
-		unset($fields['COMPANY']);
-		unset($fields['CONTACT']);
+		return $this->fields;
+	}
 
-		return $fields;
+	protected function fetchData()
+	{
+		parent::fetchData();
+		// a hack to load address from requisites.
+		if($this->data['ADDRESS'] === '')
+		{
+			unset($this->data['ADDRESS']);
+		}
+		$this->nameData = [
+			'TITLE' => $this->getHonorificName(),
+			'NAME' => $this->data['NAME'],
+			'SECOND_NAME' => $this->data['SECOND_NAME'],
+			'LAST_NAME' => $this->data['LAST_NAME'],
+		];
+		unset($this->data['NAME']);
+		unset($this->data['SECOND_NAME']);
+		unset($this->data['LAST_NAME']);
 	}
 
 	/**
@@ -110,8 +142,7 @@ class Contact extends CrmEntityDataProvider implements Nameable
 			'HAS_PHONE',
 			'HAS_IMOL',
 			'SEARCH_CONTENT',
-//			'HONORIFIC',
-//			'FULL_NAME',
+			'HONORIFIC',
 		]);
 	}
 
@@ -122,8 +153,15 @@ class Contact extends CrmEntityDataProvider implements Nameable
 	{
 		return array_merge_recursive(parent::getGetListParameters(), [
 			'select' => [
+				'SHORT_NAME',
 				'TYPE' => 'TYPE_BY.NAME',
 				'SOURCE' => 'SOURCE_BY.NAME',
+				'EMAIL_HOME',
+				'EMAIL_WORK',
+				'PHONE_MOBILE',
+				'PHONE_WORK',
+				'EMAIL',
+				'PHONE',
 			],
 		]);
 	}
@@ -139,7 +177,7 @@ class Contact extends CrmEntityDataProvider implements Nameable
 	/**
 	 * @return int|null
 	 */
-	protected function getCompanyId()
+	public function getCompanyId()
 	{
 		return null;
 	}
@@ -147,7 +185,7 @@ class Contact extends CrmEntityDataProvider implements Nameable
 	/**
 	 * @return int|null
 	 */
-	protected function getContactId()
+	public function getContactId()
 	{
 		return $this->source;
 	}
@@ -158,5 +196,43 @@ class Contact extends CrmEntityDataProvider implements Nameable
 	protected function getUserFieldEntityID()
 	{
 		return \CCrmContact::GetUserFieldEntityID();
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getHonorificName()
+	{
+		if($this->data['HONORIFIC'])
+		{
+			$all = \CCrmStatus::GetStatusList('HONORIFIC');
+			return $all[$this->data['HONORIFIC']];
+		}
+
+		return '';
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getFormattedName()
+	{
+		return new Name($this->getNameData(), ['format' => $this->getNameFormat()]);
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getNameData()
+	{
+		return $this->nameData;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getAddress()
+	{
+		return $this->getAddressFromRequisite($this->fields['REQUISITE'], 'PRIMARY_ADDRESS');
 	}
 }

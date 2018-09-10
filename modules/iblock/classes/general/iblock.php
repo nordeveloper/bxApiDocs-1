@@ -3683,8 +3683,9 @@ REQ
 		if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1 || self::isPublicSidePanel())
 		{
 			$url = str_replace(".php", "/", $url);
-			$url = str_replace("&replace_script_name=1", "", $url);
 		}
+
+		$url = str_replace("&replace_script_name=1", "", $url);
 
 		return $url;
 	}

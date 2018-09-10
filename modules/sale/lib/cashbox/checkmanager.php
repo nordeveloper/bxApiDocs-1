@@ -141,6 +141,7 @@ final class CheckManager
 				}
 
 				CashboxCheckTable::update($checkId, $fields);
+				$result->setId($checkId);
 
 				return $result;
 			}
@@ -164,6 +165,12 @@ final class CheckManager
 	 * @param $checkId
 	 * @param array $data
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectException
+	 * @throws \Exception
 	 */
 	public static function savePrintResult($checkId, array $data)
 	{
@@ -179,7 +186,7 @@ final class CheckManager
 		$payment = null;
 		$shipment = null;
 
-		$dbRes = CashboxCheckTable::getList(array('select' => array('*'), 'filter' => array('ID' => $checkId)));
+		$dbRes = static::getList(array('select' => array('*'), 'filter' => array('ID' => $checkId)));
 		$check = $dbRes->fetch();
 		if (!$check)
 		{
@@ -190,9 +197,13 @@ final class CheckManager
 		if ($check['STATUS'] === 'Y')
 			return $result;
 
+		$registry = Sale\Registry::getInstance($check['ENTITY_REGISTRY_TYPE']);
+
 		if ($check['ORDER_ID'] > 0)
 		{
-			$order = Sale\Order::load($check['ORDER_ID']);
+			/** @var Sale\Order $orderClassName */
+			$orderClassName = $registry->getOrderClassName();
+			$order = $orderClassName::load($check['ORDER_ID']);
 			if ($order === null)
 			{
 				$result->addError(new Error(Loc::getMessage('SALE_CASHBOX_ERROR_CHECK_ORDER_LOAD')));
@@ -258,19 +269,26 @@ final class CheckManager
 					$errorCode = isset($data['ERROR']['CODE']) ? $data['ERROR']['CODE'] : 0;
 					$r->addWarning(new Main\Error($errorMessage, $errorCode));
 
+					/** @var EntityMarker $markerClassName */
+					$markerClassName = $registry->getEntityMarkerClassName();
+
 					if ($payment !== null)
 					{
-						EntityMarker::addMarker($order, $payment, $r);
+						$markerClassName::addMarker($order, $payment, $r);
 						$payment->setField('MARKED', 'Y');
 
-						Sale\Notify::callNotify($payment, Sale\EventActions::EVENT_ON_CHECK_PRINT_ERROR);
+						/** @var Sale\Notify $notifyClassName */
+						$notifyClassName = $registry->getNotifyClassName();
+						$notifyClassName::callNotify($payment, Sale\EventActions::EVENT_ON_CHECK_PRINT_ERROR);
 					}
 					elseif ($shipment !== null)
 					{
-						EntityMarker::addMarker($order, $shipment, $r);
+						$markerClassName::addMarker($order, $shipment, $r);
 						$shipment->setField('MARKED', 'Y');
 
-						Sale\Notify::callNotify($shipment, Sale\EventActions::EVENT_ON_CHECK_PRINT_ERROR);
+						/** @var Sale\Notify $notifyClassName */
+						$notifyClassName = $registry->getNotifyClassName();
+						$notifyClassName::callNotify($shipment, Sale\EventActions::EVENT_ON_CHECK_PRINT_ERROR);
 					}
 
 					$order->save();
@@ -325,11 +343,15 @@ final class CheckManager
 					{
 						if ($payment !== null)
 						{
-							Sale\Notify::callNotify($payment, Sale\EventActions::EVENT_ON_CHECK_PRINT);
+							/** @var Sale\Notify $notifyClassName */
+							$notifyClassName = $registry->getNotifyClassName();
+							$notifyClassName::callNotify($payment, Sale\EventActions::EVENT_ON_CHECK_PRINT);
 						}
 						elseif ($shipment !== null)
 						{
-							Sale\Notify::callNotify($shipment, Sale\EventActions::EVENT_ON_CHECK_PRINT);
+							/** @var Sale\Notify $notifyClassName */
+							$notifyClassName = $registry->getNotifyClassName();
+							$notifyClassName::callNotify($shipment, Sale\EventActions::EVENT_ON_CHECK_PRINT);
 						}
 					}
 				}
@@ -563,6 +585,8 @@ final class CheckManager
 
 		$existingChecks = null;
 		$order = null;
+
+		/** @var Sale\Payment|Sale\Shipment $entity */
 		foreach ($entities as $entity)
 		{
 			// load existing checks
@@ -571,13 +595,20 @@ final class CheckManager
 				$existingChecks = array();
 				$order = static::getOrder($entity);
 
-				$filter = array("ORDER_ID" => $order->getId());
+				$filter = array(
+					'ORDER_ID' => $order->getId(),
+					'ENTITY_REGISTRY_TYPE' => $entity::getRegistryType()
+				);
 				if ($entity instanceof Sale\Payment)
+				{
 					$filter["PAYMENT_ID"] = $entity->getId();
+				}
 				elseif ($entity instanceof Sale\Shipment)
+				{
 					$filter["SHIPMENT_ID"] = $entity->getId();
+				}
 
-				$db = CashboxCheckTable::getList(
+				$db = static::getList(
 					array(
 						"filter" => $filter,
 						"select" => array("ID", "PAYMENT_ID", "SHIPMENT_ID", "TYPE", "STATUS")
@@ -813,6 +844,11 @@ final class CheckManager
 	 * @param array $cashboxIds
 	 * @param array $orderIds
 	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\Db\SqlQueryException
+	 * @throws Main\ObjectException
+	 * @throws Main\SystemException
+	 * @throws \Exception
 	 */
 	public static function getPrintableChecks(array $cashboxIds, array $orderIds = array())
 	{
@@ -833,11 +869,14 @@ final class CheckManager
 				)
 			)
 		);
+
 		if ($orderIds)
+		{
 			$filter['ORDER_ID'] = $orderIds;
+		}
 
 		$limit = count($cashboxIds)*static::CHECK_LIMIT_RECORDS;
-		$dbRes = CashboxCheckTable::getList(
+		$dbRes = static::getList(
 			array(
 				'select' => array('*', 'AVAILABLE_CASHBOX_ID' => 'CHECK2CASHBOX.CASHBOX_ID'),
 				'filter' => $filter,
@@ -893,7 +932,7 @@ final class CheckManager
 
 					if ($nowTs - $dateStartPrintTs > static::MIN_TIME_FOR_SWITCH_CASHBOX)
 					{
-						$availableCashboxIds = array_diff($cashboxIds, array($item['CASHBOX_ID']));
+						$availableCashboxIds = array_diff($item['CASHBOX_LIST'], array($item['CASHBOX_ID']));
 						if ($availableCashboxIds)
 						{
 							$result[$checkId]['CASHBOX_ID'] = Manager::chooseCashbox($availableCashboxIds);
@@ -936,6 +975,7 @@ final class CheckManager
 	 * @param CollectableEntity $entity
 	 * @return array
 	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
 	 */
 	public static function getCheckInfo(Sale\Internals\CollectableEntity $entity)
 	{
@@ -943,10 +983,15 @@ final class CheckManager
 		if ($entity->getId() > 0)
 		{
 			if ($entity instanceof Sale\Payment)
+			{
+				$filter['ENTITY_REGISTRY_TYPE'] = $entity::getRegistryType();
 				$filter['PAYMENT_ID'] = $entity->getId();
+			}
 			elseif ($entity instanceof Sale\Shipment)
+			{
+				$filter['ENTITY_REGISTRY_TYPE'] = $entity::getRegistryType();
 				$filter['SHIPMENT_ID'] = $entity->getId();
-
+			}
 
 			return static::collectInfo($filter);
 		}
@@ -968,7 +1013,10 @@ final class CheckManager
 			return array();
 		}
 
-		$filter = array('STATUS' => 'Y');
+		$filter = array(
+			'STATUS' => 'Y',
+			'ENTITY_REGISTRY_TYPE' => $entity::getRegistryType()
+		);
 		if ($entity instanceof Sale\Payment)
 		{
 			$filter['PAYMENT_ID'] = $entity->getId();
@@ -978,7 +1026,7 @@ final class CheckManager
 			$filter['SHIPMENT_ID'] = $entity->getId();
 		}
 
-		$dbRes = CashboxCheckTable::getList(
+		$dbRes = static::getList(
 			array(
 				'select' => array('*'),
 				'filter' => $filter,
@@ -1015,7 +1063,7 @@ final class CheckManager
 		
 		$typeMap = CheckManager::getCheckTypeMap();
 
-		$dbRes = CashboxCheckTable::getList(
+		$dbRes = static::getList(
 			array(
 				'select' => array('*'),
 				'filter' => $filter
@@ -1029,13 +1077,17 @@ final class CheckManager
 			{
 				$cashbox = Manager::getObjectById($data['CASHBOX_ID']);
 				if ($cashbox)
+				{
 					$data['LINK'] = $cashbox->getCheckLink($data['LINK_PARAMS']);
+				}
 			}
 
 			/** @var Check $type */
 			$type = $typeMap[$data['TYPE']];
 			if (class_exists($type))
+			{
 				$data['TYPE_NAME'] = $type::getName();
+			}
 
 			$result[$data['ID']] = $data;
 		}
@@ -1050,7 +1102,7 @@ final class CheckManager
 	 */
 	public static function getCheckInfoByExternalUuid($uuid)
 	{
-		$dbRes = CashboxCheckTable::getList(array('filter' => array('EXTERNAL_UUID' => $uuid)));
+		$dbRes = static::getList(array('filter' => array('EXTERNAL_UUID' => $uuid)));
 		return $dbRes->fetch();
 	}
 
@@ -1090,10 +1142,12 @@ final class CheckManager
 	/**
 	 * @param $checkType
 	 * @param $paymentId
+	 * @param string $registryType
 	 * @return array
 	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentTypeException
 	 */
-	public static function getRelatedEntitiesForPayment($checkType, $paymentId)
+	public static function getRelatedEntitiesForPayment($checkType, $paymentId, $registryType = Sale\Registry::REGISTRY_TYPE_ORDER)
 	{
 		$result = array();
 
@@ -1103,7 +1157,11 @@ final class CheckManager
 			throw new Main\ArgumentTypeException($checkType);
 		}
 
-		$dbRes = Sale\Payment::getList(array(
+		$registry = Sale\Registry::getInstance($registryType);
+		/** @var Sale\Payment $paymentClassName */
+		$paymentClassName = $registry->getPaymentClassName();
+
+		$dbRes = $paymentClassName::getList(array(
 			'select' => array('ORDER_ID'),
 			'filter' => array('=ID' => $paymentId)
 		));
@@ -1120,8 +1178,8 @@ final class CheckManager
 		{
 			if (Manager::isSupportedFFD105())
 			{
-				$dbRes = Sale\Payment::getList(array(
-					'select' => array('ID', 'NAME' => 'PAY_SYSTEM.NAME'),
+				$dbRes = $paymentClassName::getList(array(
+					'select' => array('ID', 'ACCOUNT_NUMBER', 'NAME' => 'PAY_SYSTEM.NAME'),
 					'filter' => array(
 						'!ID' => $paymentId,
 						'=ORDER_ID' => $paymentData['ORDER_ID']
@@ -1149,8 +1207,10 @@ final class CheckManager
 			|| $check::getSupportedRelatedEntityType() === Check::SUPPORTED_ENTITY_TYPE_ALL
 		)
 		{
-			$dbRes = Sale\Shipment::getList(array(
-				'select' => array('ID', 'NAME' => 'DELIVERY.NAME'),
+			/** @var Sale\Shipment $shipmentClassName */
+			$shipmentClassName = $registry->getShipmentClassName();
+			$dbRes = $shipmentClassName::getList(array(
+				'select' => array('ID', 'ACCOUNT_NUMBER', 'NAME' => 'DELIVERY.NAME'),
 				'filter' => array(
 					'=ORDER_ID' => $paymentData['ORDER_ID'],
 					'SYSTEM' => 'N'
@@ -1169,10 +1229,12 @@ final class CheckManager
 	/**
 	 * @param $checkType
 	 * @param $shipmentId
+	 * @param string $registryType
 	 * @return array
 	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentTypeException
 	 */
-	public static function getRelatedEntitiesForShipment($checkType, $shipmentId)
+	public static function getRelatedEntitiesForShipment($checkType, $shipmentId, $registryType = Sale\Registry::REGISTRY_TYPE_ORDER)
 	{
 		$result = array();
 
@@ -1187,7 +1249,11 @@ final class CheckManager
 			throw new Main\ArgumentTypeException($checkType);
 		}
 
-		$dbRes = Sale\Shipment::getList(array(
+		$registry = Sale\Registry::getInstance($registryType);
+		/** @var Sale\Shipment $shipmentClassName */
+		$shipmentClassName = $registry->getShipmentClassName();
+
+		$dbRes = $shipmentClassName::getList(array(
 			'select' => array('ORDER_ID'),
 			'filter' => array('=ID' => $shipmentId)
 		));
@@ -1202,8 +1268,8 @@ final class CheckManager
 			|| $check::getSupportedRelatedEntityType() === Check::SUPPORTED_ENTITY_TYPE_ALL
 		)
 		{
-			$dbRes = Sale\Shipment::getList(array(
-				'select' => array('ID', 'NAME' => 'DELIVERY.NAME'),
+			$dbRes = $shipmentClassName::getList(array(
+				'select' => array('ID', 'ACCOUNT_NUMBER', 'NAME' => 'DELIVERY.NAME'),
 				'filter' => array(
 					'!ID' => $shipmentId,
 					'=ORDER_ID' => $shipmentData['ORDER_ID'],
@@ -1221,8 +1287,10 @@ final class CheckManager
 			|| $check::getSupportedRelatedEntityType() === Check::SUPPORTED_ENTITY_TYPE_ALL
 		)
 		{
-			$dbRes = Sale\Payment::getList(array(
-				'select' => array('ID', 'NAME' => 'PAY_SYSTEM.NAME'),
+			/** @var Sale\Payment $paymentClassName */
+			$paymentClassName = $registry->getPaymentClassName();
+			$dbRes = $paymentClassName::getList(array(
+				'select' => array('ID', 'ACCOUNT_NUMBER', 'NAME' => 'PAY_SYSTEM.NAME'),
 				'filter' => array(
 					'=ORDER_ID' => $shipmentData['ORDER_ID']
 				)

@@ -7,8 +7,20 @@ use \Bitrix\Im\User,
 	\Bitrix\Main\Config\Option;
 use \Bitrix\ImConnector\Library;
 
+/**
+ * Class Viber
+ * @package Bitrix\ImConnector\Connectors
+ */
 class Viber
 {
+	/**
+	 * @param $value
+	 * @param $connector
+	 * @return mixed
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\LoaderException
+	 */
 	public static function sendMessageProcessing($value, $connector)
 	{
 		if($connector == Library::ID_VIBER_CONNECTOR && !empty($value['chat']['id']) && !empty($value['message']['user_id']) && Loader::includeModule('im'))

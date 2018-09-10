@@ -401,6 +401,8 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && !empty($_POST['Update']) && !$bReadO
 	while ($arCatalog = $catalogIterator->fetch())
 	{
 		$arCatalog['IBLOCK_ID'] = (int)$arCatalog['IBLOCK_ID'];
+		if (!isset($arCurrentIBlocks[$arCatalog['IBLOCK_ID']]))
+			continue;
 		$arCatalog['PRODUCT_IBLOCK_ID'] = (int)$arCatalog['PRODUCT_IBLOCK_ID'];
 		$arCatalog['SKU_PROPERTY_ID'] = (int)$arCatalog['SKU_PROPERTY_ID'];
 		$arCatalog['VAT_ID'] = (int)$arCatalog['VAT_ID'];
@@ -1767,6 +1769,9 @@ $catalogIterator = Catalog\CatalogIblockTable::getList(array(
 while ($arOneCatalog = $catalogIterator->fetch())
 {
 	$arOneCatalog['IBLOCK_ID'] = (int)$arOneCatalog['IBLOCK_ID'];
+	if (!isset($arIBlockFullInfo[$arOneCatalog['IBLOCK_ID']]))
+		continue;
+
 	$arOneCatalog['VAT_ID'] = (int)$arOneCatalog['VAT_ID'];
 	$arOneCatalog['PRODUCT_IBLOCK_ID'] = (int)$arOneCatalog['PRODUCT_IBLOCK_ID'];
 	$arOneCatalog['SKU_PROPERTY_ID'] = (int)$arOneCatalog['SKU_PROPERTY_ID'];

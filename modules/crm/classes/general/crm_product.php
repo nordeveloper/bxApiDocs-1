@@ -109,8 +109,8 @@ class CCrmProduct
 			$arFields = array(
 				"PRICE" => $priceValue,
 				"CURRENCY" => $currency,
-				"QUANTITY_FROM" => 0,
-				"QUANTITY_TO" => 0,
+				"QUANTITY_FROM" => null,
+				"QUANTITY_TO" => null,
 				"EXTRA_ID" => false,
 				"CATALOG_GROUP_ID" => $priceTypeId,
 				"PRODUCT_ID" => $productID
@@ -459,6 +459,13 @@ class CCrmProduct
 					{
 						$price = $arFields['PRICE'];
 						$currency = $basePriceInfo['CURRENCY'];
+					}
+					else
+					{
+						$price = $arFields['PRICE'];
+						$currency = CCrmCurrency::GetBaseCurrencyID();
+						if ($currency === '')
+							$currency = false;
 					}
 				}
 				else
@@ -1107,6 +1114,7 @@ class CCrmProduct
 					'ATTRIBUTES' => array(CCrmFieldInfoAttr::Required)
 				),
 				'DESCRIPTION' => array('TYPE' => 'string'),
+				'DESCRIPTION_TYPE' => array('TYPE' => 'string'),
 				'ACTIVE' => array('TYPE' => 'char'),
 				'SECTION_ID' => array('TYPE' => 'integer'),
 				'SORT' => array('TYPE' => 'integer'),

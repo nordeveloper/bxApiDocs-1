@@ -1,6 +1,7 @@
 <?php
 namespace Bitrix\Crm\Counter;
 use Bitrix\Crm\CompanyTable;
+use Bitrix\Crm\Order\OrderStatus;
 use Bitrix\Main;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\DB\SqlExpression;
@@ -277,12 +278,13 @@ class EntityCounter extends CounterBase
 		}
 
 		$results = array();
+
 		foreach(EntityCounterType::splitType($entityCounterTypeID) as $typeID)
 		{
 			if($typeID === EntityCounterType::IDLE)
 			{
 				if(!\CCrmUserCounterSettings::GetValue(\CCrmUserCounterSettings::ReckonActivitylessItems, true)
-					|| ($entityTypeID !== \CCrmOwnerType::Deal && $entityTypeID !== \CCrmOwnerType::Lead))
+					|| ($entityTypeID !== \CCrmOwnerType::Deal && $entityTypeID !== \CCrmOwnerType::Lead && $entityTypeID !== \CCrmOwnerType::Order))
 				{
 					continue;
 				}
@@ -292,6 +294,17 @@ class EntityCounter extends CounterBase
 				{
 					$query = new Query(DealTable::getEntity());
 					$query->addFilter('=STAGE_SEMANTIC_ID', 'P');
+				}
+				elseif($entityTypeID === \CCrmOwnerType::Order)
+				{
+					if(!Main\Loader::includeModule('sale'))
+					{
+						continue;
+					}
+
+					$query = new Query(\Bitrix\Sale\Internals\OrderTable::getEntity());
+					$query->addFilter('=CANCELED', 'N');
+					$query->addFilter('@STATUS_ID', OrderStatus::getSemanticProcessStatuses());
 				}
 				else//if($entityTypeID === \CCrmOwnerType::Lead)
 				{
@@ -337,22 +350,27 @@ class EntityCounter extends CounterBase
 				);
 				$query->addFilter('==W.OWNER_ID', null);
 
+				if($entityTypeID !== \CCrmOwnerType::Order)
+					$assignedColumn = 'ASSIGNED_BY_ID';
+				else
+					$assignedColumn = 'RESPONSIBLE_ID';
+
 				if(is_array($userID))
 				{
 					$userCount = count($userID);
 					if($userCount > 1)
 					{
-						$query->addFilter('@ASSIGNED_BY_ID', $userID);
+						$query->addFilter('@'.$assignedColumn, $userID);
 					}
 					elseif($userCount === 1)
 					{
-						$query->addFilter('=ASSIGNED_BY_ID', $userID[0]);
+						$query->addFilter('='.$assignedColumn, $userID[0]);
 					}
 				}
 				elseif($userID > 0)
 				{
 					//Strongly required for counter design. We manage counters in user-oriented manner.
-					$query->addFilter('=ASSIGNED_BY_ID', $userID);
+					$query->addFilter('='.$assignedColumn, $userID);
 				}
 
 				$results[] = $query;
@@ -360,7 +378,7 @@ class EntityCounter extends CounterBase
 			else if($typeID === EntityCounterType::PENDING || $typeID === EntityCounterType::OVERDUE)
 			{
 				if($entityTypeID === \CCrmOwnerType::Deal || $entityTypeID === \CCrmOwnerType::Lead
-					|| $entityTypeID === \CCrmOwnerType::Company)
+					|| $entityTypeID === \CCrmOwnerType::Company || $entityTypeID === \CCrmOwnerType::Order)
 				{
 					/** @var Query|null $query */
 					if($entityTypeID === \CCrmOwnerType::Deal)
@@ -372,6 +390,18 @@ class EntityCounter extends CounterBase
 					{
 						$query = new Query(CompanyTable::getEntity());
 						$query->addFilter('=IS_MY_COMPANY', 'N');
+					}
+					elseif($entityTypeID === \CCrmOwnerType::Order)
+					{
+						if(!Main\Loader::includeModule('sale'))
+						{
+							continue;
+						}
+
+						$query = new Query(\Bitrix\Sale\Internals\OrderTable::getEntity());
+						$query->addFilter('=CANCELED', 'N');
+						$query->addFilter('@STATUS_ID', OrderStatus::getSemanticProcessStatuses());
+
 					}
 					else//if($entityTypeID === \CCrmOwnerType::Lead)
 					{

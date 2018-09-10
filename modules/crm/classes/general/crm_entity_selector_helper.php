@@ -153,7 +153,7 @@ class CCrmEntitySelectorHelper
 						{
 							if ($arRes['TYPE_ID'] === 'PHONE'
 								|| $arRes['TYPE_ID'] === 'EMAIL'
-								|| ($arRes['TYPE_ID'] === 'IM' && preg_match('/^imol|/', $arRes['VALUE']) === 1)
+								|| ($arRes['TYPE_ID'] === 'IM' && preg_match('/^imol\|/', $arRes['VALUE']) === 1)
 							)
 							{
 								$formattedValue = $arRes['TYPE_ID'] === 'PHONE'
@@ -278,7 +278,7 @@ class CCrmEntitySelectorHelper
 				// requisites
 				if ($requireRequisiteData)
 					$result[$advancedInfoKey][$requisiteDataKey] = self::PrepareRequisiteData(
-						CCrmOwnerType::Company, $entityID, array('VIEW_DATA_ONLY' => true)
+						CCrmOwnerType::Company, $entityID, array('VIEW_DATA_ONLY' => true, 'VIEW_ALL' => true)
 					);
 			}
 		}
@@ -867,6 +867,8 @@ class CCrmEntitySelectorHelper
 			&& ($options['COPY_MODE'] === true || $options['COPY_MODE'] === 'Y'));
 		$viewDataOnly = (isset($options['VIEW_DATA_ONLY'])
 			&& ($options['VIEW_DATA_ONLY'] === true || $options['VIEW_DATA_ONLY'] === 'Y'));
+		$viewAll = (isset($options['VIEW_ALL'])
+			&& ($options['VIEW_ALL'] === true || $options['VIEW_ALL'] === 'Y'));
 
 		$result = array();
 
@@ -1088,8 +1090,7 @@ class CCrmEntitySelectorHelper
 							$viewDataFields = &$dataFields;
 						}
 
-
-						$fieldsInView = array_intersect($presetFieldsInShortList, $fieldsAllowed);
+						$fieldsInView = $viewAll ? $fieldsAllowed : array_intersect($presetFieldsInShortList, $fieldsAllowed);
 						unset($presetFieldsInShortList);
 
 						$requisiteData = array();

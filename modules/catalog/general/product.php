@@ -733,6 +733,14 @@ class CAllCatalogProduct
 		return false;
 	}
 
+	/**
+	 * @deprecated deprecated since catalog 15.0.0
+	 * @see \CCatalogProductProvider
+	 *
+	 * @param int $ProductID
+	 * @param int|float $DeltaQuantity
+	 * @return bool
+	 */
 	public static function QuantityTracer($ProductID, $DeltaQuantity)
 	{
 		$boolClearCache = false;
@@ -1214,7 +1222,7 @@ class CAllCatalogProduct
 				'DISCOUNT' => $discountValue,
 				'PERCENT' => (
 					$minimalPrice['BASE_PRICE'] > 0 && $discountValue > 0
-					? roundEx((100*$discountValue)/$minimalPrice['BASE_PRICE'], 0)
+					? round((100*$discountValue)/$minimalPrice['BASE_PRICE'], 0)
 					: 0
 				),
 				'VAT_RATE' => $minimalPrice['RAW_PRICE']['VAT_RATE'],
@@ -1685,7 +1693,7 @@ class CAllCatalogProduct
 					'DISCOUNT' => $discountValue,
 					'PERCENT' => (
 						$minimalPrice[$basketCode]['BASE_PRICE'] > 0 && $discountValue > 0
-						? roundEx((100 * $discountValue)/$minimalPrice[$basketCode]['BASE_PRICE'], 0)
+						? round((100 * $discountValue)/$minimalPrice[$basketCode]['BASE_PRICE'], 0)
 						: 0
 					),
 					'VAT_RATE' => $minimalPrice[$basketCode]['RAW_PRICE']['VAT_RATE'],
@@ -2172,7 +2180,7 @@ class CAllCatalogProduct
 						$dblDiscountValue = (
 							!$changeData
 							? $arOneDiscount['VALUE']
-							: roundEx(
+							: round(
 								CCurrencyRates::ConvertCurrency($arOneDiscount['VALUE'], $arOneDiscount['CURRENCY'], $arParams['CURRENCY']),
 								CATALOG_VALUE_PRECISION
 							)
@@ -2188,7 +2196,7 @@ class CAllCatalogProduct
 						$dblDiscountValue = (
 							!$changeData
 							? $arOneDiscount['VALUE']
-							: roundEx(
+							: round(
 								CCurrencyRates::ConvertCurrency($arOneDiscount['VALUE'], $arOneDiscount['CURRENCY'], $arParams['CURRENCY']),
 								CATALOG_VALUE_PRECISION
 							)
@@ -2208,7 +2216,7 @@ class CAllCatalogProduct
 							$dblDiscountValue = (
 								!$changeData
 								? $arOneDiscount['MAX_DISCOUNT']
-								: roundEx(
+								: round(
 									CCurrencyRates::ConvertCurrency($arOneDiscount['MAX_DISCOUNT'], $arOneDiscount['CURRENCY'], $arParams['CURRENCY']),
 									CATALOG_VALUE_PRECISION
 								)
@@ -2269,7 +2277,7 @@ class CAllCatalogProduct
 						switch($arOneDiscount['VALUE_TYPE'])
 						{
 						case CCatalogDiscount::TYPE_PERCENT:
-							$dblTempo = roundEx((
+							$dblTempo = round((
 								CCatalogDiscount::getUseBasePrice()
 								? $arParams['BASE_PRICE']
 								: $dblCurrentPrice
@@ -2370,7 +2378,7 @@ class CAllCatalogProduct
 					switch($arOneDiscount['VALUE_TYPE'])
 					{
 					case CCatalogDiscountSave::TYPE_PERCENT:
-						$dblPriceTmp = roundEx($dblCurrentPrice*(1 - $arOneDiscount['VALUE']/100.0), CATALOG_VALUE_PRECISION);
+						$dblPriceTmp = round($dblCurrentPrice*(1 - $arOneDiscount['VALUE']/100.0), CATALOG_VALUE_PRECISION);
 						break;
 					case CCatalogDiscountSave::TYPE_FIX:
 						if ($arOneDiscount['DISCOUNT_CONVERT'] > $dblCurrentPrice)

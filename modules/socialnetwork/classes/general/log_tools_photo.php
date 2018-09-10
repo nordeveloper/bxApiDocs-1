@@ -1780,7 +1780,7 @@ class CSocNetPhotoCommentEvent
 			}
 		}
 	}
-	
+
 	function InheriteAlbumFollow($albumId, $logId, $authorId = false)
 	{
 		$albumId = intval($albumId);
@@ -1816,15 +1816,34 @@ class CSocNetPhotoCommentEvent
 
 			while ($arFollower = $rsFollower->Fetch())
 			{
-				if (
-					$authorId
-					&& intval($authorId) == $arFollower["USER_ID"]
+				if ($arFollower["TYPE"] == 'Y')
+				{
+					$subscribeTypeList = array(
+						'COUNTER_COMMENT_PUSH'
+					);
+
+					if (
+						!$authorId
+						|| intval($authorId) != $arFollower["USER_ID"]
+					)
+					{
+						$subscribeTypeList[] = 'FOLLOW';
+					}
+
+					\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+						'logId' => $logId,
+						'userId' => $arFollower["USER_ID"],
+						'typeList' => $subscribeTypeList,
+						'followDate' => 'CURRENT'
+					));
+				}
+				elseif (
+					!$authorId
+					|| intval($authorId) != $arFollower["USER_ID"]
 				)
 				{
-					continue;
+					CSocNetLogFollow::Set($arFollower["USER_ID"], "L".$logId, 'N', ConvertTimeStamp(time() + CTimeZone::GetOffset(), "FULL", SITE_ID));
 				}
-
-				CSocNetLogFollow::Set($arFollower["USER_ID"], "L".$logId, $arFollower["TYPE"], ConvertTimeStamp(time() + CTimeZone::GetOffset(), "FULL", SITE_ID));							
 			}
 		}
 	}

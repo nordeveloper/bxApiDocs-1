@@ -2,6 +2,7 @@
 namespace Bitrix\Crm\Automation\Trigger;
 
 use Bitrix\Crm\Automation\Factory;
+use Bitrix\Crm\EntityManageFacility;
 use Bitrix\Main;
 
 if (!Main\Loader::includeModule('bizproc'))
@@ -19,7 +20,7 @@ class BaseTrigger extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 	 */
 	public static function isSupported($entityTypeId)
 	{
-		$supported = [\CCrmOwnerType::Lead, \CCrmOwnerType::Deal];
+		$supported = [\CCrmOwnerType::Lead, \CCrmOwnerType::Deal, \CCrmOwnerType::Order, \CCrmOwnerType::Invoice];
 		return in_array($entityTypeId, $supported, true);
 	}
 
@@ -46,8 +47,7 @@ class BaseTrigger extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 
 			if (Factory::isSupported($entityTypeId))
 			{
-				$automationTarget = Factory::createTarget($entityTypeId);
-				$automationTarget->setEntityById($entityId);
+				$automationTarget = Factory::getTarget($entityTypeId, $entityId);
 
 				$trigger = new static();
 				$trigger->setTarget($automationTarget);
@@ -61,13 +61,30 @@ class BaseTrigger extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 
 		if (!$triggersSent && $clientBindings)
 		{
+			$facilitySelector = (new EntityManageFacility())->getSelector();
+
 			foreach ($clientBindings as $binding)
 			{
-				$deals = static::findDealsByEntity($binding['OWNER_TYPE_ID'], $binding['OWNER_ID']);
-				foreach ($deals as $deal)
+				$facilitySelector
+					->setEntity($binding['OWNER_TYPE_ID'], $binding['OWNER_ID'])
+					->search();
+
+				$documents = [];
+				$dealId = $facilitySelector->getDealId();
+				$orderIds = $facilitySelector->getOrders();
+
+				if ($dealId)
 				{
-					$automationTarget = Factory::createTarget(\CCrmOwnerType::Deal);
-					$automationTarget->setEntityById($deal['ID']);
+					$documents[] = [\CCrmOwnerType::Deal, $dealId];
+				}
+				foreach ($orderIds as $orderId)
+				{
+					$documents[] = [\CCrmOwnerType::Order, $orderId];
+				}
+
+				foreach ($documents as list($docTypeId, $docId))
+				{
+					$automationTarget = Factory::getTarget($docTypeId, $docId);
 
 					$trigger = new static();
 					$trigger->setTarget($automationTarget);
@@ -168,60 +185,16 @@ class BaseTrigger extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 	{
 		$statusId = $trigger['ENTITY_STATUS'];
 
+		/** @var \Bitrix\Crm\Automation\Target\BaseTarget $target */
 		$target = $this->getTarget();
 
 		$target->setAppliedTrigger($trigger);
-		$target->setEntityStatus($statusId);
-		$target->getRuntime()->onDocumentStatusChanged();
+		$result = $target->setEntityStatus($statusId);
+		if ($result !== false)
+		{
+			Factory::runOnStatusChanged($target->getEntityTypeId(), $target->getEntityId());
+		}
 
 		return true;
-	}
-
-	private static function findDealsByEntity($entityTypeId, $entityId)
-	{
-		$cursor = null;
-		switch ($entityTypeId)
-		{
-			case \CCrmOwnerType::Contact:
-				$cursor = \CCrmDeal::GetListEx(
-					array(),
-					array('=CONTACT_ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'),
-					false,
-					false,
-					array('ID', 'TITLE', 'STAGE_ID', 'CATEGORY_ID', 'ASSIGNED_BY_ID', 'COMPANY_ID', 'CONTACT_ID', 'DATE_MODIFY')
-				);
-				break;
-			case \CCrmOwnerType::Company:
-				$cursor = \CCrmDeal::GetListEx(
-					array(),
-					array('=COMPANY_ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'),
-					false,
-					false,
-					array('ID', 'TITLE', 'STAGE_ID', 'CATEGORY_ID', 'ASSIGNED_BY_ID', 'COMPANY_ID', 'CONTACT_ID', 'DATE_MODIFY')
-				);
-				break;
-		}
-
-		if(!is_object($cursor))
-			return false;
-
-		$result = array();
-		while($row = $cursor->fetch())
-		{
-			$semanticId = \CCrmDeal::GetSemanticID(
-				$row['STAGE_ID'],
-				(isset($row['CATEGORY_ID']) ? $row['CATEGORY_ID'] : 0)
-			);
-
-			if(\Bitrix\Crm\PhaseSemantics::isFinal($semanticId))
-			{
-				continue;
-			}
-
-			$result[] = $row;
-		}
-
-		sortByColumn($result, array('DATE_MODIFY' => array(SORT_DESC)));
-		return $result;
 	}
 }

@@ -250,7 +250,7 @@ class ContactDataProvider extends EntityDataProvider
 		elseif($fieldID === 'WEBFORM_ID')
 		{
 			return array(
-				'params' => array('multiple' => 'N'),
+				'params' => array('multiple' => 'Y'),
 				'items' => Crm\WebForm\Manager::getListNames()
 			);
 		}

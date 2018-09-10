@@ -16,7 +16,7 @@ class InvoiceStUtsTable extends Entity\DataManager
 {
 	public static function getTableName()
 	{
-		return 'b_uts_order';
+		return 'b_uts_crm_invoice';
 	}
 
 	public static function getMap()

@@ -141,6 +141,28 @@ class Manager
 	}
 
 	/**
+	 * Marks iblock as one who needs index rebuild when it is needed.
+	 *
+	 * @param integer $iblockId Information block identifier.
+	 * @param array $propertyOld Previos property fields.
+	 * @param array $propertyNew New property fields.
+	 *
+	 * @return void
+	 */
+	public static function onPropertyUpdate($iblockId, $propertyOld, $propertyNew)
+	{
+		if (array_key_exists("USER_TYPE", $propertyNew))
+		{
+			$storageOld = Iblock\PropertyIndex\Indexer::getPropertyStorageType($propertyOld);
+			$storageNew = Iblock\PropertyIndex\Indexer::getPropertyStorageType($propertyNew);
+			if ($storageOld !== $storageNew)
+			{
+				self::markAsInvalid($iblockId);
+			}
+		}
+	}
+
+	/**
 	 * Adds admin users notification about index rebuild.
 	 *
 	 * @param boolean $force Whenever skip iblock check.

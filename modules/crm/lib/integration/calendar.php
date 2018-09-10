@@ -247,10 +247,7 @@ class Calendar
 			$result['DATE_FROM'] = \CCalendar::Date($fromTs);
 			$result['DATE_TO'] = \CCalendar::Date($toTs);
 
-//			$result['DATE_FROM'] = $data['RES_BOOKING_FROM'];
-//			$result['DATE_TO'] = $data['RES_BOOKING_TO'];
-
-			$result['DURATION'] = \CCalendar::Timestamp($result['DATE_FROM']) - \CCalendar::Timestamp($result['DATE_TO']);
+			$result['DURATION'] = \CCalendar::Timestamp($result['DATE_TO']) - \CCalendar::Timestamp($result['DATE_FROM']) + \CCalendar::DAY_LENGTH;
 
 			if ($result['DURATION'] <= 0)
 			{
@@ -268,7 +265,12 @@ class Calendar
 			$result['DATE_FROM'] = \CCalendar::Date($fromTs - $userOffsetFrom);
 			$result['DATE_TO'] = \CCalendar::Date($toTs - $userOffsetTo);
 
-			$result['DURATION'] = $toTs - $fromTs;
+			$result['DURATION'] = $toTs - $fromTs - 1;
+
+			if ($result['DURATION'] <= 0)
+			{
+				$result['DURATION'] = 3600;
+			}
 		}
 
 		return $result;

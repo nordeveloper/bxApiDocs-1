@@ -634,7 +634,7 @@ class DealCategory
 	/**
 	 * Get stage infos for specified deal category entry.
 	 * @param int $ID Deal category entry ID.
-	 * @return array
+	 * @return string
 	 */
 	public static function getStatusEntityID($ID)
 	{
@@ -660,7 +660,7 @@ class DealCategory
 	}
 
 	/**
-	 * Prepare Deal stage Namespace Identifier.
+	 * Prepare Deal stage namespace identifier.
 	 * For example if category entry ID is 15 then string "C15" will be returned.
 	 * @param int $ID Entry ID.
 	 * @return string
@@ -676,9 +676,36 @@ class DealCategory
 	}
 
 	/**
+	 * Check if specified Stage ID includes namespace ID of specified Category.
+	 * @param string $stageID Stage ID.
+	 * @param int $ID Category ID.
+	 * @return bool
+	 */
+	public static function hasStageNamespaceID($stageID, $ID)
+	{
+		$nid = self::prepareStageNamespaceID($ID);
+		return $nid !== '' && strpos($stageID, "{$nid}:") === 0;
+	}
+
+	/**
+	 * Remove namespace identifier from stage ID.
+	 * For example if stage ID is "C15:WON" (where prefix "C15:" is namespace identifier) then string "WON" will be returned.
+	 * @param string $stageID Deal stage ID.
+	 * @return mixed
+	 */
+	public static function removeStageNamespaceID($stageID)
+	{
+		if(preg_match("/C\d+:([a-z0-9_]+)/i", $stageID, $m) === 1 && is_array($m) && count($m) === 2)
+		{
+			return $m[1];
+		}
+		return $stageID;
+	}
+
+	/**
 	 * Prepare unique stage ID.
 	 * For example if entry ID is 15 and stage ID is "PREPARATION", then string "C15:PREPARATION" will be returnted.
-	 * Where "C15" is namespace ID and "PREPARATION" is spacific stage ID.
+	 * Where "C15" is namespace ID and "PREPARATION" is specific stage ID.
 	 * @param int $ID Entry ID.
 	 * @param string $stageID Specific stage ID (for example "NEW" or "WON")
 	 * @return string
@@ -1120,6 +1147,92 @@ class DealCategory
 			foreach($queries as $query)
 			{
 				$connection->queryExecute($query);
+			}
+		}
+	}
+
+	/**
+	 * Add namespace identifier to existing stage IDs if it was not added.
+	 * @param string $categoryID Category ID.
+	 * @return void
+	 */
+	public static function correctStageNamespaceID($categoryID)
+	{
+		if(!is_int($categoryID))
+		{
+			$categoryID = (int)$categoryID;
+		}
+
+		if($categoryID <= 0)
+		{
+			return;
+		}
+
+		$connection = Main\Application::getConnection();
+		$sqlHelper = $connection->getSqlHelper();
+
+		$entityID = self::convertToStatusEntityID($categoryID);
+		$entitySql = $sqlHelper->forSql($entityID, 50);
+
+		$stageIDs = array_keys(self::getStageList($categoryID));
+		foreach($stageIDs as $stageID)
+		{
+			if(self::hasStageNamespaceID($stageID, $categoryID))
+			{
+				continue;
+			}
+
+			$newStageID = self::prepareStageID($categoryID, self::removeStageNamespaceID($stageID));
+			if($newStageID === $stageID)
+			{
+				continue;
+			}
+
+			$stageSql = $sqlHelper->forSql($stageID, 50);
+			$newStageSql = $sqlHelper->forSql($newStageID, 50);
+
+			if($connection instanceof Main\DB\MysqlCommonConnection)
+			{
+				try
+				{
+					$connection->startTransaction();
+
+					$connection->queryExecute("
+						UPDATE b_crm_status SET STATUS_ID = '{$newStageSql}'
+							WHERE STATUS_ID = '{$stageSql}' AND ENTITY_ID = '{$entitySql}'"
+					);
+
+					$connection->queryExecute("
+						UPDATE b_crm_deal SET STAGE_ID = '{$newStageSql}'
+							WHERE STAGE_ID = '{$stageSql}' AND CATEGORY_ID = {$categoryID}"
+					);
+
+					$connection->queryExecute("
+						UPDATE b_crm_deal_stage_history SET STAGE_ID = '{$newStageSql}'
+							WHERE STAGE_ID = '{$stageSql}' AND CATEGORY_ID = {$categoryID}"
+					);
+
+					$connection->queryExecute("
+						UPDATE b_crm_deal_sum_stat SET STAGE_ID = '{$newStageSql}'
+							WHERE STAGE_ID = '{$stageSql}' AND CATEGORY_ID = {$categoryID}"
+					);
+
+					$connection->queryExecute("
+						UPDATE b_crm_deal_inv_stat SET STAGE_ID = '{$newStageSql}'
+							WHERE STAGE_ID = '{$stageSql}' AND CATEGORY_ID = {$categoryID}"
+					);
+
+					$connection->queryExecute("
+						UPDATE b_crm_deal_act_stat SET STAGE_ID = '{$newStageSql}'
+							WHERE STAGE_ID = '{$stageSql}' AND CATEGORY_ID = {$categoryID}"
+					);
+
+					$connection->commitTransaction();
+				}
+				catch(Main\Db\SqlException $e)
+				{
+					$connection->rollbackTransaction();
+				}
 			}
 		}
 	}

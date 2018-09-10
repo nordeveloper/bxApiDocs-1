@@ -3554,7 +3554,7 @@ class CIBlockCMLImport
 				{
 					$arElement["CODE"] = CUtil::translit($arElement["NAME"], LANGUAGE_ID, $this->translit_on_update);
 					//Check if name was not changed in a way to update CODE
-					if(substr($arDBElement["CODE"], 0, strlen($arElement["CODE"])) === $arElement["CODE"])
+					if(preg_match("#^".preg_quote($arElement["CODE"], "#")."_[0-9]+$#", $arDBElement["CODE"]))
 						unset($arElement["CODE"]);
 					else
 						$arElement["CODE"] = $this->CheckElementCode($this->next_step["IBLOCK_ID"], $arElement["CODE"]);
@@ -4563,7 +4563,7 @@ class CIBlockCMLImport
 			{
 				$arSection["CODE"] = CUtil::translit($arSection["NAME"], LANGUAGE_ID, $this->translit_on_update);
 				//Check if name was not changed in a way to update CODE
-				if(substr($arDBSection["CODE"], 0, strlen($arSection["CODE"])) === $arSection["CODE"])
+				if(preg_match("#^".preg_quote($arSection["CODE"], "#")."_[0-9]+$#", $arDBSection["CODE"]))
 					unset($arSection["CODE"]);
 				else
 					$arSection["CODE"] = $this->CheckSectionCode($IBLOCK_ID, $arSection["CODE"]);
@@ -4644,10 +4644,15 @@ class CIBlockCMLImport
 			$this->ImportSectionProperties($XML_SECTION_PROPERTIES, $IBLOCK_ID, $arSection["ID"]);
 		}
 
-		if($arSection["ID"])
+		//Clear seo cache
+		if(isset($bChanged) && $bChanged)
 		{
 			$ipropValues = new \Bitrix\Iblock\InheritedProperty\SectionValues($this->next_step["IBLOCK_ID"], $arSection["ID"]);
 			$ipropValues->clearValues();
+		}
+
+		if($arSection["ID"])
+		{
 			$this->_xml_file->Add(array("PARENT_ID" => 0, "LEFT_MARGIN" => $arSection["ID"]));
 		}
 

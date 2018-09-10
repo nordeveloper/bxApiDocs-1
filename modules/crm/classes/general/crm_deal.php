@@ -557,14 +557,23 @@ class CAllCrmDeal
 		}
 
 		$operationInfo = Crm\UI\Filter\EntityHandler::findFieldOperation('CATEGORY_ID', $arFilter);
-		if(is_array($operationInfo))
+		if(is_array($operationInfo) && $operationInfo['OPERATION'] === '=')
 		{
-			$categoryID = (int)$operationInfo['CONDITION'];
-			if($categoryID >= 0 && $operationInfo['OPERATION'] === '=')
+			$categoryIDs = is_array($operationInfo['CONDITION'])
+				? $operationInfo['CONDITION'] : array($operationInfo['CONDITION']);
+
+			$entityTypes = array();
+			foreach($categoryIDs as $categoryID)
 			{
-				$arOptions['RESTRICT_BY_ENTITY_TYPES'] = array(
-					DealCategory::convertToPermissionEntityType($categoryID)
-				);
+				if($categoryID >= 0)
+				{
+					$entityTypes[] = DealCategory::convertToPermissionEntityType($categoryID);
+				}
+			}
+
+			if(!empty($entityTypes))
+			{
+				$arOptions['RESTRICT_BY_ENTITY_TYPES'] = array_unique($entityTypes);
 			}
 		}
 
@@ -1232,13 +1241,11 @@ class CAllCrmDeal
 		}
 
 		$this->LAST_ERROR = '';
-		if(isset($options['CURRENT_USER']))
+
+		$userID = isset($options['CURRENT_USER']) ? (int)$options['CURRENT_USER'] : 0;
+		if($userID <= 0)
 		{
-			$iUserId = intval($options['CURRENT_USER']);
-		}
-		else
-		{
-			$iUserId = CCrmSecurityHelper::GetCurrentUserID();
+			$userID = CCrmSecurityHelper::GetCurrentUserID();
 		}
 
 		if (isset($arFields['ID']))
@@ -1250,17 +1257,17 @@ class CAllCrmDeal
 		$arFields['~DATE_MODIFY'] = $DB->CurrentTimeFunction();
 
 		if (!isset($arFields['CREATED_BY_ID']) || (int)$arFields['CREATED_BY_ID'] <= 0)
-			$arFields['CREATED_BY_ID'] = $iUserId;
+			$arFields['CREATED_BY_ID'] = $userID;
 		if (!isset($arFields['MODIFY_BY_ID']) || (int)$arFields['MODIFY_BY_ID'] <= 0)
-			$arFields['MODIFY_BY_ID'] = $iUserId;
+			$arFields['MODIFY_BY_ID'] = $userID;
 
 		if(isset($arFields['ASSIGNED_BY_ID']) && is_array($arFields['ASSIGNED_BY_ID']))
 		{
-			$arFields['ASSIGNED_BY_ID'] = count($arFields['ASSIGNED_BY_ID']) > 0 ? intval($arFields['ASSIGNED_BY_ID'][0]) : $iUserId;
+			$arFields['ASSIGNED_BY_ID'] = count($arFields['ASSIGNED_BY_ID']) > 0 ? intval($arFields['ASSIGNED_BY_ID'][0]) : $userID;
 		}
 
 		if (!isset($arFields['ASSIGNED_BY_ID']) || (int)$arFields['ASSIGNED_BY_ID'] <= 0)
-			$arFields['ASSIGNED_BY_ID'] = $iUserId;
+			$arFields['ASSIGNED_BY_ID'] = $userID;
 
 		if (!$this->CheckFields($arFields, false, $options))
 		{
@@ -1311,8 +1318,8 @@ class CAllCrmDeal
 			$assignedByID = (int)$arFields['ASSIGNED_BY_ID'];
 			if($this->bCheckPermission)
 			{
-				$arEntityAttr = self::BuildEntityAttr($iUserId, $arAttr);
-				$userPerms =  $iUserId == CCrmPerms::GetCurrentUserID() ? $this->cPerms : CCrmPerms::GetUserPermissions($iUserId);
+				$arEntityAttr = self::BuildEntityAttr($userID, $arAttr);
+				$userPerms =  $userID == CCrmPerms::GetCurrentUserID() ? $this->cPerms : CCrmPerms::GetUserPermissions($userID);
 				$sEntityPerm = $userPerms->GetPermType($permissionEntityType, $sPermission, $arEntityAttr);
 				if ($sEntityPerm == BX_CRM_PERM_NONE)
 				{
@@ -1321,11 +1328,11 @@ class CAllCrmDeal
 					return false;
 				}
 
-				if ($sEntityPerm == BX_CRM_PERM_SELF && $assignedByID != $iUserId)
+				if ($sEntityPerm == BX_CRM_PERM_SELF && $assignedByID != $userID)
 				{
-					$arFields['ASSIGNED_BY_ID'] = $assignedByID = $iUserId;
+					$arFields['ASSIGNED_BY_ID'] = $assignedByID = $userID;
 				}
-				if ($sEntityPerm == BX_CRM_PERM_OPEN && $iUserId == $assignedByID)
+				if ($sEntityPerm == BX_CRM_PERM_OPEN && $userID == $assignedByID)
 				{
 					$arFields['OPENED'] = 'Y';
 				}
@@ -1662,7 +1669,7 @@ class CAllCrmDeal
 					CCrmSonetSubscriptionType::Responsibility,
 					$assignedByID
 				);
-				$logEventID = CCrmLiveFeed::CreateLogEvent($liveFeedFields, CCrmLiveFeedEvent::Add, array('CURRENT_USER' => $iUserId));
+				$logEventID = CCrmLiveFeed::CreateLogEvent($liveFeedFields, CCrmLiveFeedEvent::Add, array('CURRENT_USER' => $userID));
 
 				if (
 					$logEventID
@@ -1917,11 +1924,18 @@ class CAllCrmDeal
 	{
 		global $DB;
 
-		$this->LAST_ERROR = '';
 		$ID = (int) $ID;
 		if(!is_array($options))
 		{
 			$options = array();
+		}
+
+		$this->LAST_ERROR = '';
+
+		$userID = isset($options['CURRENT_USER']) ? (int)$options['CURRENT_USER'] : 0;
+		if($userID <= 0)
+		{
+			$userID = CCrmSecurityHelper::GetCurrentUserID();
 		}
 
 		$arFilterTmp = array('ID' => $ID);
@@ -1931,15 +1945,6 @@ class CAllCrmDeal
 		$obRes = self::GetListEx(array(), $arFilterTmp);
 		if (!($arRow = $obRes->Fetch()))
 			return false;
-
-		if(isset($options['CURRENT_USER']))
-		{
-			$iUserId = intval($options['CURRENT_USER']);
-		}
-		else
-		{
-			$iUserId = CCrmSecurityHelper::GetCurrentUserID();
-		}
 
 		if (isset($arFields['DATE_CREATE']))
 		{
@@ -1966,7 +1971,7 @@ class CAllCrmDeal
 
 		if (!isset($arFields['MODIFY_BY_ID']) || $arFields['MODIFY_BY_ID'] <= 0)
 		{
-			$arFields['MODIFY_BY_ID'] = $iUserId;
+			$arFields['MODIFY_BY_ID'] = $userID;
 		}
 
 		if (isset($arFields['ASSIGNED_BY_ID']) && $arFields['ASSIGNED_BY_ID'] <= 0)
@@ -2047,7 +2052,7 @@ class CAllCrmDeal
 			$sEntityPerm = $this->cPerms->GetPermType($permissionEntityType, 'WRITE', $arEntityAttr);
 			self::PrepareEntityAttrs($arEntityAttr, $sEntityPerm);
 			//Prevent 'OPENED' field change by user restricted by BX_CRM_PERM_OPEN permission
-			if($sEntityPerm === BX_CRM_PERM_OPEN && isset($arFields['OPENED']) && $arFields['OPENED'] !== 'Y' && $assignedByID !== $iUserId)
+			if($sEntityPerm === BX_CRM_PERM_OPEN && isset($arFields['OPENED']) && $arFields['OPENED'] !== 'Y' && $assignedByID !== $userID)
 			{
 				$arFields['OPENED'] = 'Y';
 			}
@@ -2145,9 +2150,9 @@ class CAllCrmDeal
 
 					if(!isset($arEvent['USER_ID']))
 					{
-						if($iUserId > 0)
+						if($userID > 0)
 						{
-							$arEvent['USER_ID'] = $iUserId;
+							$arEvent['USER_ID'] = $userID;
 						}
 						else if(isset($arFields['MODIFY_BY_ID']) && $arFields['MODIFY_BY_ID'] > 0)
 						{
@@ -2417,30 +2422,33 @@ class CAllCrmDeal
 			}
 			//endregion
 			//region Statistics & History
-			DealSumStatisticEntry::register($ID, $currentFields);
-
-			DealStageHistoryEntry::synchronize($ID, $currentFields);
-			DealInvoiceStatisticEntry::synchronize($ID, $currentFields);
-			DealActivityStatisticEntry::synchronize($ID, $currentFields);
-			DealChannelBinding::synchronize($ID, $currentFields);
-
-			if(isset($arFields['STAGE_ID']))
+			if(!isset($options['REGISTER_STATISTICS']) || $options['REGISTER_STATISTICS'] === true)
 			{
-				DealStageHistoryEntry::register($ID, $currentFields, array('IS_NEW' => false));
-			}
+				DealSumStatisticEntry::register($ID, $currentFields);
 
-			$oldLeadID = isset($arRow['LEAD_ID']) ? (int)$arRow['LEAD_ID'] : 0;
-			$curLeadID = isset($arFields['LEAD_ID']) ? (int)$arFields['LEAD_ID'] : $oldLeadID;
-			if($oldLeadID != $curLeadID)
-			{
-				if($oldLeadID > 0)
+				DealStageHistoryEntry::synchronize($ID, $currentFields);
+				DealInvoiceStatisticEntry::synchronize($ID, $currentFields);
+				DealActivityStatisticEntry::synchronize($ID, $currentFields);
+				DealChannelBinding::synchronize($ID, $currentFields);
+
+				if(isset($arFields['STAGE_ID']))
 				{
-					LeadConversionStatisticsEntry::processBindingsChange($oldLeadID);
+					DealStageHistoryEntry::register($ID, $currentFields, array('IS_NEW' => false));
 				}
 
-				if($curLeadID > 0)
+				$oldLeadID = isset($arRow['LEAD_ID']) ? (int)$arRow['LEAD_ID'] : 0;
+				$curLeadID = isset($arFields['LEAD_ID']) ? (int)$arFields['LEAD_ID'] : $oldLeadID;
+				if($oldLeadID != $curLeadID)
 				{
-					LeadConversionStatisticsEntry::processBindingsChange($curLeadID);
+					if($oldLeadID > 0)
+					{
+						LeadConversionStatisticsEntry::processBindingsChange($oldLeadID);
+					}
+
+					if($curLeadID > 0)
+					{
+						LeadConversionStatisticsEntry::processBindingsChange($curLeadID);
+					}
 				}
 			}
 			//endregion
@@ -2602,7 +2610,7 @@ class CAllCrmDeal
 						$sonetEventFields['PARENTS'] = array_values($parents);
 					}
 
-					$logEventID = CCrmLiveFeed::CreateLogEvent($sonetEventFields, $sonetEventType, array('CURRENT_USER' => $iUserId));
+					$logEventID = CCrmLiveFeed::CreateLogEvent($sonetEventFields, $sonetEventType, array('CURRENT_USER' => $userID));
 
 					if (
 						$logEventID
@@ -2806,12 +2814,14 @@ class CAllCrmDeal
 			$CCrmEvent = new CCrmEvent();
 			$CCrmEvent->DeleteByElement('DEAL', $ID);
 
-			DealStageHistoryEntry::unregister($ID);
-			DealSumStatisticEntry::unregister($ID);
-			DealInvoiceStatisticEntry::unregister($ID);
-			DealActivityStatisticEntry::unregister($ID);
-			DealChannelBinding::unregisterAll($ID);
-
+			if(!isset($options['REGISTER_STATISTICS']) || $options['REGISTER_STATISTICS'] === true)
+			{
+				DealStageHistoryEntry::unregister($ID);
+				DealSumStatisticEntry::unregister($ID);
+				DealInvoiceStatisticEntry::unregister($ID);
+				DealActivityStatisticEntry::unregister($ID);
+				DealChannelBinding::unregisterAll($ID);
+			}
 			if($assignedByID > 0)
 			{
 				EntityCounterManager::reset(
@@ -2847,6 +2857,10 @@ class CAllCrmDeal
 			\Bitrix\Crm\Requisite\EntityLink::unregister(CCrmOwnerType::Deal, $ID);
 			\Bitrix\Crm\Pseudoactivity\WaitEntry::deleteByOwner(CCrmOwnerType::Deal, $ID);
 			\Bitrix\Crm\Timeline\TimelineEntry::deleteByOwner(CCrmOwnerType::Deal, $ID);
+			\Bitrix\Crm\Timeline\DealController::getInstance()->onDelete(
+				$ID,
+				array('FIELDS' => $arFields)
+			);
 
 			if ($arFields['IS_RECURRING'] === "Y")
 			{
@@ -3869,7 +3883,7 @@ class CAllCrmDeal
 		return $result;
 	}
 
-	public static function MoveToCategory($ID, $newCategoryID)
+	public static function MoveToCategory($ID, $newCategoryID, array $options = null)
 	{
 		if(!is_int($ID))
 		{
@@ -3889,6 +3903,11 @@ class CAllCrmDeal
 		if($newCategoryID !== 0 && !DealCategory::exists($newCategoryID))
 		{
 			return DealCategoryChangeError::CATEGORY_NOT_FOUND;
+		}
+
+		if($options === null)
+		{
+			$options = array();
 		}
 
 		$dbResult = self::GetListEx(
@@ -3923,7 +3942,8 @@ class CAllCrmDeal
 			return DealCategoryChangeError::STAGE_NOT_FOUND;
 		}
 
-		if(\CCrmBizProcHelper::HasRunningWorkflows(CCrmOwnerType::Deal, $ID))
+		$checkRunningBizProcess = !isset($options['ENABLE_WORKFLOW_CHECK']) || $options['ENABLE_WORKFLOW_CHECK'] === true;
+		if($checkRunningBizProcess && \CCrmBizProcHelper::HasRunningWorkflows(CCrmOwnerType::Deal, $ID))
 		{
 			return DealCategoryChangeError::HAS_WORKFLOWS;
 		}
@@ -4012,17 +4032,24 @@ class CAllCrmDeal
 			array($assignedByID)
 		);
 		//endregion
-
-		DealStageHistoryEntry::processCagegoryChange($ID);
-		DealSumStatisticEntry::processCagegoryChange($ID);
-		DealInvoiceStatisticEntry::processCagegoryChange($ID);
-		DealActivityStatisticEntry::processCagegoryChange($ID);
-
+		if(!isset($options['REGISTER_STATISTICS']) || $options['REGISTER_STATISTICS'] === true)
+		{
+			DealStageHistoryEntry::processCagegoryChange($ID);
+			DealSumStatisticEntry::processCagegoryChange($ID);
+			DealInvoiceStatisticEntry::processCagegoryChange($ID);
+			DealActivityStatisticEntry::processCagegoryChange($ID);
+		}
 		$timestamp = time() + CTimeZone::GetOffset();
+		$userID = isset($options['USER_ID']) ? (int)$options['USER_ID'] : 0;
+		if($userID <= 0)
+		{
+			$userID = CCrmSecurityHelper::GetCurrentUserID();
+		}
+
 		$eventEntity = new CCrmEvent();
 		$eventEntity->Add(
 			array(
-				'USER_ID' => CCrmSecurityHelper::GetCurrentUserID(),
+				'USER_ID' => $userID,
 				'ENTITY_ID' => $ID,
 				'ENTITY_TYPE' => CCrmOwnerType::DealName,
 				'EVENT_TYPE' => CCrmEvent::TYPE_CHANGE,

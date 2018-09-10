@@ -16,10 +16,22 @@ class RequisiteAddressFormatter extends EntityAddressFormatter
 	}
 	public static function formatByCountry(array $fields, $countryId, array $options = null)
 	{
+		$options['FORMAT'] = static::getFormatByCountryId($countryId);
+
+		return EntityAddressFormatter::format($fields, $options);
+	}
+
+	/**
+	 * @param $countryId
+	 * @return int
+	 */
+	public static function getFormatByCountryId($countryId)
+	{
 		$countryId = (int)$countryId;
 		switch ($countryId)
 		{
 			case 1:                // ru
+
 			case 4:                // by
 			case 14:               // ua
 				$format = EntityAddressFormatter::RUS;
@@ -36,8 +48,7 @@ class RequisiteAddressFormatter extends EntityAddressFormatter
 			default:
 				$format = EntityAddressFormatter::Undefined;
 		}
-		$options['FORMAT'] = $format;
 
-		return EntityAddressFormatter::format($fields, $options);
+		return $format;
 	}
 }

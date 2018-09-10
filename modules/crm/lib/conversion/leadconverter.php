@@ -165,11 +165,9 @@ class LeadConverter extends EntityConverter
 
 		$fields = $this->getMapper()->map($this->getMap($entityTypeID), $options);
 
-		$contactID = self::getDestinationEntityID(\CCrmOwnerType::ContactName, $this->resultData);
-		$companyID = self::getDestinationEntityID(\CCrmOwnerType::CompanyName, $this->resultData);
-
 		if($entityTypeID === \CCrmOwnerType::Contact)
 		{
+			$companyID = self::getDestinationEntityID(\CCrmOwnerType::CompanyName, $this->resultData);
 			if($companyID > 0)
 			{
 				$fields['COMPANY_ID'] = $companyID;
@@ -177,14 +175,33 @@ class LeadConverter extends EntityConverter
 		}
 		elseif($entityTypeID === \CCrmOwnerType::Deal)
 		{
-			if($contactID > 0)
+			if($this->isReturnCustomer)
 			{
-				$fields['CONTACT_ID'] = $contactID;
-			}
+				$contactID = $this->mapper->getSourceFieldValue('CONTACT_ID');
+				if($contactID > 0)
+				{
+					$fields['CONTACT_ID'] = $contactID;
+				}
 
-			if($companyID > 0)
+				$companyID = $this->mapper->getSourceFieldValue('COMPANY_ID');
+				if($companyID > 0)
+				{
+					$fields['COMPANY_ID'] = $companyID;
+				}
+			}
+			else
 			{
-				$fields['COMPANY_ID'] = $companyID;
+				$contactID = self::getDestinationEntityID(\CCrmOwnerType::ContactName, $this->resultData);
+				if($contactID > 0)
+				{
+					$fields['CONTACT_ID'] = $contactID;
+				}
+
+				$companyID = self::getDestinationEntityID(\CCrmOwnerType::CompanyName, $this->resultData);
+				if($companyID > 0)
+				{
+					$fields['COMPANY_ID'] = $companyID;
+				}
 			}
 		}
 		return $fields;
@@ -599,14 +616,16 @@ class LeadConverter extends EntityConverter
 			{
 				if ($this->isReturnCustomer)
 				{
-					if($this->mapper->getSourceFieldValue('CONTACT_ID'))
+					$contactID = $this->mapper->getSourceFieldValue('CONTACT_ID');
+					if($contactID > 0)
 					{
-						$fields['CONTACT_ID'] = $this->mapper->getSourceFieldValue('CONTACT_ID');
+						$fields['CONTACT_ID'] = $contactID;
 					}
 
-					if($this->mapper->getSourceFieldValue('COMPANY_ID'))
+					$contactID = $this->mapper->getSourceFieldValue('COMPANY_ID');
+					if($contactID > 0)
 					{
-						$fields['COMPANY_ID'] = $this->mapper->getSourceFieldValue('COMPANY_ID');
+						$fields['COMPANY_ID'] = $contactID;
 					}
 				}
 				else
@@ -1156,5 +1175,15 @@ class LeadConverter extends EntityConverter
 		{
 			$entity->Delete($entityID);
 		}
+	}
+
+	protected function doExternalize(array &$params)
+	{
+		$params['isReturnCustomer'] = $this->isReturnCustomer ? 'Y' : 'N';
+	}
+
+	protected function doInternalize(array $params)
+	{
+		$this->isReturnCustomer = isset($params['isReturnCustomer']) && $params['isReturnCustomer'] === 'Y';
 	}
 }

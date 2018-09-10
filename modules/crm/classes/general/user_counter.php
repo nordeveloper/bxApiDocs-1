@@ -11,6 +11,7 @@ class CCrmUserCounter
 	const CurrentQuoteActivies = 6;
 	const CurrentDealCategoryActivities = 7; // refresh last number in LastType constant
 	const LastType = 7;
+	const CurrentOrderActivies = 8;
 
 	private $userID = 0;
 	private $typeID = 0;
@@ -89,9 +90,9 @@ class CCrmUserCounter
 		{
 			$code = 'crm_cur_act_deal';
 		}
-		elseif($typeID === self::CurrentQuoteActivies)
+		elseif($typeID === self::CurrentOrderActivies)
 		{
-			$code = 'crm_cur_act_quote';
+			$code = 'crm_cur_act_order';
 		}
 		elseif($typeID === self::CurrentDealCategoryActivities)
 		{
@@ -290,6 +291,11 @@ class CCrmUserCounter
 				$result = $dbResult->Fetch();
 				$count += is_array($result) ? intval($result['CNT']) : 0;
 			}
+		}
+		elseif($this->typeID === self::CurrentOrderActivies)
+		{
+			//todo: order
+			$count = 0;
 		}
 
 		if($this->GetValue() !== $count)

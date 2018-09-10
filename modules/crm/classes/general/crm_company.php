@@ -2006,6 +2006,10 @@ class CAllCrmCompany
 			CCrmLead::ProcessCompanyDeletion($ID);
 			CCrmDeal::ProcessCompanyDeletion($ID);
 			\Bitrix\Crm\Timeline\TimelineEntry::deleteByOwner(CCrmOwnerType::Company, $ID);
+			\Bitrix\Crm\Timeline\CompanyController::getInstance()->onDelete(
+				$ID,
+				array('FIELDS' => $arFields)
+			);
 
 			if(Bitrix\Crm\Settings\HistorySettings::getCurrent()->isCompanyDeletionEventEnabled())
 			{
@@ -2630,5 +2634,6 @@ class CAllCrmCompany
 
 		return $fields;
 	}
+
 }
 ?>

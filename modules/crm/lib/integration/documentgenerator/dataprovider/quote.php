@@ -14,32 +14,34 @@ class Quote extends ProductsDataProvider implements Nameable
 	 */
 	public function getFields()
 	{
-		$fields = parent::getFields();
-		$fields['ID'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_ID_TITLE'),];
-		$fields['TITLE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TITLE_TITLE'),];
-		$fields['OPPORTUNITY'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_OPPORTUNITY_TITLE'),];
-		$fields['TAX_VALUE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TAX_VALUE_TITLE'),];
-		$fields['CURRENCY_ID'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CURRENCY_ID_TITLE'),];
-		$fields['COMMENTS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_COMMENTS_TITLE'),];
-		$fields['BEGINDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_BEGINDATE_TITLE'),];
-		$fields['CLOSEDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CLOSEDATE_TITLE'),];
-		$fields['DATE_CREATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_CREATE_TITLE'),];
-		$fields['DATE_MODIFY'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_MODIFY_TITLE'),];
-		$fields['CONTENT'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CONTENT_TITLE'),];
-		$fields['TERMS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TERMS_TITLE'),];
-//		$fields['LEAD'] = [
-//			'PROVIDER' => Lead::class,
-//			'VALUE' => 'LEAD_ID',
-//			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_LEAD_TITLE'),
-//		];
-		$fields['DEAL'] = [
-			'PROVIDER' => Deal::class,
-			'VALUE' => 'DEAL_ID',
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DEAL_TITLE'),
-		];
-		//files
+		if($this->fields === null)
+		{
+			parent::getFields();
+			$this->fields['ID'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_ID_TITLE'),];
+			$this->fields['TITLE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TITLE_TITLE'),];
+			$this->fields['OPPORTUNITY'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_OPPORTUNITY_TITLE'),];
+			$this->fields['TAX_VALUE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TAX_VALUE_TITLE'),];
+			$this->fields['CURRENCY_ID'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CURRENCY_ID_TITLE'),];
+			$this->fields['COMMENTS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_COMMENTS_TITLE'), 'TYPE' => static::FIELD_TYPE_TEXT];
+			$this->fields['BEGINDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_BEGINDATE_TITLE'),];
+			$this->fields['CLOSEDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CLOSEDATE_TITLE'),];
+			$this->fields['DATE_CREATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_CREATE_TITLE'),];
+			$this->fields['DATE_MODIFY'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_MODIFY_TITLE'),];
+			$this->fields['CONTENT'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CONTENT_TITLE'), 'TYPE' => static::FIELD_TYPE_TEXT];
+			$this->fields['TERMS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TERM_TITLE'), 'TYPE' => static::FIELD_TYPE_TEXT];
+	//		$this->fields['LEAD'] = [
+	//			'PROVIDER' => Lead::class,
+	//			'VALUE' => 'LEAD_ID',
+	//			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_LEAD_TITLE'),
+	//		];
+			$this->fields['DEAL'] = [
+				'PROVIDER' => Deal::class,
+				'VALUE' => 'DEAL_ID',
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DEAL_TITLE'),
+			];
+		}
 
-		return $fields;
+		return $this->fields;
 	}
 
 	/**
@@ -56,8 +58,11 @@ class Quote extends ProductsDataProvider implements Nameable
 				$this->data = $data;
 			}
 		}
-		$this->loadProducts();
-		$this->calculateTotalFields();
+		if(!$this->isLightMode())
+		{
+			$this->loadProducts();
+			$this->calculateTotalFields();
+		}
 	}
 
 	/**
@@ -95,11 +100,17 @@ class Quote extends ProductsDataProvider implements Nameable
 		return QuoteTable::class;
 	}
 
+	/**
+	 * @return int
+	 */
 	public function getCrmOwnerType()
 	{
 		return \CCrmOwnerType::Quote;
 	}
 
+	/**
+	 * @return string
+	 */
 	protected function getCrmProductOwnerType()
 	{
 		return \CCrmQuote::OWNER_TYPE;

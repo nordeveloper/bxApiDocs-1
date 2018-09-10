@@ -823,16 +823,15 @@ class CAllCrmActivity
 		$responsibleID = isset($ary['RESPONSIBLE_ID']) ? (int)$ary['RESPONSIBLE_ID'] : 0;
 		// Synchronize user activity -->
 		$skipUserActivitySync = isset($options['SKIP_USER_ACTIVITY_SYNC']) ? $options['SKIP_USER_ACTIVITY_SYNC'] : false;
-		if(!$skipUserActivitySync)
+		if(!$skipUserActivitySync && is_array($arBindings))
 		{
-			if($responsibleID > 0 && is_array($arBindings))
+			foreach($arBindings as $arBinding)
 			{
-				foreach($arBindings as $arBinding)
+				if($responsibleID > 0)
 				{
 					self::SynchronizeUserActivity($arBinding['OWNER_TYPE_ID'], $arBinding['OWNER_ID'], $responsibleID);
-					self::SynchronizeUserActivity($arBinding['OWNER_TYPE_ID'], $arBinding['OWNER_ID'], 0);
 				}
-				unset($arBinding);
+				self::SynchronizeUserActivity($arBinding['OWNER_TYPE_ID'], $arBinding['OWNER_ID'], 0);
 			}
 		}
 		// <-- Synchronize user activity
@@ -3827,7 +3826,13 @@ class CAllCrmActivity
 		{
 			$arEventFields = CCalendarEvent::GetById($eventID, false);
 
-			$dbEntities = self::GetList(array(), array('=CALENDAR_EVENT_ID' => $eventID));
+			$dbEntities = self::GetList(
+				array(),
+				array(
+					'=CALENDAR_EVENT_ID' => $eventID,
+					'CHECK_PERMISSIONS' => 'N'
+				)
+			);
 			$arEntity = $dbEntities->Fetch();
 
 			if(is_array($arEntity))
@@ -6439,6 +6444,10 @@ class CAllCrmActivity
 			$lb = CCrmContact::CreateListBuilder($fieldOptions);
 		}
 		else if($entityTypeID === CCrmOwnerType::Company)
+		{
+			$lb = CCrmCompany::CreateListBuilder($fieldOptions);
+		}
+		else if($entityTypeID === CCrmOwnerType::Order)
 		{
 			$lb = CCrmCompany::CreateListBuilder($fieldOptions);
 		}

@@ -2,12 +2,16 @@
 
 namespace Sale\Handlers\PaySystem;
 
+use Bitrix\Main\ArgumentTypeException;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Request;
 use Bitrix\Main\Type\Date;
+use Bitrix\Main\Web;
 use Bitrix\Sale;
 use Bitrix\Sale\PaySystem;
+use Bitrix\DocumentGenerator;
+use Bitrix\Crm\Integration;
 
 Loc::loadMessages(__FILE__);
 
@@ -21,8 +25,10 @@ class BillHandler extends PaySystem\BaseServiceHandler
 	 * @param Sale\Payment $payment
 	 * @param Request|null $request
 	 * @return PaySystem\ServiceResult
+	 * @throws \Bitrix\Main\ArgumentException
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 * @throws \Bitrix\Main\LoaderException
+	 * @throws \Bitrix\Main\NotImplementedException
 	 */
 	public function initiatePay(Sale\Payment $payment, Request $request = null)
 	{
@@ -34,9 +40,10 @@ class BillHandler extends PaySystem\BaseServiceHandler
 		$extraParams = $this->getPreparedParams($payment, $request);
 		$this->setExtraParams($extraParams);
 
+
 		return $this->showTemplate($payment, $template);
 	}
-
+	
 	/**
 	 * @param Sale\Payment|null $payment
 	 * @param string $template
@@ -53,8 +60,10 @@ class BillHandler extends PaySystem\BaseServiceHandler
 	 * @param Sale\Payment $payment
 	 * @param Request|null $request
 	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 * @throws \Bitrix\Main\LoaderException
+	 * @throws \Bitrix\Main\NotImplementedException
 	 */
 	protected function getPreparedParams(Sale\Payment $payment, Request $request = null)
 	{
@@ -141,7 +150,7 @@ class BillHandler extends PaySystem\BaseServiceHandler
 				);
 			}
 
-			$extraParams['BASKET_ITEMS'][$basketItem->getProductId()] = $item;
+			$extraParams['BASKET_ITEMS'][$basketItem->getId()] = $item;
 		}
 
 		if ($ids && Loader::includeModule('crm') && Loader::includeModule('iblock'))

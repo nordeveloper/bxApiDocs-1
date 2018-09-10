@@ -158,7 +158,7 @@ class Product
 				'ID', 'TYPE',
 				'AVAILABLE', 'QUANTITY', 'QUANTITY_TRACE', 'CAN_BUY_ZERO',
 				'WEIGHT', 'WIDTH', 'LENGTH', 'HEIGHT',
-				'MEASURE', 'BARCODE_MULTI'
+				'MEASURE', 'BARCODE_MULTI', 'VAT_ID'
 			),
 			'filter' => array('@ID' => array_keys($this->iblockData))
 		));
@@ -185,6 +185,7 @@ class Product
 				$this->resultData[$row['ID']]['BARCODE_MULTI'] = $row["BARCODE_MULTI"];
 				$this->resultData[$row['ID']]["SET_ITEMS"] = array();
 				$this->resultData[$row['ID']]["IS_SET_ITEM"] = "N";
+				$this->resultData[$row['ID']]["VAT_ID"] = $row["VAT_ID"];
 				$this->resultData[$row['ID']]["IS_SET_PARENT"] = "N"; //empty($arSetInfo) ? "N" : "Y";
 			}
 		}

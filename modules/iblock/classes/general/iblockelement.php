@@ -4086,7 +4086,7 @@ class CAllIBlockElement
 		$output = array();
 		Main\Type\Collection::normalizeArrayValuesByInt($list);
 		if (empty($list))
-			return;
+			return $output;
 		foreach ($list as $index => $id)
 		{
 			if (!empty(self::$elementIblock[$id]))
@@ -6400,6 +6400,13 @@ class CAllIBlockElement
 							$arDBProps[$pr["IBLOCK_PROPERTY_ID"]][$ELEMENT_ID.":".$property_id] = $pr;
 						}
 					}
+				}
+				else
+				{
+					$DB->Query("
+					insert into b_iblock_element_prop_s".$IBLOCK_ID."
+					(IBLOCK_ELEMENT_ID) values (".$ELEMENT_ID.")
+				");
 				}
 			}
 		}

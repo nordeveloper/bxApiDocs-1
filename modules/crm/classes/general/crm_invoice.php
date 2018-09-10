@@ -3,11 +3,15 @@
 if (!CModule::IncludeModule('sale'))
 	return;
 
-IncludeModuleLangFile(__FILE__);
+use Bitrix\Main\Localization\Loc;
+use \Bitrix\Crm\Invoice\Invoice;
+use \Bitrix\Crm\Invoice\Compatible;
+
+Loc::loadMessages(__FILE__);
 
 class CAllCrmInvoice
 {
-	static public $sUFEntityID = 'ORDER';
+	static public $sUFEntityID = 'CRM_INVOICE';
 	public $LAST_ERROR = '';
 	public $cPerms = null;
 
@@ -445,7 +449,9 @@ class CAllCrmInvoice
 		$userType = new CCrmUserType($GLOBALS['USER_FIELD_MANAGER'], self::$sUFEntityID);
 		$userType->ListPrepareFilter($arFilter);
 
-		$result = CSaleOrder::getList($arOrder, $arFilter, $arGroupBy, $arNavStartParams, $arSelectFields, $arOptions);
+		$result = Compatible\Helper::getList(
+			$arOrder, $arFilter, $arGroupBy, $arNavStartParams, $arSelectFields, $arOptions
+		);
 		self::$arCurrentPermType = null;
 
 		return $result;
@@ -529,7 +535,7 @@ class CAllCrmInvoice
 
 	public static function __callbackPermissionsWhereCondition($arFields = array())
 	{
-		$sql = self::BuildPermSql('sale_internals_order', self::$arCurrentPermType);
+		$sql = self::BuildPermSql('crm_invoice_internals_invoice', self::$arCurrentPermType);
 		if(is_array(self::$LIST_CALLBACK_PARAMS) && isset(self::$LIST_CALLBACK_PARAMS['SQL']))
 		{
 			$sql .= 'AND ('.self::$LIST_CALLBACK_PARAMS['SQL'].')';
@@ -539,49 +545,19 @@ class CAllCrmInvoice
 
 	public static function GetStatusList()
 	{
-		if(!CModule::IncludeModule('sale'))
+		$result = array();
+
+		$dbRes = Bitrix\Crm\Invoice\InvoiceStatus::getList(['order' => ['SORT' => 'ASC']]);
+		while ($status = $dbRes->fetch())
 		{
-			return false;
+			$result[$status['STATUS_ID']] = $status;
 		}
 
-		$arStatus = array();
-
-		$res = CSaleStatus::GetList(array('SORT' => 'ASC'), array('LID' => LANGUAGE_ID), false, false, array('ID', 'SORT', 'NAME'));
-		$id = 1;
-		while ($row = $res->Fetch())
-		{
-			// Special status, not used in CRM
-			if ($row['ID'] === 'F') continue;
-
-			$arStatus[$row['ID']] = array(
-				'ID' => $id,
-				'ENTITY' => 'INVOICE_STATUS',
-				'STATUS_ID' => $row['ID'],
-				'NAME' => $row['NAME'],
-				'NAME_INIT' => '',
-				'SORT' => $id * 10,
-				'SYSTEM' => 'N'
-			);
-			if (in_array($row['ID'], array('P', 'D')))
-			{
-				if ($row['ID'] === 'P') $arStatus[$row['ID']]['NAME_INIT'] = GetMessage('CRM_INVOICE_STATUSN_P');
-				elseif ($row['ID'] === 'D') $arStatus[$row['ID']]['NAME_INIT'] = GetMessage('CRM_INVOICE_STATUSN_D');
-
-				$arStatus[$row['ID']]['SYSTEM'] = 'Y';
-			}
-			$id++;
-		}
-
-		return $arStatus;
+		return $result;
 	}
 
 	public static function GetNeutralStatusIds()
 	{
-		if(!CModule::IncludeModule('sale'))
-		{
-			return false;
-		}
-
 		$arResult = array();
 
 		$arStatus = self::GetStatusList();
@@ -675,7 +651,7 @@ class CAllCrmInvoice
 
 				if (isset($val["BASKET_ID"]) || intval($val["BASKET_ID"]) > 0)
 				{
-					CSaleBasket::Update($val["BASKET_ID"], array("CUSTOM_PRICE" => "Y"));
+					Compatible\BasketHelper::update($val["BASKET_ID"], array("CUSTOM_PRICE" => "Y"));
 				}
 
 				//$val["DISCOUNT_PRICE"] = $val["PRICE_DEFAULT"] - $val["PRICE"];
@@ -702,7 +678,9 @@ class CAllCrmInvoice
 				$arOrderProductPrice[$i]["ID"] = intval($val["BASKET_ID"]);
 
 				if ($recalcOrder != "Y" && $arOrderProductPrice[$i]["CALLBACK_FUNC"] != false)
+				{
 					unset($arOrderProductPrice[$i]["CALLBACK_FUNC"]);
+				}
 
 				$arNewProps = array();
 				if (is_array($val["PROPS"]))
@@ -714,7 +692,9 @@ class CAllCrmInvoice
 					}
 				}
 				else
+				{
 					$arNewProps = array("NAME" => "", "VALUE" => "", "CODE" => "", "SORT" => "");
+				}
 
 				$arOrderProductPrice[$i]["PROPS"] = $arNewProps;
 			}
@@ -811,7 +791,9 @@ class CAllCrmInvoice
 		unset($arItem);
 
 		$arErrors = array();
-		$arShoppingCart = CSaleBasket::DoGetUserShoppingCart($siteId, $saleUserId, $arOrderProductPrice, $arErrors, array(), $tmpOrderId);
+		$arShoppingCart = Compatible\BasketHelper::doGetUserShoppingCart(
+			$siteId, $saleUserId, $arOrderProductPrice, $arErrors, $tmpOrderId
+		);
 
 		foreach ($arShoppingCart as $key => &$arItem)
 		{
@@ -856,7 +838,7 @@ class CAllCrmInvoice
 		$arErrors = array();
 		$arWarnings = array();
 
-		return CAllSaleOrder::DoCalculateOrder(
+		return CSaleOrder::DoCalculateOrder(
 			$siteId,
 			$saleUserId,
 			$arShoppingCart,
@@ -948,8 +930,6 @@ class CAllCrmInvoice
 		$sEntityPerm = $userPerms->GetPermType('INVOICE', $sPermission, $arEntityAttr);
 		$this->PrepareEntityAttrs($arEntityAttr, $sEntityPerm);
 
-		$order = new CSaleOrder();
-
 		// date fields
 		if ($tmpOrderId === 0)
 		{
@@ -976,7 +956,7 @@ class CAllCrmInvoice
 			&& isset($arPrevOrder['STATUS_ID']) && $arPrevOrder['STATUS_ID'] === 'P'
 			&& isset($arPrevOrder['PAYED']) && $arPrevOrder['PAYED'] === 'Y')
 		{
-			if (!$order->PayOrder($tmpOrderId, false, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y')))
+			if (!Compatible\Helper::payOrder($tmpOrderId, false))
 			{
 				$this->LAST_ERROR = GetMessage('CRM_INVOICE_ERR_CANCEL_PAID_STATE');
 				$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
@@ -1002,7 +982,7 @@ class CAllCrmInvoice
 					$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 					if ($paidStateCanceled)
 					{
-						$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+						Compatible\Helper::payOrder($tmpOrderId, true);
 					}
 					return false;
 				}
@@ -1015,14 +995,13 @@ class CAllCrmInvoice
 				$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 				if ($paidStateCanceled)
 				{
-					$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+					Compatible\Helper::payOrder($tmpOrderId, true);
 				}
 				return false;
 			}
 
 			$prevResponsibleID = isset($arPrevOrder['RESPONSIBLE_ID']) ? intval($arPrevOrder['RESPONSIBLE_ID']) : 0;
 			$responsibleID = isset($arFields['RESPONSIBLE_ID']) ? intval($arFields['RESPONSIBLE_ID']) : 0;
-			$prevStatusID = isset($arPrevOrder['STATUS_ID']) ? $arPrevOrder['STATUS_ID'] : '';
 
 			// simple update order fields
 			$simpleFields = $arFields;
@@ -1036,7 +1015,7 @@ class CAllCrmInvoice
 				}
 			}
 			if (is_array($simpleFields) && !empty($simpleFields))
-				$orderID = $order->Update($tmpOrderId, $simpleFields);
+				$orderID = Compatible\Helper::Update($tmpOrderId, $simpleFields);
 			unset($simpleFields, $userFields);
 
 			// update user fields
@@ -1131,7 +1110,7 @@ class CAllCrmInvoice
 						$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 						if ($paidStateCanceled)
 						{
-							$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+							Compatible\Helper::payOrder($tmpOrderId, true);
 						}
 						return false;
 					}
@@ -1155,7 +1134,7 @@ class CAllCrmInvoice
 						$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 						if ($paidStateCanceled)
 						{
-							$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+							Compatible\Helper::payOrder($tmpOrderId, true);
 						}
 						return false;
 					}
@@ -1172,7 +1151,7 @@ class CAllCrmInvoice
 				$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 				if ($paidStateCanceled)
 				{
-					$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+					Compatible\Helper::payOrder($tmpOrderId, true);
 				}
 				return false;
 			}
@@ -1294,7 +1273,9 @@ class CAllCrmInvoice
 				if (!array_key_exists('MEASURE_CODE', $productRow) || intval($productRow['MEASURE_CODE'] <= 0))
 				{
 					if ($oldProductRows === null && $tmpOrderId > 0)
+					{
 						$oldProductRows = CCrmInvoice::GetProductRows($tmpOrderId);
+					}
 					if (is_array($oldProductRows) && count($oldProductRows) > 0 && $oldProductRowsById === null)
 					{
 						$oldProductRowsById = array();
@@ -1383,7 +1364,9 @@ class CAllCrmInvoice
 
 			$arErrors = array();
 
-			$arShoppingCart = CSaleBasket::DoGetUserShoppingCart($siteId, $saleUserId, $arOrderProductPrice, $arErrors, array(), $tmpOrderId, true);
+			$arShoppingCart = Compatible\BasketHelper::doGetUserShoppingCart(
+				$siteId, $saleUserId, $arOrderProductPrice, $arErrors, $tmpOrderId, true
+			);
 			if (!is_array($arShoppingCart) || count($arShoppingCart) === 0)
 			{
 				$this->LAST_ERROR = GetMessage('CRM_ERROR_EMPTY_INVOICE_SPEC');
@@ -1410,7 +1393,7 @@ class CAllCrmInvoice
 				$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 				if ($paidStateCanceled)
 				{
-					$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+					Compatible\Helper::payOrder($tmpOrderId, true);
 				}
 				return false;
 			}
@@ -1432,7 +1415,7 @@ class CAllCrmInvoice
 				$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 				if ($paidStateCanceled)
 				{
-					$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+					Compatible\Helper::payOrder($tmpOrderId, true);
 				}
 				return false;
 			}
@@ -1451,15 +1434,20 @@ class CAllCrmInvoice
 				$GLOBALS['APPLICATION']->ThrowException($this->LAST_ERROR);
 				return false;
 			}
+
 			$deliveryId = null;
 			$paySystemId = $arFields['PAY_SYSTEM_ID'];
-			$arOptions = array('LOCATION_IN_CODES' => true, 'CART_FIX' => 'Y', 'CURRENCY' => $currencyId); // let DoCalculateOrder know we send location in CODEs
+
+			// let DoCalculateOrder know we send location in CODEs
+			$arOptions = array('LOCATION_IN_CODES' => true, 'CART_FIX' => 'Y', 'CURRENCY' => $currencyId);
+
 			$arErrors = $arWarnings = array();
 
-			$arOrder = $order->DoCalculateOrder(
+			$arOrder = CSaleOrder::DoCalculateOrder(
 				$siteId, $saleUserId, $arShoppingCart, $personTypeId, $arOrderPropsValues,
 				$deliveryId, $paySystemId, $arOptions, $arErrors, $arWarnings
 			);
+
 			if (count($arOrder) <= 0)
 			{
 				if (is_array($arErrors) && isset($arErrors[0]['TEXT']))
@@ -1503,7 +1491,7 @@ class CAllCrmInvoice
 			// saving order
 			$arErrors = array();
 			$arAdditionalFields['CUSTOM_DISCOUNT_PRICE'] = true;
-			$orderID = $order->DoSaveOrder($arOrder, $arAdditionalFields, $tmpOrderId, $arErrors);
+			$orderID = Compatible\Helper::doSaveOrder($arOrder, $arAdditionalFields, $tmpOrderId, $arErrors);
 
 			if(!(is_int($orderID) && $orderID > 0))
 			{
@@ -1620,7 +1608,7 @@ class CAllCrmInvoice
 			}
 			else if ($paidStateCanceled)
 			{
-				$order->PayOrder($tmpOrderId, true, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
+				Compatible\Helper::payOrder($tmpOrderId, true);
 			}
 
 			// update entity permissions
@@ -1714,8 +1702,7 @@ class CAllCrmInvoice
 			$dealID = isset($fields['UF_DEAL_ID']) ? $fields['UF_DEAL_ID'] : 0;
 		}
 
-		$CSaleOrder = new CSaleOrder();
-		$result = $CSaleOrder->Delete($ID);
+		$result = Compatible\Helper::delete($ID);
 		if($result)
 		{
 			Bitrix\Crm\Kanban\SortTable::clearEntity($ID, \CCrmOwnerType::InvoiceName);
@@ -1822,15 +1809,12 @@ class CAllCrmInvoice
 
 		if ($result)
 		{
-			$CSaleOrder = new CSaleOrder();
-
 			// get current state
-			if (!($arOrder = CSaleOrder::GetByID($ID))) $result = false;
+			if (!($arOrder = Compatible\Helper::getById($ID))) $result = false;
 			if ($result)
 			{
 				$curPay = $arOrder['PAYED'];
 				$curCancel = $arOrder['CANCELED'];
-				$curMarked = $arOrder['MARKED'];
 				$curStatusID = $arOrder['STATUS_ID'];
 
 
@@ -1845,8 +1829,27 @@ class CAllCrmInvoice
 					$pay = 'N';
 					$cancel = 'Y';
 				}
-				if ($curPay != $pay) $result = $CSaleOrder->PayOrder($ID, $pay, true, true, 0, array('NOT_CHANGE_STATUS' => 'Y'));
-				if ($result && $curCancel != $cancel) $result = $CSaleOrder->CancelOrder($ID, $cancel);
+				if ($curPay != $pay)
+				{
+					$result = Compatible\Helper::payOrder($ID, $pay);
+					$curCancel = 'N';
+				}
+				if ($result && $curCancel != $cancel)
+				{
+					$result = Compatible\Helper::cancelOrder($ID, $cancel);
+				}
+				if ($result && $curStatusID != $statusID)
+				{
+					Compatible\Helper::statusOrder($ID, $statusID);
+				}
+				if ($result && $marked === 'Y')
+				{
+					$result = Compatible\Helper::setMark(
+						$ID,
+						isset($statusParams['REASON_MARKED']) ? $statusParams['REASON_MARKED'] : '',
+						$currentUserId
+					);
+				}
 				if ($result && !(isset($options['SKIP_UPDATE']) && $options['SKIP_UPDATE']))
 				{
 					$arUpdate = array();
@@ -1865,18 +1868,11 @@ class CAllCrmInvoice
 					}
 					unset($arUpdate);
 				}
-				if ($result && $marked === 'Y')
-				{
-					$result = $CSaleOrder->SetMark($ID, isset($statusParams['REASON_MARKED']) ? $statusParams['REASON_MARKED'] : '', $currentUserId);
-				}
-
 				if ($result && $curStatusID != $statusID)
 				{
-					$CSaleOrder->StatusOrder($ID, $statusID);
 					Bitrix\Crm\History\InvoiceStatusHistoryEntry::register($ID);
 					Bitrix\Crm\Statistics\InvoiceSumStatisticEntry::register($ID, null);
 				}
-
 			}
 		}
 
@@ -1956,8 +1952,7 @@ class CAllCrmInvoice
 		$result = array();
 		if (is_array($ID) || (int)$ID > 0)
 		{
-			$CSaleBasket = new CSaleBasket();
-			$dbRes = $CSaleBasket->GetList(
+			$dbRes = Compatible\BasketHelper::getList(
 				array('ORDER_ID' => 'ASC', 'SORT' => 'ASC', 'ID' => 'ASC'), array('ORDER_ID' => $ID), false, false,
 				array(
 					'ID',
@@ -2008,8 +2003,7 @@ class CAllCrmInvoice
 		$result = false;
 
 		$saleUserId = intval(CSaleUser::GetAnonymousUserID());
-		$CSaleBasket = new CSaleBasket();
-		$dbRes = $CSaleBasket->GetList(
+		$dbRes = Compatible\BasketHelper::getList(
 			array(),
 			array('PRODUCT_ID' => $productID,'>ORDER_ID' => 0, 'USER_ID' => $saleUserId),
 			false,
@@ -2035,7 +2029,7 @@ class CAllCrmInvoice
 
 		$arResult = array();
 
-		$dbTaxList = CSaleOrderTax::GetList(
+		$dbTaxList = CCrmInvoiceTax::GetList(
 			array("APPLY_ORDER" => "ASC"),
 			array("ORDER_ID" => $ID)
 		);
@@ -2153,16 +2147,34 @@ class CAllCrmInvoice
 
 		if ($ID > 0)
 		{
-			$dbPropValuesList = CSaleOrderPropsValue::GetList(
-				array("SORT" => "ASC"),
-				array("ORDER_ID" => $ID, "ACTIVE" => "Y"),
-				false,
-				false,
-				array("ID", "ORDER_PROPS_ID", "NAME", "VALUE", "CODE")
+			$query = new Bitrix\Main\Entity\Query(Bitrix\Crm\Invoice\Internals\InvoicePropsValueTable::getEntity());
+			$query->registerRuntimeField(
+				'',
+				new Bitrix\Main\Entity\ReferenceField('LOCATION',
+					Bitrix\Sale\Location\LocationTable::getEntity(),
+					[
+						'=this.PROPERTY.TYPE' => ['?', 'LOCATION'],
+						'=this.VALUE' => 'ref.CODE'
+					],
+					['join_type' => 'LEFT']
+				)
 			);
-			while ($arPropValuesList = $dbPropValuesList->Fetch())
+			$query->setSelect(
+				[
+					'ID',
+					'ORDER_PROPS_ID',
+					'VALUE',
+					'PROPERTY_TYPE' => 'PROPERTY.TYPE',
+					'LOCATION_ID' => 'LOCATION.ID'
+				]
+			);
+			$query->setFilter(['=ORDER_ID' => $ID, '=PROPERTY.ACTIVE' => 'Y']);
+			$query->setOrder(['PROPERTY.SORT' => 'ASC']);
+			$res = $query->exec();
+			while ($row = $res->fetch())
 			{
-				$arPropValues[intval($arPropValuesList["ORDER_PROPS_ID"])] = $arPropValuesList["VALUE"];
+				$arPropValues[intval($row['ORDER_PROPS_ID'])] =
+					$row['PROPERTY_TYPE'] === 'LOCATION' ? $row['LOCATION_ID'] : $row['VALUE'];
 			}
 		}
 
@@ -2224,7 +2236,8 @@ class CAllCrmInvoice
 			return array();
 		}
 
-		$valueData = \Bitrix\Sale\Internals\OrderPropsValueTable::getList(
+		$idInvoices = !is_array($idInvoices) ? array($idInvoices) : $idInvoices;
+		$valueData = \Bitrix\Crm\Invoice\Internals\InvoicePropsValueTable::getList(
 			array(
 				"filter" => array("ORDER_ID" => $idInvoices)
 			)
@@ -2253,6 +2266,10 @@ class CAllCrmInvoice
 
 		foreach($idInvoices as $id)
 		{
+			if (!is_array($valueList[$id]))
+			{
+				continue;
+			}
 			foreach ($valueList[$id] as $value)
 			{
 				$result[$id]['PR_INVOICE_'.$value['ORDER_PROPS_ID']] = array(
@@ -2733,7 +2750,8 @@ class CAllCrmInvoice
 		{
 			if (COption::GetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'N') !== 'Y')
 			{
-				self::installDisableSaleEvents();
+				// disable after the separation invoices and orders
+				//self::installDisableSaleEvents();
 
 				COption::SetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'Y');
 
@@ -2764,7 +2782,8 @@ class CAllCrmInvoice
 
 				if (COption::GetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'N') !== 'Y')
 				{
-					self::installDisableSaleEvents();
+					// disable after the separation invoices and orders
+					//self::installDisableSaleEvents();
 
 					COption::SetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'Y');
 
@@ -2820,7 +2839,8 @@ class CAllCrmInvoice
 
 						if (COption::GetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'N') !== 'Y')
 						{
-							self::installDisableSaleEvents();
+							// disable after the separation invoices and orders
+							//self::installDisableSaleEvents();
 
 							COption::SetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'Y');
 
@@ -2842,23 +2862,8 @@ class CAllCrmInvoice
 		{
 			\Bitrix\Main\Config\Option::set('sale', 'format_quantity', '4');
 
-			if (!CModule::IncludeModule('sale'))
-				return false;
-
-			$dbStatusList = CSaleStatus::GetList(
-				array('SORT' => 'ASC', 'ID' => 'ASC'),
-				array(),
-				false,
-				false,
-				array('ID'));
-
-			$existStatuses = array();
-
-			while ($row = $dbStatusList->Fetch())
-			{
-				if ($row['ID'] !== 'F')
-					$existStatuses[] = $row['ID'];
-			}
+			$statusList = \CCrmStatus::GetStatusList('INVOICE_STATUS');
+			$existStatuses = array_keys($statusList);
 
 			$bNeutral = true;
 			$neutralStatuses = array();
@@ -2887,62 +2892,71 @@ class CAllCrmInvoice
 			}
 			unset($sort);
 
-			$arActiveLangs = array();
-			$languageIterator = \Bitrix\Main\Localization\LanguageTable::getList(array(
-				'select' => array('ID'),
-				'filter' => array('=ACTIVE' => 'Y')
-			));
-			while ($language = $languageIterator->fetch())
+			$languageId = '';
+			if (IsModuleInstalled('bitrix24')
+				&& CModule::IncludeModule('bitrix24')
+				&& method_exists('CBitrix24', 'getLicensePrefix'))
 			{
-				$arActiveLangs[] = $language['ID'];
+				$languageId = CBitrix24::getLicensePrefix();
 			}
-			unset($language, $languageIterator);
+			if ($languageId == '')
+			{
+				$siteIterator = \Bitrix\Main\SiteTable::getList(array(
+					'select' => array('LID', 'LANGUAGE_ID'),
+					'filter' => array('=DEF' => 'Y', '=ACTIVE' => 'Y')
+				));
+				if ($site = $siteIterator->fetch())
+					$languageId = (string)$site['LANGUAGE_ID'];
+				unset($site, $siteIterator);
+			}
+			if ($languageId == '')
+				$languageId = 'en';
 
-			$statusLangFiles = array();
+			$crmStatus = new CCrmStatus('INVOICE_STATUS');
 			if (!empty($statuses))
 			{
-				foreach ($arActiveLangs as &$language)
-					$statusLangFiles[$language] = \Bitrix\Main\Localization\Loc::loadLanguageFile($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/crm/install/status.php', $language);
-				unset($language);
+				$defStatusNameList = [];
+				foreach (CCrmStatus::GetDefaultInvoiceStatuses() as $statusInfo)
+				{
+					$defStatusNameList[$statusInfo['STATUS_ID']] = $statusInfo['NAME'];
+				}
+				unset($statusInfo);
 
 				foreach ($statuses as $statusId => $statusSort)
 				{
 					if (!in_array($statusId, $existStatuses, true))
 					{
-						$langData = array();
-						foreach ($arActiveLangs as &$language)
-						{
-							$nameExist = isset($statusLangFiles[$language]['CRM_STATUS_'.$statusId]);
-							$descrExist = isset($statusLangFiles[$language]['CRM_STATUS_'.$statusId.'_DESCR']);
-							if (!$nameExist && !$descrExist)
-								continue;
-							$oneLang = array(
-								'LID' => $language
-							);
-							if ($nameExist)
-								$oneLang['NAME'] = $statusLangFiles[$language]['CRM_STATUS_'.$statusId];
-							if ($descrExist)
-								$oneLang['DESCRIPTION'] = $statusLangFiles[$language]['CRM_STATUS_'.$statusId.'_DESCR'];
-							$langData[] = $oneLang;
-							unset($oneLang, $descrExist, $nameExist);
-						}
-						unset($language);
+						$nameExist = isset($defStatusNameList[$statusId]);
+						if (!$nameExist)
+							continue;
 
-						CSaleStatus::Add(
-							array(
-								'ID' => $statusId,
-								'SORT' => $statusSort,
-								'LANG' => $langData
-							)
+						$status = array(
+							'STATUS_ID' => $statusId,
+							'SORT' => $statusSort,
+							'NAME' => $defStatusNameList[$statusId]
 						);
+
+						if ($statusId === 'N'
+							|| $statusId === 'P'
+							|| $statusId === 'D'
+						)
+						{
+							$status['SYSTEM'] = 'Y';
+							$status['NAME_INIT'] = $defStatusNameList[$statusId];
+						}
+						else
+						{
+							$status['SYSTEM'] = 'N';
+						}
+
+						$crmStatus->Add($status);
 					}
 					else
 					{
-						CSaleStatus::Update(
-							$statusId,
-							array(
-								'SORT' => $statusSort
-							)
+						$data = $crmStatus->GetStatusByStatusId($statusId);
+						$crmStatus->Update(
+							$data['ID'],
+							array('SORT' => $statusSort)
 						);
 					}
 				}
@@ -2988,7 +3002,8 @@ class CAllCrmInvoice
 
 						if (COption::GetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'N') !== 'Y')
 						{
-							self::installDisableSaleEvents();
+							// disable after the separation invoices and orders
+							//self::installDisableSaleEvents();
 
 							COption::SetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'Y');
 
@@ -3023,13 +3038,13 @@ class CAllCrmInvoice
 		if (COption::GetOptionString('crm', '~CRM_EXCH1C_REWRITEDEFCATGRP_12_5_20', 'N') === 'Y')
 		{
 			// update basket xml_id fields
-			if($DB->TableExists('b_sale_order')
-				&& $DB->TableExists('b_sale_basket')
+			if($DB->TableExists('b_crm_invoice')
+				&& $DB->TableExists('b_crm_invoice_basket')
 				&& $DB->TableExists('b_iblock')
 				&& $DB->TableExists('b_iblock_element'))
 			{
-				if($DB->Query("SELECT RESPONSIBLE_ID FROM b_sale_order WHERE 1=0", true)
-					&& $DB->Query("SELECT CATALOG_XML_ID, PRODUCT_XML_ID FROM b_sale_basket WHERE 1=0", true)
+				if($DB->Query("SELECT RESPONSIBLE_ID FROM b_crm_invoice WHERE 1=0", true)
+					&& $DB->Query("SELECT CATALOG_XML_ID, PRODUCT_XML_ID FROM b_crm_invoice_basket WHERE 1=0", true)
 					&& $DB->Query("SELECT XML_ID FROM b_iblock WHERE 1=0", true)
 					&& $DB->Query("SELECT XML_ID FROM b_iblock_element WHERE 1=0", true))
 				{
@@ -3053,8 +3068,8 @@ class CAllCrmInvoice
 						{
 							case 'MYSQL';
 								$strSql =
-									"UPDATE b_sale_basket B".PHP_EOL.
-									"  INNER JOIN b_sale_order O ON B.ORDER_ID = O.ID".PHP_EOL.
+									"UPDATE b_crm_invoice_basket B".PHP_EOL.
+									"  INNER JOIN b_crm_invoice O ON B.ORDER_ID = O.ID".PHP_EOL.
 									"  INNER JOIN b_iblock_element IE ON B.PRODUCT_ID = IE.ID".PHP_EOL.
 									"  INNER JOIN b_iblock I ON IE.IBLOCK_ID = I.ID".PHP_EOL.
 									"SET".PHP_EOL.
@@ -3074,8 +3089,8 @@ class CAllCrmInvoice
 									"SET".PHP_EOL.
 									"  B.CATALOG_XML_ID = I.XML_ID,".PHP_EOL.
 									"  B.PRODUCT_XML_ID = IE.XML_ID".PHP_EOL.
-									"FROM B_SALE_BASKET B".PHP_EOL.
-									"  INNER JOIN B_SALE_ORDER O ON B.ORDER_ID = O.ID".PHP_EOL.
+									"FROM B_CRM_INVOICE_BASKET B".PHP_EOL.
+									"  INNER JOIN B_CRM_INVOICE O ON B.ORDER_ID = O.ID".PHP_EOL.
 									"  INNER JOIN B_IBLOCK_ELEMENT IE ON B.PRODUCT_ID = IE.ID".PHP_EOL.
 									"  INNER JOIN B_IBLOCK I ON IE.IBLOCK_ID = I.ID".PHP_EOL.
 									"WHERE".PHP_EOL.
@@ -3095,8 +3110,8 @@ class CAllCrmInvoice
 									"    B.PRODUCT_XML_ID,".PHP_EOL.
 									"    I.XML_ID AS C_XML_ID,".PHP_EOL.
 									"    IE.XML_ID AS P_XML_ID".PHP_EOL.
-									"  FROM B_SALE_BASKET B".PHP_EOL.
-									"    INNER JOIN B_SALE_ORDER O ON B.ORDER_ID = O.ID".PHP_EOL.
+									"  FROM B_CRM_INVOICE_BASKET B".PHP_EOL.
+									"    INNER JOIN B_CRM_INVOICE O ON B.ORDER_ID = O.ID".PHP_EOL.
 									"    INNER JOIN B_IBLOCK_ELEMENT IE ON B.PRODUCT_ID = IE.ID".PHP_EOL.
 									"    INNER JOIN B_IBLOCK I ON IE.IBLOCK_ID = I.ID".PHP_EOL.
 									"  WHERE".PHP_EOL.
@@ -3151,7 +3166,8 @@ class CAllCrmInvoice
 			if (strlen(strval($pref)) < 1)
 				COption::SetOptionString('sale', '1C_SALE_ACCOUNT_NUMBER_SHOP_PREFIX', 'CRM_');
 			COption::SetOptionString('crm', '~CRM_INVOICE_EXCH1C_UPDATE_12_5_19', 'Y');
-			self::installDisableSaleEvents();
+			// disable after the separation invoices and orders
+			//self::installDisableSaleEvents();
 			COption::SetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_12_5_19', 'Y');
 			if (!CModule::IncludeModule('catalog'))
 				return false;
@@ -3235,7 +3251,8 @@ class CAllCrmInvoice
 							COption::SetOptionString('crm', '~CRM_INVOICE_EXCH1C_UPDATE_12_5_17', 'Y');
 							COption::SetOptionString('sale', '1C_SALE_ACCOUNT_NUMBER_SHOP_PREFIX', 'CRM_');
 							COption::SetOptionString('crm', '~CRM_INVOICE_EXCH1C_UPDATE_12_5_19', 'Y');
-							self::installDisableSaleEvents();
+							// disable after the separation invoices and orders
+							//self::installDisableSaleEvents();
 							COption::SetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_12_5_19', 'Y');
 							if (!CModule::IncludeModule('catalog'))
 								return false;
@@ -3336,12 +3353,12 @@ class CAllCrmInvoice
 			array(),
 			array(
 				"LID" => $currentSiteID,
-				"PERSON_TYPE_ID" => array('CRM_COMPANY')
+				"CODE" => array('CRM_COMPANY')
 			)
 		);
 		while($arPerson = $dbPerson->Fetch())
 		{
-			if($arPerson["NAME"] == 'CRM_COMPANY')
+			if($arPerson["CODE"] == 'CRM_COMPANY')
 				$companyPTID = (int)$arPerson["ID"];
 		}
 		if ($companyPTID <= 0)
@@ -3403,7 +3420,7 @@ class CAllCrmInvoice
 
 		$bFieldExists = false;
 		$obUserField  = new CUserTypeEntity;
-		$dbRes = $obUserField->GetList(array('SORT' => 'DESC'), array('ENTITY_ID' => 'ORDER'));
+		$dbRes = $obUserField->GetList(array('SORT' => 'DESC'), array('ENTITY_ID' => 'CRM_INVOICE'));
 		$maxUFSort = 0;
 		$i = 0;
 		while ($arUF = $dbRes->Fetch())
@@ -3420,7 +3437,7 @@ class CAllCrmInvoice
 		if (!$bFieldExists)
 		{
 			$arOrderUserField = array(
-				'ENTITY_ID' => 'ORDER',
+				'ENTITY_ID' => 'CRM_INVOICE',
 				'FIELD_NAME' => $fieldName,
 				'USER_TYPE_ID' => 'integer',
 				'XML_ID' => strtolower($fieldName),
@@ -3450,10 +3467,12 @@ class CAllCrmInvoice
 			{
 				$result->addError(
 					new Bitrix\Main\Error(
-						str_replace(
-							"#FIELD_NAME#",
-							$arOrderUserField['FIELD_NAME'],
-							GetMessage('CRM_CANT_ADD_USER_FIELD')
+						GetMessage(
+							'CRM_CANT_ADD_USER_FIELD1',
+							[
+								"#FIELD_NAME#" => $arOrderUserField['FIELD_NAME'],
+								"#ENTITY_TYPE#" => CCrmInvoice::GetUserFieldEntityID()
+							]
 						)
 					)
 				);
@@ -4319,6 +4338,84 @@ class CAllCrmInvoice
 		}
 	}
 
+	public static function GetPropertyValues($invoiceId, $personTypeId)
+	{
+		$invoiceId = (int)$invoiceId;
+		$personTypeId = (int)$personTypeId;
+		$result = [];
+
+		if (!Bitrix\Main\Loader::includeModule('sale'))
+		{
+			return $result;
+		}
+
+		$query = new Bitrix\Main\Entity\Query(Bitrix\Crm\Invoice\Internals\InvoicePropsValueTable::getEntity());
+		$query->registerRuntimeField(
+			'',
+			new Bitrix\Main\Entity\ReferenceField('LOCATION',
+				Bitrix\Sale\Location\LocationTable::getEntity(),
+				[
+					'=this.PROPERTY.TYPE' => ['?', 'LOCATION'],
+					'=this.VALUE' => 'ref.CODE'
+				],
+				['join_type' => 'LEFT']
+			)
+		);
+		$query->setSelect(
+			[
+				'ID',
+				'CODE',
+				'ORDER_PROPS_ID',
+				'VALUE',
+				'PROPERTY_TYPE' => 'PROPERTY.TYPE',
+				'LOCATION_ID' => 'LOCATION.ID'
+			]
+		);
+		$query->setFilter(['=ORDER_ID' => $invoiceId]);
+		$res = $query->exec();
+		$propertyIds = [];
+		$propertyValues = [];
+		while ($row = $res->fetch())
+		{
+			if ($row['PROPERTY_TYPE'] === 'LOCATION')
+			{
+				$row['VALUE'] = $row['LOCATION_ID'];
+			}
+			unset($row['PROPERTY_TYPE'], $row['LOCATION_ID']);
+			$propertyValues[] = $row;
+			$propertyIds[] = $row['ORDER_PROPS_ID'];
+		}
+		$res = CSaleOrderProps::GetList([], ['@ID' => $propertyIds], false, false, ['ID', 'TYPE']);
+		$propertyTypes = [];
+		while ($row = $res->Fetch())
+		{
+			$propertyTypes[$row['ID']] = $row['TYPE'];
+		}
+		$orderProps = new CSaleOrderProps();
+		$allowedPropertiesInfo = CCrmInvoice::_getAllowedPropertiesInfo();
+		foreach ($propertyValues as $propertyValue)
+		{
+			if (isset($propertyTypes[$propertyValue['ORDER_PROPS_ID']]))
+			{
+				$curOrderProps = $orderProps->GetRealValue(
+					$propertyValue['ORDER_PROPS_ID'],
+					$propertyValue['CODE'],
+					$propertyTypes[$propertyValue['ORDER_PROPS_ID']],
+					$propertyValue['VALUE'],
+					LANGUAGE_ID
+				);
+
+				foreach ($curOrderProps as $key => $value)
+				{
+					if (isset($allowedPropertiesInfo[$personTypeId][$key]))
+						$result[$key] = $value;
+				}
+			}
+		}
+
+		return $result;
+	}
+
 	public static function PrepareSalePaymentData(array &$arOrder, $options = array())
 	{
 		$ID = isset($arOrder['ID']) ? intval($arOrder['ID']) : 0;
@@ -4600,33 +4697,7 @@ class CAllCrmInvoice
 			$requisiteConverted = (COption::GetOptionString('crm', '~CRM_TRANSFER_REQUISITES_TO_'.$personTypeCode, 'N') !== 'Y');
 			if ($requisiteConverted)
 			{
-				$invoicePropertyValues = array();
-				$res = CSaleOrderPropsValue::GetList(
-					array(),
-					array('ORDER_ID' => $ID),
-					false,
-					false,
-					array('ID', 'CODE', 'VALUE', 'ORDER_PROPS_ID', 'PROP_TYPE')
-				);
-				$allowedPropertiesInfo = self::_getAllowedPropertiesInfo();
-				if (is_array($allowedPropertiesInfo) && is_array($allowedPropertiesInfo[$personTypeId]))
-				while ($orderPropVals = $res->Fetch())
-				{
-					$curOrderProps = CSaleOrderProps::GetRealValue(
-						$orderPropVals['ORDER_PROPS_ID'],
-						$orderPropVals['CODE'],
-						$orderPropVals['PROP_TYPE'],
-						$orderPropVals['VALUE'],
-						LANGUAGE_ID
-					);
-
-					foreach ($curOrderProps as $key => $value)
-					{
-						if (isset($allowedPropertiesInfo[$personTypeId][$key]))
-							$invoicePropertyValues[$key] = $value;
-					}
-				}
-				unset($res, $orderPropVals, $curOrderProps);
+				$invoicePropertyValues = self::GetPropertyValues($ID, $personTypeId);
 
 				$propsToRequisiteMap = array(
 					$personTypeCompany => array(
@@ -4927,7 +4998,7 @@ class CAllCrmInvoice
 		$ownerTypeID = intval($ownerTypeID);
 		$oldID = intval($oldID);
 		$newID = intval($newID);
-		$tableName = 'b_uts_order';
+		$tableName = 'b_uts_crm_invoice';
 
 		if($ownerTypeID === CCrmOwnerType::Contact)
 		{
@@ -4957,7 +5028,7 @@ class CAllCrmInvoice
 	{
 		if ($invoiceId > 0)
 		{
-			$order = \Bitrix\Sale\Order::load($invoiceId);
+			$order = Invoice::load($invoiceId);
 			if ($order)
 			{
 				$paymentCollection = $order->getPaymentCollection();
@@ -5020,7 +5091,7 @@ class CAllCrmInvoice
 
 		$pdfContent = '';
 
-		$dbOrder = CSaleOrder::GetList(
+		$dbOrder = Compatible\Helper::getList(
 			array("ID"=>"DESC"),
 			array("ID" => $invoice_id),
 			false,
@@ -5042,9 +5113,10 @@ class CAllCrmInvoice
 		$service = \Bitrix\Sale\PaySystem\Manager::getObjectById($arOrder["PAY_SYSTEM_ID"]);
 		if ($service !== null)
 		{
-			CSalePaySystemAction::InitParamArrays(
+			$psa = new CSalePaySystemAction();
+			$psa->InitParamArrays(
 				$arOrder,
-				$ID,
+				0,
 				"",
 				array(
 					'REQUISITE' => is_array($paymentData['REQUISITE']) ? $paymentData['REQUISITE'] : null,
@@ -5054,10 +5126,14 @@ class CAllCrmInvoice
 					'MC_REQUISITE' => is_array($paymentData['MC_REQUISITE']) ? $paymentData['MC_REQUISITE'] : null,
 					'MC_BANK_DETAIL' => is_array($paymentData['MC_BANK_DETAIL']) ? $paymentData['MC_BANK_DETAIL'] : null,
 					'CRM_MYCOMPANY' => is_array($paymentData['CRM_MYCOMPANY']) ? $paymentData['CRM_MYCOMPANY'] : null
-				)
+				),
+				array(),
+				array(),
+				REGISTRY_TYPE_CRM_INVOICE
 			);
+			unset($psa);
 
-			$order = \Bitrix\Sale\Order::load($invoice_id);
+			$order = Invoice::load($invoice_id);
 			if ($order)
 			{
 				$collection = $order->getPaymentCollection();
@@ -5109,15 +5185,53 @@ class CAllCrmInvoice
 			'MODULE_ID' => 'crm'
 		);
 
-		$fileID = CFile::SaveFile($fileData, 'crm');
-		if($fileID <= 0)
+		$fileId = CFile::SaveFile($fileData, 'crm');
+		if ($fileId <= 0)
 		{
 			$error = 'COULD NOT SAVE FILE!';
 			return false;
 		}
 
-		return $fileID;
+		return $fileId;
 	}
 
+	public static function Search($query, $topCount = 5, $minWordLength = 2)
+	{
+		$result = array();
+
+		$query = ltrim(strval($query));
+
+		if( !empty($query) && CModule::IncludeModule("search"))
+		{
+			$filter = array(
+				array(
+					'=MODULE_ID' => 'crm',
+					'=PARAM1' => CCrmOwnerType::InvoiceName
+				),
+				'LOGIC' => 'OR'
+			);
+
+			$j = 0;
+			$obTitle = new CSearchTitle;
+			$obTitle->setMinWordLength($minWordLength);
+			if($obTitle->Search($query, $topCount ,$filter))
+			{
+				while($ar = $obTitle->Fetch())
+				{
+					if (isset($ar['PARAM2']) && strlen($ar['PARAM2']) > 0)
+					{
+						$result[] = (int)$ar['PARAM2'];
+					}
+
+					if(++$j >= $topCount)
+					{
+						break;
+					}
+				}
+			}
+		}
+
+		return $result;
+	}
 }
 ?>

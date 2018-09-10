@@ -193,13 +193,20 @@ abstract class EntityConverter
 	 */
 	public function externalize()
 	{
-		return array(
+		$params = array(
 			'config' => $this->config->externalize(),
 			'entityId' => $this->entityID,
 			'currentPhase' => $this->currentPhase,
 			'resultData' => $this->resultData
 		);
+		$this->doExternalize($params);
+		return $params;
 	}
+
+	protected function doExternalize(array &$params)
+	{
+	}
+
 	/**
 	 * Internalize converter settings.
 	 * @param array $params Income parameters.
@@ -226,6 +233,12 @@ abstract class EntityConverter
 		{
 			$this->resultData = $params['resultData'];
 		}
+
+		$this->doInternalize($params);
+	}
+
+	protected function doInternalize(array $params)
+	{
 	}
 	//endregion
 	//region Misc.

@@ -2636,6 +2636,10 @@ class CAllCrmLead
 
 			\Bitrix\Crm\Pseudoactivity\WaitEntry::deleteByOwner(CCrmOwnerType::Lead, $ID);
 			\Bitrix\Crm\Timeline\TimelineEntry::deleteByOwner(CCrmOwnerType::Lead, $ID);
+			\Bitrix\Crm\Timeline\LeadController::getInstance()->onDelete(
+				$ID,
+				array('FIELDS' => $arFields)
+			);
 
 			CCrmSonetSubscription::UnRegisterSubscriptionByEntity(CCrmOwnerType::Lead, $ID);
 			CCrmLiveFeed::DeleteLogEvents(
@@ -2648,6 +2652,7 @@ class CAllCrmLead
 			CCrmContact::ProcessLeadDeletion($ID);
 			CCrmCompany::ProcessLeadDeletion($ID);
 			CCrmDeal::ProcessLeadDeletion($ID);
+
 
 			if(Bitrix\Crm\Settings\HistorySettings::getCurrent()->isLeadDeletionEventEnabled())
 			{

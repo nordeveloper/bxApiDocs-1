@@ -528,6 +528,10 @@ class CAllCrmProductRow
 		{
 			return CCrmOwnerType::DealName;
 		}
+		if($ownerType === 'O')
+		{
+			return CCrmOwnerType::OrderName;
+		}
 		elseif($ownerType == 'Q')
 		{
 			return CCrmOwnerType::QuoteName;

@@ -1003,6 +1003,18 @@ final class CallList
 	}
 
 	/**
+	 * Handler for the event onCrmQuoteListItemBuildMenu.
+	 * Rewrites quote's actions menu.
+	 * @param $restPlacement
+	 * @param $contactId
+	 * @param array $menu
+	 */
+	public static function handleOnCrmOrderListItemBuildMenu($restPlacement, $params, array &$menu)
+	{
+		static::handleOnEntityListBuildMenu($restPlacement, $params, $menu, \CCrmOwnerType::OrderName);
+	}
+
+	/**
 	 * Handler for the event onCrmInvoiceListItemBuildMenu.
 	 * Rewrites invoice's actions menu.
 	 * @param $restPlacement

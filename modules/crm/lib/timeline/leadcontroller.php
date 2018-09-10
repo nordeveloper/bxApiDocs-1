@@ -11,6 +11,11 @@ Loc::loadMessages(__FILE__);
 
 class LeadController extends EntityController
 {
+	//region Event Names
+	const ADD_EVENT_NAME = 'timeline_lead_add';
+	const REMOVE_EVENT_NAME = 'timeline_lead_remove';
+	//endregion
+
 	//region Singleton
 	/** @var LeadController|null */
 	protected static $instance = null;
@@ -26,6 +31,7 @@ class LeadController extends EntityController
 		return self::$instance;
 	}
 	//endregion
+
 
 	public function onConvert($ownerID, array $params)
 	{
@@ -146,7 +152,7 @@ class LeadController extends EntityController
 		$enableHistoryPush = $historyEntryID > 0;
 		if($enableHistoryPush && Main\Loader::includeModule('pull'))
 		{
-			$pushParams = array();
+			$pushParams = array('ID' => $ownerID);
 			if($enableHistoryPush)
 			{
 				$historyFields = TimelineEntry::getByID($historyEntryID);
@@ -159,12 +165,12 @@ class LeadController extends EntityController
 				}
 			}
 
-			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Lead, $ownerID);
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Lead, 0);
 			\CPullWatch::AddToStack(
 				$tag,
 				array(
 					'module_id' => 'crm',
-					'command' => 'timeline_lead_add',
+					'command' => self::ADD_EVENT_NAME,
 					'params' => $pushParams,
 				)
 			);
@@ -236,6 +242,41 @@ class LeadController extends EntityController
 			);
 		}
 	}
+	public function onDelete($ownerID, array $params)
+	{
+		if(!is_int($ownerID))
+		{
+			$ownerID = (int)$ownerID;
+		}
+		if($ownerID <= 0)
+		{
+			throw new Main\ArgumentException('Owner ID must be greater than zero.', 'ownerID');
+		}
+
+		if(Main\Loader::includeModule('pull'))
+		{
+			$pushParams = array('ID' => $ownerID);
+
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Lead, 0);
+			\CPullWatch::AddToStack(
+				$tag,
+				array(
+					'module_id' => 'crm',
+					'command' => self::REMOVE_EVENT_NAME,
+					'params' => $pushParams,
+				)
+			);
+		}
+	}
+
+	public function getSupportedPullCommands()
+	{
+		return array(
+			'add' => self::ADD_EVENT_NAME,
+			'remove' => self::REMOVE_EVENT_NAME
+		);
+	}
+
 	/**
 	 * Register existed entity in retrospect mode.
 	 * @param int $ownerID Entity ID

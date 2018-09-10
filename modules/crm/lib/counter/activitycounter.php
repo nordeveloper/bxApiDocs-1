@@ -145,7 +145,8 @@ class ActivityCounter extends EntityCounter
 			$this->prepareEntityQuery(\CCrmOwnerType::Contact)->getQuery(),
 			$this->prepareEntityQuery(\CCrmOwnerType::Company)->getQuery(),
 			$this->prepareEntityQuery(\CCrmOwnerType::Lead)->getQuery(),
-			$this->prepareEntityQuery(\CCrmOwnerType::Deal)->getQuery()
+			$this->prepareEntityQuery(\CCrmOwnerType::Deal)->getQuery(),
+			$this->prepareEntityQuery(\CCrmOwnerType::Order)->getQuery()
 		);
 
 		$dbResult = Main\Application::getConnection()->query(

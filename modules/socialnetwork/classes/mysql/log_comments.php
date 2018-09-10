@@ -166,12 +166,15 @@ class CSocNetLogComments extends CAllSocNetLogComments
 						));
 					}
 
-					CSocNetLogFollow::Set(
-						$arFields["USER_ID"], 
-						"L".$arFields["LOG_ID"], 
-						"Y", 
-						ConvertTimeStamp(time() + CTimeZone::GetOffset(), "FULL")
-					);
+					\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+						'logId' => $arFields["LOG_ID"],
+						'userId' => $arFields["USER_ID"],
+						'typeList' => array(
+							'FOLLOW',
+							'COUNTER_COMMENT_PUSH'
+						),
+						'followDate' => 'CURRENT'
+					));
 
 					// subscribe log entry owner
 					$rsLog = CSocNetLog::GetList(
@@ -200,7 +203,13 @@ class CSocNetLogComments extends CAllSocNetLogComments
 							$arLogFollow = $rsLogFollow->Fetch();
 							if (!$arLogFollow)
 							{
-								CSocNetLogFollow::Set($arLog["USER_ID"], "L".$arFields["LOG_ID"], "Y");
+								\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+									'logId' => $arFields["LOG_ID"],
+									'userId' => $arLog["USER_ID"],
+									'typeList' => array(
+										'FOLLOW',
+									)
+								));
 							}
 						}
 					}

@@ -15,7 +15,8 @@ class EntityCounterFactory
 		return $entityTypeID === \CCrmOwnerType::Deal
 			|| $entityTypeID === \CCrmOwnerType::Lead
 			|| $entityTypeID === \CCrmOwnerType::Contact
-			|| $entityTypeID === \CCrmOwnerType::Company;
+			|| $entityTypeID === \CCrmOwnerType::Company
+			|| $entityTypeID === \CCrmOwnerType::Order;
 	}
 
 	static public function createNamed($code, $userID = 0)
@@ -28,7 +29,8 @@ class EntityCounterFactory
 					array('entityTypeID' => \CCrmOwnerType::Lead, 'counterTypeID' => EntityCounterType::ALL),
 					array('entityTypeID' => \CCrmOwnerType::Contact, 'counterTypeID' => EntityCounterType::ALL),
 					array('entityTypeID' => \CCrmOwnerType::Company, 'counterTypeID' => EntityCounterType::ALL),
-					array('entityTypeID' => \CCrmOwnerType::Deal, 'counterTypeID' => EntityCounterType::ALL)
+					array('entityTypeID' => \CCrmOwnerType::Deal, 'counterTypeID' => EntityCounterType::ALL),
+					array('entityTypeID' => \CCrmOwnerType::Order, 'counterTypeID' => EntityCounterType::ALL)
 				),
 				$userID
 			);

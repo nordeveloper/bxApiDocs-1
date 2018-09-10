@@ -1,6 +1,7 @@
 <?php
 namespace Bitrix\Socialnetwork\Livefeed;
 
+use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
 use Bitrix\Socialnetwork\LogTable;
 
@@ -95,7 +96,11 @@ final class Wiki extends Provider
 			&& !empty($message)
 		)
 		{
-			$pathToWikiArticle = $message['URL'];
+			$pathToWikiArticle = str_replace(
+				"#GROUPS_PATH#",
+				Option::get('socialnetwork', 'workgroups_page', '/workgroups/', $this->getSiteId()),
+				$message['URL']
+			);
 		}
 
 		return $pathToWikiArticle;

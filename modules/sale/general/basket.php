@@ -3649,16 +3649,23 @@ class CAllSaleUser
 			$dbUserLogin = CUser::GetByLogin($autoLogin);
 		}
 
-		$defaultGroup = COption::GetOptionString("main", "new_user_registration_def_group", "");
-		if ($defaultGroup != "")
+		$groups = [];
+
+		if (\Bitrix\Main\ModuleManager::isModuleInstalled('intranet') && \Bitrix\Main\Loader::includeModule('crm'))
 		{
-			$arDefaultGroup = explode(",", $defaultGroup);
-			$arPolicy = CUser::GetGroupPolicy($arDefaultGroup);
+			$groups = \Bitrix\Crm\Order\BuyerGroup::getDefaultGroups();
 		}
 		else
 		{
-			$arPolicy = CUser::GetGroupPolicy(array());
+			$defaultGroup = COption::GetOptionString("main", "new_user_registration_def_group", "");
+
+			if (!empty($defaultGroup))
+			{
+				$groups = explode(",", $defaultGroup);
+			}
 		}
+		
+		$arPolicy = CUser::GetGroupPolicy($groups);
 
 		$passwordMinLength = intval($arPolicy["PASSWORD_LENGTH"]);
 		if ($passwordMinLength <= 0)
@@ -3677,8 +3684,10 @@ class CAllSaleUser
 			"LOGIN" => $autoLogin,
 			"PASSWORD" => $autoPassword,
 			"PASSWORD_CONFIRM" => $autoPassword,
-			"GROUP_ID" => $arDefaultGroup,
+			"GROUP_ID" => $groups,
 			"LID" => $siteId,
+			// reset department for intranet
+			'UF_DEPARTMENT' => []
 		);
 
 		if(strlen($autoName) > 0)

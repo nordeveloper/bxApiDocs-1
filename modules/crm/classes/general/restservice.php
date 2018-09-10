@@ -3249,6 +3249,21 @@ class CCrmProductRestProxy extends CCrmRestProxyBase
 			return false;
 		}
 
+		if (isset($fields['DESCRIPTION']))
+		{
+			$descriptionType = (isset($fields['DESCRIPTION_TYPE']) && $fields['DESCRIPTION_TYPE'] === 'html') ?
+				'html' : 'text';
+			$fields['DESCRIPTION_TYPE'] = $descriptionType;
+			$description = isset($fields['DESCRIPTION']) ? trim($fields['DESCRIPTION']) : '';
+			$isNeedSanitize = ($descriptionType === 'html' && $description !== '' && strpos($description, '<'));
+			if ($isNeedSanitize)
+			{
+				$description = self::sanitizeHtml($description);
+			}
+			$fields['DESCRIPTION'] = $description;
+			unset($descriptionType, $description, $isNeedSanitize);
+		}
+
 		// Product properties
 		$this->initializePropertiesInfo($catalogID);
 		$propertyValues = array();
@@ -3570,6 +3585,37 @@ class CCrmProductRestProxy extends CCrmRestProxyBase
 		{
 			$errors[] = 'Product is not found';
 			return false;
+		}
+
+		if (isset($fields['DESCRIPTION']))
+		{
+			$descriptionType = '';
+			if (isset($fields['DESCRIPTION_TYPE']))
+			{
+				$descriptionType = $fields['DESCRIPTION_TYPE'];
+			}
+			if ($descriptionType !== 'html' && $descriptionType !== 'text')
+			{
+				$res = CCrmProduct::GetList(array(), array('ID' => $ID), array('DESCRIPTION_TYPE'));
+				if ($row = $res->Fetch())
+				{
+					$descriptionType = $row['DESCRIPTION_TYPE'];
+				}
+				unset($res, $row);
+			}
+			if ($descriptionType !== 'html' && $descriptionType !== 'text')
+			{
+				$descriptionType = 'text';
+			}
+
+			$description = isset($fields['DESCRIPTION']) ? trim($fields['DESCRIPTION']) : '';
+			$isNeedSanitize = ($descriptionType === 'html' && $description !== '' && strpos($description, '<'));
+			if ($isNeedSanitize)
+			{
+				$description = self::sanitizeHtml($description);
+			}
+			$fields['DESCRIPTION'] = $description;
+			unset($descriptionType, $description, $isNeedSanitize);
 		}
 
 		// Product properties
@@ -6837,6 +6883,13 @@ class CCrmStatusInvoiceRestProxy extends CCrmRestProxyBase
 			$errors[] = 'Access denied.';
 			return false;
 		}
+
+		if (!is_array($filter))
+		{
+			$filter = [];
+		}
+
+		$filter['ENTITY_ID'] = 'INVOICE_STATUS';
 
 		return CCrmStatusInvoice::GetList($order, $filter, $select);
 	}
@@ -11809,6 +11862,11 @@ class CCrmPersonTypeRestProxy extends CCrmRestProxyBase
 	{
 		global $USER;
 
+		if (!is_array($filter))
+		{
+			$filter = array();
+		}
+
 		$result = array();
 
 		$crmPerms = new CCrmPerms($USER->GetID());
@@ -11824,9 +11882,47 @@ class CCrmPersonTypeRestProxy extends CCrmRestProxyBase
 			return false;
 		}
 
+		if (!in_array('*', $select)
+			&& !in_array('CODE', $select)
+			&& in_array('NAME', $select)
+		)
+		{
+			$select[] = 'CODE';
+		}
+
+		foreach ($filter as $field => $value)
+		{
+			if (strpos($field, 'NAME') !== false)
+			{
+				$newFieldName = str_replace('NAME', 'CODE', $field);
+				$filter[$newFieldName] = $value;
+				unset($filter[$field]);
+			}
+		}
+
+		$siteId = '';
+		$siteIterator = Bitrix\Main\SiteTable::getList(array(
+			'select' => array('LID', 'LANGUAGE_ID'),
+			'filter' => array('=DEF' => 'Y', '=ACTIVE' => 'Y')
+		));
+		if ($defaultSite = $siteIterator->fetch())
+		{
+			$siteId = $defaultSite['LID'];
+		}
+		unset($defaultSite, $siteIterator);
+
+		$filter['LID'] = $siteId;
+
 		$res = CSalePersonType::GetList($order, $filter, false, $navigation, $select);
 		while($personType = $res->Fetch())
-			$result[] = $personType;
+		{
+			if ($personType['CODE'] === 'CRM_CONTACT' || $personType['CODE'] === 'CRM_COMPANY')
+			{
+				$personType['NAME'] = $personType['CODE'];
+				unset($personType['CODE']);
+				$result[] = $personType;
+			}
+		}
 
 		return $result;
 	}

@@ -1,0 +1,3 @@
+<?
+$MESS["SALE_HPS_YANDEX_INVOICE_SUCCESS"] = "Factura ##PAYMENT_ID# creada";
+?>

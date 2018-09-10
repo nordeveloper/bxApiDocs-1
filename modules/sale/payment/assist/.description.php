@@ -2,3 +2,4 @@
 
 include \Bitrix\Main\Application::getDocumentRoot().'/bitrix/modules/sale/handlers/paysystem/assist/.description.php';
 
+$data['DOMAIN'] = \Bitrix\Sale\PaySystem\Manager::HANDLER_DOMAIN_NONE;

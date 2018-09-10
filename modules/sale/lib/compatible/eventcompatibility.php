@@ -154,7 +154,11 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 
 		if ($value == "Y")
 		{
-			Sale\Notify::sendOrderPaid($order);
+			$registry = Sale\Registry::getInstance($order::getRegistryType());
+
+			/** @var Sale\Notify $notifyClassName */
+			$notifyClassName = $registry->getNotifyClassName();
+			$notifyClassName::sendOrderPaid($order);
 		}
 		return new Main\EventResult( Main\EventResult::SUCCESS, null, 'sale');
 	}
@@ -194,7 +198,11 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 
 		if ($value == "Y")
 		{
-			Sale\Notify::sendOrderCancel($order);
+			$registry = Sale\Registry::getInstance($order::getRegistryType());
+
+			/** @var Sale\Notify $notifyClassName */
+			$notifyClassName = $registry->getNotifyClassName();
+			$notifyClassName::sendOrderCancel($order);
 
 			if (Main\Loader::includeModule("statistic"))
 			{
@@ -247,7 +255,11 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 			return new Main\EventResult( Main\EventResult::SUCCESS, null, 'sale');
 		}
 
-		Sale\Notify::sendOrderNew($order);
+		$registry = Sale\Registry::getInstance($order::getRegistryType());
+
+		/** @var Sale\Notify $notifyClassName */
+		$notifyClassName = $registry->getNotifyClassName();
+		$notifyClassName::sendOrderNew($order);
 
 		$GLOBALS['SALE_NEW_ORDER_SEND'][$id] = true;
 
@@ -1021,7 +1033,12 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 		if (array_key_exists('TRACKING_NUMBER', $oldValues) && strval($shipment->getField('TRACKING_NUMBER')) != ''
 			&& $oldValues["TRACKING_NUMBER"] != $shipment->getField('TRACKING_NUMBER'))
 		{
-			Sale\Notify::sendShipmentTrackingNumberChange($shipment);
+
+			$registry = Sale\Registry::getInstance($shipment::getRegistryType());
+
+			/** @var Sale\Notify $notifyClassName */
+			$notifyClassName = $registry->getNotifyClassName();
+			$notifyClassName::sendShipmentTrackingNumberChange($shipment);
 		}
 
 		return new Main\EventResult( Main\EventResult::SUCCESS, null, 'sale');
@@ -1069,7 +1086,12 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 		if ($shipmentCollection->isAllowDelivery() && array_key_exists('ALLOW_DELIVERY', $oldValues) && strval($shipment->getField('ALLOW_DELIVERY')) != ''
 			&& $oldValues["ALLOW_DELIVERY"] != $shipment->getField('ALLOW_DELIVERY'))
 		{
-			Sale\Notify::sendShipmentAllowDelivery($shipment);
+
+			$registry = Sale\Registry::getInstance($shipment::getRegistryType());
+
+			/** @var Sale\Notify $notifyClassName */
+			$notifyClassName = $registry->getNotifyClassName();
+			$notifyClassName::sendShipmentAllowDelivery($shipment);
 		}
 
 		return new Main\EventResult( Main\EventResult::SUCCESS, null, 'sale');
@@ -1141,7 +1163,11 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 			);
 		}
 
-		Sale\Notify::sendOrderStatusChange($order);
+		$registry = Sale\Registry::getInstance($order::getRegistryType());
+
+		/** @var Sale\Notify $notifyClassName */
+		$notifyClassName = $registry->getNotifyClassName();
+		$notifyClassName::sendOrderStatusChange($order);
 
 		return new Main\EventResult( Main\EventResult::SUCCESS, null, 'sale');
 	}

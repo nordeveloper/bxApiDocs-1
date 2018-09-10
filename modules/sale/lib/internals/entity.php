@@ -47,19 +47,35 @@ abstract class Entity
 	 */
 	public static function getAllFields()
 	{
-		throw new Main\NotImplementedException();
-	}
-
-	public static function getAllFieldsMap()
-	{
-		static $fieldsMap = null;
-
-		if ($fieldsMap === null)
+		static $mapFields = array();
+		if ($mapFields)
 		{
-			$fieldsMap = array_fill_keys(static::getAllFields(), true);
+			return $mapFields;
 		}
 
-		return $fieldsMap;
+		$map = static::getFieldsMap();
+		foreach ($map as $key => $value)
+		{
+			if (is_array($value) && !isset($value['expression']))
+			{
+				$mapFields[$key] = $key;
+			}
+			elseif ($value instanceof Main\Entity\ScalarField)
+			{
+				$mapFields[$value->getName()] = $value->getName();
+			}
+		}
+
+		return $mapFields;
+	}
+
+	/**
+	 * @throws Main\NotImplementedException
+	 * @return array
+	 */
+	protected static function getFieldsMap()
+	{
+		throw new Main\NotImplementedException();
 	}
 
 	/**
@@ -284,7 +300,7 @@ abstract class Entity
 	 */
 	public function setFieldNoDemand($name, $value)
 	{
-		$allFields = static::getAllFieldsMap();
+		$allFields = static::getAllFields();
 		if (!isset($allFields[$name]))
 		{
 			throw new Main\ArgumentOutOfRangeException($name);
@@ -441,7 +457,7 @@ abstract class Entity
 	 */
 	public function initField($name, $value)
 	{
-		$allFields = static::getAllFieldsMap();
+		$allFields = static::getAllFields();
 		if (!isset($allFields[$name]))
 		{
 			throw new Main\ArgumentOutOfRangeException($name);

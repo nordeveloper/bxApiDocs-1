@@ -94,11 +94,12 @@ class CAdminUiList extends CAdminList
 	public function EditAction()
 	{
 		if($_SERVER["REQUEST_METHOD"] == "POST" &&
-			!empty($_REQUEST["action_button_".$this->table_id]) && check_bitrix_sessid())
+		   !empty($_REQUEST["action_button_".$this->table_id]) && check_bitrix_sessid())
 		{
 			$arrays = array(&$_POST, &$_REQUEST, &$GLOBALS);
 			foreach ($arrays as $i => &$array)
 			{
+				$customFields = [];
 				if(is_array($array["FIELDS"]))
 				{
 					foreach ($array["FIELDS"] as $id => &$fields)
@@ -109,6 +110,43 @@ class CAdminUiList extends CAdminList
 							$keys = array_keys($fields);
 							foreach ($keys as $key)
 							{
+								if (preg_match("/_custom/i", $key, $match))
+								{
+									if (!is_array($arrays[$i]["FIELDS"][$id][$key]))
+									{
+										continue;
+									}
+									foreach ($arrays[$i]["FIELDS"][$id][$key] as $index => $value)
+									{
+										if (!isset($value["name"]) || !isset($value["value"]))
+										{
+											continue;
+										}
+										if (preg_match_all("/(.*?)\[(.*?)\]/", $value["name"], $listMatchKeys))
+										{
+											$listPreparedKeys = [];
+											foreach ($listMatchKeys as $matchKeys)
+											{
+												foreach ($matchKeys as $matchKey)
+												{
+													if (!is_string($matchKey) || strlen(trim($matchKey)) == 0)
+													{
+														continue;
+													}
+													if (strpos($matchKey, "[") === false && strpos($matchKey, "]") === false)
+													{
+														$listPreparedKeys[] = $matchKey;
+													}
+												}
+											}
+											$listPreparedKeys[] = $value["value"];
+											$customFields = array_replace_recursive($customFields, $this->prepareCustomKey(
+												array_shift($listPreparedKeys), $listPreparedKeys));
+										}
+									}
+									unset($arrays[$i]["FIELDS"][$id][$key]);
+								}
+
 								if(($c = substr($key, 0, 1)) == '~' || $c == '=')
 								{
 									unset($arrays[$i]["FIELDS"][$id][$key]);
@@ -117,10 +155,20 @@ class CAdminUiList extends CAdminList
 						}
 					}
 				}
+				if ($customFields)
+				{
+					$arrays[$i] = array_replace_recursive($arrays[$i], $customFields);
+				}
 			}
 			return true;
 		}
 		return false;
+	}
+
+	private function prepareCustomKey($key, array $keys)
+	{
+		return (count($keys) == 1 ? [$key => array_shift($keys)] :
+			[$key => $this->prepareCustomKey(array_shift($keys), $keys)]);
 	}
 
 	public function GroupAction()
@@ -148,7 +196,7 @@ class CAdminUiList extends CAdminList
 		}
 
 		if ((empty($_REQUEST["action_all_rows_".$this->table_id]) ||
-				$_REQUEST["action_all_rows_".$this->table_id] === "N") && isset($_REQUEST["ID"]))
+			 $_REQUEST["action_all_rows_".$this->table_id] === "N") && isset($_REQUEST["ID"]))
 		{
 			if(!is_array($_REQUEST["ID"]))
 				$arID = array($_REQUEST["ID"]);
@@ -180,9 +228,9 @@ class CAdminUiList extends CAdminList
 		}
 
 		$postParams = array_merge(array(
-			"action_button_".$this->table_id => $action_id,
-			"ID" => $id
-		), $addParams);
+									  "action_button_".$this->table_id => $action_id,
+									  "ID" => $id
+								  ), $addParams);
 
 		return $this->ActionAjaxPostGrid($postParams);
 	}
@@ -196,7 +244,7 @@ class CAdminUiList extends CAdminList
 	public function ActionAjaxPostGrid($postParams)
 	{
 		return "BX.Main.gridManager.getById('".$this->table_id."').instance.reloadTable('POST', ".
-			CUtil::PhpToJsObject($postParams).");";
+			   CUtil::PhpToJsObject($postParams).");";
 	}
 
 	public function AddFilter(array $filterFields, array &$arFilter)
@@ -562,17 +610,17 @@ class CAdminUiList extends CAdminList
 		{
 			ob_start();
 			?>
-				<div class="pagetitle-container pagetitle-flexible-space">
-					<?
-					$APPLICATION->includeComponent(
-						"bitrix:main.ui.filter",
-						"",
-						$params,
-						false,
-						array("HIDE_ICONS" => true)
-					);
-					?>
-				</div>
+			<div class="pagetitle-container pagetitle-flexible-space">
+				<?
+				$APPLICATION->includeComponent(
+					"bitrix:main.ui.filter",
+					"",
+					$params,
+					false,
+					array("HIDE_ICONS" => true)
+				);
+				?>
+			</div>
 			<?
 			$APPLICATION->AddViewContent("inside_pagetitle", ob_get_clean());
 		}
@@ -803,6 +851,13 @@ class CAdminUiList extends CAdminList
 				if (!empty($field["edit"]["type"]))
 					$this->SetHeaderEditType($fieldId, $field);
 			}
+
+			$listEditable = array();
+			foreach (array_diff_key($this->aHeaders, $row->aFields) as $fieldId => $field)
+			{
+				$listEditable[$fieldId] = false;
+			}
+
 			foreach ($gridColumns as $columnId)
 			{
 				$field = $row->aFields[$columnId];
@@ -810,31 +865,52 @@ class CAdminUiList extends CAdminList
 					$value = trim($row->arRes[$columnId]);
 				else
 					$value = $row->arRes[$columnId];
-				$gridRow["data"][$columnId] = $value;
-				switch ($field["view"]["type"])
+
+				$editValue = $value;
+				if (isset($field["edit"]["type"]))
 				{
-					case "checkbox":
-						if ($value == "Y")
-							$value = htmlspecialcharsex(GetMessage("admin_lib_list_yes"));
-						else
-							$value = htmlspecialcharsex(GetMessage("admin_lib_list_no"));
-						break;
-					case "select":
-						if ($field["edit"]["values"][$value])
-							$value = htmlspecialcharsex($field["edit"]["values"][$value]);
-						break;
-					case "file":
-						$value = $value ? CFileInput::Show("fileInput", $value,
-							$field["view"]["showInfo"], $field["view"]["inputs"]) : "";
-						break;
-					case "html":
-						$value = $field["view"]["value"];
-						break;
-					default:
-						$value = htmlspecialcharsex($value);
-						break;
+					switch ($field["edit"]["type"])
+					{
+						case "html":
+							$editValue = $field["edit"]["value"];
+							break;
+					}
 				}
+
+				$gridRow["data"][$columnId] = $editValue;
+
+				if (isset($field["view"]["type"]))
+				{
+					switch ($field["view"]["type"])
+					{
+						case "checkbox":
+							if ($value == "Y")
+								$value = htmlspecialcharsex(GetMessage("admin_lib_list_yes"));
+							else
+								$value = htmlspecialcharsex(GetMessage("admin_lib_list_no"));
+							break;
+						case "select":
+							if ($field["edit"]["values"][$value])
+								$value = htmlspecialcharsex($field["edit"]["values"][$value]);
+							break;
+						case "file":
+							$value = $value ? CFileInput::Show("fileInput", $value, $field["view"]["showInfo"], $field["view"]["inputs"]) : "";
+							break;
+						case "html":
+							$value = (!empty(trim($field["view"]["value"])) ? $field["view"]["value"] : $value);
+							break;
+						default:
+							$value = htmlspecialcharsex($value);
+							break;
+					}
+				}
+				else
+				{
+					$value = htmlspecialcharsbx($value);
+				}
+
 				$gridRow["columns"][$columnId] = $value;
+				$gridRow["editable"] = $listEditable;
 			}
 			$gridParameters["ROWS"][] = $gridRow;
 		}

@@ -118,6 +118,9 @@ class PaySystemActionTable extends \Bitrix\Main\Entity\DataManager
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y')
 			),
+			'ENTITY_REGISTRY_TYPE' => array(
+				'data_type' => 'string',
+			),
 		);
 	}
 

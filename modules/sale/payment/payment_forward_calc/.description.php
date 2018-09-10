@@ -3,6 +3,7 @@ include(GetLangFileName(dirname(__FILE__)."/", "/payment_forward_calc.php"));
 
 $psTitle = GetMessage("SPFP_DTITLE");
 $psDescription = GetMessage("SPFP_DDESCR");
+$psDomain = \Bitrix\Sale\PaySystem\Manager::HANDLER_DOMAIN_NONE;
 
 $arPSCorrespondence = array(
 		"SELLER_NAME" => array(

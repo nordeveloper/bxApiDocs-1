@@ -59,6 +59,11 @@ class ActualEntitySelector
 			'ID' => null,
 		),
 		array(
+			'CODE' => 'companyOrders',
+			'TYPE_ID' => \CCrmOwnerType::Order,
+			'ID' => null,
+		),
+		array(
 			'CODE' => 'companyReturnCustomerLeadId',
 			'TYPE_ID' => \CCrmOwnerType::Lead,
 			'ID' => null,
@@ -81,6 +86,11 @@ class ActualEntitySelector
 			'ID' => null,
 		),
 		array(
+			'CODE' => 'contactOrders',
+			'TYPE_ID' => \CCrmOwnerType::Order,
+			'ID' => null,
+		),
+		array(
 			'CODE' => 'contactReturnCustomerLeadId',
 			'TYPE_ID' => \CCrmOwnerType::Lead,
 			'ID' => null,
@@ -89,6 +99,12 @@ class ActualEntitySelector
 			'CODE' => 'dealId',
 			'IS_PRIMARY' => true,
 			'TYPE_ID' => \CCrmOwnerType::Deal,
+			'ID' => null,
+		),
+		array(
+			'CODE' => 'orders',
+			'IS_PRIMARY' => true,
+			'TYPE_ID' => \CCrmOwnerType::Order,
 			'ID' => null,
 		),
 		array(
@@ -327,7 +343,7 @@ class ActualEntitySelector
 	 * Get actual entity id by code.
 	 *
 	 * @param string $code Code.
-	 * @return integer|null
+	 * @return int|int[]|null
 	 * @throws ArgumentException
 	 */
 	public function get($code)
@@ -347,7 +363,7 @@ class ActualEntitySelector
 	 * Get actual entity id by code.
 	 *
 	 * @param string $code Code.
-	 * @param integer $value Entity id.
+	 * @param int|int[]|null $value Entity id.
 	 * @throws ArgumentException
 	 */
 	public function set($code, $value)
@@ -543,7 +559,8 @@ class ActualEntitySelector
 		// actual ranking
 		return $this->getRanking()->rank(
 			$entityTypeId,
-			$this->getRankableList($entityTypeId)
+			$this->getRankableList($entityTypeId),
+			$this->canRank($entityTypeId)
 		);
 	}
 
@@ -606,6 +623,15 @@ class ActualEntitySelector
 			$this->set('dealId', $this->getContactDealId());
 		}
 
+		if (!empty($this->getCompanyOrders()))
+		{
+			$this->set('orders', $this->getCompanyOrders());
+		}
+		else if (!empty($this->getContactOrders()))
+		{
+			$this->set('orders', $this->getContactOrders());
+		}
+
 		if ($this->getCompanyReturnCustomerLeadId())
 		{
 			$this->set('returnCustomerLeadId', $this->getCompanyReturnCustomerLeadId());
@@ -628,6 +654,7 @@ class ActualEntitySelector
 
 		$this->set('companyId', $ranking->getEntityId());
 		$this->set('companyDealId', $ranking->getDealId());
+		$this->set('companyOrders', $ranking->getOrders());
 		$this->set('companyReturnCustomerLeadId', $ranking->getReturnCustomerLeadId());
 	}
 
@@ -642,6 +669,7 @@ class ActualEntitySelector
 		$contactId = $ranking->getEntityId();
 		$this->set('contactId', $contactId);
 		$this->set('contactDealId', $ranking->getDealId());
+		$this->set('contactOrders', $ranking->getOrders());
 		$this->set('contactReturnCustomerLeadId', $ranking->getReturnCustomerLeadId());
 
 		if ($contactId)
@@ -783,6 +811,16 @@ class ActualEntitySelector
 	}
 
 	/**
+	 * Get actual deal id.
+	 *
+	 * @return int[]
+	 */
+	public function getOrders()
+	{
+		return $this->get('orders') ?: [];
+	}
+
+	/**
 	 * Get actual company id.
 	 *
 	 * @return int|null
@@ -800,6 +838,16 @@ class ActualEntitySelector
 	public function getCompanyDealId()
 	{
 		return $this->get('companyDealId');
+	}
+
+	/**
+	 * Get orders id that found by actual company id.
+	 *
+	 * @return int|null
+	 */
+	public function getCompanyOrders()
+	{
+		return $this->get('companyOrders');
 	}
 
 	/**
@@ -830,6 +878,16 @@ class ActualEntitySelector
 	public function getContactDealId()
 	{
 		return $this->get('contactDealId');
+	}
+
+	/**
+	 * Get deal id that found by actual contact id.
+	 *
+	 * @return int|null
+	 */
+	public function getContactOrders()
+	{
+		return $this->get('contactOrders');
 	}
 
 	/**

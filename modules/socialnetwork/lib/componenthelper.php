@@ -1731,7 +1731,16 @@ class ComponentHelper
 				{
 					if (preg_match('/^U(\d+)$/', $GROUP_CODE, $matches))
 					{
-						\CSocNetLogFollow::set($matches[1], "L".$logId, "Y", convertTimeStamp(time() + $tzOffset, "FULL", $siteId));
+						\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+							'logId' => $logId,
+							'userId' => $matches[1],
+							'siteId' => $siteId,
+							'typeList' => array(
+								'FOLLOW',
+								'COUNTER_COMMENT_PUSH'
+							),
+							'followDate' => 'CURRENT'
+						));
 					}
 				}
 
@@ -1769,12 +1778,15 @@ class ComponentHelper
 				\CSocNetLogFollow::deleteByLogID($logId, "Y", true);
 
 				/* subscribe share author */
-				\CSocNetLogFollow::set(
-					$userId,
-					"L".$logId,
-					"Y",
-					convertTimeStamp(time() + $tzOffset, "FULL")
-				);
+				\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+					'logId' => $logId,
+					'userId' => $userId,
+					'typeList' => array(
+						'FOLLOW',
+						'COUNTER_COMMENT_PUSH'
+					),
+					'followDate' => 'CURRENT'
+				));
 			}
 
 			/* update socnet groupd activity*/
@@ -2734,7 +2746,7 @@ class ComponentHelper
 				"USER_ID" => $comment["USER_ID"]
 			));
 
-			$commentContentTypeId = $commentEntitySuffix = '';
+			$postContentTypeId = $commentContentTypeId = $commentEntitySuffix = '';
 			$contentId = \Bitrix\Socialnetwork\Livefeed\Provider::getContentId($logEntry);
 
 			if (
@@ -2743,6 +2755,7 @@ class ComponentHelper
 				&& ($commentProvider = $postProvider->getCommentProvider())
 			)
 			{
+				$postContentTypeId = $postProvider->getContentTypeId();
 				$commentProviderClassName = get_class($commentProvider);
 				$reflectionClass = new \ReflectionClass($commentProviderClassName);
 
@@ -2760,6 +2773,7 @@ class ComponentHelper
 					"TEMPLATE_ID" => '',
 					"RATING_TYPE_ID" => $comment["RATING_TYPE_ID"],
 					"ENTITY_XML_ID" => $entityXMLId,
+					"POST_CONTENT_TYPE_ID" => $postContentTypeId,
 					"COMMENT_CONTENT_TYPE_ID" => $commentContentTypeId,
 					"RECORDS" => array(
 						$listCommentId => array(
@@ -2915,6 +2929,181 @@ class ComponentHelper
 		self::processBlogPostNewCrmContact($HTTPPost, $componentResult);
 	}
 
+	private static function processUserEmail($params, &$errorText)
+	{
+		$result = array();
+
+		if (
+			!is_array($params)
+			|| empty($params['EMAIL'])
+			|| !check_email($params['EMAIL'])
+			|| !Loader::includeModule('mail')
+		)
+		{
+			return $result;
+		}
+
+		$userEmail = $params['EMAIL'];
+
+		if (
+			empty($userEmail)
+			|| !check_email($userEmail)
+		)
+		{
+			return $result;
+		}
+
+		$res = \CUser::getList(
+			$o = "ID",
+			$b = "ASC",
+			array("=EMAIL" => $userEmail),
+			array("FIELDS" => array("ID", "EXTERNAL_AUTH_ID", "ACTIVE"))
+		);
+
+		$found = false;
+
+		while (
+			($emailUser = $res->fetch())
+			&& !$found
+		)
+		{
+			if (
+				intval($emailUser["ID"]) > 0
+				&& (
+					$emailUser["ACTIVE"] == "Y"
+					|| $emailUser["EXTERNAL_AUTH_ID"] == "email"
+				)
+			)
+			{
+				if ($emailUser["ACTIVE"] == "N") // email only
+				{
+					$user = new \CUser;
+					$user->update($emailUser["ID"], array(
+						"ACTIVE" => "Y"
+					));
+				}
+
+				$userId = $emailUser["ID"];
+				$found = true;
+			}
+		}
+
+		if ($found)
+		{
+			return array(
+				'U'.$userId
+			);
+		}
+
+		$userFields = array(
+			'EMAIL' => $userEmail,
+			'NAME' => (
+				isset($params["NAME"])
+					? $params["NAME"]
+					: ''
+			),
+			'LAST_NAME' => (
+				isset($params["LAST_NAME"])
+					? $params["LAST_NAME"]
+					: ''
+			)
+		);
+
+		if (
+			!empty($params["CRM_ENTITY"])
+			&& Loader::includeModule('crm')
+		)
+		{
+			$userFields['UF'] = array(
+				'UF_USER_CRM_ENTITY' => $params["CRM_ENTITY"]
+			);
+			$res = \CCrmLiveFeedComponent::resolveLFEntityFromUF($params["CRM_ENTITY"]);
+			if (!empty($res))
+			{
+				list($k, $v) = $res;
+				if ($k && $v)
+				{
+					$result[] = $k.$v;
+
+					if (
+						$k == \CCrmLiveFeedEntity::Contact
+						&& ($contact = \CCrmContact::getById($v))
+						&& intval($contact['PHOTO']) > 0
+					)
+					{
+						$userFields['PERSONAL_PHOTO_ID'] = intval($contact['PHOTO']);
+					}
+				}
+			}
+		}
+		elseif (
+			!empty($params["CREATE_CRM_CONTACT"])
+			&& $params["CREATE_CRM_CONTACT"] == 'Y'
+			&& Loader::includeModule('crm')
+			&& ($contactId = \CCrmLiveFeedComponent::createContact($userFields))
+		)
+		{
+			$userFields['UF'] = array(
+				'UF_USER_CRM_ENTITY' => 'C_'.$contactId
+			);
+			$result[] = "CRMCONTACT".$contactId;
+		}
+
+		// invite extranet user by email
+		$invitedUserId = \Bitrix\Mail\User::create($userFields);
+
+		$errorMessage = false;
+
+		if (
+			intval($invitedUserId) <= 0
+			&& $invitedUserId->LAST_ERROR <> ''
+		)
+		{
+			$errorMessage = $invitedUserId->LAST_ERROR;
+		}
+
+		if (
+			!$errorMessage
+			&& intval($invitedUserId) > 0
+		)
+		{
+			$result[] = "U".$invitedUserId;
+		}
+		else
+		{
+			$errorText = $errorMessage;
+		}
+
+		return $result;
+
+	}
+
+	public static function processBlogPostNewMailUserDestinations(&$destinationList)
+	{
+		foreach($destinationList as $key => $code)
+		{
+			if 	(preg_match('/^UE(.+)$/i', $code, $matches))
+			{
+
+				$userEmail = $matches[1];
+				$errorText = '';
+
+				$destRes = self::processUserEmail(array(
+					'EMAIL' => $userEmail
+				), $errorText);
+
+				if (
+					!empty($destRes)
+					&& is_array($destRes)
+				)
+				{
+					unset($destinationList[$key]);
+					$destinationList = array_merge($destinationList, $destRes);
+				}
+			}
+		}
+	}
+
 	public static function processBlogPostNewCrmContact(&$HTTPPost, &$componentResult)
 	{
 		$USent = (
@@ -2943,7 +3132,7 @@ class ComponentHelper
 				$userIdList = array();
 				foreach ($HTTPPost["SPERM"]["U"] as $code)
 				{
-					if 	(preg_match('/^U(\d+)$/i', $code, $matches))
+					if (preg_match('/^U(\d+)$/i', $code, $matches))
 					{
 						$userIdList[] = intval($matches[1]);
 					}
@@ -2960,7 +3149,7 @@ class ComponentHelper
 					));
 					while ($user = $res->fetch())
 					{
-						$livefeedCrmEntity = \CCrmLiveFeedComponent::resolveLFEntutyFromUF($user['UF_USER_CRM_ENTITY']);
+						$livefeedCrmEntity = \CCrmLiveFeedComponent::resolveLFEntityFromUF($user['UF_USER_CRM_ENTITY']);
 
 						if (!empty($livefeedCrmEntity))
 						{
@@ -2987,44 +3176,9 @@ class ComponentHelper
 						continue;
 					}
 
-					$found = false;
+					$errorText = '';
 
-					$res = \CUser::getList(
-						$o = "ID",
-						$b = "ASC",
-						array("=EMAIL" => $userEmail),
-						array("FIELDS" => array("ID", "EXTERNAL_AUTH_ID", "ACTIVE"))
-					);
-
-					while ($emailUser = $res->fetch())
-					{
-						if (
-							intval($emailUser["ID"]) > 0
-							&& (
-								$emailUser["ACTIVE"] == "Y"
-								|| $emailUser["EXTERNAL_AUTH_ID"] == "email"
-							)
-						)
-						{
-							if ($emailUser["ACTIVE"] == "N") // email only
-							{
-								$user = new \CUser;
-								$user->update($emailUser["ID"], array(
-									"ACTIVE" => "Y"
-								));
-							}
-
-							$HTTPPost["SPERM"]["U"][] = "U".$emailUser["ID"];
-							$found = true;
-						}
-					}
-
-					if ($found)
-					{
-						continue;
-					}
-
-					$userFields = array(
+					$destRes = self::processUserEmail(array(
 						'EMAIL' => $userEmail,
 						'NAME' => (
 							isset($HTTPPost["INVITED_USER_NAME"])
@@ -3037,79 +3191,43 @@ class ComponentHelper
 							&& isset($HTTPPost["INVITED_USER_LAST_NAME"][$userEmail])
 								? $HTTPPost["INVITED_USER_LAST_NAME"][$userEmail]
 								: ''
+						),
+						'CRM_ENTITY' => (
+							isset($HTTPPost["INVITED_USER_CRM_ENTITY"])
+							&& isset($HTTPPost["INVITED_USER_CRM_ENTITY"][$userEmail])
+								? $HTTPPost["INVITED_USER_CRM_ENTITY"][$userEmail]
+								: ''
+						),
+						"CREATE_CRM_CONTACT" => (
+							isset($HTTPPost["INVITED_USER_CREATE_CRM_CONTACT"])
+							&& isset($HTTPPost["INVITED_USER_CREATE_CRM_CONTACT"][$userEmail])
+							? $HTTPPost["INVITED_USER_CREATE_CRM_CONTACT"][$userEmail]
+							: 'N'
 						)
-					);
+					), $errorText);
 
-					if (!empty($HTTPPost["INVITED_USER_CRM_ENTITY"][$userEmail]))
+					foreach($destRes as $code)
 					{
-						$userFields['UF'] = array(
-							'UF_USER_CRM_ENTITY' => $HTTPPost["INVITED_USER_CRM_ENTITY"][$userEmail]
-						);
-						$res = \CCrmLiveFeedComponent::resolveLFEntutyFromUF($HTTPPost["INVITED_USER_CRM_ENTITY"][$userEmail]);
-						if (!empty($res))
+						if (preg_match('/^U(\d+)$/i', $code, $matches))
 						{
-							list($k, $v) = $res;
-							if ($k && $v)
+							$HTTPPost["SPERM"]["U"][] = $code;
+						}
+						elseif (
+							Loader::includeModule('crm')
+							&& (preg_match('/^CRM(CONTACT|COMPANY|LEAD|DEAL)(\d+)$/i', $code, $matches))
+						)
+						{
+							if (!isset($HTTPPost["SPERM"]["CRM".$matches[1]]))
 							{
-								if (!isset($HTTPPost["SPERM"][$k]))
-								{
-									$HTTPPost["SPERM"][$k] = array();
-								}
-								$HTTPPost["SPERM"][$k][] = $k.$v;
-
-								if (
-									$k == \CCrmLiveFeedEntity::Contact
-									&& ($contact = \CCrmContact::getByID($v))
-									&& intval($contact['PHOTO']) > 0
-								)
-								{
-									$userFields['PERSONAL_PHOTO_ID'] = intval($contact['PHOTO']);
-								}
+								$HTTPPost["SPERM"]["CRM".$matches[1]] = array();
 							}
+							$HTTPPost["SPERM"]["CRM".$matches[1]][] = $code;
 						}
 					}
-					elseif (
-						$HTTPPost["INVITED_USER_CREATE_CRM_CONTACT"][$userEmail] == 'Y'
-						&& ($contactId = \CCrmLiveFeedComponent::createContact($userFields))
-					)
-					{
-						$userFields['UF'] = array(
-							'UF_USER_CRM_ENTITY' => 'C_'.$contactId
-						);
-						if (!isset($HTTPPost["SPERM"]["CRMCONTACT"]))
-						{
-							$HTTPPost["SPERM"]["CRMCONTACT"] = array();
-						}
-						$HTTPPost["SPERM"]["CRMCONTACT"][] = "CRMCONTACT".$contactId;
-					}
 
-					// invite extranet user by email
-					$invitedUserId = \Bitrix\Mail\User::create($userFields);
-
-					$errorMessage = false;
-
-					if (
-						intval($invitedUserId) <= 0
-						&& $invitedUserId->LAST_ERROR <> ''
-					)
+					if (!empty($errorText))
 					{
-						$errorMessage = $invitedUserId->LAST_ERROR;
-					}
-
-					if (
-						!$errorMessage
-						&& intval($invitedUserId) > 0
-					)
-					{
-						if (!isset($HTTPPost["SPERM"]["U"]))
-						{
-							$HTTPPost["SPERM"]["U"] = array();
-						}
-						$HTTPPost["SPERM"]["U"][] = "U".$invitedUserId;
-					}
-					else
-					{
-						$componentResult["ERROR_MESSAGE"] .= $errorMessage;
+						$componentResult["ERROR_MESSAGE"] .= $errorText;
 					}
 				}
 //				unset($HTTPPost["SPERM"]["UE"]);
@@ -4412,5 +4530,107 @@ class ComponentHelper
 		}
 
 		return $result[$siteId];
+	}
+
+	public static function userLogSubscribe($params = array())
+	{
+		static
+			$logAuthorList = array(),
+			$logDestUserList = array();
+
+		$userId = (isset($params['userId']) ? intval($params['userId']) : 0);
+		$logId = (isset($params['logId']) ? intval($params['logId']) : 0);
+		$typeList = (isset($params['typeList']) ? $params['typeList'] : array());
+		$siteId = (isset($params['siteId']) ? intval($params['siteId']) : SITE_ID);
+		$followByWF = !empty($params['followByWF']);
+
+		if (!is_array($typeList))
+		{
+			$typeList = array($typeList);
+		}
+
+		if (
+			$userId <= 0
+			|| $logId <= 0
+		)
+		{
+			return false;
+		}
+
+		$followRes = false;
+
+		if (in_array('FOLLOW', $typeList))
+		{
+			$followRes = \CSocNetLogFollow::set(
+				$userId,
+				"L".$logId,
+				"Y",
+				(
+					!empty($params['followDate'])
+						? (
+							strtoupper($params['followDate']) == 'CURRENT'
+								? ConvertTimeStamp(time() + \CTimeZone::getOffset(), "FULL", $siteId)
+								: $params['followDate']
+						)
+						: false
+				),
+				$siteId,
+				$followByWF
+			);
+		}
+
+		if (in_array('COUNTER_COMMENT_PUSH', $typeList))
+		{
+			if (!isset($logAuthorList[$logId]))
+			{
+				$res = LogTable::getList(array(
+					'filter' => array(
+						'=ID' => $logId
+					),
+					'select' => array('USER_ID')
+				));
+				if ($logFields = $res->fetch())
+				{
+					$logAuthorList[$logId] = $logFields['USER_ID'];
+				}
+			}
+
+			if (!isset($logDestUserList[$logId]))
+			{
+				$logDestUserList[$logId] = array();
+				$res = LogRightTable::getList(array(
+					'filter' => array(
+						'=LOG_ID' => $logId
+					),
+					'select' => array('GROUP_CODE')
+				));
+				while ($logRightFields = $res->fetch())
+				{
+					if (preg_match('/^U(\d+)$/', $logRightFields['GROUP_CODE'], $matches))
+					{
+						$logDestUserList[$logId][] = $matches[1];
+					}
+				}
+			}
+
+			if (
+				$userId != $logAuthorList[$logId]
+				&& !in_array($userId, $logDestUserList[$logId])
+			)
+			{
+				LogSubscribeTable::set(array(
+					'userId' => $userId,
+					'logId' => $logId,
+					'type' => LogSubscribeTable::TYPE_COUNTER_COMMENT_PUSH,
+					'ttl' => true
+				));
+			}
+		}
+
+		return (
+			in_array('FOLLOW', $typeList)
+				? $followRes
+				: true
+		);
 	}
 }

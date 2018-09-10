@@ -323,8 +323,16 @@ class DealConversionMapper extends EntityConversionMapper
 				$properties = $invoiceEntity->GetProperties(0, $personTypeID);
 				$bTaxMode = \CCrmTax::isTaxMode();
 				$locationPropertyId = 0;
+				$locationValue = 0;
+				if ($bTaxMode && isset($srcFields['LOCATION_ID']))
+				{
+					$locationValue = \CSaleLocation::getLocationIDbyCODE($srcFields['LOCATION_ID']);
+					$dstFields['PR_LOCATION'] = $locationValue;
+				}
 				if ($bTaxMode && isset($properties['PR_LOCATION']['FIELDS']['ID']))
+				{
 					$locationPropertyId = (int)$properties['PR_LOCATION']['FIELDS']['ID'];
+				}
 				if(is_array($properties))
 				{
 					\CCrmInvoice::__RewritePayerInfo($companyID, $contactID, $properties);
@@ -336,12 +344,18 @@ class DealConversionMapper extends EntityConversionMapper
 						);
 					foreach($properties as $property)
 					{
-						if ($bTaxMode && $locationPropertyId === (int)$property['FIELDS']['ID'] && isset($srcFields['LOCATION_ID']))
-							$dstFields['INVOICE_PROPERTIES'][$property['FIELDS']['ID']] = $srcFields['LOCATION_ID'];
+						if ($bTaxMode && $locationPropertyId === (int)$property['FIELDS']['ID']
+							&& isset($srcFields['LOCATION_ID']))
+						{
+							$dstFields['INVOICE_PROPERTIES'][$property['FIELDS']['ID']] = $locationValue;
+						}
 						else
+						{
 							$dstFields['INVOICE_PROPERTIES'][$property['FIELDS']['ID']] = $property['VALUE'];
+						}
 					}
 				}
+				unset($locationValue);
 				//endregion
 
 				$dstFields['UF_DEAL_ID'] = $this->srcEntityID;

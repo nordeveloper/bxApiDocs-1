@@ -41,7 +41,7 @@ final class ListsItem extends Provider
 					'SOURCE_ID' => $elementId,
 					'@EVENT_ID' => $this->getEventId(),
 				),
-				'select' => array('ID', 'TITLE', 'PARAMS')
+				'select' => array('ID', 'TITLE', 'MESSAGE', 'TEXT_MESSAGE', 'PARAMS')
 			));
 
 			if ($logEntryFields = $res->fetch())
@@ -49,15 +49,17 @@ final class ListsItem extends Provider
 				$this->setLogId($logEntryFields['ID']);
 				$this->setSourceFields($logEntryFields);
 				$this->setSourceTitle($logEntryFields['TITLE']);
-				$this->setSourceDescription($logEntryFields['TITLE']);
+
+
+				$description = $logEntryFields['TEXT_MESSAGE'];
+				$description = preg_replace('/<script(.*?)>(.*?)<\/script>/is', '', $description);
+				$this->setSourceDescription(\CTextParser::clearAllTags($description));
 			}
 		}
 	}
 
 	public function getLiveFeedUrl()
 	{
-		$pathToLogEntry = '';
-
 		$pathToLogEntry = Option::get('socialnetwork', 'log_entry_page', '');
 		if (!empty($pathToLogEntry))
 		{

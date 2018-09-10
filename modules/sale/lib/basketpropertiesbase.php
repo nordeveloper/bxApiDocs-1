@@ -45,12 +45,14 @@ abstract class BasketPropertiesCollectionBase extends Internals\EntityCollection
 	}
 
 	/**
-	 * @throws NotImplementedException
 	 * @return BasketPropertiesCollection
 	 */
-	protected static function createBasketPropertiesCollectionObject()
+	private static function createBasketPropertiesCollectionObject()
 	{
-		throw new NotImplementedException();
+		$registry = Registry::getInstance(static::getRegistryType());
+		$basketPropertiesCollectionClassName = $registry->getBasketPropertiesCollectionClassName();
+
+		return new $basketPropertiesCollectionClassName();
 	}
 
 	/**
@@ -171,9 +173,22 @@ abstract class BasketPropertiesCollectionBase extends Internals\EntityCollection
 	}
 
 	/**
-	 * @return BasketPropertyItemBase
+	 * @throws NotImplementedException
 	 */
-	abstract protected function getBasketPropertiesCollectionElementClassName();
+	public static function getRegistryType()
+	{
+		throw new NotImplementedException();
+	}
+
+	/**
+	 * @return string
+	 */
+	private function getBasketPropertiesCollectionElementClassName()
+	{
+		$registry  = Registry::getInstance(static::getRegistryType());
+
+		return $registry->getBasketPropertyItemClassName();
+	}
 
 	/**
 	 * @return BasketPropertyItemBase

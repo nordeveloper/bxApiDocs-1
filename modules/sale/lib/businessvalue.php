@@ -30,7 +30,7 @@ final class BusinessValue
 	 */
 	public static function redefineProviderField(array $fields)
 	{
-		self::$redefinedFields = array_merge_recursive(self::$redefinedFields, $fields);
+		self::$redefinedFields = array_replace_recursive(self::$redefinedFields, $fields);
 	}
 
 	/** Get business value.
@@ -651,46 +651,68 @@ class BusinessValueHandlers
 					return $value;
 				},
 			),
-			'ORDER' => array(
-				'NAME'   => Loc::getMessage('BIZVAL_PROVIDER_ORDER'),
-				'SORT'   => 200,
-				'FIELDS' => array(
-					'ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_ID')),
-					'LID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_SITE_ID')),
-					'ACCOUNT_NUMBER' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_ACCOUNT_NUMBER')),
-					'TRACKING_NUMBER' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_TRACKING_NUMBER')),
-					'DATE_INSERT' => array('NAME' => Loc::getMessage('BIZVAL_CODE_DATE_CREATE')),
-					'DATE_INSERT_DATE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_DATE_CREATE_DATE')),
-					'DATE_UPDATE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_DATE_MODIFY')),
-					'PERSON_TYPE_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_PERSON_TYPE_ID')),
-					'USER_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_USER_ID')),
-					'PAYED' => array('NAME' => Loc::getMessage('BIZVAL_CODE_PAID')),
-					'DATE_PAY_BEFORE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PAY_BEFORE')),
-					'SHOULD_PAY' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PRICE')),
-					'CURRENCY' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_CURRENCY')),
-					'PRICE_DELIVERY' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PRICE_DELIV')),
-					'DISCOUNT_VALUE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_DESCOUNT')),
-					'PAY_SYSTEM_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PAY_SYSTEM_ID')),
-					'DELIVERY_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_DELIVERY_ID')),
-					'TAX_VALUE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_TAX')),
-					'COMMENTS' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_COMMENTS')),
-				),
-				'GET_INSTANCE_VALUE' => function ($providerInstance, $providerValue, $personTypeId)
+			'ORDER' => call_user_func(
+				function ()
 				{
-					$value = null;
+					$result = array(
+						'NAME'   => Loc::getMessage('BIZVAL_PROVIDER_ORDER'),
+						'SORT'   => 200,
+						'FIELDS' => array(
+							'ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_ID')),
+							'LID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_SITE_ID')),
+							'ACCOUNT_NUMBER' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_ACCOUNT_NUMBER')),
+							'TRACKING_NUMBER' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_TRACKING_NUMBER')),
+							'DATE_INSERT' => array('NAME' => Loc::getMessage('BIZVAL_CODE_DATE_CREATE')),
+							'DATE_INSERT_DATE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_DATE_CREATE_DATE')),
+							'DATE_UPDATE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_DATE_MODIFY')),
+							'PERSON_TYPE_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_PERSON_TYPE_ID')),
+							'USER_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_USER_ID')),
+							'PAYED' => array('NAME' => Loc::getMessage('BIZVAL_CODE_PAID')),
+							'DATE_PAY_BEFORE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PAY_BEFORE')),
+							'SHOULD_PAY' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PRICE')),
+							'CURRENCY' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_CURRENCY')),
+							'PRICE_DELIVERY' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PRICE_DELIV')),
+							'DISCOUNT_VALUE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_DESCOUNT')),
+							'PAY_SYSTEM_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PAY_SYSTEM_ID')),
+							'DELIVERY_ID' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_DELIVERY_ID')),
+							'TAX_VALUE' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_TAX')),
+							'COMMENTS' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_COMMENTS')),
+							'USER_DESCRIPTION' => array('NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_USER_DESCRIPTION')),
+						),
+						'GET_INSTANCE_VALUE' => function ($providerInstance, $providerValue, $personTypeId)
+						{
+							$value = null;
 
-					if ($providerInstance instanceof Order)
+							if ($providerInstance instanceof Order)
+							{
+								if ($providerValue == 'DATE_INSERT_DATE')
+								{
+									$value = new Date($providerInstance->getField('DATE_INSERT'));
+								}
+								else if ($providerValue == 'DATE_BILL_DATE') // for crm compatibility
+								{
+									$value = new Date($providerInstance->getField('DATE_BILL'));
+								}
+								else
+								{
+									$value = $providerInstance->getField($providerValue);
+								}
+							}
+
+							return $value;
+						},
+					);
+
+					if (IsModuleInstalled('crm'))
 					{
-						if ($providerValue == 'DATE_INSERT_DATE')
-							$value = new Date($providerInstance->getField('DATE_INSERT'));
-						else if ($providerValue == 'DATE_BILL_DATE') // for crm compatibility
-							$value = new Date($providerInstance->getField('DATE_BILL'));
-						else
-							$value = $providerInstance->getField($providerValue);
+						$result['FIELDS']['ORDER_TOPIC'] = ['NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_ORDER_TOPIC')];
+						$result['FIELDS']['PRICE'] = ['NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_PRICE')];
+						$result['FIELDS']['DATE_BILL'] = ['NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_DATE_BILL')];
+						$result['FIELDS']['DATE_BILL_DATE'] = ['NAME' => Loc::getMessage('BIZVAL_CODE_ORDER_DATE_BILL_DATE')];
 					}
 
-					return $value;
-				},
+					return $result;
+				}
 			),
 			'USER' => array(
 				'NAME'   => Loc::getMessage('BIZVAL_PROVIDER_USER'),

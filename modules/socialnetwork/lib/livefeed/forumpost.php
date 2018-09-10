@@ -322,6 +322,36 @@ final class ForumPost extends Provider
 			{
 				return 'FORUM_TOPIC';
 			}
+
+			$providerTimemanEntry = new TimemanEntry();
+			if (in_array($logEventId, $providerTimemanEntry->getEventId()))
+			{
+				return 'TIMEMAN_ENTRY';
+			}
+
+			$providerTimemanReport = new TimemanReport();
+			if (in_array($logEventId, $providerTimemanReport->getEventId()))
+			{
+				return 'TIMEMAN_REPORT';
+			}
+
+			$providerPhotogalleryPhoto = new PhotogalleryPhoto();
+			if (in_array($logEventId, $providerPhotogalleryPhoto->getEventId()))
+			{
+				return 'PHOTO_PHOTO';
+			}
+
+			$providerWiki = new Wiki();
+			if (in_array($logEventId, $providerWiki->getEventId()))
+			{
+				return 'WIKI';
+			}
+
+			$providerListsItem = new ListsItem();
+			if (in_array($logEventId, $providerListsItem->getEventId()))
+			{
+				return 'LISTS_NEW_ELEMENT';
+			}
 		}
 		return '';
 	}
@@ -418,7 +448,7 @@ final class ForumPost extends Provider
 				"EVENT_ID" => $this->getCommentEventId(),
 				"MESSAGE" => $message,
 				"TEXT_MESSAGE" => $parser->convert4mail($message),
-				"MODULE_ID" => "tasks",
+				"MODULE_ID" => $this->getModuleId(),
 				"SOURCE_ID" => $forumComment['ID'],
 				"LOG_ID" => $logId,
 				"RATING_TYPE_ID" => "FORUM_POST",
@@ -502,6 +532,58 @@ final class ForumPost extends Provider
 			case 'forum':
 				$result = 'forum';
 				break;
+			case 'timeman_entry':
+				$result = 'timeman_entry_comment';
+				break;
+			case 'report':
+				$result = 'report_comment';
+				break;
+			case 'photo_photo':
+				$result = 'photo_comment';
+				break;
+			case 'wiki':
+				$result = 'wiki_comment';
+				break;
+			case 'lists_new_element':
+				$result = 'lists_new_element_comment';
+				break;
+			default:
+				$result = false;
+		}
+
+		return $result;
+	}
+
+	private function getModuleId()
+	{
+		$result = false;
+
+		$logEventId = $this->getLogEventId();
+		if (!$logEventId)
+		{
+			return $result;
+		}
+
+		switch($logEventId)
+		{
+			case 'tasks':
+				$result = 'tasks';
+				break;
+			case 'calendar':
+				$result = 'calendar';
+				break;
+			case 'forum':
+				$result = 'forum';
+				break;
+			case 'timeman_entry':
+				$result = 'timeman';
+				break;
+			case 'photo_photo':
+				$result = 'photogallery';
+				break;
+			case 'wiki':
+				$result = 'wiki';
+				break;
 			default:
 				$result = false;
 		}
@@ -544,24 +626,95 @@ final class ForumPost extends Provider
 				);
 			}
 
-			$providerCalendarEvent = new CalendarEvent();
-			if (in_array($logFields['EVENT_ID'], $providerCalendarEvent->getEventId()))
+			if (empty($result))
 			{
-				$result = array(
-					"type" => "EV",
-					"id" => intval($logFields['SOURCE_ID']),
-					"xml_id" => "EVENT_".intval($logFields['SOURCE_ID'])
-				);
+				$providerCalendarEvent = new CalendarEvent();
+				if (in_array($logFields['EVENT_ID'], $providerCalendarEvent->getEventId()))
+				{
+					$result = array(
+						"type" => "EV",
+						"id" => intval($logFields['SOURCE_ID']),
+						"xml_id" => "EVENT_".intval($logFields['SOURCE_ID'])
+					);
+				}
 			}
 
-			$providerForumTopic = new ForumTopic();
-			if (in_array($logFields['EVENT_ID'], $providerForumTopic->getEventId()))
+			if (empty($result))
 			{
-				$result = array(
-					"type" => "DEFAULT",
-					"id" => intval($logFields['SOURCE_ID']),
-					"xml_id" => "TOPIC_".intval($logFields['SOURCE_ID'])
-				);
+				$providerForumTopic = new ForumTopic();
+				if (in_array($logFields['EVENT_ID'], $providerForumTopic->getEventId()))
+				{
+					$result = array(
+						"type" => "DEFAULT",
+						"id" => intval($logFields['SOURCE_ID']),
+						"xml_id" => "TOPIC_".intval($logFields['SOURCE_ID'])
+					);
+				}
+			}
+
+			if (empty($result))
+			{
+				$providerTimemanEntry = new TimemanEntry();
+				if (in_array($logFields['EVENT_ID'], $providerTimemanEntry->getEventId()))
+				{
+					$result = array(
+						"type" => "TE",
+						"id" => intval($logFields['SOURCE_ID']),
+						"xml_id" => "TIMEMAN_ENTRY_".intval($logFields['SOURCE_ID'])
+					);
+				}
+			}
+
+			if (empty($result))
+			{
+				$providerTimemanReport = new TimemanReport();
+				if (in_array($logFields['EVENT_ID'], $providerTimemanReport->getEventId()))
+				{
+					$result = array(
+						"type" => "TR",
+						"id" => intval($logFields['SOURCE_ID']),
+						"xml_id" => "TIMEMAN_REPORT_".intval($logFields['SOURCE_ID'])
+					);
+				}
+			}
+
+			if (empty($result))
+			{
+				$providerPhotogalleryPhoto = new PhotogalleryPhoto();
+				if (in_array($logFields['EVENT_ID'], $providerPhotogalleryPhoto->getEventId()))
+				{
+					$result = array(
+						"type" => "PH",
+						"id" => intval($logFields['SOURCE_ID']),
+						"xml_id" => "PHOTO_".intval($logFields['SOURCE_ID'])
+					);
+				}
+			}
+
+			if (empty($result))
+			{
+				$providerWiki = new Wiki();
+				if (in_array($logFields['EVENT_ID'], $providerWiki->getEventId()))
+				{
+					$result = array(
+						"type" => "IBLOCK",
+						"id" => intval($logFields['SOURCE_ID']),
+						"xml_id" => "IBLOCK_".intval($logFields['SOURCE_ID'])
+					);
+				}
+			}
+
+			if (empty($result))
+			{
+				$providerListsItem = new ListsItem();
+				if (in_array($logFields['EVENT_ID'], $providerListsItem->getEventId()))
+				{
+					$result = array(
+						"type" => "WF",
+						"id" => intval($logFields['SOURCE_ID']),
+						"xml_id" => "WF_".intval($logFields['SOURCE_ID'])
+					);
+				}
 			}
 		}
 

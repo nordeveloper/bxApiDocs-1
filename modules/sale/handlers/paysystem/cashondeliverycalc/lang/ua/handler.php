@@ -1,0 +1,11 @@
+<?
+$MESS["SALE_HPS_CASH_ON_DELIVERY_LESS_1K"] = "до 1 000 грн включно";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_LESS_5K"] = "понад 1 000 до 5 000 грн включно";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_LESS_20K"] = "понад 5 000 грн до 20 000 грн включно";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_LESS_500K"] = "понад 20 000 грн до 500 000 грн включно";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_RUB"] = "грн";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_SUMM_MORE"] = "від суми понад";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_TARIF_DEFAULT"] = "За замовчуванням";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_ADD_REGION"] = "Додати регіон";
+$MESS["SALE_HPS_CASH_ON_DELIVERY_CHOOSE_REGION"] = "Виберіть регіон";
+?>

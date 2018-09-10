@@ -150,6 +150,20 @@ class PhaseSemantics
 				$params
 			);
 		}
+		elseif($entityTypeID === \CCrmOwnerType::Order)
+		{
+			return array_merge(
+				array(
+					'type' => 'list',
+					'items' => array(
+						self::PROCESS => GetMessage('CRM_PHASE_SEMANTICS_ORDER_PROCESS'),
+						self::SUCCESS => GetMessage('CRM_PHASE_SEMANTICS_ORDER_SUCCESS'),
+						self::FAILURE => GetMessage('CRM_PHASE_SEMANTICS_ORDER_FAILURE')
+					)
+				),
+				$params
+			);
+		}
 		else
 		{
 			$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);

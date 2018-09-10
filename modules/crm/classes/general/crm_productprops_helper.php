@@ -23,7 +23,7 @@ class CCrmProductPropsHelper
 
 		return $descriptions;
 	}
-	public static function  GetPropsTypesByOperations($userType = false, $arOperations = array())
+	public static function GetPropsTypesByOperations($userType = false, $arOperations = array())
 	{
 		if (!is_array($arOperations))
 			$arOperations = array(strval($arOperations));
@@ -97,6 +97,29 @@ class CCrmProductPropsHelper
 		}
 
 		return $arUserTypeList;
+	}
+	public static function CanBeFiltered($userTypeList, $propertyInfo)
+	{
+		$result = false;
+
+		if (!is_array($userTypeList) || !is_array($propertyInfo) ||
+			(!empty($propertyInfo['USER_TYPE']) && !array_key_exists($propertyInfo['USER_TYPE'], $userTypeList)))
+		{
+			return $result;
+		}
+
+		if (!empty($propertyInfo['USER_TYPE']) &&
+			is_array($userTypeList[$propertyInfo['USER_TYPE']]) &&
+			array_key_exists('GetPublicFilterHTML', $userTypeList[$propertyInfo['USER_TYPE']]))
+		{
+			$result = true;
+		}
+		else if (empty($propertyInfo['USER_TYPE']) && $propertyInfo["PROPERTY_TYPE"] !== "F")
+		{
+			$result = true;
+		}
+
+		return $result;
 	}
 	public static function GetProps($catalogID, $arPropUserTypeList = array(), $arOperations = array())
 	{
@@ -182,8 +205,11 @@ class CCrmProductPropsHelper
 		$i = count($arFilter);
 		foreach ($arProps as $propID => $arProp)
 		{
-			if (!empty($arProp['USER_TYPE']) && !array_key_exists($arProp['USER_TYPE'], $arPropUserTypeList))
+			if (!self::CanBeFiltered($arPropUserTypeList, $arProp) ||
+				!isset($arProp['FILTRABLE']) || $arProp['FILTRABLE'] !== 'Y')
+			{
 				continue;
+			}
 
 			if (!empty($arProp['USER_TYPE'])
 				&& is_array($arPropUserTypeList[$arProp['USER_TYPE']]))
@@ -406,6 +432,10 @@ class CCrmProductPropsHelper
 			elseif($prefix === 'D')
 			{
 				$valueType = CCrmOwnerType::Deal;
+			}
+			elseif($prefix === 'O')
+			{
+				$valueType = CCrmOwnerType::Order;
 			}
 
 			if($valueType !== CCrmOwnerType::Undefined && $valueType !== $type)

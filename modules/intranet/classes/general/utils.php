@@ -157,6 +157,7 @@ class CIntranetUtils
 				$obCache->StartDataCache();
 				$CACHE_MANAGER->StartTagCache($cache_dir);
 
+				$CACHE_MANAGER->registerTag('calendar_user_' . $USER_ID);
 				$CACHE_MANAGER->RegisterTag('iblock_id_' . COption::GetOptionInt('intranet', 'iblock_absence'));
 
 				if($CALENDAR_IBLOCK_ID > 0)

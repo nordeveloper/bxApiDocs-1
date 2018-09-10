@@ -8,6 +8,7 @@ use Bitrix\Crm\Requisite\EntityLink;
 use Bitrix\Crm\RequisiteAddress;
 use Bitrix\Main;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Crm\Invoice;
 
 class PSRequisiteConverter
 {
@@ -2020,7 +2021,7 @@ class PSRequisiteConverter
 			}
 			else
 			{
-				$res = \Bitrix\Sale\Internals\OrderTable::getList(array(
+				$res = Invoice\Internals\InvoiceTable::getList(array(
 					'order' => array('ID' => 'ASC'),
 					'filter' => array(
 						'=PAY_SYSTEM_ID' => array_keys(self::$psEntityTreeMap)
@@ -2042,7 +2043,7 @@ class PSRequisiteConverter
 			}
 			else
 			{
-				$res = \Bitrix\Sale\Internals\OrderTable::getList(array(
+				$res = Invoice\Internals\InvoiceTable::getList(array(
 					'order' => array('ID' => 'DESC'),
 					'filter' => array(
 						'=PAY_SYSTEM_ID' => array_keys(self::$psEntityTreeMap)
@@ -2062,7 +2063,7 @@ class PSRequisiteConverter
 			}
 			else
 			{
-				$countInvoiceUpdated = \Bitrix\Sale\Internals\OrderTable::getCount(
+				$countInvoiceUpdated = Invoice\Internals\InvoiceTable::getCount(
 					array(
 						'=PAY_SYSTEM_ID' => array_keys(self::$psEntityTreeMap),
 						'<ID' => $nextInvoiceId
@@ -2076,7 +2077,7 @@ class PSRequisiteConverter
 			}
 			else
 			{
-				$countInvoice = \Bitrix\Sale\Internals\OrderTable::getCount(
+				$countInvoice = Invoice\Internals\InvoiceTable::getCount(
 					array(
 						'=PAY_SYSTEM_ID' => array_keys(self::$psEntityTreeMap)
 					)
@@ -2099,7 +2100,7 @@ class PSRequisiteConverter
 			)
 		);
 
-		$res = \Bitrix\Sale\Internals\OrderTable::getList(
+		$res = Invoice\Internals\InvoiceTable::getList(
 			array(
 				'order' => array('ID' => 'ASC'),
 				'filter' => array(
@@ -2160,7 +2161,7 @@ class PSRequisiteConverter
 
 				if ($myCompanyId > 0)
 				{
-					\Bitrix\Sale\Internals\OrderTable::update($id, array('UF_MYCOMPANY_ID' => $myCompanyId));
+					Invoice\Internals\InvoiceTable::update($id, array('UF_MYCOMPANY_ID' => $myCompanyId));
 				}
 				if ($mcRequisiteId > 0)
 				{

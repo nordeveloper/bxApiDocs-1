@@ -11,6 +11,7 @@ class CCrmLiveFeedEntity
 	const Deal = SONET_CRM_DEAL_ENTITY;
 	const Activity = SONET_CRM_ACTIVITY_ENTITY;
 	const Invoice = SONET_CRM_INVOICE_ENTITY;
+	const Order = SONET_CRM_ORDER_ENTITY;
 	const Undefined = '';
 
 	private static $ALL_FOR_SQL = null;
@@ -106,6 +107,10 @@ class CCrmLiveFeedEntity
 			{
 				return CCrmOwnerType::Invoice;
 			}
+			case self::Order:
+			{
+				return CCrmOwnerType::Order;
+			}
 			default:
 			{
 				return CCrmOwnerType::Undefined;
@@ -140,10 +145,14 @@ class CCrmLiveFeedEntity
 			{
 				return self::Invoice;
 			}
-			default:
+			case CCrmOwnerType::Order:
 			{
-				return self::Undefined;
+				return self::Order;
 			}
+			default:
+				{
+					return self::Undefined;
+				}
 		}
 	}
 }

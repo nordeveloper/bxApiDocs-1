@@ -26,15 +26,23 @@ class Connector
 	 * @param bool|integer $reduced To shorten the channel names.
 	 * @param bool $customConnectors Return custom connectors
 	 *
-	 * @return array
+	 * @return array.
+	 * @throws \Bitrix\Main\LoaderException
 	 */
 	public static function getListConnector($reduced = false, $customConnectors = true)
 	{
 		$connectors = array(
 			"livechat" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_LIVECHAT'),
+		);
+
+		// disabled in b24.ua
+		if(!Loader::includeModule('bitrix24') || \CBitrix24::getPortalZone() !== 'ua')
+			$connectors["yandex"] = Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_YANDEX');
+
+		$connectors = array_merge($connectors, array(
 			"viber" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_VIBER_BOT'),
 			"telegrambot" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_TELEGRAM_BOT')
-		);
+		));
 
 		// disabled in b24.ua
 		if(!Loader::includeModule('bitrix24') || \CBitrix24::getPortalZone() !== 'ua')
@@ -90,14 +98,22 @@ class Connector
 	 * @param bool $customConnectors Return custom connectors
 	 *
 	 * @return array.
+	 * @throws \Bitrix\Main\LoaderException
 	 */
 	public static function getListConnectorReal($reduced = false, $customConnectors = true)
 	{
 		$connectors = array(
 			"livechat" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_LIVECHAT'),
+		);
+
+		// disabled in b24.ua
+		if(!Loader::includeModule('bitrix24') || \CBitrix24::getPortalZone() !== 'ua')
+			$connectors["yandex"] = Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_YANDEX');
+
+		$connectors = array_merge($connectors, array(
 			"viber" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_VIBER_BOT'),
 			"telegrambot" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_TELEGRAM_BOT')
-		);
+		));
 
 		// disabled in b24.ua
 		if(!Loader::includeModule('bitrix24') || \CBitrix24::getPortalZone() !== 'ua')
@@ -161,15 +177,23 @@ class Connector
 	/**
 	 * A list of matching id of the connector component.
 	 *
-	 * @return array
+	 * @return array.
+	 * @throws \Bitrix\Main\LoaderException
 	 */
 	public static function getListComponentConnector()
 	{
 		$components = array(
 			'livechat' => 'bitrix:imconnector.livechat',
+		);
+
+		// disabled in b24.ua
+		if(!Loader::includeModule('bitrix24') || \CBitrix24::getPortalZone() !== 'ua')
+			$components["yandex"] = 'bitrix:imconnector.yandex';
+
+		$components = array_merge($components, array(
 			'viber' => 'bitrix:imconnector.viber',
 			'telegrambot' => 'bitrix:imconnector.telegrambot'
-		);
+		));
 
 		// disabled in b24.ua
 		if(!Loader::includeModule('bitrix24') || \CBitrix24::getPortalZone() !== 'ua')
@@ -640,6 +664,7 @@ class Connector
 	{
 		return array(
 			'livechat' => 'livechat',
+			'yandex' => 'ya-dialogs',
 			'viber' => 'viber',
 			'telegrambot' => 'telegram',
 			'telegram' => 'telegram',

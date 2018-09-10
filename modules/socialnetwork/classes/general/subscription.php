@@ -1,6 +1,7 @@
 <?
 
 use Bitrix\Socialnetwork\Integration;
+use Bitrix\Main\Localization\Loc;
 
 class CAllSocNetSubscription
 {
@@ -22,7 +23,7 @@ class CAllSocNetSubscription
 			&& IntVal($arFields["USER_ID"]) <= 0
 		)
 		{
-			$APPLICATION->ThrowException(GetMessage("SONET_SS_EMPTY_USER_ID"), "EMPTY_USER_ID");
+			$APPLICATION->ThrowException(Loc::getMessage("SONET_SS_EMPTY_USER_ID"), "EMPTY_USER_ID");
 			return false;
 		}
 		elseif (is_set($arFields, "USER_ID"))
@@ -30,7 +31,7 @@ class CAllSocNetSubscription
 			$dbResult = CUser::GetByID($arFields["USER_ID"]);
 			if (!$dbResult->Fetch())
 			{
-				$APPLICATION->ThrowException(GetMessage("SONET_SS_ERROR_NO_USER_ID"), "ERROR_NO_USER_ID");
+				$APPLICATION->ThrowException(Loc::getMessage("SONET_SS_ERROR_NO_USER_ID"), "ERROR_NO_USER_ID");
 				return false;
 			}
 		}
@@ -40,7 +41,7 @@ class CAllSocNetSubscription
 			&& strlen(trim($arFields["CODE"])) <= 0
 		)
 		{
-			$APPLICATION->ThrowException(GetMessage("SONET_SS_EMPTY_CODE"), "EMPTY_CODE");
+			$APPLICATION->ThrowException(Loc::getMessage("SONET_SS_EMPTY_CODE"), "EMPTY_CODE");
 			return false;
 		}
 
@@ -384,6 +385,56 @@ class CAllSocNetSubscription
 				array("#URL#", "#url#", "#group_name#"), 
 				array($serverName.$url, $serverName.$url, $group_name),
 				$arFields["MESSAGE_OUT"]
+			);
+
+			$arMessageFields["PUSH_PARAMS"] = array(
+				"ACTION" => "sonet_group_event",
+				"TAG" => $arMessageFields["NOTIFY_TAG"]
+			);
+
+			if (intval($arFields["FROM_USER_ID"]) > 0)
+			{
+				$dbAuthor = \CUser::getByID($arFields["FROM_USER_ID"]);
+				if($arAuthor = $dbAuthor->fetch())
+				{
+					if (!empty($arAuthor["PERSONAL_PHOTO"]))
+					{
+						$imageResized = CFile::resizeImageGet(
+							$arAuthor["PERSONAL_PHOTO"],
+							array(
+								"width" => 100,
+								"height" => 100
+							),
+							BX_RESIZE_IMAGE_EXACT
+						);
+						if ($imageResized)
+						{
+							$authorAvatarUrl = $imageResized["src"];
+						}
+					}
+
+					$authorName = CUser::formatName(\CSite::getNameFormat(), $arAuthor, true);
+				}
+			}
+
+			if (empty($authorName))
+			{
+				$authorName = Loc::getMessage("SONET_SS_PUSH_USER");
+			}
+
+			$arMessageFields["PUSH_PARAMS"]["ADVANCED_PARAMS"] = array(
+				'senderName' => $authorName
+			);
+
+			if (!empty($authorAvatarUrl))
+			{
+				$arMessageFields["PUSH_PARAMS"]["ADVANCED_PARAMS"]["avatarUrl"] = $authorAvatarUrl;
+			}
+
+			$arMessageFields["PUSH_MESSAGE"] = str_replace(
+				array("[URL=#URL#]", "[URL=#url#]", "[/URL]", "#group_name#", "#GROUP_ID#", "#group_id#"),
+				array('', '', '', $group_name, $arUser["GROUP_ID"], $arUser["GROUP_ID"]),
+				$arFields["MESSAGE"]
 			);
 
 			$arMessageFields2Send = $arMessageFields;

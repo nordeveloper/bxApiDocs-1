@@ -2,35 +2,54 @@
 
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
+use Bitrix\Crm\Binding\DealContactTable;
 use Bitrix\Crm\Category\DealCategory;
 use Bitrix\Crm\DealTable;
+use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\DocumentGenerator\DataProvider\Filterable;
+use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Nameable;
 
 class Deal extends ProductsDataProvider implements Nameable, Filterable
 {
-	protected $linkData;
+	protected $contacts;
 
 	public function getFields()
 	{
-		$fields = parent::getFields();
+		if($this->fields === null)
+		{
+			parent::getFields();
+			$this->fields['STAGE'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_STAGE_TITLE'),
+			];
+			$this->fields['TYPE'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_TYPE_TITLE'),
+			];
+			$this->fields['EVENT'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_EVENT_TITLE'),
+			];
+	//		$this->fields['LEAD'] = [
+	//			'PROVIDER' => Lead::class,
+	//			'VALUE' => 'LEAD_ID',
+	//			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_LEAD_TITLE'),
+	//		];
+			$this->fields['CONTACTS'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_CONTACTS_TITLE'),
+				'PROVIDER' => ArrayDataProvider::class,
+				'OPTIONS' => [
+					'ITEM_PROVIDER' => Contact::class,
+					'ITEM_NAME' => 'CONTACT',
+					'ITEM_TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_CONTACT_TITLE'),
+					'ITEM_OPTIONS' => [
+						'DISABLE_MY_COMPANY' => true,
+						'isLightMode' => true,
+					],
+				],
+				'VALUE' => [$this, 'getContacts'],
+			];
+		}
 
-		$fields['STAGE'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_STAGE_TITLE'),
-		];
-		$fields['TYPE'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_TYPE_TITLE'),
-		];
-		$fields['EVENT'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_EVENT_TITLE'),
-		];
-//		$fields['LEAD'] = [
-//			'PROVIDER' => Lead::class,
-//			'VALUE' => 'LEAD_ID',
-//			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_DEAL_LEAD_TITLE'),
-//		];
-
-		return $fields;
+		return $this->fields;
 	}
 
 	/**
@@ -58,6 +77,29 @@ class Deal extends ProductsDataProvider implements Nameable, Filterable
 		}
 
 		return false;
+	}
+
+	/**
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 */
+	public function getContacts()
+	{
+		if($this->contacts === null)
+		{
+			$this->contacts = [];
+			$contactBindings = DealContactTable::getDealBindings($this->source);
+			foreach($contactBindings as $binding)
+			{
+				$contact = DataProviderManager::getInstance()->getDataProvider(Contact::class, $binding['CONTACT_ID'], [
+					'isLightMode' => true,
+					'DISABLE_MY_COMPANY' => true,
+				], $this);
+				$this->contacts[] = $contact;
+			}
+		}
+
+		return $this->contacts;
 	}
 
 	protected function getTableClass()

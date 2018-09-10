@@ -21,9 +21,6 @@ class ShipmentItem
 	/** @var array */
 	protected static $errors = array();
 
-	/** @var array */
-	protected static $mapFields = array();
-
 	private static $eventClassName = null;
 
 	/**
@@ -40,19 +37,6 @@ class ShipmentItem
 	public static function getMeaningfulFields()
 	{
 		return array('QUANTITY');
-	}
-
-	/**
-	 * @return array
-	 */
-	public static function getAllFields()
-	{
-		if (empty(static::$mapFields))
-		{
-			static::$mapFields = parent::getAllFieldsByMap(Internals\ShipmentItemTable::getMap());
-		}
-
-		return static::$mapFields;
 	}
 
 	/**
@@ -404,7 +388,11 @@ class ShipmentItem
 					$basketItemProductId = $basketItem->getProductId();
 				}
 
-				OrderHistory::addAction(
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var OrderHistory $orderHistory */
+				$orderHistory = $registry->getOrderHistoryClassName();
+				$orderHistory::addAction(
 					'SHIPMENT',
 					$order->getId(),
 					'SHIPMENT_ITEM_BASKET_REMOVED',
@@ -520,10 +508,8 @@ class ShipmentItem
 	}
 
 	/**
-	 * @return Entity\AddResult|Entity\UpdateResult
-	 * @throws Main\ArgumentOutOfRangeException
+	 * @return Result
 	 * @throws Main\ObjectNotFoundException
-	 * @throws \Exception
 	 */
 	public function save()
 	{
@@ -597,12 +583,14 @@ class ShipmentItem
 						return $result;
 				}
 
-
-				//$fields['DATE_UPDATE'] = new Main\Type\DateTime();
-				$r = Internals\ShipmentItemTable::update($id, $fields);
+				$r = $this->updateInternal($id, $fields);
 				if (!$r->isSuccess())
 				{
-					OrderHistory::addAction(
+					$registry = Registry::getInstance(static::getRegistryType());
+
+					/** @var OrderHistory $orderHistory */
+					$orderHistory = $registry->getOrderHistoryClassName();
+					$orderHistory::addAction(
 						'SHIPMENT',
 						$order->getId(),
 						'SHIPMENT_ITEM_UPDATE_ERROR',
@@ -620,7 +608,13 @@ class ShipmentItem
 			}
 
 			if ($order && $order->getId() > 0)
-				OrderHistory::collectEntityFields('SHIPMENT_ITEM_STORE', $order->getId(), $id);
+			{
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var OrderHistory $orderHistory */
+				$orderHistory = $registry->getOrderHistoryClassName();
+				$orderHistory::collectEntityFields('SHIPMENT_ITEM_STORE', $order->getId(), $id);
+			}
 		}
 		else
 		{
@@ -643,7 +637,11 @@ class ShipmentItem
 					)
 				);
 
-				OrderHistory::addAction(
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var OrderHistory $orderHistory */
+				$orderHistory = $registry->getOrderHistoryClassName();
+				$orderHistory::addAction(
 					'SHIPMENT',
 					$order->getId(),
 					'SHIPMENT_ITEM_BASKET_ITEM_EMPTY_ERROR',
@@ -668,10 +666,14 @@ class ShipmentItem
 				$this->setFieldNoDemand('RESERVED_QUANTITY', $fields['RESERVED_QUANTITY']);
 			}
 
-			$r = Internals\ShipmentItemTable::add($fields);
+			$r = $this->addInternal($fields);
 			if (!$r->isSuccess())
 			{
-				OrderHistory::addAction(
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var OrderHistory $orderHistory */
+				$orderHistory = $registry->getOrderHistoryClassName();
+				$orderHistory::addAction(
 					'SHIPMENT',
 					$order->getId(),
 					'SHIPMENT_ITEM_ADD_ERROR',
@@ -692,7 +694,11 @@ class ShipmentItem
 
 			if (!$shipment->isSystem())
 			{
-				OrderHistory::addAction(
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var OrderHistory $orderHistory */
+				$orderHistory = $registry->getOrderHistoryClassName();
+				$orderHistory::addAction(
 					'SHIPMENT',
 					$order->getId(),
 					'SHIPMENT_ITEM_BASKET_ADDED',
@@ -727,7 +733,11 @@ class ShipmentItem
 
 		if ($result->isSuccess())
 		{
-			OrderHistory::collectEntityFields('SHIPMENT_ITEM', $order->getId(), $id);
+			$registry = Registry::getInstance(static::getRegistryType());
+
+			/** @var OrderHistory $orderHistory */
+			$orderHistory = $registry->getOrderHistoryClassName();
+			$orderHistory::collectEntityFields('SHIPMENT_ITEM', $order->getId(), $id);
 		}
 
 		return $result;
@@ -754,7 +764,7 @@ class ShipmentItem
 
 		$items = array();
 
-		$itemDataList = Internals\ShipmentItemTable::getList(
+		$itemDataList = static::getList(
 			array(
 				'filter' => array('ORDER_DELIVERY_ID' => $id),
 				'order' => array('DATE_INSERT' => 'ASC', 'ID' => 'ASC')
@@ -771,12 +781,20 @@ class ShipmentItem
 	 * @param $itemData
 	 * @return ShipmentItem
 	 */
-	protected static function createShipmentItemObject(array $itemData = array())
+	private static function createShipmentItemObject(array $itemData = array())
 	{
-		$registry = Registry::getInstance(Registry::REGISTRY_TYPE_ORDER);
+		$registry = Registry::getInstance(static::getRegistryType());
 		$shipmentItemClassName = $registry->getShipmentItemClassName();
 
 		return new $shipmentItemClassName($itemData);
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function getRegistryType()
+	{
+		return Registry::REGISTRY_TYPE_ORDER;
 	}
 
 	/**
@@ -838,7 +856,11 @@ class ShipmentItem
 	{
 		if (empty($this->shipmentItemStoreCollection))
 		{
-			$this->shipmentItemStoreCollection = ShipmentItemStoreCollection::load($this);
+			$registry = Registry::getInstance(static::getRegistryType());
+
+			/** @var ShipmentItemStoreCollection $itemStoreCollectionClassName */
+			$itemStoreCollectionClassName = $registry->getShipmentItemStoreCollectionClassName();
+			$this->shipmentItemStoreCollection = $itemStoreCollectionClassName::load($this);
 		}
 		return $this->shipmentItemStoreCollection;
 	}
@@ -993,7 +1015,11 @@ class ShipmentItem
 			/** @var Order $order */
 			if (($order = $shipmentCollection->getOrder()) && $order->getId() > 0)
 			{
-				OrderHistory::addField(
+				$registry = Registry::getInstance(static::getRegistryType());
+
+				/** @var OrderHistory $orderHistory */
+				$orderHistory = $registry->getOrderHistoryClassName();
+				$orderHistory::addField(
 					'SHIPMENT_ITEM',
 					$order->getId(),
 					$name,
@@ -1093,14 +1119,14 @@ class ShipmentItem
 	}
 
 	/**
-	 * @param array $filter
+	 * @param array $parameters
 	 *
 	 * @return Main\DB\Result
 	 * @throws Main\ArgumentException
 	 */
-	public static function getList(array $filter)
+	public static function getList(array $parameters)
 	{
-		return Internals\ShipmentItemTable::getList($filter);
+		return Internals\ShipmentItemTable::getList($parameters);
 	}
 
 	/**
@@ -1260,6 +1286,8 @@ class ShipmentItem
 	 */
 	public function clearChanged()
 	{
+		parent::clearChanged();
+
 		if ($shipmentItemStoreCollection = $this->getShipmentItemStoreCollection())
 		{
 			foreach ($shipmentItemStoreCollection as $shipmentItemStore)
@@ -1308,5 +1336,31 @@ class ShipmentItem
 		return $changedFields['RESERVED_QUANTITY'] - $originalFields['RESERVED_QUANTITY'];
 	}
 
+	/**
+	 * @param array $data
+	 * @return Main\Entity\AddResult
+	 */
+	protected function addInternal(array $data)
+	{
+		return Internals\ShipmentItemTable::add($data);
+	}
+
+	/**
+	 * @param $primary
+	 * @param array $data
+	 * @return Main\Entity\UpdateResult
+	 */
+	protected function updateInternal($primary, array $data)
+	{
+		return Internals\ShipmentItemTable::update($primary, $data);
+	}
+
+	/**
+	 * @return array
+	 */
+	protected static function getFieldsMap()
+	{
+		return Internals\ShipmentItemTable::getMap();
+	}
 
 }

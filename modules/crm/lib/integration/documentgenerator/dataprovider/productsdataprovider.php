@@ -2,9 +2,10 @@
 
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
+use Bitrix\Crm\Integration\DocumentGenerator\Value\Money;
 use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\DocumentGenerator\DataProviderManager;
-use Bitrix\Main\Loader;
+use Bitrix\Iblock\ElementTable;
 
 abstract class ProductsDataProvider extends CrmEntityDataProvider
 {
@@ -17,94 +18,65 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 
 	public function getFields()
 	{
-		$fields = parent::getFields();
+		if($this->fields === null)
+		{
+			parent::getFields();
 
-		$fields['PRODUCTS'] = [
-			'PROVIDER' => ArrayDataProvider::class,
-			'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCTS_TITLE'),
-			'OPTIONS' => [
-				'ITEM_PROVIDER' => Product::class,
-				'ITEM_NAME' => 'PRODUCT',
-				'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCT_TITLE'),
-			],
-			'VALUE' => function()
-			{
-				return $this->loadProducts();
-			},
-		];
-		$fields['TAXES'] = [
-			'PROVIDER' => ArrayDataProvider::class,
-			'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAXES_TITLE'),
-			'OPTIONS' => [
-				'ITEM_PROVIDER' => Tax::class,
-				'ITEM_NAME' => 'TAX',
-				'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAX_TITLE'),
-			],
-			'VALUE' => function()
-			{
-				return $this->loadTaxes();
-			}
-		];
-		$fields['CURRENCY_ID'] = [
-			'VALUE' => function()
-			{
-				if(!$this->data['CURRENCY_ID'])
-				{
-					$this->data['CURRENCY_ID'] = \CCrmCurrency::GetBaseCurrencyID();
-				}
-				return $this->data['CURRENCY_ID'];
-			}
-		];
-		$fields['CURRENCY_NAME'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_CURRENCY_NAME_TITLE'),
-			'VALUE' => function()
-			{
-				return \CCrmCurrency::GetCurrencyName($this->getValue('CURRENCY_ID'));
-			}
-		];
-		$fields = array_merge($fields, $this->getTotalFields());
+			$this->fields['PRODUCTS'] = [
+				'PROVIDER' => ArrayDataProvider::class,
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCTS_TITLE'),
+				'OPTIONS' => [
+					'ITEM_PROVIDER' => Product::class,
+					'ITEM_NAME' => 'PRODUCT',
+					'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCT_TITLE'),
+				],
+				'VALUE' => [$this, 'loadProducts'],
+			];
+			$this->fields['TAXES'] = [
+				'PROVIDER' => ArrayDataProvider::class,
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAXES_TITLE'),
+				'OPTIONS' => [
+					'ITEM_PROVIDER' => Tax::class,
+					'ITEM_NAME' => 'TAX',
+					'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAX_TITLE'),
+				],
+				'VALUE' => [$this, 'loadTaxes'],
+			];
+			$this->fields['CURRENCY_ID'] = [
+				'VALUE' => [$this, 'getCurrencyId'],
+			];
+			$this->fields['CURRENCY_NAME'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_CURRENCY_NAME_TITLE'),
+				'VALUE' => [$this, 'getCurrencyName'],
+			];
+			$this->fields = array_merge($this->fields, $this->getTotalFields());
+		}
 
-		return $fields;
+		return $this->fields;
 	}
 
 	protected function fetchData()
 	{
 		parent::fetchData();
-		$this->loadProducts();
-		$this->calculateTotalFields();
+		if(!$this->isLightMode())
+		{
+			$this->loadProducts();
+			$this->calculateTotalFields();
+		}
 	}
 
-	protected function loadProducts()
+	public function loadProducts()
 	{
 		if($this->products === null)
 		{
 			$products = [];
 			if($this->isLoaded())
 			{
-				$crmProducts = \CAllCrmProductRow::LoadRows($this->getCrmProductOwnerType(), $this->source);
-				foreach($crmProducts as $crmProduct)
+				$productsData = $this->loadProductsData();
+				$this->loadIblockProductsData($productsData);
+				foreach($productsData as $productData)
 				{
-					if($crmProduct['TAX_INCLUDED'] !== 'Y')
-					{
-						$crmProduct['PRICE'] = $crmProduct['PRICE_EXCLUSIVE'];
-					}
-					$product = new Product([
-						'NAME' => $crmProduct['PRODUCT_NAME'],
-						'PRODUCT_ID' => $crmProduct['PRODUCT_ID'],
-						'QUANTITY' => $crmProduct['QUANTITY'],
-						'PRICE' => $crmProduct['PRICE'],
-						'DISCOUNT_RATE' => $crmProduct['DISCOUNT_RATE'],
-						'DISCOUNT_SUM' => $crmProduct['DISCOUNT_SUM'],
-						'TAX_RATE' => $crmProduct['TAX_RATE'],
-						'TAX_INCLUDED' => $crmProduct['TAX_INCLUDED'],
-						'SORT' => $crmProduct['SORT'],
-						'MEASURE_CODE' => $crmProduct['MEASURE_CODE'],
-						'MEASURE_NAME' => $crmProduct['MEASURE_NAME'],
-						'OWNER_ID' => $this->source,
-						'OWNER_TYPE' => $this->getCrmProductOwnerType(),
-						'CUSTOMIZED' => $crmProduct['CUSTOMIZED'],
-						'DISCOUNT_TYPE_ID' => $crmProduct['DISCOUNT_TYPE_ID'],
-					]);
+					$product = new Product($productData);
 					$product->setParentProvider($this);
 					$products[] = $product;
 				}
@@ -115,75 +87,103 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		return $this->products;
 	}
 
+	/**
+	 * @return array
+	 */
+	protected function loadProductsData()
+	{
+		$result = [];
+		$crmProducts = \CAllCrmProductRow::LoadRows($this->getCrmProductOwnerType(), $this->source);
+		foreach($crmProducts as $crmProduct)
+		{
+			if($crmProduct['TAX_INCLUDED'] !== 'Y')
+			{
+				$crmProduct['PRICE'] = $crmProduct['PRICE_EXCLUSIVE'];
+			}
+			$result[] = [
+				'NAME' => $crmProduct['PRODUCT_NAME'],
+				'PRODUCT_ID' => $crmProduct['PRODUCT_ID'],
+				'QUANTITY' => $crmProduct['QUANTITY'],
+				'PRICE' => $crmProduct['PRICE'],
+				'DISCOUNT_RATE' => $crmProduct['DISCOUNT_RATE'],
+				'DISCOUNT_SUM' => $crmProduct['DISCOUNT_SUM'],
+				'TAX_RATE' => $crmProduct['TAX_RATE'],
+				'TAX_INCLUDED' => $crmProduct['TAX_INCLUDED'],
+				'SORT' => $crmProduct['SORT'],
+				'MEASURE_CODE' => $crmProduct['MEASURE_CODE'],
+				'MEASURE_NAME' => $crmProduct['MEASURE_NAME'],
+				'OWNER_ID' => $this->source,
+				'OWNER_TYPE' => $this->getCrmProductOwnerType(),
+				'CUSTOMIZED' => $crmProduct['CUSTOMIZED'],
+				'DISCOUNT_TYPE_ID' => $crmProduct['DISCOUNT_TYPE_ID'],
+				'CURRENCY_ID' => $this->getCurrencyId(),
+			];
+		}
+
+		return $result;
+	}
+
+	protected function loadIblockProductsData(array &$products)
+	{
+		$ids = [];
+		foreach($products as $key => $product)
+		{
+			if($product['PRODUCT_ID'] > 0)
+			{
+				$ids[$product['PRODUCT_ID']] = $key;
+			}
+		}
+		if(!empty($ids))
+		{
+			$query = ElementTable::getList(['select' => ['ID', 'DETAIL_TEXT', 'PREVIEW_PICTURE', 'DETAIL_PICTURE', 'IBLOCK_SECTION.NAME'], 'filter' => ['@ID' => array_keys($ids)]]);
+			while($data = $query->fetch())
+			{
+				if(isset($ids[$data['ID']]))
+				{
+					$products[$ids[$data['ID']]]['DESCRIPTION'] = $data['DETAIL_TEXT'];
+					if($data['PREVIEW_PICTURE'] > 0)
+					{
+						$products[$ids[$data['ID']]]['PREVIEW_PICTURE'] = \CFile::GetPath($data['PREVIEW_PICTURE']);
+					}
+					if($data['DETAIL_PICTURE'] > 0)
+					{
+						$products[$ids[$data['ID']]]['DETAIL_PICTURE'] = \CFile::GetPath($data['DETAIL_PICTURE']);
+					}
+					$products[$ids[$data['ID']]]['SECTION'] = $data['IBLOCK_ELEMENT_IBLOCK_SECTION_NAME'];
+				}
+			}
+		}
+	}
+
 	protected function calculateTotalFields()
 	{
+		$currencyID = $this->getCurrencyId();
 		if(empty($this->products))
 		{
+			$sum = $this->data['OPPORTUNITY'];
+			$this->data['TOTAL_RAW'] = $this->data['TOTAL_SUM'] = $sum;
 			return;
 		}
 		$crmProducts = [];
-		$this->data = array_merge($this->data, array_fill_keys(array_keys($this->getTotalFields()), 0));
+		foreach($this->getTotalFields() as $placeholder => $field)
+		{
+			if(isset($field['FORMAT']) && (!isset($field['FORMAT']['WORDS']) || $field['FORMAT']['WORDS'] !== true))
+			{
+				$this->data[$placeholder] = 0;
+			}
+		}
 		foreach($this->products as $product)
 		{
-			$this->data['TOTAL_DISCOUNT'] += $product->getValue('QUANTITY') * $product->getValue('DISCOUNT_SUM');
-			$this->data['TOTAL_QUANTITY'] += $product->getValue('QUANTITY');
-			$this->data['TOTAL_RAW'] += $product->getValue('PRICE_RAW_SUM');
-			$crmProducts[] = DataProviderManager::getInstance()->getArray($product);
+			$this->data['TOTAL_DISCOUNT'] += $product->getRawValue('QUANTITY') * $product->getRawValue('DISCOUNT_SUM');
+			$this->data['TOTAL_QUANTITY'] += $product->getRawValue('QUANTITY');
+			$this->data['TOTAL_RAW'] += $product->getRawValue('PRICE_RAW_SUM');
+			$crmProducts[] = DataProviderManager::getInstance()->getArray($product, ['rawValue' => true]);
 		}
-
-		$currencyID = $this->getCurrencyId();
 		$calculate = \CCrmSaleHelper::Calculate($crmProducts, $currencyID, $this->getPersonTypeID(), false, 's1');
 		$this->data['TOTAL_SUM'] = $calculate['PRICE'];
 		$this->data['TOTAL_TAX'] = $calculate['TAX_VALUE'];
 		$this->data['TOTAL_BEFORE_TAX'] = $this->data['TOTAL_SUM'] - $this->data['TOTAL_TAX'];
 		$this->data['TOTAL_BEFORE_DISCOUNT'] = $this->data['TOTAL_BEFORE_TAX'] + $this->data['TOTAL_DISCOUNT'];
-
-		$this->data['TOTAL_ROWS_WORDS'] = $this->data['TOTAL_QUANTITY_WORDS'] = $this->data['TOTAL_SUM_WORDS'] = '';
-		if(function_exists('Number2Word_Rus'))
-		{
-			$this->data['TOTAL_SUM_WORDS'] = Number2Word_Rus($this->data['TOTAL_SUM'], 'Y', $currencyID);
-			$this->data['TOTAL_QUANTITY_WORDS'] = Number2Word_Rus($this->data['TOTAL_QUANTITY'], 'N');
-			$this->data['TOTAL_ROWS_WORDS'] = Number2Word_Rus(count($this->products), 'N');
-			$this->data['TOTAL_TAX_WORDS'] = Number2Word_Rus($this->data['TOTAL_TAX'], 'Y', $currencyID);
-			$this->data['TOTAL_BEFORE_TAX_WORDS'] = Number2Word_Rus($this->data['TOTAL_BEFORE_TAX'], 'Y', $currencyID);
-		}
-		if($this->data['TOTAL_SUM_WORDS'] == '')
-		{
-			$this->data['TOTAL_SUM_WORDS'] = \CCrmCurrency::MoneyToString($this->data['TOTAL_SUM'], $currencyID);
-		}
-		if($this->data['TOTAL_TAX_WORDS'] == '')
-		{
-			$this->data['TOTAL_TAX_WORDS'] = \CCrmCurrency::MoneyToString($this->data['TOTAL_TAX'], $currencyID);
-		}
-		if($this->data['TOTAL_BEFORE_TAX_WORDS'] == '')
-		{
-			$this->data['TOTAL_BEFORE_TAX_WORDS'] = \CCrmCurrency::MoneyToString($this->data['TOTAL_BEFORE_TAX_WORDS'], $currencyID);
-		}
-		if($this->data['TOTAL_QUANTITY_WORDS'] == '')
-		{
-			$this->data['TOTAL_QUANTITY_WORDS'] = $this->data['TOTAL_QUANTITY'];
-		}
-		if($this->data['TOTAL_ROWS_WORDS'] == '')
-		{
-			$this->data['TOTAL_ROWS_WORDS'] = count($this->products);
-		}
-		foreach($this->getTotalFields() as $placeholder => $fieldName)
-		{
-			if(in_array($placeholder, ['TOTAL_SUM_WORDS', 'TOTAL_QUANTITY', 'TOTAL_QUANTITY_WORDS', 'TOTAL_ROWS_WORDS', 'TOTAL_TAX_WORDS', 'TOTAL_BEFORE_TAX_WORDS',]))
-			{
-				continue;
-			}
-//			if(Loader::includeModule('currency'))
-//			{
-//				\CCurrencyLang::disableUseHideZero();
-//				\CCurrencyLang::disableUseHideZero();
-//			}
-			$this->data[$placeholder] = \CCrmCurrency::MoneyToString($this->data[$placeholder], $currencyID);
-//			if(Loader::includeModule('currency'))
-//			{
-//				\CCurrencyLang::enableUseHideZero();
-//			}
-		}
 	}
 
 	/**
@@ -191,26 +191,84 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 	 */
 	protected function getTotalFields()
 	{
-		static $totalFields = false;
-		if($totalFields === false)
-		{
-			$totalFields = [
-				'TOTAL_DISCOUNT' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_DISCOUNT_TITLE')],
-				'TOTAL_SUM' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_SUM_TITLE')],
-				'TOTAL_RAW' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_RAW_TITLE')],
-				'TOTAL_TAX' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_TAX_TITLE')],
-				'TOTAL_TAX_WORDS' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_TAX_WORDS_TITLE')],
-				'TOTAL_BEFORE_TAX' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_BEFORE_TAX_TITLE')],
-				'TOTAL_BEFORE_TAX_WORDS' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_BEFORE_TAX_WORDS_TITLE')],
-				'TOTAL_BEFORE_DISCOUNT' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_BEFORE_DISCOUNT_TITLE')],
-				'TOTAL_SUM_WORDS' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_SUM_WORDS_TITLE')],
-				'TOTAL_QUANTITY' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_QUANTITY_TITLE')],
-				'TOTAL_QUANTITY_WORDS' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_QUANTITY_WORDS_TITLE')],
-				'TOTAL_ROWS_WORDS' => ['TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_ROWS_WORDS_TITLE')],
-			];
-		}
+		$currencyID = $this->getCurrencyId();
+		$totalFields = [
+			'TOTAL_DISCOUNT' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_DISCOUNT_TITLE'),
+				'TYPE' => Money::class,
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true],
+			],
+			'TOTAL_SUM' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_SUM_TITLE'),
+				'TYPE' => Money::class,
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true],
+			],
+			'TOTAL_RAW' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_RAW_TITLE'),
+				'TYPE' => Money::class,
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true],
+			],
+			'TOTAL_TAX' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_TAX_TITLE'),
+				'TYPE' => Money::class,
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true],
+			],
+			'TOTAL_TAX_WORDS' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_TAX_WORDS_TITLE'),
+				'TYPE' => Money::class,
+				'VALUE' => [$this, 'getSumWithoutWords'],
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WORDS' => true],
+			],
+			'TOTAL_BEFORE_TAX' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_BEFORE_TAX_TITLE'),
+				'TYPE' => Money::class,
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true],
+			],
+			'TOTAL_BEFORE_TAX_WORDS' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_BEFORE_TAX_WORDS_TITLE'),
+				'TYPE' => Money::class,
+				'VALUE' => [$this, 'getSumWithoutWords'],
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WORDS' => true],
+			],
+			'TOTAL_BEFORE_DISCOUNT' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_BEFORE_DISCOUNT_TITLE'),
+				'TYPE' => Money::class,
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true],
+			],
+			'TOTAL_SUM_WORDS' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_SUM_WORDS_TITLE'),
+				'TYPE' => Money::class,
+				'VALUE' => [$this, 'getSumWithoutWords'],
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WORDS' => true],
+			],
+			'TOTAL_QUANTITY' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_QUANTITY_TITLE'),
+				'TYPE' => Money::class,
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'NO_SIGN' => true],
+			],
+			'TOTAL_QUANTITY_WORDS' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_QUANTITY_WORDS_TITLE'),
+				'TYPE' => Money::class,
+				'VALUE' => [$this, 'getSumWithoutWords'],
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WORDS' => true, 'NO_SIGN' => true],
+			],
+			'TOTAL_ROWS_WORDS' => [
+				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_ROWS_WORDS_TITLE'),
+				'TYPE' => Money::class,
+				'VALUE' => [$this, 'getTotalRows'],
+				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'WORDS' => true, 'NO_SIGN' => true],
+			],
+		];
 
 		return $totalFields;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getTotalRows()
+	{
+		return count($this->products);
 	}
 
 	/**
@@ -231,12 +289,21 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 	/**
 	 * @return string
 	 */
-	protected function getCurrencyId()
+	public function getCurrencyId()
 	{
-		return $this->getValue('CURRENCY_ID');
+		if(!$this->data['CURRENCY_ID'])
+		{
+			$this->data['CURRENCY_ID'] = \CCrmCurrency::GetBaseCurrencyID();
+		}
+		return $this->data['CURRENCY_ID'];
 	}
 
-	protected function loadTaxes()
+	public function getCurrencyName()
+	{
+		return \CCrmCurrency::GetCurrencyName($this->getCurrencyId());
+	}
+
+	public function loadTaxes()
 	{
 		$this->loadProducts();
 		if(!empty($this->data))
@@ -246,23 +313,23 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 				$this->taxes = $taxes = [];
 				foreach($this->products as $product)
 				{
-					if($product->getValue('TAX_RATE') > 0)
+					if($product->getRawValue('TAX_RATE') > 0)
 					{
-						if(!isset($taxes[$product->getValue('TAX_RATE')]))
+						if(!isset($taxes[$product->getRawValue('TAX_RATE')]))
 						{
-							$taxes[$product->getValue('TAX_RATE')] = [
+							$taxes[$product->getRawValue('TAX_RATE')] = [
 								'VALUE' => 0,
-								'RATE' => $product->getValue('TAX_RATE'),
-								'TAX_INCLUDED' => $product->getValue('TAX_INCLUDED'),
+								'RATE' => $product->getRawValue('TAX_RATE'),
+								'TAX_INCLUDED' => $product->getRawValue('TAX_INCLUDED'),
 							];
 						}
-						$taxes[$product->getValue('TAX_RATE')]['VALUE'] += $product->getValue('TAX_VALUE_SUM');
+						$taxes[$product->getRawValue('TAX_RATE')]['VALUE'] += $product->getRawValue('TAX_VALUE_SUM');
 					}
 				}
 				$currencyID = $this->getCurrencyId();
 				foreach($taxes as $tax)
 				{
-					$tax['VALUE'] = \CCrmCurrency::MoneyToString($tax['VALUE'], $currencyID);
+					$tax['VALUE'] = new Money($tax['VALUE'], ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true]);
 					$tax = new Tax($tax);
 					$tax->setParentProvider($this);
 					$this->taxes[] = $tax;
@@ -278,5 +345,25 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		return array_merge(parent::getHiddenFields(), [
 			'CURRENCY_ID',
 		]);
+	}
+
+	/**
+	 * @param string $placeholder
+	 * @return bool|mixed
+	 */
+	public function getSumWithoutWords($placeholder)
+	{
+		if(!is_string($placeholder) || empty($placeholder))
+		{
+			return false;
+		}
+		$shortPlaceholder = str_replace('_WORDS', '', $placeholder);
+		// prevent recursion
+		if($shortPlaceholder != $placeholder)
+		{
+			return $this->getRawValue($shortPlaceholder);
+		}
+
+		return false;
 	}
 }

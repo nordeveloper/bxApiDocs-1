@@ -4,99 +4,87 @@ namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\CompanyTable;
 use Bitrix\DocumentGenerator\Nameable;
-use Bitrix\Main\IO\Path;
 
 class Company extends CrmEntityDataProvider implements Nameable
 {
 	protected $bankDetailIds;
-	protected $multiFields;
 
 	public function getFields()
 	{
-		$fields = parent::getFields();
-		$fields['TYPE'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_COMPANY_TYPE_TITLE'),
-		];
-		$fields['INDUSTRY_TYPE'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_INDUSTRY_TYPE_TITLE'),
-		];
-		$fields['EMPLOYEES_NUM'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMPLOYEES_NUM_TITLE'),
-		];
-		$fields['EMAIL_HOME'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_HOME_TITLE'),
-		];
-		$fields['EMAIL_WORK'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_WORK_TITLE'),
-		];
-		$fields['PHONE_MOBILE'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_MOBILE_TITLE'),
-		];
-		$fields['PHONE_WORK'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_WORK_TITLE'),
-		];
-		$fields['IMOL'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_IMOL_TITLE'),
-		];
-		$fields['WEB'] = [
-			'VALUE' => function()
-			{
-				return $this->getWeb();
-			},
-			'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_COMPANY_WEB_TITLE'),
-		];
-
-		if($this->isMyCompany())
+		if($this->fields === null)
 		{
-			foreach($fields as $placeholder => $field)
+			parent::getFields();
+			$this->fields['TYPE'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_COMPANY_TYPE_TITLE'),
+			];
+			$this->fields['INDUSTRY_TYPE'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_INDUSTRY_TYPE_TITLE'),
+			];
+			$this->fields['EMPLOYEES_NUM'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMPLOYEES_NUM_TITLE'),
+			];
+			$this->fields['EMAIL_HOME'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_HOME_TITLE'),
+			];
+			$this->fields['EMAIL_WORK'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_WORK_TITLE'),
+			];
+			$this->fields['PHONE_MOBILE'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_MOBILE_TITLE'),
+			];
+			$this->fields['PHONE_WORK'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_WORK_TITLE'),
+			];
+			$this->fields['IMOL'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_IMOL_TITLE'),
+			];
+			$this->fields['WEB'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_COMPANY_WEB_TITLE'),
+				'VALUE' => [$this, 'getWeb'],
+			];
+			$this->fields['ADDRESS']['VALUE'] = [$this, 'getPrimaryAddress'];
+			$this->fields['ADDRESS_LEGAL']['VALUE'] = [$this, 'getRegisteredAddress'];
+			if($this->isMyCompany())
 			{
-				if(isset($this->getMyCompanyFields()[$placeholder]))
+				$myCompanyFields = $this->getMyCompanyFields();
+				foreach($this->fields as $placeholder => $field)
 				{
-					$fields[$placeholder] = array_merge($fields[$placeholder], $this->getMyCompanyFields()[$placeholder]);
+					if(isset($myCompanyFields[$placeholder]))
+					{
+						$this->fields[$placeholder] = array_merge($this->fields[$placeholder], $myCompanyFields[$placeholder]);
+					}
 				}
+				$this->fields['REQUISITE']['TITLE'] = GetMessage('CRM_DOCGEN_DATAPROVIDER_MY_COMPANY_REQUISITE_TITLE');
+				$this->fields['BANK_DETAIL']['TITLE'] = GetMessage('CRM_DOCGEN_DATAPROVIDER_MY_COMPANY_BANK_DETAIL_TITLE');
 			}
-			$fields['REQUISITE']['TITLE'] = GetMessage('CRM_DOCGEN_DATAPROVIDER_MY_COMPANY_REQUISITE_TITLE');
-			if(!is_array($fields['REQUISITE']['OPTIONS']))
+
+			if($this->isMyCompany() || isset($this->getOptions()['DISABLE_MY_COMPANY']))
 			{
-				$fields['REQUISITE']['OPTIONS'] = [];
+				unset($this->fields['MY_COMPANY']);
+				unset($this->fields['CLIENT_PHONE']);
+				unset($this->fields['CLIENT_EMAIL']);
+				unset($this->fields['CLIENT_WEB']);
 			}
-			$fields['REQUISITE']['OPTIONS'] = array_merge_recursive($fields['REQUISITE']['OPTIONS'], ['IS_MY_COMPANY' => 'Y']);
-			$fields['BANK_DETAIL']['TITLE'] = GetMessage('CRM_DOCGEN_DATAPROVIDER_MY_COMPANY_BANK_DETAIL_TITLE');
-			if(!is_array($fields['BANK_DETAIL']['OPTIONS']))
-			{
-				$fields['BANK_DETAIL']['OPTIONS'] = [];
-			}
-			$fields['BANK_DETAIL']['OPTIONS'] = array_merge_recursive($fields['BANK_DETAIL']['OPTIONS'], ['IS_MY_COMPANY' => 'Y']);
+
+			unset($this->fields['COMPANY']);
+			unset($this->fields['CONTACT']);
 		}
 
-		if($this->isMyCompany() || isset($this->getOptions()['DISABLE_MY_COMPANY']))
-		{
-			unset($fields['MY_COMPANY']);
-		}
-
-		unset($fields['COMPANY']);
-		unset($fields['CONTACT']);
-
-		return $fields;
+		return $this->fields;
 	}
 
-	/**
-	 * @param string $name
-	 * @return mixed
-	 */
-	public function getValue($name)
+	protected function fetchData()
 	{
-		$value = parent::getValue($name);
-
-		if($this->isMyCompany())
+		parent::fetchData();
+		// a hack to load address from requisites.
+		if($this->data['ADDRESS'] === '')
 		{
-			if(isset($this->getMyCompanyFields()[$name]) && $value > 0)
-			{
-				$value = \CFile::GetPath($value);
-			}
+			unset($this->data['ADDRESS']);
 		}
-
-		return $value;
+		if($this->data['ADDRESS_LEGAL'] === '')
+		{
+			unset($this->data['ADDRESS']);
+		}
 	}
 
 	/**
@@ -138,7 +126,7 @@ class Company extends CrmEntityDataProvider implements Nameable
 	/**
 	 * @return string
 	 */
-	protected function getWeb()
+	public function getWeb()
 	{
 		return $this->getMultiFields()['WEB'][0]['VALUE'];
 	}
@@ -241,22 +229,26 @@ class Company extends CrmEntityDataProvider implements Nameable
 	 */
 	protected function getMyCompanyFields()
 	{
-		$result = [];
-		$fields = \CCrmCompany::getMyCompanyAdditionalUserFields();
-		foreach($fields as $name => $field)
+		static $result = null;
+		if($result === null)
 		{
-			if($name == 'UF_LOGO')
+			$result = [];
+			$fields = \CCrmCompany::getMyCompanyAdditionalUserFields();
+			foreach($fields as $name => $field)
 			{
-				$type = static::FIELD_TYPE_IMAGE;
+				if($name == 'UF_LOGO')
+				{
+					$type = static::FIELD_TYPE_IMAGE;
+				}
+				else
+				{
+					$type = static::FIELD_TYPE_STAMP;
+				}
+				$result[$name] = [
+					'TITLE' => $field['EDIT_FORM_LABEL'][LANGUAGE_ID],
+					'TYPE' => $type,
+				];
 			}
-			else
-			{
-				$type = static::FIELD_TYPE_STAMP;
-			}
-			$result[$name] = [
-				'TITLE' => $field['EDIT_FORM_LABEL'][LANGUAGE_ID],
-				'TYPE' => $type,
-			];
 		}
 
 		return $result;
@@ -273,7 +265,7 @@ class Company extends CrmEntityDataProvider implements Nameable
 	/**
 	 * @return int|null
 	 */
-	protected function getCompanyId()
+	public function getCompanyId()
 	{
 		return $this->source;
 	}
@@ -281,7 +273,7 @@ class Company extends CrmEntityDataProvider implements Nameable
 	/**
 	 * @return int|null
 	 */
-	protected function getContactId()
+	public function getContactId()
 	{
 		return null;
 	}

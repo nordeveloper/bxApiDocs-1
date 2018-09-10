@@ -708,8 +708,18 @@ class ActivityController extends EntityController
 	}
 	protected static function resolveAuthorID(array $fields)
 	{
+
 		$authorID = 0;
-		if(isset($fields['EDITOR_ID']))
+		if(isset($fields['PROVIDER_ID'])
+			&& $fields['PROVIDER_ID'] === Activity\Provider\OpenLine::getId()
+			&& isset($fields['RESPONSIBLE_ID'])
+		)
+		{
+			//HACK: OpenLine provider may not supply EDITOR_ID and AUTHOR_ID.
+			$authorID = (int)$fields['RESPONSIBLE_ID'];
+		}
+
+		if($authorID <= 0 && isset($fields['EDITOR_ID']))
 		{
 			$authorID = (int)$fields['EDITOR_ID'];
 		}

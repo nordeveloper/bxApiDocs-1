@@ -3,6 +3,8 @@ include(GetLangFileName(dirname(__FILE__)."/", "/cash.php"));
 
 $psTitle = GetMessage("SCSP_DTITLE");
 $psDescription = GetMessage("SCSP_DDESCR");
+$psDomain = \Bitrix\Sale\PaySystem\Manager::HANDLER_DOMAIN_NONE;
 
 $arPSCorrespondence = array();
+
 ?>

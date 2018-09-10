@@ -424,8 +424,8 @@ class CSaleOrderProps
 			'PERSON_TYPE_NAME'     => 'PERSON_TYPE.NAME',
 			'PERSON_TYPE_SORT'     => 'PERSON_TYPE.SORT',
 			'PERSON_TYPE_ACTIVE'   => 'PERSON_TYPE.ACTIVE',
-			'PAYSYSTEM_ID'         => 'Bitrix\Sale\Internals\OrderPropsRelationTable:lPROPERTY.PROPERTY_ID',
-			'DELIVERY_ID'          => 'Bitrix\Sale\Internals\OrderPropsRelationTable:lPROPERTY.PROPERTY_ID',
+			'PAYSYSTEM_ID'         => 'Bitrix\Sale\Internals\OrderPropsRelationTable:lPROPERTY.ENTITY_ID',
+			'DELIVERY_ID'          => 'Bitrix\Sale\Internals\OrderPropsRelationTable:lPROPERTY.ENTITY_ID',
 		));
 
 		// relations

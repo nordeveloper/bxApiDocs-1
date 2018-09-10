@@ -223,10 +223,18 @@ class Form
 			$this->params['PRESET_FIELDS'][] = $presetField;
 		}
 
-		$this->params['FIELDS'] = FieldTable::getList(array(
+		$fieldResult = FieldTable::getList(array(
 			'filter' => array('=FORM_ID' => $id),
 			'order' => array('SORT' => 'ASC', 'CAPTION')
-		))->fetchAll();
+		));
+		$fieldResult->addFetchDataModifier(
+			function ($data)
+			{
+				$data['ITEMS'] = is_array($data['ITEMS']) ? $data['ITEMS'] : [];
+				return $data;
+			}
+		);
+		$this->params['FIELDS'] = $fieldResult->fetchAll();
 
 
 		$this->params['DEPENDENCIES'] = Internals\FieldDependenceTable::getList(array(

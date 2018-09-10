@@ -1,0 +1,32 @@
+<?
+$MESS["SALE_HPS_BILL_BR_LOGO"] = "Логотип компанії-постачальника (рекомендовані розміри 80x80px)";
+$MESS["SALE_HPS_BILL_BR_LOGO_DESC"] = "Логотип компанії-постачальника";
+$MESS["SALE_HPS_BILL_BR_DIR_SIGN_SUPPLI"] = "Підпис генерального директора (рекомендовані розміри 200x50px)";
+$MESS["SALE_HPS_BILL_BR_DIR_SIGN_SUPPLI_DESC"] = "Зображення підпису генерального директора";
+$MESS["SALE_HPS_BILL_BR_ACC_SIGN_SUPPLI"] = "Підпис головного бухгалтера (рекомендовані розміри 200x50px)";
+$MESS["SALE_HPS_BILL_BR_ACC_SIGN_SUPPLI_DESC"] = "Зображення підпису головного бухгалтера";
+$MESS["SALE_HPS_BILL_BR_BACKGROUND"] = "Фон (рекомендовані розміри 800x1120px)";
+$MESS["SALE_HPS_BILL_BR_BACKGROUND_DESC"] = "Зображення фону для рахунку";
+$MESS["SALE_HPS_BILL_BR_BACKGROUND_STYLE"] = "Стиль відображення фону";
+$MESS["SALE_HPS_BILL_BR_BACKGROUND_STYLE_NONE"] = "Як є";
+$MESS["SALE_HPS_BILL_BR_BACKGROUND_STYLE_TILE"] = "Замостити";
+$MESS["SALE_HPS_BILL_BR_BACKGROUND_STYLE_STRETCH"] = "Розтягнути";
+$MESS["SALE_HPS_BILL_BR_MARGIN_TOP"] = "Відступ зверху сторінки (мм)";
+$MESS["SALE_HPS_BILL_BR_MARGIN_RIGHT"] = "Правий відступ сторінки (мм)";
+$MESS["SALE_HPS_BILL_BR_MARGIN_BOTTOM"] = "Відступ знизу сторінки (мм)";
+$MESS["SALE_HPS_BILL_BR_MARGIN_LEFT"] = "Лівий відступ сторінки (мм)";
+$MESS["SALE_HPS_BILL_BR_COMMENT1"] = "Коментар до рахунку 1";
+$MESS["SALE_HPS_BILL_BR_COMMENT2"] = "Коментар до рахунку 2";
+$MESS["SALE_HPS_BILL_BR_LOGO_DPI"] = "Масштаб логотипу";
+$MESS["SALE_HPS_BILL_BR_LOGO_DPI_72"] = "133% (72 dpi)";
+$MESS["SALE_HPS_BILL_BR_LOGO_DPI_96"] = "100% (96 dpi)";
+$MESS["SALE_HPS_BILL_BR_LOGO_DPI_150"] = "64% (150 dpi)";
+$MESS["SALE_HPS_BILL_BR_LOGO_DPI_300"] = "32% (300 dpi)";
+$MESS["SALE_HPS_BILL_BR_LOGO_DPI_600"] = "16% (600 dpi)";
+$MESS["SALE_HPS_BILL_BR_TOTAL_SHOW"] = "Показувати підсумкову інформацію";
+$MESS["SALE_HPS_BILL_BR_HEADER"] = "Заголовок рахунку";
+$MESS["SALE_HPS_BILL_BR_PAYER_SHOW"] = "Показувати інформацію про платника";
+$MESS["SALE_HPS_BILL_BR_COLUMN_TITLE"] = "Заголовок для колонки";
+$MESS["SALE_HPS_BILL_BR_COLUMN_SORT"] = "Сортування";
+$MESS["SALE_HPS_BILL_BR_COLUMN_SHOW"] = "Активність";
+?>

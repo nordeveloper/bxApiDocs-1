@@ -3,6 +3,9 @@ namespace Bitrix\Socialnetwork\Livefeed;
 
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
+use Bitrix\Main\Localization\Loc;
+
+Loc::loadMessages(__FILE__);
 
 final class TimemanReport extends Provider
 {
@@ -39,12 +42,29 @@ final class TimemanReport extends Provider
 			&& Loader::includeModule('timeman')
 		)
 		{
-			$res = \CTimeManReport::getById(intval($timemanReportId));
+			$res = \CTimeManReportFull::getById(intval($timemanReportId));
 			if ($timemanReport = $res->fetch())
 			{
 				$this->setSourceFields($timemanReport);
+
+				$userName = '';
+				$res = \CUser::getById($timemanReport["USER_ID"]);
+				if ($userFields = $res->fetch())
+				{
+					$userName = \CUser::formatName(
+						\CSite::getNameFormat(),
+						$userFields,
+						true,
+						false
+					);
+				}
+
+				$this->setSourceTitle(Loc::getMessage('SONET_LIVEFEED_TIMEMAN_REPORT_TITLE', array(
+					'#USER_NAME#' => $userName,
+					'#DATE#' => FormatDate('j F', MakeTimeStamp($timemanReport['DATE_FROM']))." - ".FormatDate('j F', MakeTimeStamp($timemanReport['DATE_TO']))
+				)));
+
 //				$this->setSourceDescription();
-//				$this->setSourceTitle();
 			}
 		}
 	}
@@ -60,7 +80,7 @@ final class TimemanReport extends Provider
 
 		return $result;
 	}
-
+/*
 	public function getLiveFeedUrl()
 	{
 		$pathToTimemanReport = '';
@@ -73,5 +93,22 @@ final class TimemanReport extends Provider
 		}
 
 		return $pathToTimemanReport;
+	}
+*/
+	public function getLiveFeedUrl()
+	{
+		$pathToLogEntry = '';
+
+		$logId = $this->getLogId();
+		if ($logId)
+		{
+			$pathToLogEntry = Option::get('socialnetwork', 'log_entry_page', '', $this->getSiteId());
+			if (!empty($pathToLogEntry))
+			{
+				$pathToLogEntry = \CComponentEngine::makePathFromTemplate($pathToLogEntry, array("log_id" => $logId));
+//				$pathToLogEntry .= (strpos($pathToLogEntry, '?') === false ? '?' : '&').'commentId='.$this->getEntityId().'#com'.$this->getEntityId();
+			}
+		}
+		return $pathToLogEntry;
 	}
 }

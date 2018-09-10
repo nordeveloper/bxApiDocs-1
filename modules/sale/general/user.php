@@ -195,6 +195,7 @@ class CAllSaleUserAccount
 					"CURRENT_BUDGET" => 0.0,
 					"CURRENCY" => $payCurrency,
 					"LOCKED" => "Y",
+					"=TIMESTAMP_X" => $DB->GetNowFunction(),
 					"=DATE_LOCKED" => $DB->GetNowFunction()
 				);
 			if (CSaleUserAccount::Add($arFields))
@@ -625,6 +626,7 @@ class CAllSaleUserAccount
 		{
 			$currentBudget = floatval($arUserAccount["CURRENT_BUDGET"]);
 			$arFields = array(
+					"=TIMESTAMP_X" => $DB->GetNowFunction(),
 					"CURRENT_BUDGET" => $arUserAccount["CURRENT_BUDGET"] + $sum
 				);
 
@@ -643,6 +645,7 @@ class CAllSaleUserAccount
 					"CURRENT_BUDGET" => $sum,
 					"CURRENCY" => $currency,
 					"LOCKED" => "Y",
+					"=TIMESTAMP_X" => $DB->GetNowFunction(),
 					"=DATE_LOCKED" => $DB->GetNowFunction()
 				);
 

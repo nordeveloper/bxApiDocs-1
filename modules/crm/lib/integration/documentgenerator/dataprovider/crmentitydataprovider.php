@@ -4,6 +4,9 @@ namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\EntityBankDetail;
 use Bitrix\Crm\EntityRequisite;
+use Bitrix\Crm\Format\PersonNameFormatter;
+use Bitrix\Crm\Integration\DocumentGenerator\Value\Money;
+use Bitrix\Crm\Integration\DocumentGeneratorManager;
 use Bitrix\Crm\Timeline\DocumentController;
 use Bitrix\Crm\Timeline\DocumentEntry;
 use Bitrix\DocumentGenerator\DataProvider;
@@ -23,6 +26,8 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	protected $linkData;
 	protected $requisiteIds;
 	protected $bankDetailIds;
+	protected $crmUserTypeManager;
+	protected $userFieldDescriptions = [];
 
 	abstract public function getCrmOwnerType();
 
@@ -74,95 +79,100 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	 */
 	public function getFields()
 	{
-		$fields = parent::getFields();
+		if($this->fields === null)
+		{
+			$fields = parent::getFields();
 
-		$fields['MY_COMPANY'] = [
-			'PROVIDER' => Company::class,
-			'VALUE' => function()
-			{
-				return $this->getMyCompanyId();
-			},
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_MY_COMPANY_TITLE'),
-			'OPTIONS' => [
-				'MY_COMPANY' => 'Y',
-				'VALUES' => [
-					'REQUISITE' => $this->getMyCompanyRequisiteId(),
-					'BANK_DETAIL' => $this->getMyCompanyBankDetailId(),
-				]
-			],
-		];
-
-		$fields['REQUISITE'] = [
-			'PROVIDER' => Requisite::class,
-			'VALUE' => function()
-			{
-				return $this->getRequisiteId();
-			},
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CUSTOMER_REQUISITE_TITLE'),
-		];
-		$fields['BANK_DETAIL'] = [
-			'PROVIDER' => BankDetail::class,
-			'VALUE' => function()
-			{
-				return $this->getBankDetailId();
-			},
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_BANK_DETAIL_TITLE'),
-		];
-
-		$fields['COMPANY'] = [
-			'PROVIDER' => Company::class,
-			'VALUE' => function()
-			{
-				return $this->getCompanyId();
-			},
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_COMPANY_TITLE'),
-			'OPTIONS' => [
-				'DISABLE_MY_COMPANY' => true,
-				'VALUES' => [
-					'REQUISITE' => $this->getRequisiteId(),
-					'BANK_DETAIL' => $this->getBankDetailId(),
+			$fields['MY_COMPANY'] = [
+				'PROVIDER' => Company::class,
+				'VALUE' => [$this, 'getMyCompanyId'],
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_MY_COMPANY_TITLE'),
+				'OPTIONS' => [
+					'MY_COMPANY' => 'Y',
+					'VALUES' => [
+						'REQUISITE' => $this->getMyCompanyRequisiteId(),
+						'BANK_DETAIL' => $this->getMyCompanyBankDetailId(),
+					]
 				],
-			]
-		];
-		$fields['CONTACT'] = [
-			'PROVIDER' => Contact::class,
-			'VALUE' => function()
-			{
-				return $this->getContactId();
-			},
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CONTACT_TITLE'),
-			'OPTIONS' => [
-				'DISABLE_MY_COMPANY' => true,
-			],
-		];
+			];
 
-		$fields['ASSIGNED'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_ASSIGNED_TITLE'),
-			'VALUE' => function()
-			{
-				return $this->data['ASSIGNED_BY_ID'];
-			},
-			'PROVIDER' => User::class,
-		];
+			$fields['REQUISITE'] = [
+				'PROVIDER' => Requisite::class,
+				'VALUE' => [$this, 'getRequisiteId'],
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CUSTOMER_REQUISITE_TITLE'),
+			];
+			$fields['BANK_DETAIL'] = [
+				'PROVIDER' => BankDetail::class,
+				'VALUE' => [$this, 'getBankDetailId'],
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_BANK_DETAIL_TITLE'),
+			];
 
-		$fields['CLIENT_PHONE'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CLIENT_PHONE_TITLE'),
-			'VALUE' => function()
+			$fields['COMPANY'] = [
+				'PROVIDER' => Company::class,
+				'VALUE' => [$this, 'getCompanyId'],
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_COMPANY_TITLE'),
+				'OPTIONS' => [
+					'DISABLE_MY_COMPANY' => true,
+					'VALUES' => [
+						'REQUISITE' => $this->getRequisiteId(),
+						'BANK_DETAIL' => $this->getBankDetailId(),
+					],
+				]
+			];
+			$fields['CONTACT'] = [
+				'PROVIDER' => Contact::class,
+				'VALUE' => [$this, 'getContactId'],
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CONTACT_TITLE'),
+				'OPTIONS' => [
+					'DISABLE_MY_COMPANY' => true,
+				],
+			];
+
+			$fields['ASSIGNED'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_ASSIGNED_TITLE'),
+				'VALUE' => [$this, 'getAssignedId'],
+				'PROVIDER' => User::class,
+				'OPTIONS' => [
+					'FORMATTED_NAME_FORMAT' => [
+						'format' => $this->getNameFormat(),
+					]
+				]
+			];
+
+			$fields['CLIENT_PHONE'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CLIENT_PHONE_TITLE'),
+				'VALUE' => [$this, 'getClientPhone'],
+			];
+			$fields['CLIENT_EMAIL'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CLIENT_EMAIL_TITLE'),
+				'VALUE' => [$this, 'getClientEmail'],
+			];
+			$fields['CLIENT_WEB'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CLIENT_WEB_TITLE'),
+				'VALUE' => [$this, 'getClientWeb'],
+			];
+
+			$this->fields = $fields;
+			$fields = $this->getUserFields();
+			$this->fields = array_merge($this->fields, $fields);
+			foreach($this->fields as $placeholder => $field)
 			{
-				return $this->getClientPhone();
+				if(substr($placeholder, 0, 3) == 'UF_')
+				{
+					if(substr($placeholder, -7) == '_SINGLE')
+					{
+						unset($this->fields[$placeholder]);
+					}
+					else
+					{
+						$this->userFieldDescriptions[$placeholder] = $this->fields[$placeholder]['DESCRIPTION'];
+						unset($this->fields[$placeholder]['DESCRIPTION']);
+					}
+				}
 			}
-		];
-		$fields['CLIENT_EMAIL'] = [
-			'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_CLIENT_EMAIL_TITLE'),
-			'VALUE' => function()
-			{
-				return $this->getClientEmail();
-			}
-		];
+		}
 
-		$fields = array_merge($fields, $this->getUserFields());
-
-		return $fields;
+		return $this->fields;
 	}
 
 	/**
@@ -172,22 +182,164 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	{
 		$result = [];
 
+		if($this->isLightMode())
+		{
+			return $result;
+		}
+
 		$manager = $this->getCrmUserTypeManager();
 		if(!$manager)
 		{
 			return $result;
 		}
 
+		$crmOwnerTypeProvidersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
+		$enumerationFields = [];
 		$fields = $manager->GetEntityFields($this->getSource());
 		foreach($fields as $code => $field)
 		{
+			if(!isset($this->getAvailableUserFieldTypes()[$field['USER_TYPE_ID']]))
+			{
+				if(isset($this->fields[$code]))
+				{
+					unset($this->fields[$code]);
+				}
+				continue;
+			}
 			$result[$code] = [
 				'TITLE' => $field['EDIT_FORM_LABEL'],
-				'VALUE' => $field['VALUE'],
+				'VALUE' => [$this, 'getUserFieldValue'],
+				'DESCRIPTION' => $field,
 			];
+			if($field['USER_TYPE_ID'] == 'file')
+			{
+				$result[$code]['TYPE'] = DataProvider::FIELD_TYPE_IMAGE;
+			}
+			elseif($field['USER_TYPE_ID'] == 'enumeration')
+			{
+				$enumerationFields[] = $field;
+			}
+			elseif($field['USER_TYPE_ID'] == 'employee')
+			{
+				$result[$code]['PROVIDER'] = User::class;
+			}
+			elseif($field['USER_TYPE_ID'] == 'crm')
+			{
+				$provider = null;
+				$entityTypes = [];
+				if($field['SETTINGS']['LEAD'] == 'Y')
+				{
+					$entityTypes[] = \CCrmOwnerType::Lead;
+				}
+				if($field['SETTINGS']['CONTACT'] == 'Y')
+				{
+					$entityTypes[] = \CCrmOwnerType::Contact;
+				}
+				if($field['SETTINGS']['COMPANY'] == 'Y')
+				{
+					$entityTypes[] = \CCrmOwnerType::Company;
+				}
+				if($field['SETTINGS']['DEAL'] == 'Y')
+				{
+					$entityTypes[] = \CCrmOwnerType::Deal;
+				}
+				$isCrmPrefix = (count($entityTypes) > 1);
+				if($isCrmPrefix || !is_numeric($field['VALUE']))
+				{
+					$parts = explode('_', $field['VALUE']);
+					$field['VALUE'] = $parts[1];
+					$ownerTypeId = \CCrmOwnerType::ResolveID($parts[0]);
+				}
+				else
+				{
+					$ownerTypeId = $entityTypes[0];
+				}
+				if($ownerTypeId > 0)
+				{
+					if(isset($crmOwnerTypeProvidersMap[$ownerTypeId]))
+					{
+						$provider = $crmOwnerTypeProvidersMap[$ownerTypeId];
+					}
+				}
+				if($provider)
+				{
+					$result[$code]['PROVIDER'] = $provider;
+					$result[$code]['OPTIONS']['isLightMode'] = true;
+					$result[$code]['DESCRIPTION'] = $field;
+				}
+			}
+		}
+
+		$enumInfos = \CCrmUserType::PrepareEnumerationInfos($enumerationFields);
+		foreach($enumInfos as $placeholder => $data)
+		{
+			foreach($data as $enum)
+			{
+				$result[$placeholder]['DESCRIPTION']['DATA'][$enum['ID']] = $enum['VALUE'];
+			}
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @param string $placeholder
+	 * @return null
+	 */
+	public function getUserFieldValue($placeholder = null)
+	{
+		$value = null;
+		if(!$placeholder || !isset($this->fields[$placeholder]))
+		{
+			return $value;
+		}
+		$field = $this->userFieldDescriptions[$placeholder];
+
+		$value = $field['VALUE'];
+		if(!$value)
+		{
+			return $value;
+		}
+		if($field['USER_TYPE_ID'] == 'file')
+		{
+			if(is_array($value))
+			{
+				$value = null;
+			}
+			else
+			{
+				$value = \CFile::GetPath($value);
+			}
+		}
+		elseif($field['USER_TYPE_ID'] == 'enumeration')
+		{
+			if(!isset($field['DATA']))
+			{
+				$value = null;
+			}
+			elseif(is_array($value))
+			{
+				$items = [];
+				foreach($value as $item)
+				{
+					$items[] = $field['DATA'][$item];
+				}
+				$value = implode(', ', $items);
+			}
+			else
+			{
+				$value = $field['DATA'][$value];
+			}
+		}
+		elseif($field['USER_TYPE_ID'] == 'money')
+		{
+			$parts = explode('|', $field['VALUE']);
+			$value = $parts[0];
+			$currency = $parts[1];
+			$value = new Money($value, ['CURRENCY_ID' => $currency]);
+		}
+
+		return $value;
 	}
 
 	/**
@@ -195,8 +347,13 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	 */
 	protected function getCrmUserTypeManager()
 	{
-		global $USER_FIELD_MANAGER;
-		return new \CCrmUserType($USER_FIELD_MANAGER, $this->getUserFieldEntityID());
+		if($this->crmUserTypeManager === null)
+		{
+			global $USER_FIELD_MANAGER;
+			$this->crmUserTypeManager = new \CCrmUserType($USER_FIELD_MANAGER, $this->getUserFieldEntityID());
+		}
+
+		return $this->crmUserTypeManager;
 	}
 
 	/**
@@ -212,6 +369,26 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 		}
 
 		return $this->linkData;
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getAvailableUserFieldTypes()
+	{
+		return [
+			'string' => 'string',
+			'enumeration' => 'enumeration',
+			'file' => 'file',
+			'url' => 'url',
+			'date' => 'date',
+			'datetime' => 'datetime',
+			'money' => 'money',
+			//'boolean' => 'boolean',
+			'double' => 'double',
+			'crm' => 'crm',
+			'employee' => 'employee',
+		];
 	}
 
 	/**
@@ -379,7 +556,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	/**
 	 * @return int|array
 	 */
-	protected function getRequisiteId()
+	public function getRequisiteId()
 	{
 		if($this->requisiteIds === null)
 		{
@@ -457,7 +634,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	/**
 	 * @return int
 	 */
-	protected function getBankDetailId()
+	public function getBankDetailId()
 	{
 		if($this->bankDetailIds === null)
 		{
@@ -523,7 +700,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	/**
 	 * @return int|array
 	 */
-	protected function getMyCompanyId()
+	public function getMyCompanyId()
 	{
 		$defaultMyCompanyId = $this->getLinkData()['MYCOMPANY_ID'];
 		if(!$defaultMyCompanyId)
@@ -567,7 +744,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	/**
 	 * @return int|null
 	 */
-	protected function getCompanyId()
+	public function getCompanyId()
 	{
 		if(isset($this->data['COMPANY_ID']) && $this->data['COMPANY_ID'] > 0)
 		{
@@ -580,7 +757,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	/**
 	 * @return int|null
 	 */
-	protected function getContactId()
+	public function getContactId()
 	{
 		if(isset($this->data['CONTACT_ID']) && $this->data['CONTACT_ID'] > 0)
 		{
@@ -629,7 +806,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	/**
 	 * @return string|null
 	 */
-	protected function getClientPhone()
+	public function getClientPhone()
 	{
 		return $this->getMultiFields()['PHONE'][0]['VALUE'];
 	}
@@ -637,9 +814,25 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	/**
 	 * @return string|null
 	 */
-	protected function getClientEmail()
+	public function getClientEmail()
 	{
 		return $this->getMultiFields()['EMAIL'][0]['VALUE'];
+	}
+
+	/**
+	 * @return string|null
+	 */
+	public function getClientWeb()
+	{
+		return $this->getMultiFields()['WEB'][0]['VALUE'];
+	}
+
+	/**
+	 * @return int|string
+	 */
+	public function getAssignedId()
+	{
+		return $this->data['ASSIGNED_BY_ID'];
 	}
 
 	/**
@@ -704,16 +897,109 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	}
 
 	/**
+	 * @param bool $singleOnly
 	 * @return bool|string
 	 */
-	protected function getMyCompanyEditUrl()
+	public function getMyCompanyEditUrl($singleOnly = true)
 	{
-		$myCompanyId = DataProviderManager::getInstance()->getValueFromList($this->getMyCompanyId());
-		if($myCompanyId > 0)
+		$siteDir = rtrim(SITE_DIR, '/');
+		if($singleOnly)
 		{
-			return '/crm/configs/mycompany/edit/'.$myCompanyId.'/';
+			$myCompanyId = DataProviderManager::getInstance()->getValueFromList($this->getMyCompanyId());
+			if($myCompanyId > 0)
+			{
+				return $siteDir.'/crm/configs/mycompany/edit/'.$myCompanyId.'/';
+			}
+			else
+			{
+				return false;
+			}
+		}
+		else
+		{
+			$myCompanyId = $this->getMyCompanyId();
+			if(is_array($myCompanyId))
+			{
+				return $siteDir.'/crm/configs/mycompany/';
+			}
+			elseif($myCompanyId > 0)
+			{
+				return $siteDir.'/crm/configs/mycompany/edit/'.$myCompanyId.'/';
+			}
+			else
+			{
+				return $siteDir.'/crm/company/details/0/?mycompany=y';
+			}
+		}
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getPrimaryAddress()
+	{
+		return $this->getAddressFromRequisite($this->fields['REQUISITE'], 'PRIMARY_ADDRESS');
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getRegisteredAddress()
+	{
+		return $this->getAddressFromRequisite($this->fields['REQUISITE'], 'REGISTERED_ADDRESS');
+	}
+
+	/**
+	 * @internal
+	 * @param array $requisiteFieldDescription
+	 * @param string $placeholder
+	 * @return string
+	 */
+	protected function getAddressFromRequisite(array $requisiteFieldDescription, $placeholder)
+	{
+		$address = '';
+		$requisites = $this->getValue('REQUISITE');
+		if(!$requisites instanceof Requisite)
+		{
+			$requisites = DataProviderManager::getInstance()->getValueFromList($requisites);
+			$requisites = DataProviderManager::getInstance()->createDataProvider($requisiteFieldDescription, $requisites, $this->getParentProvider(), 'REQUISITE');
+		}
+		if($requisites instanceof Requisite)
+		{
+			$data = DataProviderManager::getInstance()->getArray($requisites);
+			if(isset($data[$placeholder]) && is_array($data[$placeholder]) && isset($data[$placeholder]['TEXT']) && !empty($data[$placeholder]['TEXT']))
+			{
+				$address = $data[$placeholder]['TEXT'];
+			}
 		}
 
-		return false;
+		return $address;
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getHiddenFields()
+	{
+		return array_merge(parent::getHiddenFields(), [
+			'UTS_OBJECT',
+		]);
+	}
+
+	/**
+	 * @return string
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 */
+	protected function getNameFormat()
+	{
+		$formatId = PersonNameFormatter::getFormatID();
+		if($formatId == PersonNameFormatter::Dflt)
+		{
+			return DataProviderManager::getInstance()->getCulture()->getNameFormat();
+		}
+		else
+		{
+			return PersonNameFormatter::getFormatByID($formatId);
+		}
 	}
 }

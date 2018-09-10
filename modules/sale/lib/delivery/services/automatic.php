@@ -760,7 +760,7 @@ class Automatic extends Base
 	{
 		static $result = array();
 		$oldOrder = self::convertNewOrderToOld($shipment);
-		$hitCacheId = $this->sid.'_'.$profileId.'_'.md5(serialize($profileConfig)).'_'.md5(serialize($oldOrder));
+		$hitCacheId = $this->id.'_'.$profileId.'_'.md5(serialize($profileConfig)).'_'.md5(serialize($oldOrder));
 
 		if(isset($result[$hitCacheId]))
 			return clone $result[$hitCacheId];
@@ -864,7 +864,7 @@ class Automatic extends Base
 		$price = $calcRes->getPrice();
 
 		$calcRes->setDeliveryPrice(
-			$price + $this->getMarginPrice($price)
+			$price + $this->getMarginPrice($price, $shipmentCurrency)
 		);
 
 		$result[$hitCacheId] = $calcRes;
@@ -883,12 +883,28 @@ class Automatic extends Base
 		return $this->config;
 	}
 
-	protected function getMarginPrice($price)
+	protected function getMarginPrice($price, $shipmentCurrency = '')
 	{
 		if($this->config["MAIN"]["MARGIN_TYPE"] == "%")
+		{
 			$marginPrice = $price * floatval($this->config["MAIN"]["MARGIN_VALUE"]) / 100;
+		}
 		else
+		{
 			$marginPrice = floatval($this->config["MAIN"]["MARGIN_VALUE"]);
+
+			if($marginPrice && $shipmentCurrency != '' && $this->currency != $shipmentCurrency)
+			{
+				if(Loader::includeModule('currency'))
+				{
+					$marginPrice = \CCurrencyRates::convertCurrency(
+						$marginPrice,
+						$this->currency,
+						$shipmentCurrency
+					);
+				}
+			}
+		}
 
 		return $marginPrice;
 	}

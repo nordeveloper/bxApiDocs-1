@@ -1,6 +1,7 @@
 <?php
 namespace Bitrix\Crm\Settings;
 use Bitrix\Main;
+use Bitrix\Crm;
 class LayoutSettings
 {
 	/** @var LayoutSettings */
@@ -12,12 +13,18 @@ class LayoutSettings
 	private $enableSimpleTimeFormat = null;
 	/** @var BooleanSetting */
 	private $enableUserNameSorting = null;
+	/** @var IntegerSetting */
+	private $clientLayoutType = null;
 
 	function __construct()
 	{
 		$this->enableSlider = new BooleanSetting('enable_slider', false);
 		$this->enableSimpleTimeFormat = new BooleanSetting('enable_simple_time_format', true);
 		$this->enableUserNameSorting = new BooleanSetting('enable_user_name_sorting', false);
+		$this->clientLayoutType = new IntegerSetting(
+			'client_layout_type',
+			Crm\Layout\ClientLayoutType::CONTACT_COMPANY
+		);
 	}
 	/**
 	 * Get current instance
@@ -81,5 +88,22 @@ class LayoutSettings
 	public function enableUserNameSorting($enabled)
 	{
 		$this->enableUserNameSorting->set($enabled);
+	}
+	/**
+	 * Get client layout type
+	 * @return int
+	 */
+	public function getClientLayoutType()
+	{
+		return $this->clientLayoutType->get();
+	}
+	/**
+	 * Set client layout type
+	 * @param int $layoutType Layout type (see \Bitrix\Crm\Layout\ClientLayoutType).
+	 * @return void
+	 */
+	public function setClientLayoutType($layoutType)
+	{
+		$this->clientLayoutType->set($layoutType);
 	}
 }

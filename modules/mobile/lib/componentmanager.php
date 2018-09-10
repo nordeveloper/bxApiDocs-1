@@ -17,13 +17,23 @@ class ComponentManager
 	{
 		$componentFolder = new Directory(Application::getDocumentRoot() . self::$componentPath . $componentName);
 		$versionFile = new File($componentFolder->getPath()."/version.php");
+		$componentFile = new File($componentFolder->getPath()."/component.js");
+		$componentPhpFile = new File($componentFolder->getPath()."/component.php");
+		$version = 1;
 		if($versionFile->isExists())
 		{
 			$versionDesc = include($versionFile->getPath());
-			return $versionDesc["version"];
+			$version = $versionDesc["version"];
 		}
 
-		return 1;
+		if($componentFile->isExists())
+			$version .="_".$componentFile->getModificationTime();
+
+		if($componentPhpFile->isExists())
+			$version .="_".$componentPhpFile->getModificationTime();
+
+
+		return $version;
 	}
 
 	public static function getComponentPath($componentName)

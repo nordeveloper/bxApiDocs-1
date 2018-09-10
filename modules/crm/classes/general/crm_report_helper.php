@@ -168,17 +168,40 @@ abstract class CCrmReportHelperBase extends CReportHelper
 
 						if (($dbType === 'ORACLE' || $dbType === 'MSSQL') && $field['MULTIPLE'] === 'Y')
 							self::$ufInfo[$ufId][$field['FIELD_NAME'] . self::UF_TEXT_TRIM_POSTFIX] = $field;
+					}
+				}
+			}
+		}
+	}
 
-						if ($field['USER_TYPE_ID'] === 'enumeration'
-							&& isset($field['USER_TYPE']) && is_array($field['USER_TYPE'])
-							&& isset($field['USER_TYPE']['CLASS_NAME']) && !empty($field['USER_TYPE']['CLASS_NAME'])
-							&& is_callable(array($field['USER_TYPE']['CLASS_NAME'], 'GetList')))
+	protected static function prepareUFEnumerations($usedUFMap = null)
+	{
+		$ufInfo = static::getUFInfo();
+
+		if ($usedUFMap !== null && !is_array($usedUFMap))
+		{
+			$usedUFMap = array();
+		}
+
+		if (is_array($ufInfo))
+		{
+			foreach ($ufInfo as $entityId => $fieldList)
+			{
+				foreach ($fieldList as $field)
+				{
+					if (is_array($field) && isset($field['USER_TYPE_ID']) && $field['USER_TYPE_ID'] === 'enumeration'
+						&& isset($field['ENTITY_ID']) && strlen(strval($field['ENTITY_ID'])) > 0
+						&& !isset(self::$ufEnumerations[$field['ENTITY_ID']][$field['FIELD_NAME']])
+						&& ($usedUFMap === null || isset($usedUFMap[$field['ENTITY_ID']][$field['FIELD_NAME']]))
+						&& is_array($field['USER_TYPE']) && isset($field['USER_TYPE']['CLASS_NAME'])
+						&& !empty($field['USER_TYPE']['CLASS_NAME'])
+						&& is_callable(array($field['USER_TYPE']['CLASS_NAME'], 'GetList')))
+					{
+						self::$ufEnumerations[$field['ENTITY_ID']][$field['FIELD_NAME']] = array();
+						$rsEnum = call_user_func_array(array($field['USER_TYPE']['CLASS_NAME'], 'GetList'), array($field));
+						while($ar = $rsEnum->Fetch())
 						{
-							self::$ufEnumerations[$ufId][$field['FIELD_NAME']] = array();
-							$rsEnum = call_user_func_array(array($field['USER_TYPE']['CLASS_NAME'], 'GetList'), array($field));
-							while($ar = $rsEnum->GetNext())
-								self::$ufEnumerations[$ufId][$field['FIELD_NAME']][$ar['ID']] = $ar;
-							unset($rsEnum, $ar);
+							self::$ufEnumerations[$field['ENTITY_ID']][$field['FIELD_NAME']][$ar['ID']] = $ar;
 						}
 					}
 				}
@@ -665,11 +688,26 @@ abstract class CCrmReportHelperBase extends CReportHelper
 		}
 		return $paySystemList;
 	}
-	protected static function getInvoicePaySystemName($code, $personTypeId, $htmlEncode = false)
+	protected static function getInvoicePaySystemName($code, $personTypeId = 0, $htmlEncode = false)
 	{
 		self::ensurePaySystemsLoaded();
-		$arPaySystem = isset(self::$PAY_SYSTEMS[$personTypeId]) ? self::$PAY_SYSTEMS[$personTypeId] : null;
-		$name = (is_array($arPaySystem) && isset($arPaySystem[$code]) && strlen($arPaySystem[$code]) > 0) ? $arPaySystem[$code] : $code;
+
+		$personTypeId = (int)$personTypeId;
+		$name = '';
+		foreach (self::$PAY_SYSTEMS as $key => $paySystems)
+		{
+			if ($personTypeId > 0 && $personTypeId !== $key)
+			{
+				continue;
+			}
+
+			if (isset($paySystems[$code]))
+			{
+				$name = (strlen($paySystems[$code]) > 0) ? $paySystems[$code] : $code;
+				break;
+			}
+		}
+
 		return $htmlEncode ? htmlspecialcharsbx($name) : $name;
 	}
 	protected static function ensurePersonTypesLoaded()
@@ -1713,7 +1751,7 @@ class CCrmInvoiceReportHelper extends CCrmReportHelperBase
 		if (is_array(self::$arUFId))
 			return;
 
-		self::$arUFId = array('ORDER');
+		self::$arUFId = array('CRM_INVOICE');
 		parent::prepareUFInfo();
 	}
 
@@ -1801,10 +1839,10 @@ class CCrmInvoiceReportHelper extends CCrmReportHelperBase
 		self::prepareUFInfo();
 		if (is_array(self::$ufInfo) && count(self::$ufInfo) > 0)
 		{
-			if (isset(self::$ufInfo['ORDER']) && is_array(self::$ufInfo['ORDER'])
-				&& count(self::$ufInfo['ORDER']) > 0)
+			if (isset(self::$ufInfo['CRM_INVOICE']) && is_array(self::$ufInfo['CRM_INVOICE'])
+				&& count(self::$ufInfo['CRM_INVOICE']) > 0)
 			{
-				foreach (self::$ufInfo['ORDER'] as $ufKey => $uf)
+				foreach (self::$ufInfo['CRM_INVOICE'] as $ufKey => $uf)
 				{
 					if ($uf['USER_TYPE_ID'] !== 'datetime' || $uf['MULTIPLE'] === 'Y'
 						|| substr($ufKey, -strlen(self::UF_DATETIME_SHORT_POSTFIX)) === self::UF_DATETIME_SHORT_POSTFIX)

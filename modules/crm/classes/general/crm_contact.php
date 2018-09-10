@@ -2298,6 +2298,10 @@ class CAllCrmContact
 			CCrmLead::ProcessContactDeletion($ID);
 			CCrmDeal::ProcessContactDeletion($ID);
 			\Bitrix\Crm\Timeline\TimelineEntry::deleteByOwner(CCrmOwnerType::Contact, $ID);
+			\Bitrix\Crm\Timeline\ContactController::getInstance()->onDelete(
+				$ID,
+				array('FIELDS' => $arFields)
+			);
 
 			if(\Bitrix\Crm\Settings\HistorySettings::getCurrent()->isContactDeletionEventEnabled())
 			{

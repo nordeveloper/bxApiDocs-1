@@ -395,7 +395,7 @@ class InvoiceInWork extends InvoiceDataSource
 		$query->addSelect('OWNER_ID');
 
 		$sqlQuery = $query->getQuery();
-		return array('__CONDITIONS' => array(array('SQL' => 'sale_internals_order.ID IN('.$sqlQuery.')')));
+		return array('__CONDITIONS' => array(array('SQL' => 'crm_invoice_internals_invoice.ID IN('.$sqlQuery.')')));
 	}
 	/**
 	 * Get current data context

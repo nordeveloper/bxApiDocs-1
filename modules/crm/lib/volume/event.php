@@ -807,13 +807,13 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 					$this->incrementFailCount();
 				}
 
-				$this->setProcessOffset($event['EID']);
-
 				if ($this->hasTimeLimitReached())
 				{
 					$success = false;
 					break;
 				}
+
+				$this->setProcessOffset($event['EID']);
 			}
 		}
 

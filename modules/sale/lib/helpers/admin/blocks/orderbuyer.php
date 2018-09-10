@@ -445,6 +445,12 @@ class OrderBuyer
 		foreach ($propertyCollection->getGroups() as $group)
 		{
 			$resultBody = "";
+
+			$groupProperties = $propertyCollection->getGroupProperties($group['ID']);
+
+			if(!is_array($groupProperties))
+				continue;
+
 			/** @var \Bitrix\Sale\PropertyValue $property */
 			foreach ($propertyCollection->getGroupProperties($group['ID']) as $property)
 			{

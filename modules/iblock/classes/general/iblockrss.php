@@ -300,10 +300,10 @@ class CAllIBlockRSS
 	function ExtractProperties($str, &$arProps, &$arItem)
 	{
 		reset($arProps);
-		while (list($key, $val) = each($arProps))
+		foreach ($arProps as $key => $val)
 			$str = str_replace("#".$key."#", $val["VALUE"], $str);
 		reset($arItem);
-		while (list($key, $val) = each($arItem))
+		foreach ($arItem as $key => $val)
 			$str = str_replace("#".$key."#", $val, $str);
 		return $str;
 	}
@@ -336,4 +336,3 @@ class CAllIBlockRSS
 		echo "</rss>\n";
 	}
 }
-?>

@@ -53,7 +53,6 @@ class CCrmDocumentDeal extends CCrmDocument
 		}
 	}
 
-
 	public static function GetDocument($documentId)
 	{
 		$document = parent::GetDocument($documentId);
@@ -199,7 +198,7 @@ class CCrmDocumentDeal extends CCrmDocument
 				'Required' => false,
 			),
 			'TYPE_ID' => array(
-				'Name' => GetMessage('CRM_FIELD_TYPE_ID'),
+				'Name' => GetMessage('CRM_DOCUMENT_DEAL_TYPE_ID'),
 				'Type' => 'select',
 				'Options' => CCrmStatus::GetStatusListEx('DEAL_TYPE'),
 				'Filterable' => true,
@@ -520,7 +519,7 @@ class CCrmDocumentDeal extends CCrmDocument
 		return $id;
 	}
 
-	static public function UpdateDocument($documentId, $arFields)
+	public static function UpdateDocument($documentId, $arFields, $modifiedById = null)
 	{
 		global $DB;
 
@@ -661,6 +660,11 @@ class CCrmDocumentDeal extends CCrmDocument
 
 		$DB->StartTransaction();
 
+		if ($modifiedById > 0)
+		{
+			$arFields['MODIFY_BY_ID'] = $modifiedById;
+		}
+
 		$CCrmEntity = new CCrmDeal(false);
 		$res = $CCrmEntity->Update(
 			$arDocumentID['ID'],
@@ -702,7 +706,11 @@ class CCrmDocumentDeal extends CCrmDocument
 	public function getDocumentName($documentId)
 	{
 		$arDocumentID = self::GetDocumentInfo($documentId);
-		return CCrmOwnerType::GetCaption(CCrmOwnerType::Deal, $arDocumentID['ID'], false);
+		$dbRes = CCrmDeal::GetListEx([], ['=ID' => $arDocumentID['ID'], 'CHECK_PERMISSIONS' => 'N'],
+			false, false, ['TITLE']
+		);
+		$arRes = $dbRes ? $dbRes->Fetch() : null;
+		return $arRes ? $arRes['TITLE'] : '';
 	}
 
 	public static function normalizeDocumentId($documentId)

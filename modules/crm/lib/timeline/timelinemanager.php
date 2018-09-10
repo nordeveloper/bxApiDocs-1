@@ -1,7 +1,7 @@
 <?php
 namespace Bitrix\Crm\Timeline;
 
-use Bitrix\Sender\Integration\Crm\Timeline\RecipientController as SenderRecipientController;
+use Bitrix\Main\Loader;
 
 class TimelineManager
 {
@@ -27,7 +27,16 @@ class TimelineManager
 
 		if($typeID === TimelineType::SENDER)
 		{
-			return SenderRecipientController::getInstance();
+			$senderRecipientControllerClass = '\Bitrix\Sender\Integration\Crm\Timeline\RecipientController';
+			if (Loader::includeModule('sender') && class_exists($senderRecipientControllerClass))
+			{
+				/** @var \Bitrix\Sender\Integration\Crm\Timeline\RecipientController $senderRecipientControllerClass */
+				return $senderRecipientControllerClass::getInstance();
+			}
+			else
+			{
+				return null;
+			}
 		}
 
 		if($typeID === TimelineType::COMMENT)
@@ -75,6 +84,18 @@ class TimelineManager
 		elseif($assocEntityTypeID === \CCrmOwnerType::DealRecurring)
 		{
 			return DealRecurringController::getInstance();
+		}
+		elseif($assocEntityTypeID === \CCrmOwnerType::Order)
+		{
+			return OrderController::getInstance();
+		}
+		elseif($assocEntityTypeID === \CCrmOwnerType::OrderPayment)
+		{
+			return OrderPaymentController::getInstance();
+		}
+		elseif($assocEntityTypeID === \CCrmOwnerType::OrderShipment)
+		{
+			return OrderShipmentController::getInstance();
 		}
 
 		return null;

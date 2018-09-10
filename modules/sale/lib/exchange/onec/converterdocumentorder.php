@@ -7,7 +7,9 @@ use Bitrix\Main\Type\DateTime;
 use Bitrix\Sale\Exchange\EntityType;
 use Bitrix\Sale\Exchange\ImportBase;
 use Bitrix\Sale\Exchange\ImportOneCBase;
+use Bitrix\Sale\Exchange\ISettings;
 use Bitrix\Sale\Exchange\ISettingsExport;
+use Bitrix\Sale\Exchange\ISettingsImport;
 use Bitrix\Sale\Internals\StatusLangTable;
 use Bitrix\Sale\Order;
 
@@ -24,14 +26,6 @@ class ConverterDocumentOrder extends Converter
 	protected function getFieldsInfo()
 	{
 		return OrderDocument::getFieldsInfo();
-	}
-
-	/**
-	 * @return int
-	 */
-	public function getOwnerEntityTypeId()
-	{
-		return DocumentType::ORDER;
 	}
 
 	/**
@@ -98,8 +92,9 @@ class ConverterDocumentOrder extends Converter
 				case 'STATUS_ID':
 					if(isset($params['REK_VALUES']['1C_STATUS_ID']))
 					{
+						/** @var ISettingsImport $settings */
 						$settings = $this->getSettings();
-						if($settings->changeStatusFor(EntityType::ORDER) == 'Y')
+						if($settings->changeStatusFor($this->getEntityTypeId()) == 'Y')
 							$fields[$k] = $params['REK_VALUES']['1C_STATUS_ID'];
 					}
 					break;
@@ -123,7 +118,7 @@ class ConverterDocumentOrder extends Converter
 	 * @param array $fields
 	 * @throws ArgumentException
 	 */
-	public function sanitizeFields($order=null, array &$fields)
+	static public function sanitizeFields($order=null, array &$fields, ISettings $settings)
 	{
 		if(!empty($order) && !($order instanceof Order))
 			throw new ArgumentException("Entity must be instanceof Order");
@@ -178,7 +173,7 @@ class ConverterDocumentOrder extends Converter
 					break;
 				case 'NUMBER':
 					/** TODO: only EntityType::ORDER */
-					$value = $settings->prefixFor(EntityType::ORDER).$traits['ACCOUNT_NUMBER'];
+					$value = $settings->prefixFor($this->getEntityTypeId()).$traits['ACCOUNT_NUMBER'];
 					break;
 				case 'ID_1C':
 					$value = ($traits[$k]<>'' ? $traits[$k]:'');
@@ -187,7 +182,7 @@ class ConverterDocumentOrder extends Converter
 					$value = $traits['DATE_INSERT'];
 					break;
 				case 'OPERATION':
-					$value = DocumentBase::resolveDocumentTypeName($this->getOwnerEntityTypeId());
+					$value = DocumentBase::resolveDocumentTypeName($this->getDocmentTypeId());
 					break;
 				case 'ROLE':
 					$value = DocumentBase::getLangByCodeField('SELLER');
@@ -318,7 +313,7 @@ class ConverterDocumentOrder extends Converter
 				switch ($name)
 				{
 					case 'ID':
-						$value = $item['PRODUCT_XML_ID'];
+						$value = static::normalizeExternalCode($item['PRODUCT_XML_ID']);
 						break;
 					case 'CATALOG_ID':
 						$value = $item['CATALOG_XML_ID'];
@@ -704,7 +699,7 @@ class ConverterDocumentOrder extends Converter
 	 * @param $id
 	 * @return string
 	 */
-	static private function getStatusNameById($id)
+	static protected function getStatusNameById($id)
 	{
 		static $statuses;
 

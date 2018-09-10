@@ -15,9 +15,13 @@ class CCrmOwnerType
 	const Wait = 11;
 	const CallList = 12; // refresh FirstOwnerType and LastOwnerType constants
 	const DealRecurring = 13;
+	const Order = 14;
+	const OrderCheck = 15;
+	const OrderShipment = 16;
+	const OrderPayment = 17;
 
 	const FirstOwnerType = 1;
-	const LastOwnerType = 13;
+	const LastOwnerType = 17;
 
 	//Special quasi-type
 	const System = 1024;
@@ -36,6 +40,10 @@ class CCrmOwnerType
 	const CallListTypeName = 'CALL_LIST';
 	const SystemName = 'SYSTEM';
 	const DealRecurringName = 'DEAL_RECURRING';
+	const OrderName = 'ORDER';
+	const OrderCheckName = 'ORDER_CHECK';
+	const OrderShipmentName = 'ORDER_SHIPMENT';
+	const OrderPaymentName = 'ORDER_PAYMENT';
 
 	private static $ALL_DESCRIPTIONS = array();
 	private static $ALL_CATEGORY_CAPTION = array();
@@ -70,7 +78,8 @@ class CCrmOwnerType
 			|| $typeID === self::Company
 			|| $typeID === self::Invoice
 			|| $typeID === self::Quote
-			|| $typeID === self::Activity;
+			|| $typeID === self::Activity
+			|| $typeID === self::Order;
 	}
 
 	public static function ResolveID($name)
@@ -108,6 +117,18 @@ class CCrmOwnerType
 			case CCrmOwnerTypeAbbr::Quote:
 			case self::QuoteName:
 				return self::Quote;
+
+			case CCrmOwnerTypeAbbr::Order:
+			case self::OrderName:
+				return self::Order;
+
+			case CCrmOwnerTypeAbbr::OrderPayment:
+			case self::OrderPaymentName:
+				return self::OrderPayment;
+
+			case CCrmOwnerTypeAbbr::OrderShipment:
+			case self::OrderShipmentName:
+				return self::OrderShipment;
 
 			case CCrmOwnerTypeAbbr::Requisite:
 			case self::RequisiteName:
@@ -168,6 +189,15 @@ class CCrmOwnerType
 
 			case self::Quote:
 				return self::QuoteName;
+
+			case self::Order:
+				return self::OrderName;
+
+			case self::OrderShipment:
+				return self::OrderShipmentName;
+
+			case self::OrderPayment:
+				return self::OrderPaymentName;
 
 			case self::Requisite:
 				return self::RequisiteName;
@@ -269,6 +299,9 @@ class CCrmOwnerType
 				self::Activity => GetMessage('CRM_OWNER_TYPE_ACTIVITY'),
 				self::CustomActivityType => GetMessage('CRM_OWNER_TYPE_CUSTOM_ACTIVITY_TYPE'),
 				self::System => GetMessage('CRM_OWNER_TYPE_SYSTEM'),
+				self::Order => GetMessage('CRM_OWNER_TYPE_ORDER'),
+				self::OrderShipment => GetMessage('CRM_OWNER_TYPE_ORDER_SHIPMENT'),
+				self::OrderPayment => GetMessage('CRM_OWNER_TYPE_ORDER_SHIPMENT')
 			);
 		}
 
@@ -409,6 +442,19 @@ class CCrmOwnerType
 					array()
 				);
 			}
+			case self::Order:
+			{
+				if ($bCheckPermissions && !\Bitrix\Crm\Order\Permissions\Order::checkReadPermission())
+				{
+					return '';
+				}
+
+				return CComponentEngine::MakePathFromTemplate(
+					Bitrix\Main\Config\Option::get('crm', 'path_to_order_list', '/shop/orders/list/', false),
+					array()
+				);
+			}
+
 		}
 		return '';
 	}
@@ -503,6 +549,34 @@ class CCrmOwnerType
 					array('quote_id' => $ID)
 				);
 			}
+			case self::Order:
+			{
+				if ($bCheckPermissions && !\Bitrix\Crm\Order\Permissions\Order::checkReadPermission($ID))
+				{
+					return '';
+				}
+
+				return self::GetDetailsUrl($typeID, $ID, $bCheckPermissions = false);
+			}
+			case self::OrderShipment:
+			{
+				if ($bCheckPermissions && !\Bitrix\Crm\Order\Permissions\Shipment::checkReadPermission($ID))
+				{
+					return '';
+				}
+
+				return self::GetDetailsUrl($typeID, $ID, $bCheckPermissions = false);
+			}
+			case self::OrderPayment:
+			{
+				if ($bCheckPermissions && !\Bitrix\Crm\Order\Permissions\Payment::checkReadPermission($ID))
+				{
+					return '';
+				}
+
+				return self::GetDetailsUrl($typeID, $ID, $bCheckPermissions = false);
+			}
+
 			default:
 				return '';
 		}
@@ -588,7 +662,60 @@ class CCrmOwnerType
 
 				return $openInSlider ? \CCrmUrlUtil::PrepareSliderUrl($url) : $url;
 			}
-			default:
+			case self::Order:
+			{
+				if ($bCheckPermissions && !\Bitrix\Crm\Order\Permissions\Order::checkReadPermission($ID))
+				{
+					return '';
+				}
+
+				$url = CComponentEngine::MakePathFromTemplate(
+					\COption::GetOptionString('crm', 'path_to_order_details'),
+					array('order_id' => $ID)
+				);
+
+				return $openInSlider ? \CCrmUrlUtil::PrepareSliderUrl($url) : $url;
+			}
+			case self::OrderCheck:
+			{
+				$url = CComponentEngine::MakePathFromTemplate(
+					\COption::GetOptionString('crm', 'path_to_order_check_details'),
+					array('check_id' => $ID)
+				);
+
+				return $openInSlider ? \CCrmUrlUtil::PrepareSliderUrl($url) : $url;
+			}
+			case self::OrderShipment:
+			{
+				if ($bCheckPermissions && !\Bitrix\Crm\Order\Permissions\Shipment::checkReadPermission($ID))
+				{
+					return '';
+				}
+
+				$url = CComponentEngine::MakePathFromTemplate(
+					\COption::GetOptionString('crm', 'path_to_order_shipment_details'),
+					array('shipment_id' => $ID)
+				);
+
+				return $openInSlider ? \CCrmUrlUtil::PrepareSliderUrl($url) : $url;
+			}
+			case self::OrderPayment:
+			{
+				if ($bCheckPermissions && !\Bitrix\Crm\Order\Permissions\Payment::checkReadPermission($ID))
+				{
+					return '';
+				}
+
+				$url = CComponentEngine::MakePathFromTemplate(
+					\COption::GetOptionString('crm', 'path_to_order_payment_details'),
+					array('payment_id' => $ID)
+				);
+
+				return $openInSlider ? \CCrmUrlUtil::PrepareSliderUrl($url) : $url;
+			}
+
+
+		default:
 				return '';
 		}
 	}
@@ -685,6 +812,15 @@ class CCrmOwnerType
 					array('quote_id' => $ID)
 				);
 			}
+			case self::Order:
+			{
+				if ($bCheckPermissions && !($ID > 0 ? \Bitrix\Crm\Order\Permissions\Order::checkUpdatePermission($ID) : \Bitrix\Crm\Order\Permissions\Order::checkCreatePermission()))
+				{
+					return '';
+				}
+
+				return self::GetDetailsUrl($typeID, $ID, $bCheckPermissions, $options);
+			}
 			case self::Activity:
 			{
 				return CComponentEngine::MakePathFromTemplate(
@@ -729,7 +865,10 @@ class CCrmOwnerType
 			|| $typeID === CCrmOwnerType::Deal
 			//|| $typeID === CCrmOwnerType::Quote
 			|| $typeID === CCrmOwnerType::Contact
-			|| $typeID === CCrmOwnerType::Company;
+			|| $typeID === CCrmOwnerType::Company
+			|| $typeID === CCrmOwnerType::Order
+			|| $typeID === CCrmOwnerType::OrderShipment
+			|| $typeID === CCrmOwnerType::OrderPayment;
 	}
 
 	public static function GetEntityShowPath($typeID, $ID, $bCheckPermissions = false, array $options = null)
@@ -889,6 +1028,28 @@ class CCrmOwnerType
 				$quoteTitle = empty($quoteTitle) ? '' : str_replace(array(';', ','), ' ', $quoteTitle);
 				return $quoteTitle;
 			}
+			case self::Order:
+			{
+				$arRes = isset($options['FIELDS']) ? $options['FIELDS'] : null;
+
+				if(!is_array($arRes))
+				{
+					// todo: 'CHECK_PERMISSIONS' => ($checkRights ? 'Y' : 'N')
+					$dbRes = Bitrix\Crm\Order\Order::getList(array(
+						'filter' => array('=ID' => $ID),
+						'select' => array('ACCOUNT_NUMBER', 'ORDER_TOPIC')
+					));
+
+					$arRes = $dbRes->fetch();
+				}
+
+				$orderTitle = empty($arRes['ACCOUNT_NUMBER']) ? '' : $arRes['ACCOUNT_NUMBER'];
+				$orderTitle = empty($arRes['ORDER_TOPIC']) ?
+					$orderTitle : (empty($orderTitle) ? $arRes['ORDER_TOPIC'] : $orderTitle.' - '.$arRes['ORDER_TOPIC']);
+				$orderTitle = empty($orderTitle) ? '' : str_replace(array(';', ','), ' ', $orderTitle);
+				return $orderTitle;
+			}
+
 			case self::DealCategory:
 			{
 				$arRes = isset($options['FIELDS']) ? $options['FIELDS'] : null;
@@ -1175,6 +1336,39 @@ class CCrmOwnerType
 				$info = self::$INFOS[$key];
 				return true;
 			}
+			case self::Order:
+			{
+				$result = \Bitrix\Crm\Order\Order::getList(
+					array(
+						'filter' => array('=ID' => $ID),
+						'select' => array('ACCOUNT_NUMBER', 'CREATED_BY', 'RESPONSIBLE_ID'),
+						'limit' => 1
+					)
+				);
+
+				$result = $result ? $result->fetch() : null;
+				if(!is_array($result))
+				{
+					self::$INFOS[$key] = false;
+					$info = self::$INFO_STUB;
+					return false;
+				}
+
+				self::$INFOS[$key] = array(
+					'TITLE' => isset($result['ACCOUNT_NUMBER']) ? $result['ACCOUNT_NUMBER'] : '',
+					'LEGEND' => '',
+					'RESPONSIBLE_ID' => isset($result['RESPONSIBLE_ID']) ? (int)($result['CREATED_BY']) : 0,
+					'IMAGE_FILE_ID' => 0,
+					'SHOW_URL' =>
+						CComponentEngine::MakePathFromTemplate(
+							COption::GetOptionString('crm', 'path_to_order_details'),
+							array('order_id' => $ID)
+						)
+				);
+
+				$info = self::$INFOS[$key];
+				return true;
+			}
 		}
 
 		$info = self::$INFO_STUB;
@@ -1255,6 +1449,39 @@ class CCrmOwnerType
 					false,
 					array('TITLE', 'ASSIGNED_BY_ID')
 				);
+				break;
+			}
+			case self::Order:
+			{
+				$orderDB = \Bitrix\Crm\Order\Order::getList(
+					array(
+						'filter' => array('=ID' => $IDs),
+						'select' => array('ID', 'ACCOUNT_NUMBER', 'CREATED_BY', 'DATE_INSERT', 'RESPONSIBLE_ID')
+					)
+				);
+				$dbRes = new \CDBResult($orderDB);
+				break;
+			}
+			case self::OrderPayment:
+			{
+				$orderDB = \Bitrix\Crm\Order\Payment::getList(
+					array(
+						'filter' => array('=ID' => $IDs),
+						'select' => array('ID', 'ACCOUNT_NUMBER', 'ORDER_ID', 'DATE_BILL', 'RESPONSIBLE_ID')
+					)
+				);
+				$dbRes = new \CDBResult($orderDB);
+				break;
+			}
+			case self::OrderShipment:
+			{
+				$orderDB = \Bitrix\Crm\Order\Shipment::getList(
+					array(
+						'filter' => array('=ID' => $IDs),
+						'select' => array('ID', 'ACCOUNT_NUMBER', 'ORDER_ID', 'DATE_INSERT', 'RESPONSIBLE_ID')
+					)
+				);
+				$dbRes = new \CDBResult($orderDB);
 				break;
 			}
 		}
@@ -1597,6 +1824,75 @@ class CCrmOwnerType
 				}
 				return $result;
 			}
+			case self::Order:
+			{
+				$result = array(
+					'TITLE' => isset($arRes['ACCOUNT_NUMBER']) ? $arRes['ACCOUNT_NUMBER'] : '',
+					'LEGEND' => '',
+					'RESPONSIBLE_ID' => isset($arRes['ASSIGNED_BY_ID']) ? intval($arRes['ASSIGNED_BY_ID']) : 0,
+					'IMAGE_FILE_ID' => 0,
+					'SHOW_URL' =>
+						CComponentEngine::MakePathFromTemplate(
+							COption::GetOptionString('crm', 'path_to_order_details'),
+							array('order_id' => $ID)
+						)
+				);
+				if($enableEditUrl)
+				{
+					$result['EDIT_URL'] =
+						CComponentEngine::MakePathFromTemplate(
+							COption::GetOptionString('crm', 'path_to_order_edit'),
+							array('order_id' => $ID)
+						);
+				}
+				return $result;
+			}
+			case self::OrderPayment:
+			{
+				$result = array(
+					'TITLE' => isset($arRes['ACCOUNT_NUMBER']) ? $arRes['ACCOUNT_NUMBER'] : '',
+					'LEGEND' => '',
+					'RESPONSIBLE_ID' => isset($arRes['RESPONSIBLE_ID']) ? intval($arRes['RESPONSIBLE_ID']) : 0,
+					'IMAGE_FILE_ID' => 0,
+					'SHOW_URL' =>
+						CComponentEngine::MakePathFromTemplate(
+							COption::GetOptionString('crm', 'path_to_order_payment_details'),
+							array('payment_id' => $ID)
+						)
+				);
+				if($enableEditUrl)
+				{
+					$result['EDIT_URL'] =
+						CComponentEngine::MakePathFromTemplate(
+							COption::GetOptionString('crm', 'path_to_order_payment_edit'),
+							array('payment_id' => $ID)
+						);
+				}
+				return $result;
+			}
+			case self::OrderShipment:
+			{
+				$result = array(
+					'TITLE' => isset($arRes['ACCOUNT_NUMBER']) ? $arRes['ACCOUNT_NUMBER'] : '',
+					'LEGEND' => '',
+					'RESPONSIBLE_ID' => isset($arRes['RESPONSIBLE_ID']) ? intval($arRes['RESPONSIBLE_ID']) : 0,
+					'IMAGE_FILE_ID' => 0,
+					'SHOW_URL' =>
+						CComponentEngine::MakePathFromTemplate(
+							COption::GetOptionString('crm', 'path_to_order_shipment_details'),
+							array('shipment_id' => $ID)
+						)
+				);
+				if($enableEditUrl)
+				{
+					$result['EDIT_URL'] =
+						CComponentEngine::MakePathFromTemplate(
+							COption::GetOptionString('crm', 'path_to_order_shipment_details'),
+							array('shipment_id' => $ID)
+						);
+				}
+				return $result;
+			}
 		}
 		return null;
 	}
@@ -1822,6 +2118,18 @@ class CCrmOwnerType
 				$dbRes = CCrmQuote::GetList(array(), array('=ID' => $ID, 'CHECK_PERMISSIONS' => ($checkRights ? 'Y' : 'N')), false, false, array('ASSIGNED_BY_ID'));
 				$arRes = $dbRes ? $dbRes->Fetch() : null;
 				$result = $arRes ? intval($arRes['ASSIGNED_BY_ID']) : 0;
+				break;
+			}
+			case self::Order:
+			{
+				if($checkRights && !\Bitrix\Crm\Order\Permissions\Order::checkReadPermission($ID))
+				{
+					break;
+				}
+
+				$dbRes = Bitrix\Crm\Order\Order::getList(array('filter' => array('=ID' => $ID), 'select' => array('RESPONSIBLE_ID')));
+				$arRes = $dbRes ? $dbRes->fetch() : null;
+				$result = $arRes ? intval($arRes['RESPONSIBLE_ID']) : 0;
 				break;
 			}
 		}
@@ -2157,6 +2465,19 @@ class CCrmOwnerType
 				}
 				break;
 			}
+			case self::Order:
+			{
+				$caption = self::GetCaption($typeID, $ID);
+				if (!empty($caption))
+				{
+					$info = array(
+						'CAPTION' => $caption,
+						'IMAGE_ID' => 0
+					);
+					return true;
+				}
+				break;
+			}
 		}
 		return false;
 	}
@@ -2171,6 +2492,7 @@ class CCrmOwnerType
 			self::DealRecurringName => self::GetDescription(self::DealRecurring),
 			self::InvoiceName => self::GetDescription(self::Invoice),
 			self::QuoteName => self::GetDescription(self::Quote),
+			self::OrderName => self::GetDescription(self::Order)
 		);
 	}
 
@@ -2207,6 +2529,9 @@ class CCrmOwnerTypeAbbr
 	const DealCategory = 'DC';
 	const CustomActivityType = 'CAT';
 	const System = 'SYS';
+	const Order = 'O';
+	const OrderShipment = 'OS';
+	const OrderPayment = 'OP';
 
 	public static function ResolveByTypeID($typeID)
 	{
@@ -2221,6 +2546,8 @@ class CCrmOwnerTypeAbbr
 				return self::Lead;
 			case CCrmOwnerType::Deal:
 				return self::Deal;
+			case CCrmOwnerType::Order:
+				return self::Order;
 			case CCrmOwnerType::Contact:
 				return self::Contact;
 			case CCrmOwnerType::Company:
@@ -2269,6 +2596,8 @@ class CCrmOwnerTypeAbbr
 				return CCrmOwnerType::InvoiceName;
 			case self::Quote:
 				return CCrmOwnerType::QuoteName;
+			case self::Order:
+				return CCrmOwnerType::OrderName;
 			case self::Requisite:
 				return CCrmOwnerType::RequisiteName;
 			case self::DealCategory:

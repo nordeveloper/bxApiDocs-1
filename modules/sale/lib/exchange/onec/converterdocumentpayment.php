@@ -2,7 +2,9 @@
 
 namespace Bitrix\Sale\Exchange\OneC;
 use Bitrix\Main\ArgumentException;
+use Bitrix\Sale\Exchange\ISettings;
 use Bitrix\Sale\Exchange\ISettingsExport;
+use Bitrix\Sale\Exchange\ISettingsImport;
 use Bitrix\Sale\Payment;
 
 
@@ -110,12 +112,12 @@ class ConverterDocumentPayment extends Converter
 
 					if($paySystemId<=0)
 					{
-						$paySystemId = $settings->paySystemIdFor($documentImport->getOwnerEntityTypeId());
+						$paySystemId = $settings->paySystemIdFor($this->getEntityTypeId());
 					}
 
 					if($paySystemId<=0)
 					{
-						$paySystemId = $settings->paySystemIdDefaultFor($documentImport->getOwnerEntityTypeId());
+						$paySystemId = $settings->paySystemIdDefaultFor($this->getEntityTypeId());
 					}
 
 					$fields[$k] = $paySystemId;
@@ -156,7 +158,7 @@ class ConverterDocumentPayment extends Converter
 	 * @param Payment|null $payment
 	 * @param array $fields
 	 */
-	public function sanitizeFields($payment=null, array &$fields)
+	static public function sanitizeFields($payment=null, array &$fields, ISettings $settings)
 	{
 		if(!empty($payment) && !($payment instanceof Payment))
 			throw new ArgumentException("Entity must be instanceof Payment");
@@ -182,7 +184,8 @@ class ConverterDocumentPayment extends Converter
 
 		if(empty($payment))
 		{
-			$fields['CURRENCY'] = $this->settings->getCurrency();
+			/** @var ISettingsImport $settings */
+			$fields['CURRENCY'] = $settings->getCurrency();
 		}
 		unset($fields['ID']);
 	}
@@ -215,7 +218,7 @@ class ConverterDocumentPayment extends Converter
 					$value = $traits['DATE_BILL'];
 					break;
 				case 'OPERATION':
-					$value = DocumentBase::resolveDocumentTypeName($this->getOwnerEntityTypeId());
+					$value = DocumentBase::resolveDocumentTypeName($this->getDocmentTypeId());
 					break;
 				case 'ROLE':
 					$value = DocumentBase::getLangByCodeField('SELLER');
@@ -339,36 +342,5 @@ class ConverterDocumentPayment extends Converter
 		}
 
 		return $result;
-	}
-}
-
-class ConverterDocumentPaymentCash extends ConverterDocumentPayment
-{
-	/**
-	 * @return int
-	 */
-	public function getOwnerEntityTypeId()
-	{
-		return DocumentType::PAYMENT_CASH;
-	}
-}
-class ConverterDocumentPaymentCashLess extends ConverterDocumentPayment
-{
-	/**
-	 * @return int
-	 */
-	public function getOwnerEntityTypeId()
-	{
-		return DocumentType::PAYMENT_CASH_LESS;
-	}
-}
-class ConverterDocumentPaymentCard extends ConverterDocumentPayment
-{
-	/**
-	 * @return int
-	 */
-	public function getOwnerEntityTypeId()
-	{
-		return DocumentType::PAYMENT_CARD_TRANSACTION;
 	}
 }

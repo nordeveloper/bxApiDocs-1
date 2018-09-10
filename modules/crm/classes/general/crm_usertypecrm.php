@@ -20,6 +20,7 @@ class CUserTypeCrm extends CUserTypeString
 		$entityType['CONTACT'] = $arUserField['SETTINGS']['CONTACT'] == 'Y'? 'Y': 'N';
 		$entityType['COMPANY'] = $arUserField['SETTINGS']['COMPANY'] == 'Y'? 'Y': 'N';
 		$entityType['DEAL'] = $arUserField['SETTINGS']['DEAL'] == 'Y'? 'Y': 'N';
+		$entityType['ORDER'] = $arUserField['SETTINGS']['DEAL'] == 'Y'? 'Y': 'N';
 
 		$iEntityType = 0;
 		foreach($entityType as $result)
@@ -32,6 +33,7 @@ class CUserTypeCrm extends CUserTypeString
 			'CONTACT'=>  $entityType['CONTACT'],
 			'COMPANY'=>  $entityType['COMPANY'],
 			'DEAL'	 =>  $entityType['DEAL'],
+			'ORDER'	 =>  $entityType['ORDER'],
 		);
 	}
 
@@ -42,6 +44,7 @@ class CUserTypeCrm extends CUserTypeString
 		$entityTypeContact = 'Y';
 		$entityTypeCompany = 'Y';
 		$entityTypeDeal = 'Y';
+		$entityTypeOrder = 'Y';
 
 		if($bVarsFromForm)
 		{
@@ -49,6 +52,7 @@ class CUserTypeCrm extends CUserTypeString
 			$entityTypeContact = $GLOBALS[$arHtmlControl['NAME']]['CONTACT'] == 'Y'? 'Y': 'N';
 			$entityTypeCompany = $GLOBALS[$arHtmlControl['NAME']]['COMPANY'] == 'Y'? 'Y': 'N';
 			$entityTypeDeal = $GLOBALS[$arHtmlControl['NAME']]['DEAL'] == 'Y'? 'Y': 'N';
+			$entityTypeOrder = $GLOBALS[$arHtmlControl['NAME']]['ORDER'] == 'Y'? 'Y': 'N';
 		}
 		elseif(is_array($arUserField))
 		{
@@ -56,6 +60,7 @@ class CUserTypeCrm extends CUserTypeString
 			$entityTypeContact = $arUserField['SETTINGS']['CONTACT'] == 'Y'? 'Y': 'N';
 			$entityTypeCompany = $arUserField['SETTINGS']['COMPANY'] == 'Y'? 'Y': 'N';
 			$entityTypeDeal = $arUserField['SETTINGS']['DEAL'] == 'Y'? 'Y': 'N';
+			$entityTypeOrder = $arUserField['SETTINGS']['ORDER'] == 'Y'? 'Y': 'N';
 		}
 
 		$result .= '
@@ -66,6 +71,7 @@ class CUserTypeCrm extends CUserTypeString
 				<input type="checkbox" name="'.$arHtmlControl["NAME"].'[CONTACT]" value="Y" '.($entityTypeContact=="Y"? 'checked="checked"': '').'> '.GetMessage('USER_TYPE_CRM_ENTITY_TYPE_CONTACT').'<br/>
 				<input type="checkbox" name="'.$arHtmlControl["NAME"].'[COMPANY]" value="Y" '.($entityTypeCompany=="Y"? 'checked="checked"': '').'> '.GetMessage('USER_TYPE_CRM_ENTITY_TYPE_COMPANY').'<br/>
 				<input type="checkbox" name="'.$arHtmlControl["NAME"].'[DEAL]" value="Y" '.($entityTypeDeal=="Y"? 'checked="checked"': '').'> '.GetMessage('USER_TYPE_CRM_ENTITY_TYPE_DEAL').'<br/>
+				<input type="checkbox" name="'.$arHtmlControl["NAME"].'[ORDER]" value="Y" '.($entityTypeOrder=="Y"? 'checked="checked"': '').'> '.GetMessage('USER_TYPE_CRM_ENTITY_TYPE_ORDER').'<br/>
 			</td>
 		</tr>
 		';
@@ -158,6 +164,7 @@ class CUserTypeCrm extends CUserTypeString
 			case 'DEAL': $sShortEntityType = 'D'; break;
 			case 'CONTACT': $sShortEntityType = 'C'; break;
 			case 'COMPANY': $sShortEntityType = 'CO'; break;
+			case 'ORDER': $sShortEntityType = 'O'; break;
 			case 'LEAD':
 			default : $sShortEntityType = 'L'; break;
 		}
@@ -172,6 +179,7 @@ class CUserTypeCrm extends CUserTypeString
 			case 'D': $sLongEntityType = 'DEAL'; break;
 			case 'C': $sLongEntityType = 'CONTACT'; break;
 			case 'CO': $sLongEntityType = 'COMPANY'; break;
+			case 'O': $sLongEntityType = 'ORDER'; break;
 			case 'L':
 			default : $sLongEntityType = 'LEAD'; break;
 		}

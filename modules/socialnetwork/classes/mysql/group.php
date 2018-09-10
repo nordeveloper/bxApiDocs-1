@@ -69,7 +69,9 @@ class CSocNetGroup extends CAllSocNetGroup
 				|| strlen($arFields["IMAGE_ID"]["MODULE_ID"]) <= 0
 			)
 		)
+		{
 			$arFields["IMAGE_ID"]["MODULE_ID"] = "socialnetwork";
+		}
 
 		CFile::SaveForDB($arFields, "IMAGE_ID", "socialnetwork");
 

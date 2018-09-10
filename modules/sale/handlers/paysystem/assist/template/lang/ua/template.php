@@ -1,0 +1,14 @@
+<?
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_DESCRIPTION"] = "Послугу надає сервіс онлайн-платежів <b>&laquo;Яндекс.Каса&raquo;</b>.<br /><br />Сума до оплати за рахунком: ";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_WARNING_RETURN"] = "<b>Зверніть увагу:</b> якщо ви відмовитеся від покупки, для повернення грошей вам доведеться звернутися в магазин.";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_BUTTON_PAID"] = "Сплатити";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_PROMT"] = "Ви хочете оплатити через систему <b>www.assist.ru</b>.";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_ACCOUNT_NO"] = "Рахунок №";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_ORDER_FROM"] = "від ";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_ORDER_SUM"] = "Сума до оплати за рахунком:";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_ACTION"] = "Сплатити";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_NOTES_TITLE"] = "Обробка замовлення";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_NOTES"] = "Магазин залишає за собою право додатково провести телефонну авторизацію платежу. Всі замовлення обробляються не в автоматичному режимі: в робочі дні з 10:00 до 18:00.<br><br>У зв'язку з посиленням боротьби з шахрайством міжнародними платіжними системами транзакції за картками Visa і Eurocard/Mastercard без заповнення поля, призначеного для вказівки CVV2/CVC2 (CVV2 або CVC2 - унікальне контрольне число, нанесене на зворотній стороні картки після її номеру), даними платіжними системами прийматися до обробки не будуть.<br><br>В системі <a href=\"http://www.assist.ru/\">Асcист</a> безпека платежів забезпечується використанням SSL протоколу для передачі конфіденційної інформації від клієнта на сервер <a href=\"http://www.assist.ru/\">системи Асcист</a> для подальшої обробки.<br><br>Подальша передача інформації здійснюється по закритими банківським мережам, злом яких практично неможливий.<br><br>Обробка отриманих конфіденційних даних клієнта проводиться в процесинговому центрі <a href=\"http://www.alfabank.ru/\">КБ \"Альфа-Банк\"</a>. Таким чином, ніхто, навіть продавець не може отримати персональні та банківські дані клієнта.<br><br>";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_NOTES_TITLE1"] = "Безпека інформації, що передається";
+$MESS["SALE_HANDLERS_PAY_SYSTEM_ASSIST_NOTES1"] = "Для захисту інформації від несанкціонованого доступу на етапі передачі від клієнта на сервер системи використовується протокол SSL 3.0, сертифікат сервера (128 bit) виданий компанією <a href=\"https://www.thawte.com\">Thawte</a> - визнаним центром видачі цифрових сертифікатів.<br><br>Ви можете <a href=\"https://sealinfo.thawte.com/thawtesplash?form_file=fdf/thawtesplash.fdf&dn=WWW.ASSIST.RU&lang=en\">перевірити справжність сертифіката</a> сервера Ассист.";
+?>

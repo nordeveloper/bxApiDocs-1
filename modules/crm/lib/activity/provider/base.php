@@ -284,6 +284,7 @@ class Base
 			array('TYPE' => 'PROVIDER_TYPE'),
 			array('TYPE' => 'FILE'),
 			array('TYPE' => 'DEAL'),
+//			array('TYPE' => 'ORDER'),
 			array('TYPE' => 'RESPONSIBLE'),
 		);
 	}

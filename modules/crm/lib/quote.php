@@ -61,6 +61,9 @@ class QuoteTable extends Entity\DataManager
 			'EXCH_RATE' => array(
 				'data_type' => 'integer'
 			),
+			'QUOTE_NUMBER' => array(
+				'data_type' => 'string'
+			),
 			'STATUS_ID' => array(
 				'data_type' => 'string'
 			),

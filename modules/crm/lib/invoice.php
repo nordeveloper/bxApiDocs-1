@@ -21,12 +21,12 @@ class InvoiceTable extends Entity\DataManager
 
 	public static function getUfId()
 	{
-		return 'ORDER';
+		return 'CRM_INVOICE';
 	}
 
 	public static function getTableName()
 	{
-		return 'b_sale_order';
+		return 'b_crm_invoice';
 	}
 
 	public static function getMap()
@@ -60,9 +60,9 @@ class InvoiceTable extends Entity\DataManager
 			'PRODUCTS_QUANT' => array(
 				'data_type' => 'float',
 				'expression' => array(
-					'(SELECT  SUM(b_sale_basket.QUANTITY)
-						FROM b_sale_basket
-						WHERE b_sale_basket.ORDER_ID = %s)', 'ID'
+					'(SELECT  SUM(b_crm_invoice_basket.QUANTITY)
+						FROM b_crm_invoice_basket
+						WHERE b_crm_invoice_basket.ORDER_ID = %s)', 'ID'
 				)
 			),
 			'PRICE' => array(
@@ -80,9 +80,10 @@ class InvoiceTable extends Entity\DataManager
 				'data_type' => 'string'
 			),
 			'STATUS_BY' => array(
-				'data_type' => 'InvoiceStatus',
+				'data_type' => 'Status',
 				'reference' => array(
-					'=this.STATUS_ID' => 'ref.ID'
+					'=this.STATUS_ID' => 'ref.STATUS_ID',
+					'=ref.ENTITY_ID' => array('?', 'INVOICE_STATUS'),
 				)
 			),
 			'PAY_SYSTEM_ID' => array(

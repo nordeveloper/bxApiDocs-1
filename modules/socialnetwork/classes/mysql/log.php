@@ -5,6 +5,7 @@ use Bitrix\Socialnetwork\Item\LogIndex;
 use Bitrix\Socialnetwork\LogIndexTable;
 use Bitrix\Socialnetwork\LogRightTable;
 use Bitrix\Socialnetwork\LogTagTable;
+use Bitrix\Socialnetwork\LogSubscribeTable;
 
 class CSocNetLog extends CAllSocNetLog
 {
@@ -81,16 +82,13 @@ class CSocNetLog extends CAllSocNetLog
 
 			if ($ID > 0)
 			{
-				if (
-					intval($arFields["USER_ID"]) > 0
-					&& strlen($arFields["ENTITY_TYPE"]) > 0
-					&& array_key_exists($arFields["ENTITY_TYPE"], $arSocNetAllowedSubscribeEntityTypesDesc)
-					&& is_array($arSocNetAllowedSubscribeEntityTypesDesc[$arFields["ENTITY_TYPE"]])
-					&& $arSocNetAllowedSubscribeEntityTypesDesc[$arFields["ENTITY_TYPE"]]["USE_CB_FILTER"] == "Y"
-				)
-				{
-					CSocNetLogFollow::Set($arFields["USER_ID"], "L".$ID, "Y");
-				}
+				\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+					'logId' => $ID,
+					'userId' => (isset($arFields["USER_ID"]) ? intval($arFields["USER_ID"]) : 0),
+					'typeList' => array(
+						'FOLLOW',
+					)
+				));
 
 				if ($bSendEvent)
 				{

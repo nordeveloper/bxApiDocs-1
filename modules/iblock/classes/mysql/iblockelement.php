@@ -1764,6 +1764,13 @@ class CIBlockElement extends CAllIBlockElement
 				if (isset($property))
 					unset($property);
 			}
+			else
+			{
+				$DB->Query("
+					insert into b_iblock_element_prop_s".$IBLOCK_ID."
+					(IBLOCK_ELEMENT_ID) values (".$ELEMENT_ID.")
+				");
+			}
 			unset($ar);
 			unset($rs);
 		}
@@ -2284,33 +2291,6 @@ class CIBlockElement extends CAllIBlockElement
 					} //foreach($arDBProps[$prop["ID"]] as $res)
 				}
 
-				//Check if we have to save property values id's
-				if ($preserveID)
-				{
-					//Find tail mark where all added files started
-					$tailStart = null;
-					foreach (array_reverse($orderedPROP, true) as $propertyValueId => $val)
-					{
-						if (intval($propertyValueId) > 0)
-							break;
-						$tailStart = $propertyValueId;
-					}
-
-					$prevId = 0;
-					foreach ($orderedPROP as $propertyValueId => $val)
-					{
-						if ($propertyValueId === $tailStart)
-							break;
-
-						if (intval($propertyValueId) < $prevId)
-						{
-							$preserveID = array();
-							break;
-						}
-						$prevId = $propertyValueId;
-					}
-				}
-
 				//Write new values into database in specified order
 				foreach ($orderedPROP as $propertyValueId => $val)
 				{
@@ -2356,13 +2336,13 @@ class CIBlockElement extends CAllIBlockElement
 							WHERE IBLOCK_ELEMENT_ID=".$ELEMENT_ID."
 						");
 					}
-					elseif (array_key_exists($propertyValueId, $preserveID))
+					elseif ($preserveID)
 					{
 						$DB->Query("
 							INSERT INTO ".$strTable."
 							(ID, IBLOCK_ELEMENT_ID, IBLOCK_PROPERTY_ID, VALUE, VALUE_NUM".($val_desc!==false?", DESCRIPTION":"").")
 							SELECT
-								".$preserveID[$propertyValueId]."
+								".array_shift($preserveID)."
 								,".$ELEMENT_ID."
 								,P.ID
 								,'".$DB->ForSql($val)."'

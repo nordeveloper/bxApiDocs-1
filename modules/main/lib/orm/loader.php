@@ -31,6 +31,12 @@ class Loader
 		{
 			return;
 		}
+		
+		if (strpos($class, '\\') === false)
+		{
+			// define global namespace explicitly
+			$class = '\\'.$class;
+		}
 
 		$namespace = substr($class, 0, strrpos($class, '\\')+1);
 		$className = substr($class, strrpos($class, '\\') + 1);

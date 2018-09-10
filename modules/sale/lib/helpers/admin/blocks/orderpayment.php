@@ -480,7 +480,7 @@ class OrderPayment
 				<input type="hidden" name="PAYMENT['.$index.'][PAYMENT_ID]" id="payment_id_'.$index.'" value="'.$id.'">
 				<input type="hidden" name="PAYMENT['.$index.'][INDEX]" value="'.$index.'" class="index">
 				<input type="hidden" name="PAYMENT['.$index.'][PAID]" id="PAYMENT_PAID_'.$index.'" value="'.(empty($paid) ? 'N' : $paid).'">
-				<input type="hidden" name="PAYMENT['.$index.'][IS_RETURN]" id="PAYMENT_IS_RETURN_'.$index.'" value="'.($post['IS_RETURN'] ? $post['IS_RETURN'] : 'N').'">
+				<input type="hidden" name="PAYMENT['.$index.'][IS_RETURN]" id="PAYMENT_IS_RETURN_'.$index.'" value="'.($post['IS_RETURN'] ? htmlspecialcharsbx($post['IS_RETURN']) : 'N').'">
 				'.$hiddenPaySystemInnerId.'
 				<div class="adm-bus-component-content-container">
 					<div class="adm-bus-pay-section">

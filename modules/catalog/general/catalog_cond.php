@@ -2927,7 +2927,7 @@ class CCatalogCondCtrlIBlockFields extends CCatalogCondCtrlComplex
 				'LOGIC' => static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ)),
 				'JS_VALUE' => array(
 					'type' => 'multiDialog',
-					'popup_url' =>  '/bitrix/admin/cat_product_search_dialog.php',
+					'popup_url' =>  'cat_product_search_dialog.php',
 					'popup_params' => array(
 						'lang' => LANGUAGE_ID,
 						'caller' => 'discount_rules',

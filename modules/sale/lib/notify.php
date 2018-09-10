@@ -58,15 +58,20 @@ class Notify
 	const EVENT_MOBILE_PUSH_ORDER_CHECK_ERROR = "ORDER_CHECK_ERROR";
 	const EVENT_MOBILE_PUSH_SHIPMENT_ALLOW_DELIVERY = "ORDER_DELIVERY_ALLOWED";
 
-	private static $cacheUserData = array();
+	protected static $cacheUserData = array();
 
-	private static $sentEventList = array();
+	protected static $sentEventList = array();
 
-	private static $disableNotify = false;
+	protected static $disableNotify = false;
 
-	protected function __construct()
+	protected function __construct() {}
+
+	/**
+	 * @return string
+	 */
+	public static function getRegistryType()
 	{
-
+		return Registry::REGISTRY_TYPE_ORDER;
 	}
 
 	/**
@@ -1062,6 +1067,18 @@ class Notify
 				"EMAIL" => $cashbox['EMAIL'],
 				"SALE_EMAIL" => Main\Config\Option::get("sale", "order_email", "order@".$_SERVER["SERVER_NAME"]),
 			);
+
+			$context = Main\Context::getCurrent();
+			$server = $context->getServer();
+
+			if (IsModuleInstalled('crm'))
+			{
+				$fields['LINK_URL'] = 'http://'.$server->getServerName().'/shop/orders/details/'.$order->getId().'/';
+			}
+			else
+			{
+				$fields['LINK_URL'] = 'http://'.$server->getServerName().'/bitrix/admin/sale_order_view.php?ID='.$order->getId();
+			}
 
 			$eventName = static::EVENT_ON_CHECK_PRINT_ERROR_SEND_EMAIL;
 			$event = new \CEvent;

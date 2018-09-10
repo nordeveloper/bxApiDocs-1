@@ -1,9 +1,9 @@
 <?php
 namespace Bitrix\Crm\Timeline;
 
-use Bitrix\Crm\Timeline\TimelineType;
+use Bitrix\Crm\Integration\DocumentGeneratorManager;
+use Bitrix\DocumentGenerator\Model\DocumentTable;
 use Bitrix\Main;
-use Bitrix\Main\Type\Date;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\Entity\Query;
 
@@ -166,6 +166,9 @@ class TimelineEntry
 
 		$ownerIDs = array_keys($ownerMap);
 		$fileOwnerList = array();
+		$documentIds = [];
+		$types = [TimelineType::COMMENT, TimelineType::DOCUMENT];
+		$sqlTypesIn = implode(', ', $types);
 		while(!empty($ownerIDs))
 		{
 			$conditionSql = implode(',', array_splice($ownerIDs, 0, $sliceSize));
@@ -173,17 +176,31 @@ class TimelineEntry
 			{
 				break;
 			}
-			$type = \Bitrix\Crm\Timeline\TimelineType::COMMENT;
-			$dbResult = $connection->query("SELECT ID FROM b_crm_timeline WHERE ID IN ({$conditionSql}) AND TYPE_ID = {$type}");
+			$dbResult = $connection->query("SELECT ID, TYPE_ID, ASSOCIATED_ENTITY_ID FROM b_crm_timeline WHERE ID IN ({$conditionSql}) AND TYPE_ID IN ({$sqlTypesIn})");
 			while($fields = $dbResult->fetch())
 			{
-				$fileOwnerList[] = $fields['ID'];
+				if($fields['TYPE_ID'] == TimelineType::COMMENT)
+				{
+					$fileOwnerList[] = $fields['ID'];
+				}
+				elseif($fields['TYPE_ID'] == TimelineType::DOCUMENT)
+				{
+					$documentIds[] = $fields['ASSOCIATED_ENTITY_ID'];
+				}
 			}
 		}
 
 		foreach ($fileOwnerList as $ownerID)
 		{
 			$GLOBALS['USER_FIELD_MANAGER']->Delete(CommentController::UF_FIELD_NAME, $ownerID);
+		}
+
+		if(DocumentGeneratorManager::getInstance()->isEnabled())
+		{
+			foreach($documentIds as $id)
+			{
+				DocumentTable::delete($id);
+			}
 		}
 
 		$ownerIDs = array_keys($ownerMap);

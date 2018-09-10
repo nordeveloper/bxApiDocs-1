@@ -525,16 +525,20 @@ class CAllCrmCatalog
 				'WORKFLOW' => 'N',
 				'BIZPROC' => 'N',
 				'VERSION' => 1,
-				'GROUP_ID' => array(2 => 'R')
+				'GROUP_ID' => array(2 => 'R'),
+				'LIST_MODE' => 'S'
 			)
 		);
-
 
 		if($iblockID === false)
 		{
 			self::RegisterError($iblock->LAST_ERROR);
 			return false;
 		}
+
+		\CIBlockRights::setGroupRight(\CCrmSaleHelper::getShopGroupIdByType('admin'), $typeID, 'X', $iblockID);
+		\CIBlockRights::setGroupRight(\CCrmSaleHelper::getShopGroupIdByType('manager'), $typeID, 'W', $iblockID);
+
 		//echo 'Error: '.$iblock->LAST_ERROR.'<br/>';
 
 		//creation of catalog

@@ -14,7 +14,7 @@ class ComponentError
 
 	public static function getMessage($error)
 	{
-		if($error === self::PERMISSION_DENIED)
+		if($error === self::ENTITY_NOT_FOUND)
 		{
 			return Loc::getMessage('CRM_COMPONENT_ERROR_ENTITY_NOT_FOUND');
 		}

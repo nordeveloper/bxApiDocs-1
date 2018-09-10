@@ -3,6 +3,7 @@ namespace Bitrix\Sale\Compatible;
 
 use Bitrix\Main,
 	Bitrix\Sale,
+	Bitrix\Sale\Discount,
 	Bitrix\Main\Localization\Loc;
 
 Loc::loadMessages(__FILE__);
@@ -322,7 +323,6 @@ class DiscountCompatibility
 		self::$basketDiscountList = array();
 		self::$basketItemsData = array();
 		self::$useCompatible = true;
-		Sale\OrderDiscountManager::init();
 		Sale\OrderDiscountManager::setManagerConfig(self::$config);
 		self::$saved = false;
 		self::$repeatSave = false;
@@ -790,7 +790,7 @@ class DiscountCompatibility
 			if (!empty($stepResult))
 			{
 				if (empty($order['DISCOUNT_DESCR']) || !is_array($order['DISCOUNT_DESCR']))
-					$order['DISCOUNT_DESCR'] = self::getSimpleActionDescription($stepResult);
+					$order['DISCOUNT_DESCR'] = Discount\Result\CompatibleFormat::getDiscountDescription($stepResult);
 			}
 		}
 		Sale\Discount\Actions::fillCompatibleFields($order);
@@ -1354,17 +1354,19 @@ class DiscountCompatibility
 		{
 			if (self::$previousOrderData['PRICE_DELIVERY'] != $currentOrder['PRICE_DELIVERY'])
 			{
-				$descr = Sale\OrderDiscountManager::createSimpleDescription($currentOrder['PRICE_DELIVERY'], self::$previousOrderData['PRICE_DELIVERY'], self::$previousOrderData['CURRENCY']);
+				$descr = Discount\Result\CompatibleFormat::createResultDescription(
+					$currentOrder['PRICE_DELIVERY'],
+					self::$previousOrderData['PRICE_DELIVERY'],
+					self::$previousOrderData['CURRENCY']
+				);
 				$result['DELIVERY'] = array(
 					'APPLY' => 'Y',
 					'DELIVERY_ID' => (isset($currentOrder['DELIVERY_ID']) ? $currentOrder['DELIVERY_ID'] : false),
 					'SHIPMENT_CODE' => (isset($currentOrder['SHIPMENT_CODE']) ? $currentOrder['SHIPMENT_CODE'] : false),
-					'DESCR' => Sale\OrderDiscountManager::formatArrayDescription($descr),
+					'DESCR' => implode(', ', Discount\Formatter::formatList($descr)),
 					'DESCR_DATA' => $descr
 				);
 				unset($descr);
-				if (is_array($result['DELIVERY']['DESCR']))
-					$result['DELIVERY']['DESCR'] = implode(', ', $result['DELIVERY']['DESCR']);
 			}
 		}
 		if (!empty(self::$previousOrderData['BASKET_ITEMS']) && !empty($currentOrder['BASKET_ITEMS']))
@@ -1378,18 +1380,20 @@ class DiscountCompatibility
 				{
 					if (!isset($result['BASKET']))
 						$result['BASKET'] = array();
-					$descr = Sale\OrderDiscountManager::createSimpleDescription($currentOrder['BASKET_ITEMS'][$basketCode]['PRICE'], $item['PRICE'], self::$previousOrderData['CURRENCY']);
+					$descr = Discount\Result\CompatibleFormat::createResultDescription(
+						$currentOrder['BASKET_ITEMS'][$basketCode]['PRICE'],
+						$item['PRICE'],
+						self::$previousOrderData['CURRENCY']
+					);
 					$result['BASKET'][$code] = array(
 						'APPLY' => 'Y',
-						'DESCR' => Sale\OrderDiscountManager::formatArrayDescription($descr),
+						'DESCR' => implode(', ', Discount\Formatter::formatList($descr)),
 						'DESCR_DATA' => $descr,
 						'MODULE' => $currentOrder['BASKET_ITEMS'][$basketCode]['MODULE'],
 						'PRODUCT_ID' => $currentOrder['BASKET_ITEMS'][$basketCode]['PRODUCT_ID'],
 						'BASKET_ID' => $code
 					);
 					unset($descr);
-					if (is_array($result['BASKET'][$basketCode]['DESCR']))
-						$result['BASKET'][$basketCode]['DESCR'] = implode(', ', $result['BASKET'][$basketCode]['DESCR']);
 				}
 			}
 		}
@@ -1614,60 +1618,5 @@ class DiscountCompatibility
 			'BASKET' => $basket,
 			'DELIVERY' => $delivery
 		);
-	}
-
-	/**
-	 * Get description for old actions.
-	 *
-	 * @param array $stepResult		Action results.
-	 * @return array
-	 */
-	private static function getSimpleActionDescription(array $stepResult)
-	{
-		$result = array();
-		if (!empty($stepResult['BASKET']))
-		{
-			$data = Sale\OrderDiscountManager::prepareDiscountDescription(
-				Sale\OrderDiscountManager::DESCR_TYPE_SIMPLE,
-				Loc::getMessage('BX_SALE_DCL_MESS_SIMPLE_DESCRIPTION_BASKET')
-			);
-			if ($data->isSuccess())
-			{
-				$result['BASKET'] = array(
-					0 => $data->getData()
-				);
-			}
-			unset($data);
-		}
-		if (!empty($stepResult['DELIVERY']))
-		{
-			$data = Sale\OrderDiscountManager::prepareDiscountDescription(
-				Sale\OrderDiscountManager::DESCR_TYPE_SIMPLE,
-				Loc::getMessage('BX_SALE_DCL_MESS_SIMPLE_DESCRIPTION_DELIVERY')
-			);
-			if ($data->isSuccess())
-			{
-				$result['DELIVERY'] = array(
-					0 => $data->getData()
-				);
-			}
-			unset($data);
-		}
-		if (empty($result))
-		{
-			$data = Sale\OrderDiscountManager::prepareDiscountDescription(
-				Sale\OrderDiscountManager::DESCR_TYPE_SIMPLE,
-				Loc::getMessage('BX_SALE_DCL_MESS_SIMPLE_DESCRIPTION_UNKNOWN')
-			);
-			if ($data->isSuccess())
-			{
-				$result['BASKET'] = array(
-					0 => $data->getData()
-				);
-			}
-			unset($data);
-		}
-
-		return $result;
 	}
 }

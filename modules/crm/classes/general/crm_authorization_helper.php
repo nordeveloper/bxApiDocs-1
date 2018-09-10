@@ -13,21 +13,21 @@ class CCrmAuthorizationHelper
 		return self::$USER_PERMISSIONS;
 	}
 
-	public static function CheckCreatePermission($enitityTypeName, $userPermissions = null)
+	public static function CheckCreatePermission($entityTypeName, $userPermissions = null)
 	{
-		$enitityTypeName = strval($enitityTypeName);
+		$entityTypeName = strval($entityTypeName);
 
 		if(!$userPermissions)
 		{
 			$userPermissions = self::GetUserPermissions();
 		}
 
-		return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'ADD');
+		return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'ADD');
 	}
 
-	public static function CheckUpdatePermission($enitityTypeName, $entityID, $userPermissions = null, $entityAttrs = null)
+	public static function CheckUpdatePermission($entityTypeName, $entityID, $userPermissions = null, $entityAttrs = null)
 	{
-		$enitityTypeName = strval($enitityTypeName);
+		$entityTypeName = strval($entityTypeName);
 		$entityID = intval($entityID);
 
 		if(!$userPermissions)
@@ -37,20 +37,20 @@ class CCrmAuthorizationHelper
 
 		if($entityID <= 0)
 		{
-			return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'WRITE');
+			return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'WRITE');
 		}
 
 		if(!is_array($entityAttrs))
 		{
-			$entityAttrs = $userPermissions->GetEntityAttr($enitityTypeName, $entityID);
+			$entityAttrs = $userPermissions->GetEntityAttr($entityTypeName, $entityID);
 		}
-		return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'WRITE')
-			&& $userPermissions->CheckEnityAccess($enitityTypeName, 'WRITE', isset($entityAttrs[$entityID]) ? $entityAttrs[$entityID] : array());
+		return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'WRITE')
+			&& $userPermissions->CheckEnityAccess($entityTypeName, 'WRITE', isset($entityAttrs[$entityID]) ? $entityAttrs[$entityID] : array());
 	}
 
-	public static function CheckDeletePermission($enitityTypeName, $entityID, $userPermissions = null, $entityAttrs = null)
+	public static function CheckDeletePermission($entityTypeName, $entityID, $userPermissions = null, $entityAttrs = null)
 	{
-		$enitityTypeName = strval($enitityTypeName);
+		$entityTypeName = strval($entityTypeName);
 		$entityID = intval($entityID);
 
 		if(!$userPermissions)
@@ -60,23 +60,23 @@ class CCrmAuthorizationHelper
 
 		if($entityID <= 0)
 		{
-			return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'DELETE');
+			return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'DELETE');
 		}
 
 		if(!is_array($entityAttrs))
 		{
-			$entityAttrs = $userPermissions->GetEntityAttr($enitityTypeName, $entityID);
+			$entityAttrs = $userPermissions->GetEntityAttr($entityTypeName, $entityID);
 		}
 
-		return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'DELETE')
-			&& $userPermissions->CheckEnityAccess($enitityTypeName, 'DELETE', isset($entityAttrs[$entityID]) ? $entityAttrs[$entityID] : array());
+		return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'DELETE')
+			&& $userPermissions->CheckEnityAccess($entityTypeName, 'DELETE', isset($entityAttrs[$entityID]) ? $entityAttrs[$entityID] : array());
 	}
 
-	public static function CheckReadPermission($enitityType, $entityID, $userPermissions = null, $entityAttrs = null)
+	public static function CheckReadPermission($entityType, $entityID, $userPermissions = null, $entityAttrs = null)
 	{
-		$enitityTypeName = is_numeric($enitityType)
-			? CCrmOwnerType::ResolveName($enitityType)
-			: strtoupper(strval($enitityType));
+		$entityTypeName = is_numeric($entityType)
+			? CCrmOwnerType::ResolveName($entityType)
+			: strtoupper(strval($entityType));
 
 		$entityID = intval($entityID);
 
@@ -87,51 +87,51 @@ class CCrmAuthorizationHelper
 
 		if($entityID <= 0)
 		{
-			return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'READ');
+			return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'READ');
 		}
 
 		if(!is_array($entityAttrs))
 		{
-			$entityAttrs = $userPermissions->GetEntityAttr($enitityTypeName, $entityID);
+			$entityAttrs = $userPermissions->GetEntityAttr($entityTypeName, $entityID);
 		}
 
-		return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'READ')
-			&& $userPermissions->CheckEnityAccess($enitityTypeName, 'READ', isset($entityAttrs[$entityID]) ? $entityAttrs[$entityID] : array());
+		return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'READ')
+			&& $userPermissions->CheckEnityAccess($entityTypeName, 'READ', isset($entityAttrs[$entityID]) ? $entityAttrs[$entityID] : array());
 	}
 
-	public static function CheckImportPermission($enitityType, $userPermissions = null)
+	public static function CheckImportPermission($entityType, $userPermissions = null)
 	{
-		$enitityTypeName = is_numeric($enitityType)
-			? CCrmOwnerType::ResolveName($enitityType)
-			: strtoupper(strval($enitityType));
+		$entityTypeName = is_numeric($entityType)
+			? CCrmOwnerType::ResolveName($entityType)
+			: strtoupper(strval($entityType));
 
 		if(!$userPermissions)
 		{
 			$userPermissions = self::GetUserPermissions();
 		}
 
-		return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'IMPORT');
+		return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'IMPORT');
 	}
 
-	public static function CheckExportPermission($enitityType, $userPermissions = null)
+	public static function CheckExportPermission($entityType, $userPermissions = null)
 	{
-		$enitityTypeName = is_numeric($enitityType)
-			? CCrmOwnerType::ResolveName($enitityType)
-			: strtoupper(strval($enitityType));
+		$entityTypeName = is_numeric($entityType)
+			? CCrmOwnerType::ResolveName($entityType)
+			: strtoupper(strval($entityType));
 
 		if(!$userPermissions)
 		{
 			$userPermissions = self::GetUserPermissions();
 		}
 
-		return !$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_NONE, 'EXPORT');
+		return !$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_NONE, 'EXPORT');
 	}
 
-	public static function CheckAutomationCreatePermission($enitityType, $userPermissions = null)
+	public static function CheckAutomationCreatePermission($entityType, $userPermissions = null)
 	{
-		$enitityTypeName = is_numeric($enitityType)
-			? CCrmOwnerType::ResolveName($enitityType)
-			: strtoupper(strval($enitityType));
+		$entityTypeName = is_numeric($entityType)
+			? CCrmOwnerType::ResolveName($entityType)
+			: strtoupper(strval($entityType));
 
 		if(!$userPermissions)
 		{
@@ -141,7 +141,7 @@ class CCrmAuthorizationHelper
 		return (
 			static::CheckConfigurationUpdatePermission($userPermissions)
 			||
-			$userPermissions->HavePerm($enitityTypeName, BX_CRM_PERM_ALL, 'AUTOMATION')
+			$userPermissions->HavePerm($entityTypeName, BX_CRM_PERM_ALL, 'AUTOMATION')
 		);
 	}
 

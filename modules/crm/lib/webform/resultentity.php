@@ -913,7 +913,7 @@ class ResultEntity
 				}
 				else
 				{
-					$notifyTag = "CRM|WEBFORM|" . $this->formId;
+					$notifyTag = "CRM|WEBFORM|" . $id;
 					$imNotifyEvent = \CCrmNotifierSchemeType::WebFormName;
 					$imNotifyMessage = Loc::getMessage(
 						'CRM_WEBFORM_RESULT_ENTITY_NOTIFY_SUBJECT',

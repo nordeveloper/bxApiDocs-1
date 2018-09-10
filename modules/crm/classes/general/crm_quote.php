@@ -1169,7 +1169,7 @@ class CAllCrmQuote
 			return false;
 
 		$type = COption::GetOptionString("crm", "quote_number_template", "");
-		$param = COption::GetOptionString("crm", "quote_number_data", "");
+		$numeratorSettings = \Bitrix\Main\Numerator\Numerator::getOneByType(REGISTRY_TYPE_CRM_QUOTE);
 
 		$bCustomAlgorithm = false;
 		$value = $ID;
@@ -1193,11 +1193,16 @@ class CAllCrmQuote
 		else
 		{
 			$res = false;
-			if ($type != "") // if special template is selected
+			if ($numeratorSettings) // if special template (numerator) is selected
 			{
 				for ($i = 0; $i < 10; $i++)
 				{
-					$value = CCrmQuote::GetNextQuoteNumber($ID, $type, $param);
+					$value = false;
+					$numerator = \Bitrix\Main\Numerator\Numerator::load($numeratorSettings['id'], ['QUOTE_ID' => $ID]);
+					if ($numerator)
+					{
+						$value = $numerator->getNext();
+					}
 
 					if ($value !== false)
 					{
@@ -1206,13 +1211,15 @@ class CAllCrmQuote
 						$sql = "UPDATE b_crm_quote SET $sUpdate WHERE ID = $ID";
 						$res = $DB->Query($sql, true);
 						if ($res)
+						{
 							break;
+						}
 					}
 				}
 			}
 		}
 
-		if ($type == '' || !$res) // if no special template is used or error occured
+		if (!$numeratorSettings || !$res) // if no special template is used or error occured
 		{
 			if ($type !== 'NUMBER')
 			{
@@ -1221,7 +1228,7 @@ class CAllCrmQuote
 				$sql = "UPDATE b_crm_quote SET $sUpdate WHERE ID = $ID";
 				$res = $DB->Query($sql, true);
 			}
-			if (!$res && ($type == '' || $type === 'NUMBER'))    // try set max number + 1
+			if (!$res && (!$numeratorSettings || $type === 'NUMBER'))    // try set max number + 1
 			{
 				$maxLastId = $ID;
 				$maxLastIdIsSet = false;
@@ -1247,6 +1254,24 @@ class CAllCrmQuote
 						{
 							COption::SetOptionString("crm", "quote_number_template", "NUMBER");
 							COption::SetOptionString("crm", "quote_number_data", $maxLastId);
+							if (!$numeratorSettings)
+							{
+								$numeratorForQuotes = \Bitrix\Main\Numerator\Numerator::create();
+								$numeratorForQuotes->setConfig([
+									\Bitrix\Main\Numerator\Numerator::getType() =>
+										[
+											'name'     => 'numerator for quote',
+											'template' => '{NUMBER}',
+											'type'     => 'QUOTE',
+										],
+									\Bitrix\Main\Numerator\Generator\SequentNumberGenerator::getType() =>
+										[
+											'start'              => $maxLastId,
+											'isDirectNumeration' => true,
+										],
+								]);
+								$numeratorForQuotes->save();
+							}
 							break;
 						}
 					}
@@ -3214,6 +3239,43 @@ class CAllCrmQuote
 		return \Bitrix\Crm\Integration\StorageManager::getFileName($elementID, $storageTypeID);
 	}
 
+	public static function isActiveQuotePaymentMethodExists()
+	{
+		$result = false;
+
+		$arPersonTypes = CCrmPaySystem::getPersonTypeIDs();
+		foreach ($arPersonTypes as $personTypeName => $personTypeId)
+		{
+			if ($personTypeName === 'COMPANY' || $personTypeName === 'CONTACT' && $personTypeId > 0)
+			{
+				$paySystems = CCrmPaySystem::GetPaySystems($personTypeId);
+				if(is_array($paySystems))
+				{
+					foreach($paySystems as &$paySystem)
+					{
+						$file = isset($paySystem['~PSA_ACTION_FILE']) ? $paySystem['~PSA_ACTION_FILE'] : '';
+						if(preg_match('/quote(_\w+)*$/i'.BX_UTF_PCRE_MODIFIER, $file))
+						{
+							$result = true;
+							break;
+						}
+					}
+				}
+			}
+			if ($result)
+			{
+				break;
+			}
+		}
+
+		return $result;
+	}
+
+	public static function isPrintingViaPaymentMethodSupported()
+	{
+		return self::isActiveQuotePaymentMethodExists();
+	}
+
 	public static function HandleStorageElementDeletion($storageTypeID, $elementID)
 	{
 		global $DB;
@@ -4013,7 +4075,8 @@ class CAllCrmQuote
 				'SUM' => isset($order['SHOULD_PAY']) ? $order['SHOULD_PAY'] : 0.0,
 				'PAID' => '',
 				'DATE_BILL' => isset($order['DATE_BILL']) ? $order['DATE_BILL'] : null
-			)
+			),
+			'SHIPMENT' => array('DELIVERY_ID' => 0)
 		);
 	}
 	public static function Rebind($ownerTypeID, $oldID, $newID)
@@ -4302,7 +4365,8 @@ class CAllCrmQuote
 				'MC_BANK_DETAIL' => $paymentData['MC_BANK_DETAIL'],
 				'CRM_MYCOMPANY'  => $paymentData['CRM_MYCOMPANY']
 			),
-			$paymentData['PAYMENT']
+			$paymentData['PAYMENT'],
+			$paymentData['SHIPMENT']
 		);
 
 		$origRequest = $_REQUEST;

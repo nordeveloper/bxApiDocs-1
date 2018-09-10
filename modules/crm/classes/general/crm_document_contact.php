@@ -469,7 +469,7 @@ class CCrmDocumentContact extends CCrmDocument
 		return $ID;
 	}
 
-	static public function UpdateDocument($documentId, $arFields)
+	public static function UpdateDocument($documentId, $arFields, $modifiedById = null)
 	{
 		global $DB;
 
@@ -567,6 +567,11 @@ class CCrmDocumentContact extends CCrmDocument
 
 		$DB->StartTransaction();
 
+		if ($modifiedById > 0)
+		{
+			$arFields['MODIFY_BY_ID'] = $modifiedById;
+		}
+
 		$CCrmEntity = new CCrmContact(false);
 		$res = $CCrmEntity->Update(
 			$arDocumentID['ID'],
@@ -602,7 +607,25 @@ class CCrmDocumentContact extends CCrmDocument
 	public function getDocumentName($documentId)
 	{
 		$arDocumentID = self::GetDocumentInfo($documentId);
-		return CCrmOwnerType::GetCaption(CCrmOwnerType::Contact, $arDocumentID['ID'], false);
+		$caption = '';
+
+		$dbRes = CCrmContact::GetListEx(array(), array('=ID' => $arDocumentID['ID'], 'CHECK_PERMISSIONS' => 'N'),
+			false, false,
+			['HONORIFIC', 'NAME', 'SECOND_NAME', 'LAST_NAME']
+		);
+		$arRes = $dbRes ? $dbRes->Fetch() : null;
+
+		if($arRes)
+		{
+			$caption = CCrmContact::PrepareFormattedName([
+				'HONORIFIC' => isset($arRes['HONORIFIC']) ? $arRes['HONORIFIC'] : '',
+				'NAME' => isset($arRes['NAME']) ? $arRes['NAME'] : '',
+				'SECOND_NAME' => isset($arRes['SECOND_NAME']) ? $arRes['SECOND_NAME'] : '',
+				'LAST_NAME' => isset($arRes['LAST_NAME']) ? $arRes['LAST_NAME'] : ''
+			]);
+		}
+
+		return $caption;
 	}
 
 	public static function normalizeDocumentId($documentId)

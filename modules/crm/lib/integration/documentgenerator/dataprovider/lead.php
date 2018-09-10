@@ -7,19 +7,24 @@ use Bitrix\DocumentGenerator\Nameable;
 
 class Lead extends ProductsDataProvider implements Nameable
 {
-	protected $products;
-
 	/**
 	 * @return array
 	 */
 	public function getFields()
 	{
-		$fields = parent::getFields();
-		$fields['STATUS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_STATUS_TITLE'),];
-		$fields['SOURCE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_SOURCE_TITLE'),];
-		$fields['IMOL'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_IMOL_TITLE'),];
+		if($this->fields === null)
+		{
+			parent::getFields();
+			$this->fields['STATUS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_STATUS_TITLE'),];
+			$this->fields['SOURCE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_SOURCE_TITLE'),];
+			$this->fields['IMOL'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_IMOL_TITLE'),];
+			$this->fields['COMPANY_NAME'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_COMPANY_NAME_TITLE'),
+				'VALUE' => 'COMPANY_TITLE',
+			];
+		}
 
-		return $fields;
+		return $this->fields;
 	}
 
 	/**
@@ -80,24 +85,43 @@ class Lead extends ProductsDataProvider implements Nameable
 			'DATE_CREATE_SHORT',
 			'DATE_MODIFY_SHORT',
 			'FACE_ID',
+			'COMPANY_TITLE',
 		]);
 	}
 
+	/**
+	 * @return array
+	 */
 	protected function getGetListParameters()
 	{
 		return array_merge_recursive(parent::getGetListParameters(), [
 			'select' => [
 				'STATUS' => 'STATUS_BY.NAME',
 				'SOURCE' => 'SOURCE_BY.NAME',
+				'PHONE',
+				'PHONE_WORK',
+				'PHONE_MOBILE',
+				'EMAIL_HOME',
+				'EMAIL_WORK',
+				'SKYPE',
+				'ICQ',
+				'IMOL',
+				'EMAIL',
 			],
 		]);
 	}
 
+	/**
+	 * @return int
+	 */
 	public function getCrmOwnerType()
 	{
 		return \CCrmOwnerType::Lead;
 	}
 
+	/**
+	 * @return string
+	 */
 	protected function getCrmProductOwnerType()
 	{
 		return 'L';

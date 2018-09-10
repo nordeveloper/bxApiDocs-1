@@ -16,7 +16,7 @@ class InvoiceSpecTable extends Entity\DataManager
 {
 	public static function getTableName()
 	{
-		return 'b_sale_basket';
+		return 'b_crm_invoice_basket';
 	}
 
 	public static function getMap()

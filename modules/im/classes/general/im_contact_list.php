@@ -205,7 +205,7 @@ class CAllIMContactList
 
 			$nameTemplate = self::GetUserNameTemplate(SITE_ID);
 			$nameTemplateSite = CSite::GetNameFormat(false);
-			$cache_id = 'im_contact_list_v21_'.$nameTemplate.'_'.$nameTemplateSite.(!empty($arExtranetUsers)? '_'.$USER->GetID(): '').$bVoximplantEnable.$bColorEnabled.$bOpenChatEnabled;
+			$cache_id = 'im_contact_list_v22_'.$nameTemplate.'_'.$nameTemplateSite.(!empty($arExtranetUsers)? '_'.$USER->GetID(): '').$bVoximplantEnable.$bColorEnabled.$bOpenChatEnabled;
 			$obCLCache = new CPHPCache;
 			$cache_dir = '/bx/imc/contact';
 
@@ -311,6 +311,14 @@ class CAllIMContactList
 							$arUser[$key] = !is_array($value) && !is_object($value)? htmlspecialcharsEx($value): $value;
 						}
 
+						$arFileTmp = CFile::ResizeImageGet(
+							$arUser["PERSONAL_PHOTO"],
+							array('width' => 100, 'height' => 100),
+							BX_RESIZE_IMAGE_EXACT,
+							false,
+							false,
+							true
+						);
 
 						$color = self::GetUserColor($arUser["ID"], $arUser['PERSONAL_GENDER'] == 'M'? 'M': 'F');
 						if (isset($arUser['COLOR']) && strlen($arUser['COLOR']) > 0)

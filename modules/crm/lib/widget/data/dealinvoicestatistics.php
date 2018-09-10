@@ -317,7 +317,7 @@ class DealInvoiceStatistics extends DealDataSource
 		$field = isset($filterParams['FIELD']) ? $filterParams['FIELD'] : '';
 		if($field === 'TOTAL_INVOICE_SUM' || $field === 'TOTAL_OWED')
 		{
-			$query->addFilter(">{$field}", 0);
+			$query->addFilter("!={$field}", 0);
 		}
 
 		return array(

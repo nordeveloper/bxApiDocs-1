@@ -9,6 +9,7 @@ use Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal;
 use Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Invoice;
 use Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Lead;
 use Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Quote;
+use Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Order;
 use Bitrix\DocumentGenerator\Document;
 use Bitrix\DocumentGenerator\Driver;
 use Bitrix\DocumentGenerator\Nameable;
@@ -145,6 +146,7 @@ class DocumentGeneratorManager
 				Invoice::class,
 				Lead::class,
 				Quote::class,
+				Order::class,
 			];
 			foreach($providers as $provider)
 			{
@@ -223,5 +225,28 @@ class DocumentGeneratorManager
 				"zIndex" => 2000,
 			]
 		]);
+	}
+
+	/**
+	 * Returns array where key - id from \CCrmOwnerType and value - data provider class name
+	 *
+	 * @return array
+	 */
+	public function getCrmOwnerTypeProvidersMap()
+	{
+		static $map = null;
+		if($map === null)
+		{
+			$map = [
+				\CCrmOwnerType::Lead => Lead::class,
+				\CCrmOwnerType::Deal => Deal::class,
+				\CCrmOwnerType::Contact => Contact::class,
+				\CCrmOwnerType::Company => Company::class,
+				\CCrmOwnerType::Invoice => Invoice::class,
+				\CCrmOwnerType::Quote => Quote::class,
+				\CCrmOwnerType::Order => Order::class,
+			];
+		}
+		return $map;
 	}
 }

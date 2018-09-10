@@ -68,7 +68,7 @@ class Logger
 		$params['DESCRIPTION'] = $this->getField('DESCRIPTION');
 		$params['MESSAGE'] = $this->getField('MESSAGE');
 		$params['DIRECTION'] = $this->getField('DIRECTION');
-		$params['MARKED'] = $this->getField('MARKED');
+		$params['MARKED'] = $this->getField('MARKED') === 'Y' ? 'Y' : 'N';
 		$params['DATE_INSERT'] = new DateTime();
 
 		return static::log($params);

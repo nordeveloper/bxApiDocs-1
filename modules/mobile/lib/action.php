@@ -3,6 +3,8 @@ namespace Bitrix\Mobile;
 
 class Action
 {
+	protected $actions;
+
 	function __construct()
 	{
 		$this->actions = include(\Bitrix\Main\Application::getDocumentRoot()."/bitrix/modules/mobile/ajax_action.php");
@@ -20,8 +22,9 @@ class Action
 
 	/**
 	 * @param string $name
+	 * @param array $params
 	 */
-	public function executeAction($name, $params = array())
+	public function executeAction($name, $params = [])
 	{
 
 		global $USER;
@@ -74,7 +77,7 @@ class Action
 			}
 
 			header("Content-Type: application/x-javascript");
-			echo json_encode(array("error" => "unknown action for data request"));
+			echo json_encode(["error" => "unknown action for data request"]);
 		}
 	}
 }

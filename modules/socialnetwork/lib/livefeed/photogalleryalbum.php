@@ -1,6 +1,7 @@
 <?php
 namespace Bitrix\Socialnetwork\Livefeed;
 
+use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
 use Bitrix\Iblock\SectionTable;
 use Bitrix\Socialnetwork\LogTable;
@@ -115,7 +116,11 @@ final class PhotogalleryAlbum extends Provider
 			&& !empty($message)
 		)
 		{
-			$pathToPhoto = $message['URL'];
+			$pathToPhoto = str_replace(
+				"#GROUPS_PATH#",
+				Option::get('socialnetwork', 'workgroups_page', '/workgroups/', $this->getSiteId()),
+				$message['URL']
+			);
 		}
 
 		return $pathToPhoto;

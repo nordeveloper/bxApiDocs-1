@@ -1,60 +1,60 @@
 <?
 global $MESS;
 
-$MESS["SBLP_DTITLE"] = "Ð Ð°Ñ…ÑƒÐ½Ð¾Ðº";
-$MESS["SBLP_DDESCR"] = "Ð Ð°Ñ…ÑƒÐ½Ð¾Ðº Ð½Ð° Ð¾Ð¿Ð»Ð°Ñ‚Ñƒ Ð´Ð»Ñ Ñ€Ð¾Ð·Ð´Ñ€ÑƒÐºÑ–Ð²ÐºÐ¸. ÐŸÐ¾Ð²Ð¸Ð½ÐµÐ½ Ð²Ñ–Ð´ÐºÑ€Ð¸Ð²Ð°Ñ‚Ð¸ÑÑ Ð² Ð½Ð¾Ð²Ð¾Ð¼Ñƒ Ð²Ñ–ÐºÐ½Ñ–.";
+$MESS["SBLP_DTITLE"] = "Ðàõóíîê";
+$MESS["SBLP_DDESCR"] = "Ðàõóíîê íà îïëàòó äëÿ ðîçäðóê³âêè. Ïîâèíåí â³äêðèâàòèñÿ â íîâîìó â³êí³.";
 
-$MESS["SBLP_DATE"] = "Ð”Ð°Ñ‚Ð° Ð·Ð°ÐºÐ°Ð·Ð°";
-$MESS["SBLP_DATE_DESC"] = "Ð”Ð°Ñ‚Ð° Ð¾Ñ„Ð¾Ñ€Ð¼Ð»ÐµÐ½Ð¸Ñ Ð·Ð°ÐºÐ°Ð·Ð°";
-$MESS["SBLP_SUPPLI"] = "ÐŸÐ¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸Ðº";
-$MESS["SBLP_SUPPLI_DESC"] = "ÐŸÐ¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸Ðº (Ð¿Ñ€Ð¾Ð´Ð°Ð²Ñ†Ð°)";
-$MESS["SBLP_ORDER_SUPPLI"] = "Ð Ð°ÑÑ‡ÐµÑ‚Ð½Ñ‹Ð¹ ÑÑ‡ÐµÑ‚ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_ORDER_SUPPLI_DESC"] = "Ð Ð°ÑÑ‡ÐµÑ‚Ð½Ñ‹Ð¹ ÑÑ‡ÐµÑ‚ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_ORDER_BANK"] = "Ð‘Ð°Ð½Ðº Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_ORDER_MFO"] = "ÐœÐ¤Ðž";
-$MESS["SBLP_ADRESS_SUPPLI"] = " Ð®Ñ€Ð¸Ð´Ð¸Ñ‡Ð½Ð° Ð°Ð´Ñ€ÐµÑÐ° Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_ADRESS_SUPPLI_DESC"] = " Ð®Ñ€Ð¸Ð´Ð¸Ñ‡Ð½Ð° Ð°Ð´Ñ€ÐµÑÐ° Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_PHONE_SUPPLI"] = "Ð¢ÐµÐ»ÐµÑ„Ð¾Ð½ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_PHONE_SUPPLI_DESC"] = "Ð¢ÐµÐ»ÐµÑ„Ð¾Ð½ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ° (Ð¿Ñ€Ð¾Ð´Ð°Ð²Ñ†Ð°)";
-$MESS["SBLP_EDRPOY_SUPPLI"] = "Ð„Ð”Ð ÐŸÐžÐ£ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_EDRPOY_SUPPLI_DESC"] = "Ð„Ð”Ð ÐŸÐžÐ£ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ° (Ð¿Ñ€Ð¾Ð´Ð°Ð²Ñ†Ð°)";
-$MESS["SBLP_IPN_SUPPLI"] = "Ð†ÐŸÐ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_IPN_SUPPLI_DESC"] = "Ð†ÐŸÐ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ° (Ð¿Ñ€Ð¾Ð´Ð°Ð²Ñ†Ð°)";
-$MESS["SBLP_PDV_SUPPLI"] = "â„– ÑÐ²Ñ–Ð´. ÐŸÐ”Ð’ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ°";
-$MESS["SBLP_PDV_SUPPLI_DESC"] = "â„– ÑÐ²Ñ–Ð´. ÐŸÐ”Ð’ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ° (Ð¿Ñ€Ð¾Ð´Ð°Ð²Ñ†Ð°)";
-$MESS["SBLP_SYS_SUPPLI"] = "Ð¡Ð¸ÑÑ‚ÐµÐ¼Ð° Ð¾Ð¿Ð¾Ð´Ð°Ñ‚ÐºÑƒÐ²Ð°Ð½Ð½Ñ";
-$MESS["SBLP_SYS_SUPPLI_DESC"] = " Ð¡Ð¸ÑÑ‚ÐµÐ¼Ð° Ð¾Ð¿Ð¾Ð´Ð°Ñ‚ÐºÑƒÐ²Ð°Ð½Ð½Ñ";
-$MESS["SBLP_CUSTOMER"] = "ÐŸÐ¾ÐºÑƒÐ¿ÐµÑ†ÑŒ";
-$MESS["SBLP_CUSTOMER_DESC"] = "ÐŸÐ¾ÐºÑƒÐ¿ÐµÑ†ÑŒ";
-$MESS["SBLP_CUSTOMER_PHONE"] = "Ð¢ÐµÐ»ÐµÑ„Ð¾Ð½ Ð¿Ð¾ÐºÑƒÐ¿Ñ†Ñ";
-$MESS["SBLP_CUSTOMER_PHONE_DESC"] = "Ð¢ÐµÐ»ÐµÑ„Ð¾Ð½ Ð¿Ð¾ÐºÑƒÐ¿Ñ†Ñ";
-$MESS["SBLP_CUSTOMER_DOGOVOR"] = "Ð”Ð¾Ð³Ð¾Ð²Ñ–Ñ€";
-$MESS["SBLP_PRINT"] = "ÐŸÐµÑ‡Ð°Ñ‚ÑŒ";
-$MESS["SBLP_PRINT_DESC"] = "ÐŸÑƒÑ‚ÑŒ Ðº Ð¸Ð·Ð¾Ð±Ñ€Ð°Ð¶ÐµÐ½Ð¸ÑŽ Ð¿ÐµÑ‡Ð°Ñ‚Ð¸ Ð¿Ð¾ÑÑ‚Ð°Ð²Ñ‰Ð¸ÐºÐ° Ð½Ð° ÑÐ°Ð¹Ñ‚Ðµ";
-$MESS["SBLP_CUSTOMER_ADRES"] = "ÐÐ´Ñ€ÐµÑÐ° Ð¿Ð¾ÐºÑƒÐ¿Ñ†Ñ";
-$MESS["SBLP_CUSTOMER_ADRES_DESC"] = "ÐÐ´Ñ€ÐµÑÐ° Ð¿Ð¾ÐºÑƒÐ¿Ñ†Ñ";
-$MESS["SBLP_CUSTOMER_FAX"] = "Ð¤Ð°ÐºÑ Ð¿Ð¾ÐºÑƒÐ¿Ñ†Ñ";
-$MESS["SBLP_CUSTOMER_FAX_DESC"] = "Ð¤Ð°ÐºÑ Ð¿Ð¾ÐºÑƒÐ¿Ñ†Ñ";
-$MESS["SBLP_ORDER_ID"] = "ÐšÐ¾Ð´ Ð·Ð°ÐºÐ°Ð·Ð°";
-$MESS["SBLP_ACC_SUPPLI"] = "Ð’Ð¸Ð¿Ð¸ÑÐ°Ð²(Ð»Ð°)";
-$MESS["SBLP_ACC_POS_SUPPLI"] = "ÐŸÐ¾ÑÐ°Ð´Ð°";
+$MESS["SBLP_DATE"] = "Äàòà çàêàçà";
+$MESS["SBLP_DATE_DESC"] = "Äàòà îôîðìëåíèÿ çàêàçà";
+$MESS["SBLP_SUPPLI"] = "Ïîñòà÷àëüíèê";
+$MESS["SBLP_SUPPLI_DESC"] = "Ïîñòà÷àëüíèê (ïðîäàâöà)";
+$MESS["SBLP_ORDER_SUPPLI"] = "Ðàñ÷åòíûé ñ÷åò ïîñòà÷àëüíèêà";
+$MESS["SBLP_ORDER_SUPPLI_DESC"] = "Ðàñ÷åòíûé ñ÷åò ïîñòà÷àëüíèêà";
+$MESS["SBLP_ORDER_BANK"] = "Áàíê ïîñòà÷àëüíèêà";
+$MESS["SBLP_ORDER_MFO"] = "ÌÔÎ";
+$MESS["SBLP_ADRESS_SUPPLI"] = " Þðèäè÷íà àäðåñà ïîñòà÷àëüíèêà";
+$MESS["SBLP_ADRESS_SUPPLI_DESC"] = " Þðèäè÷íà àäðåñà ïîñòà÷àëüíèêà";
+$MESS["SBLP_PHONE_SUPPLI"] = "Òåëåôîí ïîñòà÷àëüíèêà";
+$MESS["SBLP_PHONE_SUPPLI_DESC"] = "Òåëåôîí ïîñòà÷àëüíèêà (ïðîäàâöà)";
+$MESS["SBLP_EDRPOY_SUPPLI"] = "ªÄÐÏÎÓ ïîñòà÷àëüíèêà";
+$MESS["SBLP_EDRPOY_SUPPLI_DESC"] = "ªÄÐÏÎÓ ïîñòà÷àëüíèêà (ïðîäàâöà)";
+$MESS["SBLP_IPN_SUPPLI"] = "²ÏÍ ïîñòà÷àëüíèêà";
+$MESS["SBLP_IPN_SUPPLI_DESC"] = "²ÏÍ ïîñòà÷àëüíèêà (ïðîäàâöà)";
+$MESS["SBLP_PDV_SUPPLI"] = "¹ ñâ³ä. ÏÄÂ ïîñòà÷àëüíèêà";
+$MESS["SBLP_PDV_SUPPLI_DESC"] = "¹ ñâ³ä. ÏÄÂ ïîñòà÷àëüíèêà (ïðîäàâöà)";
+$MESS["SBLP_SYS_SUPPLI"] = "Ñèñòåìà îïîäàòêóâàííÿ";
+$MESS["SBLP_SYS_SUPPLI_DESC"] = " Ñèñòåìà îïîäàòêóâàííÿ";
+$MESS["SBLP_CUSTOMER"] = "Ïîêóïåöü";
+$MESS["SBLP_CUSTOMER_DESC"] = "Ïîêóïåöü";
+$MESS["SBLP_CUSTOMER_PHONE"] = "Òåëåôîí ïîêóïöÿ";
+$MESS["SBLP_CUSTOMER_PHONE_DESC"] = "Òåëåôîí ïîêóïöÿ";
+$MESS["SBLP_CUSTOMER_DOGOVOR"] = "Äîãîâ³ð";
+$MESS["SBLP_PRINT"] = "Ïå÷àòü";
+$MESS["SBLP_PRINT_DESC"] = "Ïóòü ê èçîáðàæåíèþ ïå÷àòè ïîñòàâùèêà íà ñàéòå";
+$MESS["SBLP_CUSTOMER_ADRES"] = "Àäðåñà ïîêóïöÿ";
+$MESS["SBLP_CUSTOMER_ADRES_DESC"] = "Àäðåñà ïîêóïöÿ";
+$MESS["SBLP_CUSTOMER_FAX"] = "Ôàêñ ïîêóïöÿ";
+$MESS["SBLP_CUSTOMER_FAX_DESC"] = "Ôàêñ ïîêóïöÿ";
+$MESS["SBLP_ORDER_ID"] = "Êîä çàêàçà";
+$MESS["SBLP_ACC_SUPPLI"] = "Âèïèñàâ(ëà)";
+$MESS["SBLP_ACC_POS_SUPPLI"] = "Ïîñàäà";
 
-$MESS["SBLP_ACC_SIGN_SUPPLI"] = "ÐŸÑ–Ð´Ð¿Ð¸Ñ (Ñ€ÐµÐºÐ¾Ð¼ÐµÐ½Ð´Ð¾Ð²Ð°Ð½Ñ– Ñ€Ð¾Ð·Ð¼Ñ–Ñ€Ð¸ 200x50&nbsp;px)";
+$MESS["SBLP_ACC_SIGN_SUPPLI"] = "Ï³äïèñ (ðåêîìåíäîâàí³ ðîçì³ðè 200x50&nbsp;px)";
 
-$MESS["SBLP_PRINT"] = "ÐŸÐµÑ‡Ð°Ñ‚ÐºÐ° (Ñ€ÐµÐºÐ¾Ð¼ÐµÐ½Ð´Ð¾Ð²Ð°Ð½Ñ– Ñ€Ð¾Ð·Ð¼Ñ–Ñ€Ð¸ 150x150&nbsp;px)";
-$MESS["SBLP_PRINT_DESC"] = "Ð—Ð¾Ð±Ñ€Ð°Ð¶ÐµÐ½Ð½Ñ Ð¿ÐµÑ‡Ð°Ñ‚ÐºÐ¸ Ð¿Ð¾ÑÑ‚Ð°Ñ‡Ð°Ð»ÑŒÐ½Ð¸ÐºÐ° Ð½Ð° ÑÐ°Ð¹Ñ‚Ñ–";
+$MESS["SBLP_PRINT"] = "Ïå÷àòêà (ðåêîìåíäîâàí³ ðîçì³ðè 150x150&nbsp;px)";
+$MESS["SBLP_PRINT_DESC"] = "Çîáðàæåííÿ ïå÷àòêè ïîñòà÷àëüíèêà íà ñàéò³";
 
-$MESS["SBLP_BACKGROUND"] = "Ð¤Ð¾Ð½ (Ñ€ÐµÐºÐ¾Ð¼ÐµÐ½Ð´Ð¾Ð²Ð°Ð½Ñ– Ñ€Ð¾Ð·Ð¼Ñ–Ñ€Ð¸ 800x1120&nbsp;px)";
-$MESS["SBLP_BACKGROUND_DESC"] = "Ð—Ð¾Ð±Ñ€Ð°Ð¶ÐµÐ½Ð½Ñ Ñ„Ð¾Ð½Ñƒ Ð´Ð»Ñ Ñ€Ð°Ñ…ÑƒÐ½ÐºÑƒ";
+$MESS["SBLP_BACKGROUND"] = "Ôîí (ðåêîìåíäîâàí³ ðîçì³ðè 800x1120&nbsp;px)";
+$MESS["SBLP_BACKGROUND_DESC"] = "Çîáðàæåííÿ ôîíó äëÿ ðàõóíêó";
 
-$MESS["SBLP_BACKGROUND_STYLE"] = "Ð¡Ñ‚Ð¸Ð»ÑŒ Ð²Ñ–Ð´Ð¾Ð±Ñ€Ð°Ð¶ÐµÐ½Ð½Ñ Ñ„Ð¾Ð½Ñƒ";
-$MESS["SBLP_BACKGROUND_STYLE_NONE"] = "Ð¯Ðº Ñ”";
-$MESS["SBLP_BACKGROUND_STYLE_TILE"] = "Ð—Ð°Ð¼Ð¾ÑÑ‚Ð¸Ñ‚Ð¸";
-$MESS["SBLP_BACKGROUND_STYLE_STRETCH"] = "Ð Ð¾Ð·Ñ‚ÑÐ³Ð½ÑƒÑ‚Ð¸";
+$MESS["SBLP_BACKGROUND_STYLE"] = "Ñòèëü â³äîáðàæåííÿ ôîíó";
+$MESS["SBLP_BACKGROUND_STYLE_NONE"] = "ßê º";
+$MESS["SBLP_BACKGROUND_STYLE_TILE"] = "Çàìîñòèòè";
+$MESS["SBLP_BACKGROUND_STYLE_STRETCH"] = "Ðîçòÿãíóòè";
 
-$MESS["SBLP_MARGIN_TOP"] = "Ð’ÐµÑ€Ñ…Ð½Ñ” Ð¿Ð¾Ð»Ðµ (Ð¼Ð¼)";
-$MESS["SBLP_MARGIN_RIGHT"] = "ÐŸÑ€Ð°Ð²Ðµ Ð¿Ð¾Ð»Ðµ (Ð¼Ð¼)";
-$MESS["SBLP_MARGIN_BOTTOM"] = "ÐÐ¸Ð¶Ð½Ñ” Ð¿Ð¾Ð»Ðµ (Ð¼Ð¼)";
-$MESS["SBLP_MARGIN_LEFT"] = "Ð›Ñ–Ð²Ðµ Ð¿Ð¾Ð»Ðµ (Ð¼Ð¼)";
+$MESS["SBLP_MARGIN_TOP"] = "Âåðõíº ïîëå (ìì)";
+$MESS["SBLP_MARGIN_RIGHT"] = "Ïðàâå ïîëå (ìì)";
+$MESS["SBLP_MARGIN_BOTTOM"] = "Íèæíº ïîëå (ìì)";
+$MESS["SBLP_MARGIN_LEFT"] = "Ë³âå ïîëå (ìì)";
 
 ?>

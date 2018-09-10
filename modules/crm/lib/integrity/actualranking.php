@@ -6,6 +6,8 @@ use Bitrix\Crm\LeadTable;
 use Bitrix\Crm\PhaseSemantics;
 use Bitrix\Main\Entity\ExpressionField;
 use Bitrix\Main\Entity\Query;
+use Bitrix\Crm\Binding;
+use Bitrix\Crm\Order;
 
 /**
  * Class ActualRanking
@@ -34,6 +36,9 @@ class ActualRanking
 	/** @var integer|null Deal id of top entity in ranked list */
 	protected $dealId;
 
+	/** @var int[] Order id list of top entity in ranked list */
+	protected $orders = [];
+
 	/** @var integer|null Lead(return customer type) id of top entity in ranked list. */
 	protected $returnCustomerLeadId;
 
@@ -44,6 +49,7 @@ class ActualRanking
 
 		$this->entityId = null;
 		$this->dealId = null;
+		$this->orders = [];
 		$this->returnCustomerLeadId = null;
 	}
 
@@ -111,6 +117,16 @@ class ActualRanking
 	}
 
 	/**
+	 * Get orders of top entity in ranked list.
+	 *
+	 * @return int[]
+	 */
+	public function getOrders()
+	{
+		return $this->orders;
+	}
+
+	/**
 	 * Get lead(return customer type) id of top entity in ranked list.
 	 *
 	 * @return integer|null
@@ -156,11 +172,12 @@ class ActualRanking
 	/**
 	 * Rank entity list.
 	 *
-	 * @param integer $entityTypeId Entity type id
-	 * @param array $list List of entity ids
+	 * @param integer $entityTypeId Entity type id.
+	 * @param array $list List of entity ids.
+	 * @param bool $filterByActiveStatus Filter by active status.
 	 * @return $this
 	 */
-	public function rank($entityTypeId, array $list)
+	public function rank($entityTypeId, array $list, $filterByActiveStatus = true)
 	{
 		$this->clearRuntime();
 		$this->entityTypeId = $entityTypeId;
@@ -172,7 +189,10 @@ class ActualRanking
 		}
 
 		// filter by active status
-		$this->filterByActiveStatus();
+		if ($filterByActiveStatus)
+		{
+			$this->filterByActiveStatus();
+		}
 
 		// filter or sort by custom modifiers
 		$this->runModifiers();
@@ -186,6 +206,9 @@ class ActualRanking
 		$findDealIdOnly = !$this->entityId ? false : true;
 		$this->rankByDeals($findDealIdOnly);
 
+		// ranking by orders
+		$findOrdersOnly = !$this->entityId ? false : true;
+		$this->rankByOrders($findOrdersOnly);
 
 		// ranking by repeated leads
 		$findLeadIdOnly = !$this->entityId ? false : true;
@@ -286,6 +309,63 @@ class ActualRanking
 
 		// set deal Id
 		$this->dealId = $dealId;
+	}
+
+	protected function rankByOrders($findOrdersOnly = false)
+	{
+		$topEntityId = null;
+		$rankedList = [];
+		$list = Binding\OrderContactCompanyTable::getList([
+			'select' => ['ORDER_ID', 'ENTITY_ID'],
+			'filter' => [
+				'=IS_PRIMARY' => 'Y',
+				'=ENTITY_TYPE_ID' => $this->entityTypeId,
+				'=ENTITY_ID' => $this->entityId ?: $this->list,
+				'=ORDER.STATUS_ID' => Order\OrderStatus::getSemanticProcessStatuses(),
+			],
+			'order' => [
+				'ORDER.DATE_UPDATE' => 'DESC',
+				'ORDER.DATE_INSERT' => 'DESC',
+				'ORDER.ID' => 'DESC',
+			]
+		]);
+		foreach ($list as $item)
+		{
+			if (!$topEntityId)
+			{
+				$topEntityId = $item['ENTITY_ID'];
+			}
+
+			if ($topEntityId == $item['ENTITY_ID'] && !in_array($item['ORDER_ID'], $this->orders))
+			{
+				$this->orders[] = $item['ORDER_ID'];
+			}
+
+			if (!in_array($item['ENTITY_ID'], $rankedList))
+			{
+				$rankedList[] = $item['ENTITY_ID'];
+			}
+		}
+
+		if (empty($rankedList))
+		{
+			return;
+		}
+
+		$this->isRanked = true;
+
+		// set entity id
+		if (!$this->entityId)
+		{
+			$this->entityId = $rankedList[0];
+		}
+
+		if ($findOrdersOnly)
+		{
+			return;
+		}
+
+		$this->updateListByRankedList($rankedList);
 	}
 
 	protected function rankByQuery(Query $query, $limit = null)

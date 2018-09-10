@@ -22,12 +22,15 @@ abstract class Converter implements IConverter
     /** @var ISettings */
     protected $settings = null;
 
+    protected $entityTypeId;
+    protected $documentTypeId;
+
     /** @var Converter[]|null  */
     private static $instances = null;
 
 	/**
      * @param int $typeId Type ID.
-     * @return IConverter
+     * @return Converter
 	 * @deprecated
      */
     public static function getInstance($typeId)
@@ -37,9 +40,9 @@ abstract class Converter implements IConverter
             $typeId = (int)$typeId;
         }
 
-        if(!EntityType::IsDefined($typeId))
+        if(!DocumentType::IsDefined($typeId))
         {
-            throw new ArgumentOutOfRangeException('Is not defined', EntityType::FIRST, EntityType::LAST);
+            throw new ArgumentOutOfRangeException('Is not defined', DocumentType::FIRST, DocumentType::LAST);
         }
 
         if(self::$instances === null || !isset(self::$instances[$typeId]))
@@ -57,14 +60,6 @@ abstract class Converter implements IConverter
         return self::$instances[$typeId];
     }
 
-    /**
-     * @param ISettings $settings
-     */
-    public function loadSettings(ISettings $settings)
-    {
-        $this->settings = $settings;
-    }
-
 	/**
 	 * @return array
 	 */
@@ -78,12 +73,21 @@ abstract class Converter implements IConverter
         return $this->settings;
     }
 
-	/**
-	 * @return int
-	 */
-	public function getOwnerEntityTypeId()
+    public function getEntityTypeId()
 	{
-		return DocumentType::UNDEFINED;
+		return $this->entityTypeId;
+	}
+
+	public function getDocmentTypeId()
+	{
+		return $this->documentTypeId;
+	}
+
+	public function init(ISettings $settings, $entityTypeId = EntityType::UNDEFINED, $documentTypeId = DocumentType::UNDEFINED)
+	{
+		$this->settings = $settings;
+		$this->entityTypeId = EntityType::isDefined($entityTypeId) ? $entityTypeId:EntityType::UNDEFINED;
+		$this->documentTypeId = DocumentType::isDefined($documentTypeId) ? $documentTypeId:DocumentType::UNDEFINED;
 	}
 
 	/**

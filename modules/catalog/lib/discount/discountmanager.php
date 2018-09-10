@@ -35,7 +35,6 @@ class DiscountManager
 				'prepareData' => array(__CLASS__, 'prepareData'),
 				'getEditUrl' => array(__CLASS__, 'getEditUrl'),
 				'calculateApplyCoupons' => array(__CLASS__, 'calculateApplyCoupons'),
-				'roundPrice' => array(__CLASS__, 'roundPrice'),
 				'roundBasket' => array(__CLASS__, 'roundBasket')
 			),
 			'catalog'
@@ -299,6 +298,8 @@ class DiscountManager
 
 	/**
 	 * Round basket item price.
+	 * @deprecated
+	 * @see \Bitrix\Catalog\Discount\DiscountManager::roundBasket
 	 *
 	 * @param array $basketItem		Basket item data.
 	 * @param array $roundData		Round rule.
@@ -1672,8 +1673,8 @@ class DiscountManager
 		$descr = array(
 			'VALUE_ACTION' => (
 				$discount['TYPE'] == Catalog\DiscountTable::TYPE_DISCOUNT_SAVE
-				? Sale\OrderDiscountManager::DESCR_VALUE_ACTION_ACCUMULATE
-				: Sale\OrderDiscountManager::DESCR_VALUE_ACTION_DISCOUNT
+				? Sale\Discount\Formatter::VALUE_ACTION_CUMULATIVE
+				: Sale\Discount\Formatter::VALUE_ACTION_DISCOUNT
 			),
 			'VALUE' => $discount['VALUE']
 		);
@@ -1682,33 +1683,33 @@ class DiscountManager
 			case Catalog\DiscountTable::VALUE_TYPE_PERCENT:
 				$type = (
 					$discount['MAX_VALUE'] > 0
-					? Sale\OrderDiscountManager::DESCR_TYPE_LIMIT_VALUE
-					: Sale\OrderDiscountManager::DESCR_TYPE_VALUE
+					? Sale\Discount\Formatter::TYPE_LIMIT_VALUE
+					: Sale\Discount\Formatter::TYPE_VALUE
 				);
-				$descr['VALUE_TYPE'] = Sale\OrderDiscountManager::DESCR_VALUE_TYPE_PERCENT;
+				$descr['VALUE_TYPE'] = Sale\Discount\Formatter::VALUE_TYPE_PERCENT;
 				if ($discount['MAX_VALUE'] > 0)
 				{
-					$descr['LIMIT_TYPE'] = Sale\OrderDiscountManager::DESCR_LIMIT_MAX;
+					$descr['LIMIT_TYPE'] = Sale\Discount\Formatter::LIMIT_MAX;
 					$descr['LIMIT_UNIT'] = $discount['CURRENCY'];
 					$descr['LIMIT_VALUE'] = $discount['MAX_VALUE'];
 				}
 				break;
 			case Catalog\DiscountTable::VALUE_TYPE_FIX:
-				$type = Sale\OrderDiscountManager::DESCR_TYPE_VALUE;
-				$descr['VALUE_TYPE'] = Sale\OrderDiscountManager::DESCR_VALUE_TYPE_CURRENCY;
+				$type = Sale\Discount\Formatter::TYPE_VALUE;
+				$descr['VALUE_TYPE'] = Sale\Discount\Formatter::VALUE_TYPE_CURRENCY;
 				$descr['VALUE_UNIT'] = $discount['CURRENCY'];
 				break;
 			case Catalog\DiscountTable::VALUE_TYPE_SALE:
-				$type = Sale\OrderDiscountManager::DESCR_TYPE_FIXED;
+				$type = Sale\Discount\Formatter::TYPE_FIXED;
 				$descr['VALUE_UNIT'] = $discount['CURRENCY'];
 				break;
 		}
-		$descrResult = Sale\OrderDiscountManager::prepareDiscountDescription($type, $descr);
-		if ($descrResult->isSuccess())
+		$descrResult = Sale\Discount\Formatter::prepareRow($type, $descr);
+		if ($descrResult !== null)
 		{
 			$discount['ACTIONS_DESCR'] = array(
 				'BASKET' => array(
-					0 => $descrResult->getData()
+					0 => $descrResult
 				)
 			);
 		}

@@ -3,8 +3,6 @@
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\EntityAddress;
-use Bitrix\Crm\EntityPreset;
-use Bitrix\Crm\Format\RequisiteAddressFormatter;
 use Bitrix\DocumentGenerator\DataProvider\HashDataProvider;
 
 class Address extends HashDataProvider
@@ -29,7 +27,8 @@ class Address extends HashDataProvider
 			'VALUE' => function()
 			{
 				return $this->formatText();
-			}
+			},
+			'TYPE' => static::FIELD_TYPE_TEXT,
 		];
 
 		return $fields;
@@ -40,7 +39,7 @@ class Address extends HashDataProvider
 	 */
 	protected function formatText()
 	{
-		return RequisiteAddressFormatter::formatByCountry($this->data, EntityPreset::getCurrentCountryId());
+		return new \Bitrix\Crm\Integration\DocumentGenerator\Value\Address($this->data);
 	}
 
 	/**
@@ -71,5 +70,13 @@ class Address extends HashDataProvider
 			'COUNTRY',
 			//'COUNTRY_CODE',
 		];
+	}
+
+	/**
+	 * @return string|null
+	 */
+	protected function getCountryId()
+	{
+		return $this->options['COUNTRY_ID'];
 	}
 }

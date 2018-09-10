@@ -37,6 +37,7 @@ $bExtranetInstalled = (IsModuleInstalled("extranet") && strlen(COption::GetOptio
 IncludeModuleLangFile(__FILE__);
 
 CJSCore::Init(array('clipboard'));
+$licensePrefix = CModule::IncludeModule("bitrix24") ? \CBitrix24::getLicensePrefix() : "";
 
 ?><div style="width: 542px; min-height: 200px; padding: 5px; overflow-y: auto; margin: 5px;">
 	<?
@@ -367,7 +368,7 @@ CJSCore::Init(array('clipboard'));
 		{
 			CUtil::JSPostUnescape();
 			$strAction = trim($_POST["action"]);
-			$strAction = (in_array($strAction, array("invite", "add", "self")) ? $strAction : false);
+			$strAction = (in_array($strAction, array("invite", "add", "self", "integrator")) ? $strAction : false);
 
 			if ($strAction == "invite")
 			{
@@ -522,6 +523,40 @@ CJSCore::Init(array('clipboard'));
 					));
 				}
 			}
+			elseif ($strAction == "integrator" && CModule::IncludeModule("bitrix24"))
+			{
+				if (!check_email($_POST["integrator_email"]))
+				{
+					$strError = GetMessage("BX24_INVITE_DIALOG_EMAIL_ERROR");
+				}
+				else
+				{
+					if (!\CBitrix24::checkPartnerEmail($_POST["integrator_email"]))
+					{
+						$strError = GetMessage("BX24_INVITE_DIALOG_INTEGRATOR_EMAIL_ERROR");
+					}
+					else
+					{
+						if (isset($_POST["integrator_message_text"]))
+						{
+							$messageText = $_POST["integrator_message_text"];
+							CUserOptions::SetOption("bitrix24", "integrator_message_text", $messageText);
+						}
+						else
+						{
+							$messageText = GetMessage("BX24_INVITE_DIALOG_INTEGRATOR_INVITE_TEXT");
+						}
+
+						$oldIntegratorId = \CBitrix24::getIntegratorId();
+						$newIntegratorId = CIntranetInviteDialog::inviteIntegrator($SITE_ID, $_POST["integrator_email"], $messageText, $strError);
+
+						if ($oldIntegratorId && $newIntegratorId)
+						{
+							$USER->Update($oldIntegratorId, array("ACTIVE" => "N"));
+						}
+					}
+				}
+			}
 
 			if (
 				!$strError
@@ -554,8 +589,10 @@ CJSCore::Init(array('clipboard'));
 					$mess = "INVITED";
 				elseif($strAction == "add")
 					$mess = "ADDED";
-				else
+				elseif ($strAction == "self")
 					$mess = "SELF";
+				elseif ($strAction == "integrator")
+					$mess = "INTEGRATOR";
 
 				$arResult = array(
 					'MESSAGE' => GetMessage("BX24_INVITE_DIALOG_".$mess, array("#SITE_DIR#" => $SITE_DIR))
@@ -844,18 +881,24 @@ CJSCore::Init(array('clipboard'));
 				<div class="webform-corners-bottom"><div class="webform-left-corner"></div><div class="webform-right-corner"></div></div>
 			</div><?
 			?><div class="popup-window-tabs">
-			<?if (IsModuleInstalled("bitrix24")):?>
-			<span class="popup-window-tab<?=(IsModuleInstalled("bitrix24")  ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-self" data-action="self">
-				<?=GetMessage('BX24_INVITE_DIALOG_TAB_SELF_TITLE')?>
-			</span>
-			<?endif?>
+				<?if (IsModuleInstalled("bitrix24")):?>
+				<span class="popup-window-tab<?=(IsModuleInstalled("bitrix24")  ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-self" data-action="self">
+					<?=GetMessage('BX24_INVITE_DIALOG_TAB_SELF_TITLE')?>
+				</span>
+				<?endif?>
 
-			<span class="popup-window-tab<?=(!IsModuleInstalled("bitrix24")  ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-invite" data-action="invite">
-				<?=GetMessage('BX24_INVITE_DIALOG_TAB_INVITE_TITLE_NEW')?>
-			</span>
-			<span class="popup-window-tab<?=(in_array($strAction, array("add")) ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-add" data-action="add">
-				<?=GetMessage('BX24_INVITE_DIALOG_TAB_ADD_TITLE_NEW')?>
-			</span>
+				<span class="popup-window-tab<?=(!IsModuleInstalled("bitrix24")  ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-invite" data-action="invite">
+					<?=GetMessage('BX24_INVITE_DIALOG_TAB_INVITE_TITLE_NEW')?>
+				</span>
+				<span class="popup-window-tab<?=(($strAction == "add") ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-add" data-action="add">
+					<?=GetMessage('BX24_INVITE_DIALOG_TAB_ADD_TITLE_NEW')?>
+				</span>
+				<!-- show after 1 October-->
+				<?/*if (IsModuleInstalled("bitrix24") && in_array($licensePrefix, array("ru", "by", "kz", "ua"))):?>
+					<span class="popup-window-tab<?=(($strAction == "integrator")  ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-integrator" data-action="integrator">
+						<?=GetMessage('BX24_INVITE_DIALOG_TAB_INTEGRATOR_TITLE')?>
+					</span>
+				<?endif*/?>
 			</div>
 			<div class="popup-window-tabs-content">
 			<?
@@ -1018,10 +1061,10 @@ CJSCore::Init(array('clipboard'));
 								: ""
 						);
 
-						?><div class="invite-dialog-inv-text-bold"><label for="MESSAGE_TEXT"><?echo GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TITLE")?></label></div>
-						<?if (!$messageTextDisabled):?>
-						<textarea type="text" name="MESSAGE_TEXT" id="MESSAGE_TEXT" class="invite-dialog-inv-form-textarea invite-dialog-inv-form-textarea-active" style="width: 500px;"<?=$messageTextDisabled?>>
-							<?
+						?><div class="invite-dialog-inv-text-bold"><label for="MESSAGE_TEXT"><?echo GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TITLE")?></label></div><?
+						if (!$messageTextDisabled)
+						{
+						?><textarea type="text" name="MESSAGE_TEXT" id="MESSAGE_TEXT" class="invite-dialog-inv-form-textarea invite-dialog-inv-form-textarea-active" <?=$messageTextDisabled?>><?
 							if (isset($_POST["MESSAGE_TEXT"]))
 							{
 								echo htmlspecialcharsbx($_POST["MESSAGE_TEXT"]);
@@ -1030,13 +1073,16 @@ CJSCore::Init(array('clipboard'));
 							{
 								echo htmlspecialcharsbx($userMessage);
 							}
-							?>
-						</textarea>
-						<?else:?>
-						<div style="width: 500px;" class="invite-dialog-inv-text-bold">
-							<?echo GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TEXT");?>
-						</div>
-						<?endif?>
+						?></textarea><?
+						}
+						else
+						{
+							?><div style="width: 500px;" class="invite-dialog-inv-text-bold">
+								<?=GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TEXT");?>
+								<input type="hidden" name="MESSAGE_TEXT" value="<?=htmlspecialcharsbx(GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TEXT"))?>">
+							</div><?
+						}
+						?>
 
 						<?=bitrix_sessid_post()?><?
 						?><input type="hidden" name="action" value="invite"><?
@@ -1058,250 +1104,308 @@ CJSCore::Init(array('clipboard'));
 
 					?><form method="POST" action="<?echo BX_ROOT."/tools/intranet_invite_dialog.php"?>" id="ADD_DIALOG_FORM" name="ADD_DIALOG_FORM"><?
 
-						inviteDialogDrawTabContentHeader('add', $arStructure, $iDepartmentID, $iStructureCount, $arSonetGroups, $arSonetGroupsExtranet, $arSonetGroupsLast, $bExtranetInstalled);
+					inviteDialogDrawTabContentHeader('add', $arStructure, $iDepartmentID, $iStructureCount, $arSonetGroups, $arSonetGroupsExtranet, $arSonetGroupsLast, $bExtranetInstalled);
 
-						?><div class="invite-dialog-inv-form"><?
-							?><table class="invite-dialog-inv-form-table">
-								<tr>
-									<td class="invite-dialog-inv-form-l">
-										<label for="ADD_EMAIL"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_EMAIL_TITLE")?></label>
-									</td>
-									<td class="invite-dialog-inv-form-r"><?
-										?><input type="text" name="ADD_EMAIL" id="ADD_EMAIL" class="invite-dialog-inv-form-inp" value="<?echo htmlspecialcharsbx($_POST["ADD_EMAIL"])?>"><?
+					?><div class="invite-dialog-inv-form"><?
+						?><table class="invite-dialog-inv-form-table">
+							<tr>
+								<td class="invite-dialog-inv-form-l">
+									<label for="ADD_EMAIL"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_EMAIL_TITLE")?></label>
+								</td>
+								<td class="invite-dialog-inv-form-r"><?
+									?><input type="text" name="ADD_EMAIL" id="ADD_EMAIL" class="invite-dialog-inv-form-inp" value="<?echo htmlspecialcharsbx($_POST["ADD_EMAIL"])?>"><?
+									if (
+										!empty($arMailServices)
+										&& (
+											$bCreateDomainsExist
+											|| $bConnectDomainsExist
+											|| $bDomainUsersExist
+										)
+									)
+									{
+										?><div id="invite-dialog-mailbox-container" class="invite-dialog-box-info-set invite-dialog-box-info-set-inactive"><?
+										?><div class="invite-dialog-box-info-block"><?
+										if ($bCreateDomainsExist)
+										{
+											?><span id="invite-dialog-mailbox-action-create" onclick="BX.InviteDialog.onMailboxAction('create');" class="invite-dialog-box-info-btn"><?
+											?><span class="invite-dialog-box-info-btn-text"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ACTION_CREATE')?></span><?
+											?></span><?
+										}
+
 										if (
-											!empty($arMailServices)
-											&& (
-												$bCreateDomainsExist
-												|| $bConnectDomainsExist
-												|| $bDomainUsersExist
-											)
+											$bConnectDomainsExist
+											&& $bDomainUsersExist
 										)
 										{
-											?><div id="invite-dialog-mailbox-container" class="invite-dialog-box-info-set invite-dialog-box-info-set-inactive"><?
-											?><div class="invite-dialog-box-info-block"><?
-											if ($bCreateDomainsExist)
-											{
-												?><span id="invite-dialog-mailbox-action-create" onclick="BX.InviteDialog.onMailboxAction('create');" class="invite-dialog-box-info-btn"><?
-												?><span class="invite-dialog-box-info-btn-text"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ACTION_CREATE')?></span><?
-												?></span><?
-											}
-
-											if (
-												$bConnectDomainsExist
-												&& $bDomainUsersExist
-											)
-											{
-												?><span class="invite-dialog-box-info-text"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ACTION_OR')?></span><?
-												?><span id="invite-dialog-mailbox-action-connect" onclick="BX.InviteDialog.onMailboxAction('connect');" class="invite-dialog-box-info-btn"><?
-												?><span class="invite-dialog-box-info-btn-text"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ACTION_CONNECT')?></span><?
-												?></span><?
-											}
-											?></div><?
-											if (
-												$bCreateDomainsExist
-												|| $bConnectDomainsExist
-											)
-											{
-												?><div id="invite-dialog-mailbox-content-create" style="display: none;"><?
-												?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
-												?><span class="invite-dialog-box-info-left"><?
-												?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_NAME')?></span><?
-												?><input type="text" class="invite-dialog-inv-form-inp" id="ADD_MAILBOX_USER_create" name="ADD_MAILBOX_USER"><?
-												?></span><?
-												?><span class="invite-dialog-box-info-right"><?
-												?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_DOMAIN')?></span><?
-												if ($iCreateDomainsCnt > 1)
-												{
-													?><select class="invite-dialog-inv-form-select" id="ADD_MAILBOX_DOMAIN_create" name="ADD_MAILBOX_DOMAIN"><?
-													foreach($arCreateMailServicesDomains as $serviceID => $arDomainsTmp)
-													{
-														if (
-															is_array($arDomainsTmp)
-															&& !empty($arDomainsTmp)
-														)
-														{
-															foreach ($arDomainsTmp as $strDomain)
-															{
-																?><option value="<?=$strDomain?>" data-service-id="<?=$serviceID?>">@<?=$strDomain?></option><?
-															}
-														}
-													}
-													?></select><?
-												}
-												else
-												{
-													foreach($arCreateMailServicesDomains as $serviceID => $arDomainsTmp)
-													{
-														?><input type="hidden" id="ADD_MAILBOX_SERVICE_create" name="ADD_MAILBOX_SERVICE" value="<?=$serviceID?>"><?
-														break;
-													}
-													?><input type="hidden" id="ADD_MAILBOX_DOMAIN_create" name="ADD_MAILBOX_DOMAIN" value="<?=$arCreateMailServicesDomains[$serviceID][0]?>"><?
-													?><div class="invite-dialog-inv-form-hidden-text">@<?=$arCreateMailServicesDomains[$serviceID][0]?></div><?
-												}
-												?></span><?
-												?></div><?
-												?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
-												?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_PASSWORD')?></span><?
-												?><input type="password" class="invite-dialog-inv-form-inp" id="ADD_MAILBOX_PASSWORD" name="ADD_MAILBOX_PASSWORD"><?
-												?></div><?
-												?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
-												?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_PASSWORD_CONFIRM')?></span><?
-												?><input type="password" class="invite-dialog-inv-form-inp" id="ADD_MAILBOX_PASSWORD_CONFIRM" name="ADD_MAILBOX_PASSWORD_CONFIRM"><?
-												?></div><?
-												?></div><?
-											}
-
-											if (
-												$bConnectDomainsExist
-												&& $bDomainUsersExist
-											)
-											{
-												?><div id="invite-dialog-mailbox-content-connect" style="display: none;"><?
-												?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
-												?><span class="invite-dialog-box-info-left"><?
-												?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_SELECT')?></span><?
-												?><script>
-												var arMailServicesUsers = [];
-												var arConnectMailServicesDomains = [];
-												<?
-												foreach($arConnectMailServicesDomains as $serviceID => $arDomainsTmp)
-												{
-													?>
-												arConnectMailServicesDomains[<?=$serviceID?>] = '<?=$arConnectMailServicesDomains[$serviceID][0]?>';
-												<?
-											}
-											?>
-												arMailServicesUsers = [];
-												<?
-												foreach ($arMailServicesUsers as $domain => $arUsersTmp)
-												{
-													if (
-														is_array($arUsersTmp)
-														&& !empty($arUsersTmp)
-													)
-													{
-														?>
-												arMailServicesUsers['<?=$domain?>'] = [];
-												<?
-												foreach ($arUsersTmp as $strUser)
-												{
-													?>
-												arMailServicesUsers['<?=$domain?>'].push('<?=$strUser?>');
-												<?
-											}
+											?><span class="invite-dialog-box-info-text"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ACTION_OR')?></span><?
+											?><span id="invite-dialog-mailbox-action-connect" onclick="BX.InviteDialog.onMailboxAction('connect');" class="invite-dialog-box-info-btn"><?
+											?><span class="invite-dialog-box-info-btn-text"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ACTION_CONNECT')?></span><?
+											?></span><?
 										}
-									}
-									?>
-												</script><?
-												?><select class="invite-dialog-inv-form-select" id="ADD_MAILBOX_USER_connect" name="ADD_MAILBOX_USER"><?
-												foreach($arMailServicesUsers as $domain => $arUsersTmp)
+										?></div><?
+										if (
+											$bCreateDomainsExist
+											|| $bConnectDomainsExist
+										)
+										{
+											?><div id="invite-dialog-mailbox-content-create" style="display: none;"><?
+											?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
+											?><span class="invite-dialog-box-info-left"><?
+											?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_NAME')?></span><?
+											?><input type="text" class="invite-dialog-inv-form-inp" id="ADD_MAILBOX_USER_create" name="ADD_MAILBOX_USER"><?
+											?></span><?
+											?><span class="invite-dialog-box-info-right"><?
+											?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_DOMAIN')?></span><?
+											if ($iCreateDomainsCnt > 1)
+											{
+												?><select class="invite-dialog-inv-form-select" id="ADD_MAILBOX_DOMAIN_create" name="ADD_MAILBOX_DOMAIN"><?
+												foreach($arCreateMailServicesDomains as $serviceID => $arDomainsTmp)
 												{
 													if (
-														is_array($arUsersTmp)
-														&& !empty($arUsersTmp)
+														is_array($arDomainsTmp)
+														&& !empty($arDomainsTmp)
 													)
 													{
-														foreach ($arUsersTmp as $strUser)
+														foreach ($arDomainsTmp as $strDomain)
 														{
-															?><option value="<?=$strUser?>"><?=$strUser?></option><?
+															?><option value="<?=$strDomain?>" data-service-id="<?=$serviceID?>">@<?=$strDomain?></option><?
 														}
 													}
-													break;
 												}
 												?></select><?
-												?></span><?
-												?><span class="invite-dialog-box-info-right"><?
-												?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_DOMAIN')?></span><?
-												if ($iConnectDomainsCnt > 1)
+											}
+											else
+											{
+												foreach($arCreateMailServicesDomains as $serviceID => $arDomainsTmp)
 												{
-													?><select class="invite-dialog-inv-form-select" id="ADD_MAILBOX_DOMAIN_connect" name="ADD_MAILBOX_DOMAIN" onchange="BX.InviteDialog.onMailboxServiceSelect(this);"><?
-													foreach($arConnectMailServicesDomains as $serviceID => $arDomainsTmp)
+													?><input type="hidden" id="ADD_MAILBOX_SERVICE_create" name="ADD_MAILBOX_SERVICE" value="<?=$serviceID?>"><?
+													break;
+												}
+												?><input type="hidden" id="ADD_MAILBOX_DOMAIN_create" name="ADD_MAILBOX_DOMAIN" value="<?=$arCreateMailServicesDomains[$serviceID][0]?>"><?
+												?><div class="invite-dialog-inv-form-hidden-text">@<?=$arCreateMailServicesDomains[$serviceID][0]?></div><?
+											}
+											?></span><?
+											?></div><?
+											?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
+											?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_PASSWORD')?></span><?
+											?><input type="password" class="invite-dialog-inv-form-inp" id="ADD_MAILBOX_PASSWORD" name="ADD_MAILBOX_PASSWORD"><?
+											?></div><?
+											?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
+											?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_PASSWORD_CONFIRM')?></span><?
+											?><input type="password" class="invite-dialog-inv-form-inp" id="ADD_MAILBOX_PASSWORD_CONFIRM" name="ADD_MAILBOX_PASSWORD_CONFIRM"><?
+											?></div><?
+											?></div><?
+										}
+
+										if (
+											$bConnectDomainsExist
+											&& $bDomainUsersExist
+										)
+										{
+											?><div id="invite-dialog-mailbox-content-connect" style="display: none;"><?
+											?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
+											?><span class="invite-dialog-box-info-left"><?
+											?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_SELECT')?></span><?
+											?><script>
+											var arMailServicesUsers = [];
+											var arConnectMailServicesDomains = [];
+											<?
+											foreach($arConnectMailServicesDomains as $serviceID => $arDomainsTmp)
+											{
+												?>
+											arConnectMailServicesDomains[<?=$serviceID?>] = '<?=$arConnectMailServicesDomains[$serviceID][0]?>';
+											<?
+										}
+										?>
+											arMailServicesUsers = [];
+											<?
+											foreach ($arMailServicesUsers as $domain => $arUsersTmp)
+											{
+												if (
+													is_array($arUsersTmp)
+													&& !empty($arUsersTmp)
+												)
+												{
+													?>
+											arMailServicesUsers['<?=$domain?>'] = [];
+											<?
+											foreach ($arUsersTmp as $strUser)
+											{
+												?>
+											arMailServicesUsers['<?=$domain?>'].push('<?=$strUser?>');
+											<?
+										}
+									}
+								}
+								?>
+											</script><?
+											?><select class="invite-dialog-inv-form-select" id="ADD_MAILBOX_USER_connect" name="ADD_MAILBOX_USER"><?
+											foreach($arMailServicesUsers as $domain => $arUsersTmp)
+											{
+												if (
+													is_array($arUsersTmp)
+													&& !empty($arUsersTmp)
+												)
+												{
+													foreach ($arUsersTmp as $strUser)
 													{
-														if (
-															is_array($arDomainsTmp)
-															&& !empty($arDomainsTmp)
-														)
+														?><option value="<?=$strUser?>"><?=$strUser?></option><?
+													}
+												}
+												break;
+											}
+											?></select><?
+											?></span><?
+											?><span class="invite-dialog-box-info-right"><?
+											?><span class="invite-dialog-box-info-label"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_DOMAIN')?></span><?
+											if ($iConnectDomainsCnt > 1)
+											{
+												?><select class="invite-dialog-inv-form-select" id="ADD_MAILBOX_DOMAIN_connect" name="ADD_MAILBOX_DOMAIN" onchange="BX.InviteDialog.onMailboxServiceSelect(this);"><?
+												foreach($arConnectMailServicesDomains as $serviceID => $arDomainsTmp)
+												{
+													if (
+														is_array($arDomainsTmp)
+														&& !empty($arDomainsTmp)
+													)
+													{
+														foreach ($arDomainsTmp as $strDomain)
 														{
-															foreach ($arDomainsTmp as $strDomain)
-															{
-																?><option value="<?=$strDomain?>" data-service-id="<?=$serviceID?>" data-domain="<?=$strDomain?>">@<?=$strDomain?></option><?
-															}
+															?><option value="<?=$strDomain?>" data-service-id="<?=$serviceID?>" data-domain="<?=$strDomain?>">@<?=$strDomain?></option><?
 														}
 													}
-													?></select><?
 												}
-												else
-												{
-													foreach($arConnectMailServicesDomains as $serviceID => $arDomainsTmp)
-													{
-														?><input type="hidden" id="ADD_MAILBOX_SERVICE_connect" name="ADD_MAILBOX_SERVICE" value="<?=$serviceID?>"><?
-														break;
-													}
-													?><input type="hidden" id="ADD_MAILBOX_DOMAIN_connect" name="ADD_MAILBOX_DOMAIN" value="<?=$arConnectMailServicesDomains[$serviceID][0]?>"><?
-													?><div class="invite-dialog-inv-form-hidden-text">@<?=$arConnectMailServicesDomains[$serviceID][0]?></div><?
-												}
-												?></span><?
-												?></div><?
-												?></div><?
+												?></select><?
 											}
-											?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
-											?><span class="invite-dialog-box-info-close-open invite-dialog-box-info-open" onclick="BX.InviteDialog.onMailboxRollup();"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ROLLUP')?></span><?
+											else
+											{
+												foreach($arConnectMailServicesDomains as $serviceID => $arDomainsTmp)
+												{
+													?><input type="hidden" id="ADD_MAILBOX_SERVICE_connect" name="ADD_MAILBOX_SERVICE" value="<?=$serviceID?>"><?
+													break;
+												}
+												?><input type="hidden" id="ADD_MAILBOX_DOMAIN_connect" name="ADD_MAILBOX_DOMAIN" value="<?=$arConnectMailServicesDomains[$serviceID][0]?>"><?
+												?><div class="invite-dialog-inv-form-hidden-text">@<?=$arConnectMailServicesDomains[$serviceID][0]?></div><?
+											}
+											?></span><?
 											?></div><?
 											?></div><?
-											?><input type="hidden" name="ADD_MAILBOX_ACTION" id="ADD_MAILBOX_ACTION" value=""><?
 										}
-										?></td>
-								</tr>
-								<tr>
-									<td class="invite-dialog-inv-form-l">
-										<label for="ADD_NAME"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_NAME_TITLE")?></label>
-									</td>
-									<td class="invite-dialog-inv-form-r">
-										<input type="text" name="ADD_NAME" id="ADD_NAME" class="invite-dialog-inv-form-inp" value="<?echo htmlspecialcharsbx($_POST["ADD_NAME"])?>">
-									</td>
-								</tr>
-								<tr>
-									<td class="invite-dialog-inv-form-l">
-										<label for="ADD_LAST_NAME"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_LAST_NAME_TITLE")?></label>
-									</td>
-									<td class="invite-dialog-inv-form-r">
-										<input type="text" name="ADD_LAST_NAME" id="ADD_LAST_NAME" class="invite-dialog-inv-form-inp" value="<?=htmlspecialcharsbx($_POST["ADD_LAST_NAME"])?>">
-									</td>
-								</tr>
-								<tr class="invite-dialog-inv-form-footer">
-									<td class="invite-dialog-inv-form-l">
-										<label for="ADD_POSITION"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_POSITION_TITLE")?></label>
-									</td>
-									<td class="invite-dialog-inv-form-r">
-										<input type="text" name="ADD_POSITION" id="ADD_POSITION" class="invite-dialog-inv-form-inp" value="<?=htmlspecialcharsbx($_POST["ADD_POSITION"])?>">
-									</td>
-								</tr>
-								<tr>
-									<td class="invite-dialog-inv-form-l">&nbsp;</td>
-									<td class="invite-dialog-inv-form-r"><?
-										?><div class="invite-dialog-inv-form-checkbox-wrap"><?
-											?><input type="checkbox" name="ADD_SEND_PASSWORD" id="ADD_SEND_PASSWORD" value="Y" class="invite-dialog-inv-form-checkbox"<?=($_POST["ADD_SEND_PASSWORD"] == "Y" ? " checked" : "")?><?=(empty($_POST["ADD_EMAIL"]) ? " disabled" : "")?>><?
-											?><label class="invite-dialog-inv-form-checkbox-label" for="ADD_SEND_PASSWORD"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_SEND_PASSWORD_TITLE")?><span id="ADD_SEND_PASSWORD_EMAIL"></span></label><?
-											?></div><?
-										?></td>
-								</tr>
-							</table><?
-							?></div><?
-						?><?=bitrix_sessid_post()?><?
-						?><input type="hidden" name="action" value="add"><?
-						?><div class="popup-window-buttons"><?
-							?><span class="popup-window-button popup-window-button-accept" id="invite-dialog-add-button-submit"><?
-								?><span class="popup-window-button-left"></span><?
-								?><span class="popup-window-button-text"><?=GetMessage("BX24_INVITE_DIALOG_BUTTON_ADD")?></span><?
-								?><span class="popup-window-button-right"></span><?
-								?></span><?
-							?><span class="popup-window-button popup-window-button-link popup-window-button-link-cancel" id="invite-dialog-add-button-close"><?
-								?><span class="popup-window-button-link-text"><?=GetMessage("BX24_INVITE_DIALOG_BUTTON_CLOSE")?></span><?
-								?></span><?
-							?></div><?
-						?></form><?
-					?></div>
+										?><div class="invite-dialog-box-info-block invite-dialog-box-info-block-body"><?
+										?><span class="invite-dialog-box-info-close-open invite-dialog-box-info-open" onclick="BX.InviteDialog.onMailboxRollup();"><?=GetMessage('BX24_INVITE_DIALOG_MAIL_MAILBOX_ROLLUP')?></span><?
+										?></div><?
+										?></div><?
+										?><input type="hidden" name="ADD_MAILBOX_ACTION" id="ADD_MAILBOX_ACTION" value=""><?
+									}
+									?></td>
+							</tr>
+							<tr>
+								<td class="invite-dialog-inv-form-l">
+									<label for="ADD_NAME"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_NAME_TITLE")?></label>
+								</td>
+								<td class="invite-dialog-inv-form-r">
+									<input type="text" name="ADD_NAME" id="ADD_NAME" class="invite-dialog-inv-form-inp" value="<?echo htmlspecialcharsbx($_POST["ADD_NAME"])?>">
+								</td>
+							</tr>
+							<tr>
+								<td class="invite-dialog-inv-form-l">
+									<label for="ADD_LAST_NAME"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_LAST_NAME_TITLE")?></label>
+								</td>
+								<td class="invite-dialog-inv-form-r">
+									<input type="text" name="ADD_LAST_NAME" id="ADD_LAST_NAME" class="invite-dialog-inv-form-inp" value="<?=htmlspecialcharsbx($_POST["ADD_LAST_NAME"])?>">
+								</td>
+							</tr>
+							<tr class="invite-dialog-inv-form-footer">
+								<td class="invite-dialog-inv-form-l">
+									<label for="ADD_POSITION"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_POSITION_TITLE")?></label>
+								</td>
+								<td class="invite-dialog-inv-form-r">
+									<input type="text" name="ADD_POSITION" id="ADD_POSITION" class="invite-dialog-inv-form-inp" value="<?=htmlspecialcharsbx($_POST["ADD_POSITION"])?>">
+								</td>
+							</tr>
+							<tr>
+								<td class="invite-dialog-inv-form-l">&nbsp;</td>
+								<td class="invite-dialog-inv-form-r"><?
+									?><div class="invite-dialog-inv-form-checkbox-wrap"><?
+										?><input type="checkbox" name="ADD_SEND_PASSWORD" id="ADD_SEND_PASSWORD" value="Y" class="invite-dialog-inv-form-checkbox"<?=($_POST["ADD_SEND_PASSWORD"] == "Y" ? " checked" : "")?><?=(empty($_POST["ADD_EMAIL"]) ? " disabled" : "")?>><?
+										?><label class="invite-dialog-inv-form-checkbox-label" for="ADD_SEND_PASSWORD"><?echo GetMessage("BX24_INVITE_DIALOG_ADD_SEND_PASSWORD_TITLE")?><span id="ADD_SEND_PASSWORD_EMAIL"></span></label><?
+										?></div><?
+									?></td>
+							</tr>
+						</table><?
+						?></div><?
+					?><?=bitrix_sessid_post()?><?
+					?><input type="hidden" name="action" value="add"><?
+					?><div class="popup-window-buttons"><?
+						?><span class="popup-window-button popup-window-button-accept" id="invite-dialog-add-button-submit"><?
+							?><span class="popup-window-button-left"></span><?
+							?><span class="popup-window-button-text"><?=GetMessage("BX24_INVITE_DIALOG_BUTTON_ADD")?></span><?
+							?><span class="popup-window-button-right"></span><?
+							?></span><?
+						?><span class="popup-window-button popup-window-button-link popup-window-button-link-cancel" id="invite-dialog-add-button-close"><?
+							?><span class="popup-window-button-link-text"><?=GetMessage("BX24_INVITE_DIALOG_BUTTON_CLOSE")?></span><?
+							?></span><?
+						?></div><?
+					?></form><?
+				?></div>
 
+				<? // integrator tab
+				if (IsModuleInstalled("bitrix24") && in_array($licensePrefix, array("ru", "by", "kz", "ua")))
+				{
+				?>
+				<div class="popup-window-tab-content<?=(in_array($strAction, array("integrator")) ? " popup-window-tab-content-selected" : "")?>" id="intranet-dialog-tab-content-integrator" data-user-type="itegrator">
+					<form method="POST" action="<?echo BX_ROOT."/tools/intranet_invite_dialog.php"?>" id="INTEGRATOR_DIALOG_FORM" name="INTEGRATOR_DIALOG_FORM">
+						<?=bitrix_sessid_post()?>
+						<input type="hidden" name="action" value="integrator">
+
+						<div class="invite-dialog-inv-form">
+							<table class="invite-dialog-inv-form-table">
+								<tr>
+									<td class="invite-dialog-inv-form-l" style="vertical-align: top;" colspan="2">
+										<?=GetMessage("BX24_INVITE_DIALOG_INTEGRATOR_TEXT")?>
+									</td>
+								</tr>
+								<tr>
+									<td class="invite-dialog-inv-form-l" style="vertical-align: top;">
+										<label for="integrator_email">Email</label>
+									</td>
+									<td class="invite-dialog-inv-form-r">
+										<input type="text" class="invite-dialog-inv-form-inp" value="" name="integrator_email" id="integrator_email">
+									</td>
+								</tr>
+							</table>
+						</div>
+
+						<div class="invite-dialog-inv-text-bold"><label for="INTEGRATOR_MESSAGE_TEXT"><?echo GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TITLE")?></label></div>
+						<?if (!$messageTextDisabled):?>
+							<textarea type="text" name="INTEGRATOR_MESSAGE_TEXT" id="INTEGRATOR_MESSAGE_TEXT" class="invite-dialog-inv-form-textarea invite-dialog-inv-form-textarea-active" <?=$messageTextDisabled?>><?
+								if (isset($_POST["INTEGRATOR_MESSAGE_TEXT"]))
+								{
+									echo htmlspecialcharsbx($_POST["INTEGRATOR_MESSAGE_TEXT"]);
+								}
+								elseif ($userMessage = CUserOptions::GetOption("bitrix24", "integrator_message_text", GetMessage("BX24_INVITE_DIALOG_INTEGRATOR_INVITE_TEXT")))
+								{
+									echo htmlspecialcharsbx($userMessage);
+								}
+								?></textarea>
+						<?else:?>
+							<div style="width: 500px;" class="invite-dialog-inv-text-bold">
+								<?echo GetMessage("BX24_INVITE_DIALOG_INTEGRATOR_INVITE_TEXT");?>
+							</div>
+						<?endif?>
+
+						<div class="popup-window-buttons">
+							<span class="popup-window-button popup-window-button-accept" id="invite-dialog-integrator-button-submit">
+								<?=GetMessage("BX24_INVITE_DIALOG_BUTTON_INVITE")?>
+							</span>
+							<span class="popup-window-button popup-window-button-link popup-window-button-link-cancel" id="invite-dialog-integrator-button-close">
+								<?=GetMessage("BX24_INVITE_DIALOG_BUTTON_CLOSE")?>
+							</span>
+						</div>
+					</form>
+				</div>
+				<?
+				}
+				?>
 			</div>
 		</div>
 
@@ -1352,15 +1456,22 @@ CJSCore::Init(array('clipboard'));
 					BX.InviteDialog.bindInviteDialogChangeTab(BX("intranet-dialog-tab-self"));
 				BX.InviteDialog.bindInviteDialogChangeTab(BX("intranet-dialog-tab-invite"));
 				BX.InviteDialog.bindInviteDialogChangeTab(BX("intranet-dialog-tab-add"));
+				if (BX("intranet-dialog-tab-integrator"))
+					BX.InviteDialog.bindInviteDialogChangeTab(BX("intranet-dialog-tab-integrator"));
 
 				if (BX("invite-dialog-self-button-submit"))
 					BX.InviteDialog.bindInviteDialogSubmit(BX("invite-dialog-self-button-submit"));
 				BX.InviteDialog.bindInviteDialogSubmit(BX("invite-dialog-invite-button-submit"));
 				BX.InviteDialog.bindInviteDialogSubmit(BX("invite-dialog-add-button-submit"));
+				if (BX("invite-dialog-integrator-button-submit"))
+					BX.InviteDialog.bindInviteDialogSubmit(BX("invite-dialog-integrator-button-submit"));
 
-				BX.InviteDialog.bindInviteDialogClose(BX("invite-dialog-self-button-close"));
+				if (BX("invite-dialog-self-button-close"))
+					BX.InviteDialog.bindInviteDialogClose(BX("invite-dialog-self-button-close"));
 				BX.InviteDialog.bindInviteDialogClose(BX("invite-dialog-invite-button-close"));
 				BX.InviteDialog.bindInviteDialogClose(BX("invite-dialog-add-button-close"));
+				if (BX("invite-dialog-integrator-button-close"))
+					BX.InviteDialog.bindInviteDialogClose(BX("invite-dialog-integrator-button-close"));
 
 				BX.InviteDialog.bindSendPasswordEmail();
 
