@@ -380,6 +380,12 @@ class CVoxImplantOutgoing
 
 		$viHttp = new CVoxImplantHttp();
 		$result = $viHttp->StartOutgoingCall($userId, $phoneNumber, $additionalParams);
+		if(!$result)
+		{
+			return array(
+				'ERROR' => $viHttp->GetError()->msg
+			);
+		}
 
 		$config = self::GetConfigByUserId($userId);
 		$callFields = array(

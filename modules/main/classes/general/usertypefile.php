@@ -616,5 +616,20 @@ class CUserTypeFile extends Main\UserField\TypeBase
 
 		return static::getHelper()->wrapDisplayResult(ob_get_clean());
 	}
+
+	public static function getPublicText($arUserField)
+	{
+		$result = array();
+		$value = static::normalizeFieldValue($arUserField['VALUE']);
+		foreach($value as $res)
+		{
+			$fileInfo = \CFile::GetFileArray($res);
+			if(is_array($fileInfo))
+			{
+				$result[] = $fileInfo['ORIGINAL_NAME'];
+			}
+		}
+		return implode(', ', $result);
+	}
 }
 

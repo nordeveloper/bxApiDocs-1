@@ -187,7 +187,7 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 
 		if (isset($strHTMLControlName['MODE']) && ('iblock_element_admin' == $strHTMLControlName['MODE']))
 		{
-			$arResult = false;
+			$arResult = [];
 			foreach ($arValues as $intPropertyValueID => $arOneValue)
 			{
 				$mxElement = static::GetPropertyValue($arProperty,$arOneValue);
@@ -380,7 +380,7 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 			));
 		}
 
-		$controlId = $APPLICATION->IncludeComponent(
+		$APPLICATION->IncludeComponent(
 			'bitrix:main.lookup.input',
 			'iblockedit',
 			array(
@@ -537,6 +537,7 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 		$arSettings = static::PrepareSettings($arProperty);
 		$arSymbols = static::GetSymbols($arSettings);
 		$fixIBlock = $arProperty["LINK_IBLOCK_ID"] > 0;
+		$windowTableId = 'iblockprop-'.Iblock\PropertyTable::TYPE_SECTION.'-'.$arProperty['ID'].'-'.$arProperty['LINK_IBLOCK_ID'];
 
 		$isMainUiFilter = ($strHTMLControlName["FORM_NAME"] == "main-ui-filter");
 		$inputName = $strHTMLControlName['VALUE'].'[]';
@@ -739,7 +740,6 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 		$strBanSym = $arSettings['BAN_SYM'];
 		$strRepSym = (BT_UT_AUTOCOMPLETE_REP_SYM_OTHER == $arSettings['REP_SYM'] ? $arSettings['OTHER_REP_SYM'] : $arSettings['REP_SYM']);
 		$arBanSym = str_split($strBanSym,1);
-		$arRepSym = array_fill(0,sizeof($arBanSym),$strRepSym);
 		$arResult = array(
 			'BAN_SYM' => $arBanSym,
 			'REP_SYM' => array_fill(0,sizeof($arBanSym),$strRepSym),

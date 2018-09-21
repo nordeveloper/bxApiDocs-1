@@ -1212,7 +1212,7 @@ abstract class ElementList extends Base
 			$params['PRODUCT_BLOCKS_ORDER'] = explode(',', $params['PRODUCT_BLOCKS_ORDER']);
 		}
 
-		$params['PRODUCT_DISPLAY_MODE'] = $params['PRODUCT_DISPLAY_MODE'] === 'Y' ? 'Y' : 'N';
+		$params['PRODUCT_DISPLAY_MODE'] = isset($params['PRODUCT_DISPLAY_MODE']) && $params['PRODUCT_DISPLAY_MODE'] === 'Y' ? 'Y' : 'N';
 
 		if ($this->isMultiIblockMode())
 		{
@@ -1767,8 +1767,6 @@ abstract class ElementList extends Base
 	 */
 	protected function getBigDataInfo()
 	{
-		global $APPLICATION;
-
 		$rows = array();
 		$count = 0;
 		$rowsRange = array();
@@ -1809,7 +1807,7 @@ abstract class ElementList extends Base
 			'shownIds' => $shownIds,
 			'js' => array(
 				'cookiePrefix' => \COption::GetOptionString('main', 'cookie_name', 'BITRIX_SM'),
-				'cookieDomain' => $APPLICATION->GetCookieDomain(),
+				'cookieDomain' => Main\Web\Cookie::getCookieDomain(),
 				'serverTime' => time()
 			),
 			'params' => $this->getBigDataServiceRequestParams($this->arParams['RCM_TYPE'])

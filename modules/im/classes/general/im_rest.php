@@ -169,7 +169,11 @@ class CIMRestService extends IRestService
 		}
 
 		$user = \Bitrix\Im\User::getInstance($userId);
-		if (!$user->isExists())
+		if ($user->isExists())
+		{
+			$userId = $user->getId();
+		}
+		else
 		{
 			throw new Bitrix\Rest\RestException("User is not exists", "USER_NOT_EXISTS", CRestServer::STATUS_WRONG_REQUEST);
 		}

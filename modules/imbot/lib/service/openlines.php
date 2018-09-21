@@ -10,7 +10,7 @@ class Openlines
 {
 	const BOT_CODE = "network";
 	const SERVICE_CODE = "openlines";
-	
+
 	public static function onReceiveCommand($command, $params)
 	{
 		unset($params['BX_BOT_NAME']);
@@ -24,18 +24,23 @@ class Openlines
 		\Bitrix\ImBot\Log::write(Array($command,$params), 'NETWORK SERVICE');
 
 		$network = new \Bitrix\ImOpenLines\Network();
-		if($result = $network->onReceiveCommand($command, $params))
+		$result = $network->onReceiveCommand($command, $params);
+		if($result)
 		{
 			$result = Array('RESULT' => 'OK');
 		}
-		else
+		else if (is_null($result))
 		{
-			$result = new \Bitrix\ImBot\Error(__METHOD__, 'UNKNOWN_COMMAND', 'Command isnt found');
+			$result = new \Bitrix\ImBot\Error(__METHOD__, 'UNKNOWN_COMMAND', 'Command "'.$command.'" is not found.', [$command, $params]);
+		}
+		else if (!$result)
+		{
+			$result = new \Bitrix\ImBot\Error(__METHOD__, 'ERROR_COMMAND', 'Command "'.$command.'" execute with errors.', [$command, $params]);
 		}
 
 		return $result;
 	}
-	
+
 	public static function operatorMessageAdd($params)
 	{
 		$params['MESSAGE_TEXT'] = $params['MESSAGE_TEXT'] === '0'? '#ZERO#': $params['MESSAGE_TEXT'];
@@ -54,7 +59,7 @@ class Openlines
 
 		return true;
 	}
-	
+
 	public static function operatorMessageUpdate($params)
 	{
 		$params['MESSAGE_TEXT'] = $params['MESSAGE_TEXT'] === '0'? '#ZERO#': $params['MESSAGE_TEXT'];
@@ -73,7 +78,7 @@ class Openlines
 
 		return true;
 	}
-	
+
 	public static function operatorMessageDelete($params)
 	{
 		$http = new \Bitrix\ImBot\Http(self::BOT_CODE);
@@ -88,7 +93,7 @@ class Openlines
 
 		return true;
 	}
-	
+
 	public static function operatorStartWriting($params)
 	{
 		$http = new \Bitrix\ImBot\Http(self::BOT_CODE);
@@ -103,7 +108,7 @@ class Openlines
 
 		return true;
 	}
-	
+
 	public static function operatorMessageReceived($params)
 	{
 		$http = new \Bitrix\ImBot\Http(self::BOT_CODE);

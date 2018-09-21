@@ -6,6 +6,7 @@ use Bitrix\Main\Loader;
 use Bitrix\Main\SystemException;
 use Bitrix\Pull\Event;
 use Bitrix\Voximplant\Model\CallUserTable;
+use Bitrix\Main\Localization\Loc;
 
 class Signaling
 {
@@ -93,12 +94,13 @@ class Signaling
 		);
 		if ($call->isInternalCall())
 		{
-			$push['message'] = GetMessage('INCOMING_CALL', Array('#NAME#' => $portalCallData['users'][$call->getPortalUserId()]['name']));
+
+			$push['message'] = Loc::getMessage('INCOMING_CALL', Array('#NAME#' => $portalCallData['users'][$call->getPortalUserId()]['name']));
 		}
 		else
 		{
-			$push['message'] = GetMessage('INCOMING_CALL', Array('#NAME#' => $callName));
-			$push['message'] = $push['message'].' '.GetMessage('CALL_FOR_NUMBER', Array('#NUMBER#' => $phoneTitle));
+			$push['message'] = Loc::getMessage('INCOMING_CALL', Array('#NAME#' => $callName));
+			$push['message'] = $push['message'].' '.Loc::getMessage('CALL_FOR_NUMBER', Array('#NUMBER#' => $phoneTitle));
 		}
 
 		$push['params'] = Array(
@@ -186,10 +188,11 @@ class Signaling
 		$this->send([$userId],static::COMMAND_UNHOLD, []);
 	}
 
-	public function sendCompleteTransfer($userId, $newCallId)
+	public function sendCompleteTransfer($userId, $newCallId, $device)
 	{
 		$this->send([$userId], static::COMMAND_COMPLETE_TRANSFER, [
-			'newCallId' => $newCallId
+			'newCallId' => $newCallId,
+			'callDevice' => $device
 		]);
 	}
 

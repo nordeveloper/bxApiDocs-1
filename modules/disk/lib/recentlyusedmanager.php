@@ -8,6 +8,7 @@ use Bitrix\Disk\Internals\FileTable;
 use Bitrix\Disk\Internals\ObjectTable;
 use Bitrix\Disk\Internals\RecentlyUsedTable;
 use Bitrix\Disk\Uf\FileUserType;
+use Bitrix\Main\Application;
 use Bitrix\Main\Type\Collection;
 use Bitrix\Main\Type\DateTime;
 
@@ -33,23 +34,51 @@ final class RecentlyUsedManager
 	public function push($user, $objectId)
 	{
 		$userId = User::resolveUserId($user);
-		if(!$userId)
+		if (!$userId)
 		{
 			$this->errorCollection->addOne(new Error('Could not get user id.'));
 			return false;
 		}
 
-		RecentlyUsedTable::deleteBatch(array(
-			'OBJECT_ID' => $objectId,
-			'USER_ID' => $userId,
-		));
+		$rows = RecentlyUsedTable::getList(
+			[
+				'select' => ['ID'],
+				'filter' => [
+					'=OBJECT_ID' => $objectId,
+					'=USER_ID' => $userId,
+				]
+			]
+		);
 
-		$recentlyUsedModel = RecentlyUsed::add(array(
-			'OBJECT_ID' => $objectId,
-			'USER_ID' => $userId,
-		), $this->errorCollection);
+		$alreadyUpdateTime = false;
+		foreach ($rows as $row)
+		{
+			if (!$alreadyUpdateTime)
+			{
+				$result = RecentlyUsedTable::update($row['ID'], [
+					'CREATE_TIME' => new DateTime(),
+				]);
 
-		if(!$recentlyUsedModel)
+				$alreadyUpdateTime = $result->isSuccess();
+			}
+			else
+			{
+				RecentlyUsedTable::delete($row['ID']);
+			}
+		}
+
+		if (!$alreadyUpdateTime)
+		{
+			$result = RecentlyUsedTable::add(array(
+				'OBJECT_ID' => $objectId,
+				'USER_ID' => $userId,
+			));
+
+			$alreadyUpdateTime = $result->isSuccess();
+		}
+
+
+		if (!$alreadyUpdateTime)
 		{
 			return false;
 		}

@@ -446,6 +446,7 @@ class CVoxImplantRestService extends IRestService
 			$result = array();
 			while ($arData = $dbRes->fetch())
 			{
+				$arData['RECORD_FILE_ID'] = (int)$arData['CALL_WEBDAV_ID'] ?: null;
 				unset($arData['ACCOUNT_ID']);
 				unset($arData['APPLICATION_ID']);
 				unset($arData['APPLICATION_NAME']);
@@ -457,13 +458,6 @@ class CVoxImplantRestService extends IRestService
 				$arData['CALL_TYPE'] = $arData['INCOMING'];
 				unset($arData['INCOMING']);
 				$arData['CALL_START_DATE'] = CRestUtil::ConvertDateTime($arData['CALL_START_DATE']);
-				if ($arData['CALL_WEBDAV_ID'] > 0 && \Bitrix\Main\Loader::includeModule('disk'))
-				{
-					$fileId = (int)$arData['CALL_WEBDAV_ID'];
-					$file = \Bitrix\Disk\File::loadById($fileId);
-					if (!is_null($file))
-						$arData['CALL_RECORD_URL'] = \Bitrix\Disk\Driver::getInstance()->getUrlManager()->getUrlForDownloadFile($file, true);
-				}
 				$result[] = $arData;
 			}
 
@@ -706,7 +700,7 @@ class CVoxImplantRestService extends IRestService
 	 * @param ? $n
 	 * @param \CRestServer $server
 	 */
-	public static function getDefaultLineId($params, $n, $server)
+	public static function getUserDefaultLineId($params, $n, $server)
 	{
 		$userId = static::getCurrentUserId();
 		return array(

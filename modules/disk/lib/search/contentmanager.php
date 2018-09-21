@@ -30,14 +30,19 @@ final class ContentManager
 	 * Returns text content of object.
 	 * If object is folder, then returns only name of folder. @see getFolderContent();
 	 * If object is file, then returns content of document and name of file. @see getFileContent();
+	 *
 	 * @param BaseObject $object File or Folder.
+	 * @param array|null $options Custom options.
+	 *
 	 * @return string
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
-	public function getObjectContent(BaseObject $object)
+	public function getObjectContent(BaseObject $object, array $options = null)
 	{
 		if($object instanceof File)
 		{
-			return $this->getFileContent($object);
+			return $this->getFileContent($object, $options);
 		}
 		if($object instanceof Folder)
 		{

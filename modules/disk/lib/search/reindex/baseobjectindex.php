@@ -96,6 +96,8 @@ final class BaseObjectIndex extends Stepper
 		$status = $this->loadCurrentStatus();
 		if (empty($status['count']) || $status['count'] < 0 || $status['steps'] >= $status['count'])
 		{
+			self::stopExecution();
+
 			return self::FINISH_EXECUTION;
 		}
 
@@ -105,7 +107,7 @@ final class BaseObjectIndex extends Stepper
 		);
 		$objectRows = ObjectTable::getList(
 			array(
-				'select' => array('*'),
+				'select' => array('*', 'HAS_SEARCH_INDEX'),
 				'filter' => array(
 					'>ID' => $status['lastId'],
 				),
@@ -122,7 +124,7 @@ final class BaseObjectIndex extends Stepper
 
 		foreach ($objectRows as $objectRow)
 		{
-			if (empty($objectRow['SEARCH_INDEX']))
+			if (empty($objectRow['HAS_SEARCH_INDEX']))
 			{
 				try
 				{

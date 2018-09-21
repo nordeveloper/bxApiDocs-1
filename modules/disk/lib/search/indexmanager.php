@@ -56,13 +56,6 @@ final class IndexManager
 				->getSearchValue()
 			;
 
-			$maxIndexSize = Configuration::getMaxIndexSize();
-			if ($maxIndexSize > 0)
-			{
-				//yes, we know that substr may kills some last characters
-				$fulltextContent = Text\BinaryString::getSubstring($fulltextContent, 0, $maxIndexSize);
-			}
-
 			ObjectSaveIndexTable::update($object->getId(), array(
 				'SEARCH_INDEX' => $fulltextContent,
 			));
@@ -99,7 +92,7 @@ final class IndexManager
 
 		if (array_key_exists('content', $additionalData))
 		{
-			$fileContent = $additionalData['content'];
+			$fileContent = $this->processIndexContent($additionalData['content']);
 		}
 		else
 		{
@@ -533,19 +526,33 @@ final class IndexManager
 		return $defaultSite['LID'];
 	}
 
-	private function getObjectContent(BaseObject $object)
+	private function processIndexContent($content)
 	{
-		return $this->contentManager->getObjectContent($object);
+		$maxIndexSize = Configuration::getMaxIndexSize();
+		if ($maxIndexSize > 0)
+		{
+			//yes, we know that substr may kills some last characters
+			return Text\BinaryString::getSubstring($content, 0, $maxIndexSize);
+		}
+
+		return $content;
+	}
+
+	private function getObjectContent(BaseObject $object, array $options = null)
+	{
+		return $this->processIndexContent(
+			$this->contentManager->getObjectContent($object, $options)
+		);
 	}
 
 	private function getFolderContent(Folder $folder)
 	{
-		return $this->contentManager->getFolderContent($folder);
+		return $this->getObjectContent($folder);
 	}
 
 	private function getFileContent(File $file, array $options = null)
 	{
-		return $this->contentManager->getFileContent($file, $options);
+		return $this->getObjectContent($file, $options);
 	}
 
 	private function getSimpleRights(BaseObject $object)

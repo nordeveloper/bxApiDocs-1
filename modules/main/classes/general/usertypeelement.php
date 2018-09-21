@@ -181,6 +181,39 @@ class CUserTypeIBlockElement extends CUserTypeEnum
 		return $rsElement;
 	}
 
+	protected static function getEnumList(&$arUserField, $arParams = array())
+	{
+		if(!CModule::IncludeModule('iblock'))
+		{
+			return;
+		}
+
+		$obElement = new CIBlockElementEnum;
+		$rsElement = $obElement->GetTreeList($arUserField["SETTINGS"]["IBLOCK_ID"], $arUserField["SETTINGS"]["ACTIVE_FILTER"]);
+		if(!is_object($rsElement))
+		{
+			return;
+		}
+
+		$result = array();
+		$showNoValue = $arUserField["MANDATORY"] != "Y"
+			|| $arUserField['SETTINGS']['SHOW_NO_VALUE'] != 'N'
+			|| (isset($arParams["SHOW_NO_VALUE"]) && $arParams["SHOW_NO_VALUE"] == true);
+
+		if($showNoValue
+			&& ($arUserField["SETTINGS"]["DISPLAY"] != "CHECKBOX" || $arUserField["MULTIPLE"] <> "Y")
+		)
+		{
+			$result = array(null => htmlspecialcharsbx(static::getEmptyCaption($arUserField)));
+		}
+
+		while($arElement = $rsElement->Fetch())
+		{
+			$result[$arElement["ID"]] = $arElement["NAME"];
+		}
+		$arUserField["USER_TYPE"]["FIELDS"] = $result;
+	}
+
 	function OnSearchIndex($arUserField)
 	{
 		$res = '';

@@ -73,6 +73,16 @@ abstract class OrderBase extends Internals\Entity
 	 */
 	protected function __construct(array $fields = array())
 	{
+		$priceRoundedFields = ['PRICE', 'PRICE_DELIVERY', 'SUM_PAID', 'PRICE_PAYMENT', 'DISCOUNT_VALUE'];
+
+		foreach ($priceRoundedFields as $code)
+		{
+			if (isset($fields[$code]))
+			{
+				$fields[$code] = PriceMaths::roundPrecision($fields[$code]);
+			}
+		}
+
 		parent::__construct($fields);
 		$this->isNew = (empty($fields['ID']));
 	}

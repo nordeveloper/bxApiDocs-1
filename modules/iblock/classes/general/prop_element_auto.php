@@ -77,6 +77,8 @@ class CIBlockPropertyElementAutoComplete
 		$arSettings = static::PrepareSettings($arProperty);
 		$arSymbols = static::GetSymbols($arSettings);
 
+		$selfFolderUrl = (defined("SELF_FOLDER_URL") ? SELF_FOLDER_URL : "/bitrix/admin/");
+
 		$fixIBlock = $arProperty["LINK_IBLOCK_ID"] > 0;
 		$windowTableId = 'iblockprop-'.Iblock\PropertyTable::TYPE_ELEMENT.'-'.$arProperty['ID'].'-'.$arProperty['LINK_IBLOCK_ID'];
 
@@ -130,7 +132,7 @@ class CIBlockPropertyElementAutoComplete
 			?><?
 			if ($arSettings['VIEW'] == 'T')
 			{
-				$name = $APPLICATION->IncludeComponent(
+				$APPLICATION->IncludeComponent(
 					'bitrix:main.tree.selector',
 					'iblockedit',
 					array(
@@ -157,7 +159,7 @@ class CIBlockPropertyElementAutoComplete
 				?><input style="float: left; margin-right: 10px; margin-top: 5px;"
 				type="button" value="<? echo Loc::getMessage('BT_UT_EAUTOCOMPLETE_MESS_SEARCH_ELEMENT'); ?>"
 				title="<? echo Loc::getMessage('BT_UT_EAUTOCOMPLETE_MESS_SEARCH_ELEMENT_DESCR'); ?>"
-				onclick="jsUtils.OpenWindow('iblock_element_search.php?lang=<? echo LANGUAGE_ID; ?>&IBLOCK_ID=<? echo $arProperty["LINK_IBLOCK_ID"]; ?>&n=&k=&lookup=<? echo 'jsMLI_'.$control_id; ?><?=($fixIBlock ? '&iblockfix=y' : '').'&tableId='.$windowTableId; ?>', 900, 700);"><?
+				onclick="jsUtils.OpenWindow('<?=$selfFolderUrl?>iblock_element_search.php?lang=<? echo LANGUAGE_ID; ?>&IBLOCK_ID=<? echo $arProperty["LINK_IBLOCK_ID"]; ?>&n=&k=&lookup=<? echo 'jsMLI_'.$control_id; ?><?=($fixIBlock ? '&iblockfix=y' : '').'&tableId='.$windowTableId; ?>', 900, 700);"><?
 			}
 			if ($arProperty['USER_TYPE_SETTINGS']['SHOW_ADD'] == 'Y' && $fixIBlock)
 			{
@@ -203,12 +205,14 @@ class CIBlockPropertyElementAutoComplete
 		$arSettings = static::PrepareSettings($arProperty);
 		$arSymbols = static::GetSymbols($arSettings);
 
+		$selfFolderUrl = (defined("SELF_FOLDER_URL") ? SELF_FOLDER_URL : "/bitrix/admin/");
+
 		$fixIBlock = $arProperty["LINK_IBLOCK_ID"] > 0;
 		$windowTableId = 'iblockprop-'.Iblock\PropertyTable::TYPE_ELEMENT.'-'.$arProperty['ID'].'-'.$arProperty['LINK_IBLOCK_ID'];
 
 		if (isset($strHTMLControlName['MODE']) && ('iblock_element_admin' == $strHTMLControlName['MODE']))
 		{
-			$arResult = false;
+			$arResult = [];
 			foreach ($arValues as $intPropertyValueID => $arOneValue)
 			{
 				$mxElement = static::GetPropertyValue($arProperty,$arOneValue);
@@ -266,7 +270,7 @@ class CIBlockPropertyElementAutoComplete
 			?><?
 			if ($arSettings['VIEW'] == 'T')
 			{
-				$name = $APPLICATION->IncludeComponent(
+				$APPLICATION->IncludeComponent(
 					'bitrix:main.tree.selector',
 					'iblockedit',
 					array(
@@ -292,7 +296,7 @@ class CIBlockPropertyElementAutoComplete
 			{
 				?><input style="float: left; margin-right: 10px; margin-top: 5px;" type="button" value="<? echo Loc::getMessage('BT_UT_EAUTOCOMPLETE_MESS_SEARCH_ELEMENT'); ?>"
 					title="<? echo Loc::getMessage('BT_UT_EAUTOCOMPLETE_MESS_SEARCH_ELEMENT_MULTI_DESCR'); ?>"
-					onclick="jsUtils.OpenWindow('iblock_element_search.php?lang=<? echo LANGUAGE_ID; ?>&IBLOCK_ID=<? echo $arProperty["LINK_IBLOCK_ID"]; ?>&n=&k=&m=y&lookup=<? echo 'jsMLI_'.$control_id; ?><?=($fixIBlock ? '&iblockfix=y' : '').'&tableId='.$windowTableId; ?>', 900, 700);"><?
+					onclick="jsUtils.OpenWindow('<?=$selfFolderUrl?>iblock_element_search.php?lang=<? echo LANGUAGE_ID; ?>&IBLOCK_ID=<? echo $arProperty["LINK_IBLOCK_ID"]; ?>&n=&k=&m=y&lookup=<? echo 'jsMLI_'.$control_id; ?><?=($fixIBlock ? '&iblockfix=y' : '').'&tableId='.$windowTableId; ?>', 900, 700);"><?
 			}
 			if ($arProperty['USER_TYPE_SETTINGS']['SHOW_ADD'] == 'Y' && $fixIBlock)
 			{
@@ -447,7 +451,7 @@ class CIBlockPropertyElementAutoComplete
 			));
 		}
 
-		$controlId = $APPLICATION->IncludeComponent(
+		$APPLICATION->IncludeComponent(
 			'bitrix:main.lookup.input',
 			'iblockedit',
 			array(
@@ -603,6 +607,8 @@ class CIBlockPropertyElementAutoComplete
 		$arSettings = static::PrepareSettings($arProperty);
 		$arSymbols = static::GetSymbols($arSettings);
 
+		$selfFolderUrl = (defined("SELF_FOLDER_URL") ? SELF_FOLDER_URL : "/bitrix/admin/");
+
 		$isMainUiFilter = ($strHTMLControlName["FORM_NAME"] == "main-ui-filter");
 		$inputName = $strHTMLControlName['VALUE'].'[]';
 		if ($isMainUiFilter)
@@ -656,7 +662,7 @@ class CIBlockPropertyElementAutoComplete
 		?><input style="<?=$inputStyle?>" type="button"
 			value="<? echo Loc::getMessage('BT_UT_EAUTOCOMPLETE_MESS_SEARCH_ELEMENT'); ?>"
 			title="<? echo Loc::getMessage('BT_UT_EAUTOCOMPLETE_MESS_SEARCH_ELEMENT_MULTI_DESCR'); ?>"
-			onclick="jsUtils.OpenWindow('iblock_element_search.php?lang=<? echo LANGUAGE_ID; ?>&IBLOCK_ID=<? echo $arProperty["LINK_IBLOCK_ID"]; ?>&n=&k=&m=y&lookup=<? echo 'jsMLI_'.$control_id; ?><?=($fixIBlock ? '&iblockfix=y' : '').'&tableId='.$windowTableId; ?>', 900, 700);">
+			onclick="jsUtils.OpenWindow('<?=$selfFolderUrl?>iblock_element_search.php?lang=<? echo LANGUAGE_ID; ?>&IBLOCK_ID=<? echo $arProperty["LINK_IBLOCK_ID"]; ?>&n=&k=&m=y&lookup=<? echo 'jsMLI_'.$control_id; ?><?=($fixIBlock ? '&iblockfix=y' : '').'&tableId='.$windowTableId; ?>', 900, 700);">
 		<script type="text/javascript">
 			var arClearHiddenFields = arClearHiddenFields;
 			if (!!arClearHiddenFields)
@@ -806,10 +812,9 @@ class CIBlockPropertyElementAutoComplete
 		$strBanSym = $arSettings['BAN_SYM'];
 		$strRepSym = (BT_UT_AUTOCOMPLETE_REP_SYM_OTHER == $arSettings['REP_SYM'] ? $arSettings['OTHER_REP_SYM'] : $arSettings['REP_SYM']);
 		$arBanSym = str_split($strBanSym,1);
-		$arRepSym = array_fill(0,sizeof($arBanSym),$strRepSym);
 		$arResult = array(
 			'BAN_SYM' => $arBanSym,
-			'REP_SYM' => $arRepSym,
+			'REP_SYM' => array_fill(0,sizeof($arBanSym),$strRepSym),
 			'BAN_SYM_STRING' => $strBanSym,
 			'REP_SYM_STRING' => $strRepSym,
 		);

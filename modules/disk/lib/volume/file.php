@@ -423,7 +423,7 @@ class File extends Volume\Base implements Volume\IVolumeIndicatorParent, Volume\
 	 * @param array $collectedData List types of collected data to return: ATTACHED_OBJECT, SHARING_OBJECT, EXTERNAL_LINK, UNNECESSARY_VERSION.
 	 * @return DB\Result
 	 */
-	public function getMeasurementResult($collectedData = array(self::DISK_FILE, self::PREVIEW_FILE, self::ATTACHED_OBJECT, self::EXTERNAL_LINK, self::UNNECESSARY_VERSION))
+	public function getMeasurementResult($collectedData = array(self::DISK_FILE, self::PREVIEW_FILE, self::ATTACHED_OBJECT, self::EXTERNAL_LINK, self::UNNECESSARY_VERSION, self::CRM_OBJECT))
 	{
 		$connection = Application::getConnection();
 
@@ -650,6 +650,37 @@ class File extends Volume\Base implements Volume\IVolumeIndicatorParent, Volume\
 		 * @param string $whereSql
 		 * @return string
 		 */
+		$buildQueryCrm = function($whereSql = '')
+		{
+			// language=SQL
+			$querySql = "
+				/* crm */
+				LEFT JOIN 
+				(
+					SELECT
+						COUNT(DISTINCT act_elem.ELEMENT_ID) AS ACT_COUNT,
+						files.ID AS FID
+					FROM
+						b_disk_object files
+						INNER JOIN b_disk_storage storage ON storage.ID = files.STORAGE_ID 
+						INNER JOIN b_crm_act_elem act_elem on act_elem.ELEMENT_ID = files.ID
+					WHERE
+						files.TYPE = ". ObjectTable::TYPE_FILE. "
+						AND act_elem.STORAGE_TYPE_ID = ". \Bitrix\Crm\Integration\StorageType::Disk. "
+						AND files.ID = files.REAL_OBJECT_ID
+						{$whereSql}
+					GROUP BY 
+						files.ID
+				) CNT_CRM
+					ON CNT_FILES.FID = CNT_CRM.FID
+			";
+			return $querySql;
+		};
+
+		/**
+		 * @param string $whereSql
+		 * @return string
+		 */
 		$buildQueryUnnecessary = function($whereSql = '')
 		{
 			// language=SQL
@@ -791,6 +822,17 @@ class File extends Volume\Base implements Volume\IVolumeIndicatorParent, Volume\
 					', IFNULL(CNT_FREE.UNNECESSARY_VERSION_COUNT, 0) as UNNECESSARY_VERSION_COUNT';
 
 				$fromSql .= $buildQueryUnnecessary($whereSql);
+			}
+
+			if (in_array(self::CRM_OBJECT, $collectedData))
+			{
+				$crmIndicator = new \Bitrix\Disk\Volume\Module\Crm();
+				if ($crmIndicator->isMeasureAvailable())
+				{
+					$selectSql .= ', IFNULL(CNT_CRM.ACT_COUNT, 0) as ACT_COUNT';
+					$usingSql .= '+ IFNULL(CNT_CRM.ACT_COUNT, 0)';
+					$fromSql .= $buildQueryCrm($whereSql);
+				}
 			}
 
 			// main query

@@ -1175,14 +1175,18 @@ abstract class DataManager
 	 * Sets a flag indicating crypto support for a field.
 	 *
 	 * @param string $field
+	 * @param string $table
 	 * @param bool   $mode
 	 *
 	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
 	 */
-	public static function enableCrypto($field, $mode = true)
+	public static function enableCrypto($field, $table = null, $mode = true)
 	{
-		$table = static::getTableName();
+		if($table === null)
+		{
+			$table = static::getTableName();
+		}
 		$options = array();
 		$optionString = Main\Config\Option::get("main", "~crypto_".$table);
 		if($optionString <> '')
@@ -1197,14 +1201,18 @@ abstract class DataManager
 	 * Returns true if crypto is enabled for a field.
 	 *
 	 * @param string $field
+	 * @param string $table
 	 *
 	 * @return bool
 	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
 	 */
-	public static function cryptoEnabled($field)
+	public static function cryptoEnabled($field, $table = null)
 	{
-		$table = static::getTableName();
+		if($table === null)
+		{
+			$table = static::getTableName();
+		}
 		$optionString = Main\Config\Option::get("main", "~crypto_".$table);
 		if($optionString <> '')
 		{

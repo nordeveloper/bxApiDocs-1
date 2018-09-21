@@ -23,7 +23,7 @@ if ($params['BX_IFRAME'] == 'Y')
 			echo "Code: 404";
 			die();
 		}
-		
+
 		$apps = \Bitrix\Im\App::getListCache();
 		if (!$apps[$params['APP_ID']] || $apps[$params['APP_ID']]['BOT_ID'] != $params['BOT_ID'])
 		{
@@ -36,18 +36,18 @@ if ($params['BX_IFRAME'] == 'Y')
 			die();
 		}
 		$hash = $apps[$params['APP_ID']]['HASH'];
-		
+
 		if (\Bitrix\Im\App::getUserHash($params['USER_ID'], $hash) != $params['USER_HASH'])
 		{
 			echo "Code: 403";
 			die();
 		}
-		
+
 		$apps = \Bitrix\Im\App::update(
-			Array('ID' => $params['APP_ID'], 'USER_ID' => $params['USER_ID']), 
+			Array('ID' => $params['APP_ID'], 'USER_ID' => $params['USER_ID']),
 			Array('REGISTERED' => 'Y')
 		);
-		
+
 		echo \Bitrix\Main\Web\Json::encode(Array(
 			'DOMAIN_HASH' => $hash
 		));
@@ -60,9 +60,9 @@ if ($params['BX_IFRAME'] == 'Y')
 			echo "Code: 404";
 			die();
 		}
-		
+
 		$isExists = false;
-		
+
 		$apps = \Bitrix\Im\App::getListCache();
 		foreach ($apps as $app)
 		{
@@ -70,25 +70,25 @@ if ($params['BX_IFRAME'] == 'Y')
 			{
 				continue;
 			}
-			
+
 			$isExists = true;
-			
+
 			break;
 		}
-		
+
 		if ($isExists)
 		{
 			echo "Code: 404";
 			die();
 		}
-		
+
 		echo \Bitrix\Main\Web\Json::encode(Array(
 			'RESULT' => 'SUCCESS'
 		));
 	}
-} 
+}
 else if (
-	$params['BX_TYPE'] == \Bitrix\ImBot\Http::TYPE_BITRIX24 && \Bitrix\ImBot\Http::requestSign($params['BX_TYPE'], md5(implode("|", $params)."|".BX24_HOST_NAME)) === $hash 
+	$params['BX_TYPE'] == \Bitrix\ImBot\Http::TYPE_BITRIX24 && \Bitrix\ImBot\Http::requestSign($params['BX_TYPE'], md5(implode("|", $params)."|".BX24_HOST_NAME)) === $hash
 	|| $params['BX_TYPE'] == \Bitrix\ImBot\Http::TYPE_CP && \Bitrix\ImBot\Http::requestSign($params['BX_TYPE'], md5(implode("|", $params))) === $hash
 )
 {

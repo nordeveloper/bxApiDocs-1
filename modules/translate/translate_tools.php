@@ -1,4 +1,6 @@
 <?
+use Bitrix\Main;
+
 IncludeModuleLangFile(__FILE__);
 
 $arLangDirs = NULL;
@@ -67,24 +69,6 @@ function is_lang_dir($path, $c = false)
 	{
 		return false;
 	}
-
-	$arr = explode('/', $path);
-
-	if (in_array('exec', $arr))
-		return false;
-
-	if (in_array('lang', $arr))
-	{
-		if ($c)
-		{
-			$lang_key = array_search('lang', $arr) + 1;
-			return array_key_exists($lang_key, $arr) && strlen($arr[$lang_key]) > 0;
-		}
-		else
-			return true;
-	}
-
-	return false;
 }
 
 function get_lang_id($path)
@@ -251,154 +235,260 @@ function GetTCSVArray()
 function SaveTCSVFile()
 {
 	global $APPLICATION;
-	$errors = array();
-	if ($APPLICATION->GetGroupRight("translate") == 'W' && check_bitrix_sessid())
+
+	if (!($APPLICATION->GetGroupRight("translate") >= 'W' && check_bitrix_sessid()))
 	{
-		if (
-			array_key_exists('csvfile', $_FILES) &&
-			array_key_exists('tmp_name', $_FILES['csvfile']) &&
-			file_exists($_FILES['csvfile']['tmp_name'])
-		)
+		$APPLICATION->ThrowException(GetMessage('TR_TOOLS_ERROR_RIGHTS'));
+		return false;
+	}
+
+	if (!(
+		isset($_FILES['csvfile'])
+		&& isset($_FILES['csvfile']['tmp_name'])
+		&& file_exists($_FILES['csvfile']['tmp_name'])
+	))
+	{
+		$APPLICATION->ThrowException(GetMessage('TR_TOOLS_ERROR_EMPTY_FILE'));
+		return false;
+	}
+
+	$errors = [];
+
+	$rewrite = isset($_POST['rewrite_lang_files']) && $_POST['rewrite_lang_files'] == 'Y';
+	$mergeMode = true;
+	if (!$rewrite)
+	{
+		$mergeMode = (isset($_POST['rewrite_lang_files']) && $_POST['rewrite_lang_files'] == 'U');
+	}
+	$languageList = GetTLangList();
+
+	$phraseList = array();
+	$columnList = [];
+	$fileIndex = null;
+	$keyIndex = null;
+
+	$csvFile = new CCSVData();
+	$csvFile->LoadFile($_FILES['csvfile']['tmp_name']);
+	$csvFile->SetFieldsType('R');
+	$csvFile->SetFirstHeader(false);
+	$csvFile->SetDelimiter(';');
+
+	$csvRow = $csvFile->Fetch();
+	if (
+		!is_array($csvRow)
+		|| empty($csvRow)
+		|| (count($csvRow) == 1 && ($csvRow[0] === null || $csvRow[0] === ''))
+	)
+	{
+		$errors[] = GetMessage('BX_TRANSLATE_IMPORT_ERR_EMPTY_FIRST_ROW');
+	}
+	else
+	{
+		$columnList = array_flip($csvRow);
+		foreach ($languageList as $keyLang => $langID)
 		{
-			$rewrite = array_key_exists('rewrite_lang_files', $_POST) && $_POST['rewrite_lang_files'] == 'Y';
-			$arTLangs = GetTLangList();
+			if (!isset($columnList[$langID]))
+				unset($languageList[$keyLang]);
+		}
+		if (!isset($columnList['file']))
+			$errors[] = GetMessage('BX_TRANSLATE_IMPORT_ERR_DESTINATION_FIELD_ABSENT');
+		else
+			$fileIndex = $columnList['file'];
+		if (!isset($columnList['key']))
+			$errors[] = GetMessage('BX_TRANSLATE_IMPORT_ERR_PHRASE_CODE_FIELD_ABSENT');
+		else
+			$keyIndex = $columnList['key'];
+		if (empty($languageList))
+			$errors[] = GetMessage('BX_TRANSLATE_IMPORT_ERR_LANGUAGE_LIST_ABSENT');
+	}
 
-
-			if ($fp = fopen($_FILES['csvfile']['tmp_name'], 'r'))
+	if (empty($errors))
+	{
+		$csvRowCounter = 1;
+		while ($csvRow = $csvFile->Fetch())
+		{
+			$csvRowCounter++;
+			if (
+				!is_array($csvRow)
+				|| empty($csvRow)
+				|| (count($csvRow) == 1 && ($csvRow[0] === null || $csvRow[0] === ''))
+			)
+				continue;
+			$file = (isset($csvRow[$fileIndex]) ? $csvRow[$fileIndex] : '');
+			$key = (isset($csvRow[$keyIndex]) ? $csvRow[$keyIndex] : '');
+			if ($file == '' || $key == '')
 			{
-				$i = 0;
-				$arr = array();
-				$arErrLineFile = array();
-				$arColNames = array();
-				while ($arData = fgetcsv($fp, 10000, ';'))
+				$rowErrors = [];
+				if ($file == '')
+					$rowErrors[] = GetMessage('BX_TRANSLATE_IMPORT_ERR_DESTINATION_FILEPATH_ABSENT');
+				if ($key == '')
+					$rowErrors[] = GetMessage('BX_TRANSLATE_IMPORT_ERR_PHRASE_CODE_ABSENT');
+				$errors[] = GetMessage(
+					'TR_TOOLS_ERROR_LINE_FILE_EXT',
+					['#LINE#' => $csvRowCounter, '#ERROR#' => implode('; ', $rowErrors)]
+				);
+				unset($rowErrors);
+				continue;
+			}
+
+			$rowErrors = [];
+
+			if (!isset($phraseList[$file]))
+				$phraseList[$file] = [];
+			foreach ($languageList as $languageId)
+			{
+				if (!isset($phraseList[$file][$languageId]))
+					$phraseList[$file][$languageId] = [];
+
+				$langIndex = $columnList[$languageId];
+				if (!isset($csvRow[$langIndex]))
 				{
-					if ($i == 0)
+					$rowErrors[] = GetMessage(
+						'BX_TRANSLATE_IMPORT_ERR_ROW_LANG_ABSENT',
+						['#LANG#' => $languageId]
+					);
+					continue;
+				}
+				if ($csvRow[$langIndex] === '')
+					continue;
+
+				$phrase = str_replace("\\\\", "\\", $csvRow[$langIndex]);
+				$checked = true;
+				if (defined('BX_UTF'))
+				{
+					$validPhrase = preg_replace("/[^\x01-\x7F]/","", $phrase);
+					if ($validPhrase !== $phrase)
 					{
-						if (!is_array($arData) || (count($arData) == 1 && $arData[0] === null))
+						//TODO: change to Main\Text\Encoding::detectUtf8 after method refactoring
+						$prevBits8and7 = 0;
+						$isUtf = 0;
+						foreach(unpack("C*", $phrase) as $byte)
 						{
-							$arErrLineFile[] = 0;
-							break;
+							$hiBits8and7 = $byte & 0xC0;
+							if ($hiBits8and7 == 0x80)
+							{
+								if ($prevBits8and7 == 0xC0)
+									$isUtf++;
+								elseif (($prevBits8and7 & 0x80) == 0x00)
+									$isUtf--;
+							}
+							elseif ($prevBits8and7 == 0xC0)
+							{
+								$isUtf--;
+							}
+							$prevBits8and7 = $hiBits8and7;
 						}
-						$arColNames = array_flip($arData);
-						foreach ($arTLangs as $keyLang => $langID)
-						{
-							if (!isset($arColNames[$langID]))
-								unset($arTLangs[$keyLang]);
-						}
-						if (!isset($arColNames['file']) || !isset($arColNames['key']) || empty($arTLangs))
-						{
-							$arErrLineFile[] = 0;
-							break;
-						}
+						unset($hiBits8and7, $byte);
+						$checked = ($isUtf > 0);
+						unset($isUtf, $prevBits8and7);
+					}
+					unset($validPhrase);
+				}
+
+				if ($checked)
+				{
+					$phraseList[$file][$languageId][$key] = $phrase;
+				}
+				else
+				{
+					$rowErrors[] = GetMessage(
+						'BX_TRANSLATE_IMPORT_ERR_NO_VALID_UTF8_PHRASE',
+						['#LANG#' => $languageId]
+					);
+				}
+				unset($checked, $phrase);
+			}
+
+			if (!empty($rowErrors))
+			{
+				$errors[] = GetMessage(
+					'TR_TOOLS_ERROR_LINE_FILE_BIG',
+					[
+						'#LINE#' => $csvRowCounter,
+						'#FILENAME#' => $file,
+						'#PHRASE#' => $key,
+						'#ERROR#' => implode('; ', $rowErrors)
+					]
+				);
+			}
+			unset($rowErrors);
+		}
+		unset($csvRow);
+	}
+	$csvFile->CloseFile();
+	unset($csvFile);
+
+	foreach ($phraseList as $fileIndex => $translationList)
+	{
+		if (is_lang_dir($fileIndex, true))
+		{
+			foreach ($translationList as $languageId => $fileMessages)
+			{
+				if (empty($fileMessages))
+					continue;
+
+				$rawFile = replace_lang_id($fileIndex, $languageId);
+				$file = Rel2Abs('/', $rawFile);
+				if ($file !== $rawFile)
+				{
+					$errors[] = GetMessage(
+						'BX_TRANSLATE_IMPORT_ERR_BAD_FILEPATH',
+						['#FILE#' => $fileIndex]
+					);
+					break;
+				}
+
+				$MESS = [];
+				if (!$rewrite && file_exists($_SERVER['DOCUMENT_ROOT'].$file))
+				{
+					include($_SERVER['DOCUMENT_ROOT'].$file);
+					if (!is_array($MESS))
+					{
+						$MESS = [];
 					}
 					else
 					{
-						if (!is_array($arData) || (count($arData) == 1 && $arData[0] === null))
+						foreach (array_keys($MESS) as $index)
 						{
-							$arErrLineFile[$i+1] = $i + 1;
-							continue;
+							if ($MESS[$index] === '')
+								unset($MESS[$index]);
 						}
-						$file = $arData[$arColNames['file']];
-						$key = $arData[$arColNames['key']];
-						if ($file == '' || $key == '')
-						{
-							$arErrLineFile[$i+1] = $i + 1;
-							continue;
-						}
-						if (!isset($arr[$file]))
-							$arr[$file] = array();
-
-						foreach ($arTLangs as $lang_id)
-						{
-							if (!isset($arr[$file][$lang_id]))
-								$arr[$file][$lang_id] = array();
-
-							if (isset($arData[$arColNames[$lang_id]]))
-							{
-								if ($arData[$arColNames[$lang_id]] !== '')
-								{
-									$arr[$file][$lang_id][$key] = str_replace("\\\\", "\\", $arData[$arColNames[$lang_id]]);
-								}
-							}
-							else
-							{
-								$arErrLineFile[$i+1] = $i + 1;
-							}
-						}
-					}
-					$i++;
-				}
-				fclose($fp);
-
-				if (!empty($arErrLineFile))
-				{
-					foreach($arErrLineFile as $val)
-					{
-						$errors[] = str_replace("#LINE#", $val, GetMessage("TR_TOOLS_ERROR_LINE_FILE"));
+						unset($index);
 					}
 				}
 
-				foreach ($arr as $file_patt => $arTranslations)
+				if ($mergeMode)
+					$MESS = array_merge($MESS, $fileMessages);
+				else
+					$MESS = array_merge($fileMessages, $MESS);
+
+				if (!empty($MESS))
 				{
-					if (is_lang_dir($file_patt, true))
+					$strMess = "";
+					foreach ($MESS as $key => $value)
 					{
-						foreach ($arTranslations as $lang_id => $arMessages)
-						{
-							if (empty($arMessages))
-							{
-								continue;
-							}
-							$file = replace_lang_id($file_patt, $lang_id);
-							$MESS = array();
-							if (!$rewrite && file_exists($_SERVER['DOCUMENT_ROOT'] . $file))
-							{
-								include($_SERVER['DOCUMENT_ROOT'].$file);
-								if (!is_array($MESS))
-								{
-									$MESS = array();
-								}
-							}
+						$value = str_replace("\n\r", "\n", $value);
+						$strMess .= '$MESS["'.EscapePHPString($key).'"] = "'.EscapePHPString($value).'";'."\n";
+					}
 
-							$MESS = array_merge($MESS, $arMessages);
-
-							if(!empty($MESS))
-							{
-								$strMess = "";
-								foreach ($MESS as $key => $value)
-								{
-									$value = str_replace("\n\r", "\n", $value);
-									$strMess .= '$MESS["'.EscapePHPString($key).'"] = "'.EscapePHPString($value).'";'."\n";
-								}
-
-								if (!TR_BACKUP($file))
-								{
-									$errors[] = GetMessage("TR_TOOLS_ERROR_CREATE_BACKUP", array('%FILE%' => $file));
-								}
-								else
-								{
-									if (!RewriteFile($_SERVER["DOCUMENT_ROOT"].$file, "<?\n".$strMess."?".">"))
-									{
-										$errors[] = GetMessage('TR_TOOLS_ERROR_WRITE_FILE', array('%FILE%' => $file));
-									}
-								}
-							}
-						}
+					if (!TR_BACKUP($file))
+					{
+						$errors[] = GetMessage("TR_TOOLS_ERROR_CREATE_BACKUP", array('%FILE%' => $file));
 					}
 					else
 					{
-						$errors[] = GetMessage('TR_TOOLS_ERROR_FILE_NOT_LANG', array('%FILE%' => $file_patt));
+						if (!RewriteFile($_SERVER["DOCUMENT_ROOT"].$file, "<?\n".$strMess."?".">"))
+						{
+							$errors[] = GetMessage('TR_TOOLS_ERROR_WRITE_FILE', array('%FILE%' => $file));
+						}
 					}
 				}
 			}
 		}
 		else
 		{
-			$errors[] = GetMessage('TR_TOOLS_ERROR_EMPTY_FILE');
+			$errors[] = GetMessage('TR_TOOLS_ERROR_FILE_NOT_LANG', array('%FILE%' => $fileIndex));
 		}
-	}
-	else
-	{
-		$errors[] = GetMessage('TR_TOOLS_ERROR_RIGHTS');
 	}
 
 	if (!empty($errors))
@@ -406,18 +496,22 @@ function SaveTCSVFile()
 		$APPLICATION->ThrowException(implode('<br>', $errors));
 		return false;
 	}
+	unset($errors);
 	return true;
 }
 
 function GetTLangList()
 {
-	$arTLangs = array();
-	$o = 'sort';
-	$b = 'asc';
-	$ln = CLanguage::GetList($o, $b, array("ACTIVE"=>"Y"));
-	while ($lnr = $ln->Fetch())
-		$arTLangs[] = $lnr["LID"];
-	return $arTLangs;
+	$result = [];
+	$iterator = Main\Localization\LanguageTable::getList([
+		'select' => ['LID', 'SORT'],
+		'filter' => ['=ACTIVE' => 'Y'],
+		'order' => ['SORT' => 'ASC']
+	]);
+	while ($row = $iterator->fetch())
+		$result[] = $row['LID'];
+	unset($row, $iterator);
+	return $result;
 }
 
 function GetTLangFiles($path, $IS_LANG_DIR = false)
@@ -470,7 +564,7 @@ function GetTLangFiles($path, $IS_LANG_DIR = false)
 
 function TSEARCH($file, &$count)
 {
-	global $arSearchParam, $APPLICATION, $USER;
+	global $arSearchParam, $USER;
 
 	if (!$USER->CanDoOperation('edit_php'))
 		return false ;
@@ -497,7 +591,6 @@ function TSEARCH($file, &$count)
 	{
 		$_bMnemonic = true;
 	}
-
 
 	$_bResult = false;
 	$count = 0;

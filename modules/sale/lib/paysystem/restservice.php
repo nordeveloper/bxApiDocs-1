@@ -92,9 +92,13 @@ class RestService extends \IRestService
 
 		if (IsModuleInstalled('crm'))
 		{
-			if ($params['ENTITY_REGISTRY_TYPE'] === REGISTRY_TYPE_CRM_INVOICE)
+			if (!isset($params['ENTITY_REGISTRY_TYPE']))
 			{
 				$fields['ENTITY_REGISTRY_TYPE'] = REGISTRY_TYPE_CRM_INVOICE;
+			}
+			else
+			{
+				$fields['ENTITY_REGISTRY_TYPE'] = $params['ENTITY_REGISTRY_TYPE'];
 			}
 		}
 
@@ -383,10 +387,10 @@ class RestService extends \IRestService
 			throw new RestException('Pay system with handler '.$handlerCode.' not found!', self::ERROR_PAY_SYSTEM_NOT_FOUND);
 		}
 
-		$order = Order::load($invoiceId);
-		if ($order)
+		$invoice = Invoice\Invoice::load($invoiceId);
+		if ($invoice)
 		{
-			$paymentCollection = $order->getPaymentCollection();
+			$paymentCollection = $invoice->getPaymentCollection();
 			if ($paymentCollection)
 			{
 				/** @var Payment $payment */
@@ -440,6 +444,8 @@ class RestService extends \IRestService
 		}
 
 		$params['PAYMENT_ID'] = $payment['ID'];
+		$params['ENTITY_REGISTRY_TYPE'] = REGISTRY_TYPE_CRM_INVOICE;
+
 		return static::payPayment($params);
 	}
 
@@ -466,7 +472,8 @@ class RestService extends \IRestService
 
 		$dbRes = Manager::getList(array(
 			'filter' => array(
-				'=ACTION_FILE' => $params['BX_REST_HANDLER']
+				'=ACTION_FILE' => $params['BX_REST_HANDLER'],
+				'=ENTITY_REGISTRY_TYPE' => $params['ENTITY_REGISTRY_TYPE']
 			)
 		));
 		$item = $dbRes->fetch();

@@ -7,10 +7,11 @@ use Bitrix\Main\Type\DateTime;
 
 final class RightSetupSessionTable extends DataManager
 {
-	const STATUS_STARTED  = 2;
-	const STATUS_FINISHED = 3;
-	const STATUS_FORKED   = 4;
-	const STATUS_BAD      = 5;
+	const STATUS_STARTED   = 2;
+	const STATUS_FINISHED  = 3;
+	const STATUS_FORKED    = 4;
+	const STATUS_BAD       = 5;
+	const STATUS_DUPLICATE = 6;
 
 	/**
 	 * In 5 minutes we decide to restart setup session and try again.

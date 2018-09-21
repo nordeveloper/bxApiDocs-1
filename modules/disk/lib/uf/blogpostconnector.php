@@ -147,7 +147,7 @@ final class BlogPostConnector extends Connector
 			return false;
 		}
 		$cacheTtl = 2592000;
-		$cacheId = 'blog_post_socnet_general_' . $this->entityId . '_' . LANGUAGE_ID;
+		$cacheId = 'blog_post_socnet_general_' . $this->entityId . '_' . LANGUAGE_ID. '_diskconnector';
 		$timezoneOffset = \CTimeZone::getOffset();
 		if($timezoneOffset != 0)
 		{

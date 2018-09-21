@@ -12,40 +12,35 @@ use Bitrix\Main\Application;
 use Bitrix\Main\ArgumentTypeException;
 use Bitrix\Main\Engine\ActionFilter\Authentication;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Type\DateTime;
+use Bitrix\Main\Web\Uri;
 
 class File extends BaseObject
 {
 	public function configureActions()
 	{
 		$configureActions = parent::configureActions();
+
+		$configureActions['showImage'] =
 		$configureActions['showPreview'] = [
-			'prefilters' => array_merge(
-				parent::getDefaultPreFilters(),
-				[
-					new Authentication(true),
-					new Engine\ActionFilter\CheckImageSignature(),
-					new Main\Engine\ActionFilter\CloseSession(),
-				]
-			),
+			'-prefilters' => [
+				Main\Engine\ActionFilter\Csrf::class,
+			],
+			'+prefilters' => [
+				new Authentication(true),
+				new Engine\ActionFilter\CheckImageSignature(),
+				new Main\Engine\ActionFilter\CloseSession(),
+			]
 		];
-		$configureActions['showImage'] = [
-			'prefilters' => array_merge(
-				parent::getDefaultPreFilters(),
-				[
-					new Authentication(true),
-					new Engine\ActionFilter\CheckImageSignature(),
-					new Main\Engine\ActionFilter\CloseSession(),
-				]
-			),
-		];
+
 		$configureActions['download'] = [
-			'prefilters' => array_merge(
-				parent::getDefaultPreFilters(),
-				[
-					new Authentication(true),
-					new Main\Engine\ActionFilter\CloseSession(),
-				]
-			),
+			'-prefilters' => [
+				Main\Engine\ActionFilter\Csrf::class,
+			],
+			'+prefilters' => [
+				new Authentication(true),
+				new Main\Engine\ActionFilter\CloseSession(),
+			]
 		];
 
 		return $configureActions;

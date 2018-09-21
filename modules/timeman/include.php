@@ -40,6 +40,7 @@ CModule::AddAutoloadClasses(
 		"CUserReportFull" => "classes/general/timeman_report_full.php",
 		"CReportSettings" => "classes/general/timeman_report_full.php",
 		"CReportNotifications" => "classes/general/timeman_report_full.php",
+		"CTimeManTableSchema" => "classes/general/timeman_table_schema.php",
 
 		"CTimeManAdminReport" => "classes/general/timeman_admin_report.php",
 		"CTimeManNotify" => "classes/general/timeman_notify.php",
@@ -48,13 +49,20 @@ CModule::AddAutoloadClasses(
 );
 
 CJSCore::RegisterExt('timeman', array(
-	'js' => '/bitrix/js/timeman/core_timeman.js',
+	'js' => '/bitrix/js/timeman/timemanager/core_timeman.js',
 	'css' => array(
-		'/bitrix/js/timeman/css/core_timeman.css',
+		'/bitrix/js/timeman/timemanager/css/core_timeman.css',
 		'/bitrix/themes/.default/clock.css'
 	),
 	'lang' => '/bitrix/modules/timeman/lang/'.LANGUAGE_ID.'/js_core_timeman.php',
 	'rel' => array('ajax', 'timer', 'popup', 'ls', 'planner')
+));
+
+CJSCore::RegisterExt('timecontrol', array(
+	'js' => '/bitrix/js/timeman/timecontrol/core_timecontrol.js',
+	'css' => '/bitrix/js/timeman/timecontrol/css/core_timecontrol.css',
+	'lang' => '/bitrix/modules/timeman/lang/'.LANGUAGE_ID.'/js_core_timecontrol.php',
+	'rel' => array('rest', 'popup', 'date', 'ls')
 ));
 
 \Bitrix\Main\Page\Asset::getInstance()->groupJs('calendar_planner_handler', 'timeman');

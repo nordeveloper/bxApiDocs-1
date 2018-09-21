@@ -10,3 +10,16 @@ $adminAjaxHelper = new CAdminAjaxHelper();
 $adminSidePanelHelper = new CAdminSidePanelHelper();
 $adminMenu = new CAdminMenu();
 $adminChain = new CAdminMainChain("main_navchain");
+
+// todo: a temporary solution for blocking access to admin pages bypassing the interface
+if (defined("SELF_FOLDER_URL") && !$adminSidePanelHelper->isPublicSidePanel() && !defined("INTERNAL_ADMIN_PAGE") && !isset($_REQUEST["bxpublic"]) && !isset($_REQUEST["public"]))
+{
+	if (IsModuleInstalled("bitrix24"))
+	{
+		LocalRedirect("/");
+	}
+	else
+	{
+		$APPLICATION->AuthForm("");
+	}
+}

@@ -136,6 +136,8 @@ class CIMEvent
 					$arMentionedUserID = array_merge($arMentionedUserID, $mention[1]);
 				}
 			}
+
+			$title = CTextParser::clearAllTags($title);
 			$description = CTextParser::clearAllTags($description);
 
 			if (

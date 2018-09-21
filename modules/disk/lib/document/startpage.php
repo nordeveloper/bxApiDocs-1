@@ -18,7 +18,7 @@
 	{
 		if(window.opener)
 		{
-			if((BX.browser.IsIE() || BX.browser.IsIE11() || /Edge\/12./i.test(navigator.userAgent)) && window.opener._ie_elementViewer && (window.opener._ie_elementViewer.bVisible || window.opener._ie_elementViewer.createDoc))
+			if((BX.browser.IsIE() || BX.browser.IsIE11() || /Edge\/./i.test(navigator.userAgent)) && window.opener._ie_elementViewer && (window.opener._ie_elementViewer.bVisible || window.opener._ie_elementViewer.createDoc))
 			{
 				window.opener._ie_elementViewer.closeConfirm();
 				if(window.opener._ie_elementViewer.createDoc)
@@ -94,7 +94,7 @@
 						window.successLoadCommitData = true;
 						if(window.opener) {
 							if (
-								(BX.browser.IsIE() || BX.browser.IsIE11() || /Edge\/12./i.test(navigator.userAgent)) &&
+								(BX.browser.IsIE() || BX.browser.IsIE11() || /Edge\/./i.test(navigator.userAgent)) &&
 								window.opener._ie_elementViewer &&
 								(window.opener._ie_elementViewer.createDoc || window.opener._ie_elementViewer.bVisible && window.opener._ie_elementViewer.isCurrent(window.opener.window._ie_currentElement))) {
 								var link = data.link;

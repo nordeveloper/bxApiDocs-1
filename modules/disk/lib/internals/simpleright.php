@@ -81,13 +81,7 @@ final class SimpleRightTable extends DataManager
 	 */
 	public static function deleteBatch(array $filter)
 	{
-		$tableName = static::getTableName();
-		$connection = Application::getConnection();
-		if(!empty($filter['OBJECT_ID']))
-		{
-			$objectId = (int)$filter['OBJECT_ID'];
-			$connection->queryExecute("DELETE FROM {$tableName} WHERE OBJECT_ID = {$objectId}");
-		}
+		parent::deleteBatch($filter);
 	}
 
 	/**

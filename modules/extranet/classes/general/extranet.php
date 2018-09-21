@@ -227,6 +227,7 @@ class CExtranet
 			&& (strpos($curPage, "/extranet/confirm/") !== 0)
 			&& (strpos($curPage, "/mobile/ajax.php") !== 0)
 			&& (strpos($curPage, "/pub/") !== 0)
+			&& (strpos($curPage, "/rest/") !== 0)
 			&& !preg_match("/^\\/online\\/([\\.\\-0-9a-zA-Z]+)(\\/?)([^\\/]*)$/i", $curPage)
 			&& (!CExtranet::IsExtranetSite())
 		)

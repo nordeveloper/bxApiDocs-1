@@ -85,9 +85,9 @@ if(
 	}
 	else if($params["COMMAND"] == "CompleteTransfer")
 	{
-		\Bitrix\Voximplant\Transfer\Transferor::completeTransfer($params['CALL_ID'], $params['USER_ID']);
+		$result = \Bitrix\Voximplant\Transfer\Transferor::completeTransfer($params['CALL_ID'], $params['USER_ID'], $params['DEVICE']);
 
-		echo Json::encode(Array('result' => 'OK'));
+		echo $result->toJson();
 	}
 	else if($params["COMMAND"] == "CancelTransfer")
 	{
@@ -95,9 +95,15 @@ if(
 
 		echo Json::encode(Array('result' => 'OK'));
 	}
+	else if($params["COMMAND"] == "StartBlindTransfer")
+	{
+		$result = \Bitrix\Voximplant\Transfer\Transferor::startBlindTransfer($params['CALL_ID'], $params['USER_ID']);
+
+		echo Json::encode(Array('result' => 'OK'));
+	}
 	else if($params["COMMAND"] == "CompletePhoneTransfer")
 	{
-		\Bitrix\Voximplant\Transfer\Transferor::completePhoneTransfer($params['FROM_CALL_ID'], $params['TO_CALL_ID']);
+		\Bitrix\Voximplant\Transfer\Transferor::completePhoneTransfer($params['FROM_CALL_ID'], $params['TO_CALL_ID'], $params['INITIATOR_ID']);
 
 		echo Json::encode(Array('result' => 'OK'));
 	}
@@ -118,6 +124,20 @@ if(
 		));
 
 		echo Json::encode(Array('result' => 'OK'));
+	}
+	else if($params["COMMAND"] == "DetachUser")
+	{
+		$callId = $params['CALL_ID'];
+		$call = \Bitrix\Voximplant\Call::load($callId);
+		if($call)
+		{
+			$call->removeUsers([$params["USER_ID"]]);
+			echo Json::encode(Array('result' => 'OK'));
+		}
+		else
+		{
+			echo Json::encode(Array('ERROR' => 'Call is not found'));
+		}
 	}
 	else if($params["COMMAND"] == "HangupCall")
 	{
@@ -184,7 +204,10 @@ if(
 		$users = $params["USERS"];
 
 		$call = \Bitrix\Voximplant\Call::load($callId);
-		$call->getSignaling()->sendInvite($users);
+		if($call)
+		{
+			$call->getSignaling()->sendInvite($users);
+		}
 	}
 	else if($params["COMMAND"] == "Ping")
 	{

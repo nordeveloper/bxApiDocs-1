@@ -8,18 +8,21 @@ class Pstn extends Node
 {
 	protected $phoneNumber;
 	protected $failureRule;
+	protected $userId;
 
-	public function __construct($phoneNumber, $failureRule)
+	public function __construct($phoneNumber, $failureRule, $userId = 0)
 	{
 		parent::__construct();
 		$this->phoneNumber = $phoneNumber;
 		$this->failureRule = $failureRule;
+		$this->userId = $userId;
 	}
 
 	public function getFirstAction(Call $call)
 	{
 		return new Action(Command::PSTN, [
-			'PHONE_NUMBER' => NormalizePhone($this->phoneNumber, 1),
+			'PHONE_NUMBER' => \CVoxImplantPhone::stripLetters($this->phoneNumber),
+			'USER_ID' => $this->userId ?: null
 		]);
 	}
 

@@ -163,11 +163,26 @@ abstract class Collection implements \ArrayAccess, \Iterator
 
 	/**
 	 * @param EntityObject $object
+	 *
+	 * @throws ArgumentException
+	 * @throws SystemException
 	 */
 	public function remove(EntityObject $object)
 	{
-		$srPrimary = $this->getPrimaryKey($object);
+		return $this->removeByPrimary($object->primary());
+	}
 
+	/**
+	 * @param $primary
+	 *
+	 * @throws ArgumentException
+	 */
+	public function removeByPrimary($primary)
+	{
+		$normalizedPrimary = $this->normalizePrimary($primary);
+		$srPrimary = $this->serializePrimaryKey($normalizedPrimary);
+
+		$object = $this->objects[$srPrimary];
 		unset($this->objects[$srPrimary]);
 
 		if (!isset($this->objectsChanges[$srPrimary]) || $this->objectsChanges[$srPrimary] != static::OBJECT_ADDED)

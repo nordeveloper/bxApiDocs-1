@@ -294,6 +294,12 @@ final class FileLink extends File
 	 */
 	public function getVersion($versionId)
 	{
+		$file = $this->getRealObject();
+		if (!$file)
+		{
+			return null;
+		}
+
 		return $this->getRealObject()->getVersion($versionId);
 	}
 
@@ -306,6 +312,12 @@ final class FileLink extends File
 	 */
 	public function getVersions(array $parameters = array())
 	{
+		$file = $this->getRealObject();
+		if (!$file)
+		{
+			return [];
+		}
+
 		return $this->getRealObject()->getVersions($parameters);
 	}
 

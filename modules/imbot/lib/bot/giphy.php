@@ -52,7 +52,7 @@ class Giphy extends Base
 				'METHOD_COMMAND_ADD' => 'onCommandAdd',
 				'METHOD_LANG_GET' => 'onCommandLang'
 			));
-			
+
 			\Bitrix\Im\App::register(Array(
 				'MODULE_ID' => 'imbot',
 				'BOT_ID' => $botId,
@@ -69,7 +69,7 @@ class Giphy extends Base
 				'METHOD_LANG_GET' => 'onAppLang',
 			));
 		}
-		
+
 		return $agentMode? "": $botId;
 	}
 
@@ -77,14 +77,14 @@ class Giphy extends Base
 	{
 		if (!\Bitrix\Main\Loader::includeModule('im'))
 			return false;
-		
+
 		$appList = Array();
 		$apps = \Bitrix\Im\App::getListCache();
 		foreach ($apps as $app)
 		{
 			if ($app['BOT_ID'] != self::getBotId())
 				continue;
-			
+
 			$appList[] = $app['HASH'];
 		}
 
@@ -92,7 +92,7 @@ class Giphy extends Base
 		if ($result)
 		{
 			self::setBotId(0);
-			
+
 			$http = new \Bitrix\ImBot\Http(self::BOT_CODE);
 			foreach ($appList as $hash)
 			{
@@ -102,7 +102,7 @@ class Giphy extends Base
 				);
 			}
 		}
-		
+
 		return $result;
 	}
 
@@ -198,7 +198,7 @@ class Giphy extends Base
 			}
 			$keyboard = \Bitrix\Im\Bot\Keyboard::getKeyboardByJson($keyboard, Array("#RETRY#" => Loc::getMessage("IMBOT_GIPHY_COMMAND_GIPHY_RETRY")));
 		}
-		
+
 		if ($messageFields['MESSAGE_ANSWER_ALTER'] == 'Y' && $messageFields['MESSAGE_ANSWER'])
 		{
 			$attach = new \CIMMessageParamAttach(null, \CIMMessageParamAttach::CHAT);
@@ -224,25 +224,18 @@ class Giphy extends Base
 		}
 		else if ($messageFields['MESSAGE_ANSWER'])
 		{
-			$attach = new \CIMMessageParamAttach(null, \CIMMessageParamAttach::CHAT);
-			$attach->AddImages(Array(
-				Array(
-					"NAME" => $messageFields['MESSAGE'].' ('.$messageFields['MESSAGE_ANSWER']["fixed_height_small_width"].'x'.$messageFields['MESSAGE_ANSWER']["fixed_height_small_height"].')',
-					"LINK" => $messageFields['MESSAGE_ANSWER']["fixed_height_small_url"]
-				)
-			));
-
 			$messageParams = Array(
 				'DIALOG_ID' => $messageFields['DIALOG_ID'],
-				'ATTACH' => $attach,
+				'MESSAGE' => $messageFields['MESSAGE_ANSWER']["fixed_height_small_url"],
 				'KEYBOARD' => $keyboard
 			);
 			if ($messageFields['COMMAND_ID'] > 0)
 			{
 				if ($messageFields['COMMAND_CONTEXT'] == 'KEYBOARD')
 				{
-					\CIMMessageParam::Set($messageFields['MESSAGE_ID'], Array('KEYBOARD' => $keyboard? $keyboard: 'N', 'ATTACH' => $attach? $attach: Array()));
-					\CIMMessageParam::SendPull($messageFields['MESSAGE_ID'], Array('KEYBOARD', 'ATTACH'));
+					\CIMMessenger::Update($messageFields['MESSAGE_ID'], $messageParams['MESSAGE'], true, false, self::getBotId());
+					\CIMMessageParam::Set($messageFields['MESSAGE_ID'], Array('KEYBOARD' => $keyboard? $keyboard: 'N'));
+					\CIMMessageParam::SendPull($messageFields['MESSAGE_ID'], Array('KEYBOARD'));
 				}
 				else
 				{
@@ -338,7 +331,7 @@ class Giphy extends Base
 
 		return $result;
 	}
-	
+
 	public static function onAppLang($icon, $lang = null)
 	{
 		$title = Loc::getMessage('IMBOT_GIPHY_ICON_'.strtoupper($icon).'_TITLE', null, $lang);
@@ -362,16 +355,16 @@ class Giphy extends Base
 	{
 		return Loc::getMessage($messageCode);
 	}
-	
+
 	public static function getIframeUrl()
 	{
 		$controllerUrl = 'https://marta.bitrix.info/iframe/giphy.php';
-		
+
 		if (defined('BOT_IFRAME_URL'))
 		{
 			$controllerUrl = BOT_IFRAME_URL.'giphy.php';
 		}
-		
+
 		return $controllerUrl;
 	}
 }

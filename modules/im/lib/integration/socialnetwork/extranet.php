@@ -102,6 +102,17 @@ class Extranet
 
 	public static function isUserInGroup($userId, $currentUserId = null)
 	{
+		$currentUserId = \Bitrix\Im\Common::getUserId($currentUserId);
+		if ($currentUserId <= 0)
+		{
+			return false;
+		}
+
+		if ($userId == $currentUserId)
+		{
+			return true;
+		}
+
 		$extranetUsers = [];
 		$groups = self::getGroup([], $currentUserId);
 		if (is_array($groups))

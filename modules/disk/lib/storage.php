@@ -81,6 +81,17 @@ final class Storage extends Internals\Model
 	 * @param SecurityContext $securityContext
 	 * @return bool
 	 */
+	public function canRead(SecurityContext $securityContext)
+	{
+		$folder = $this->getRootObject();
+
+		return $folder ? $folder->canRead($securityContext) : false;
+	}
+
+	/**
+	 * @param SecurityContext $securityContext
+	 * @return bool
+	 */
 	public function canChangeSettings(SecurityContext $securityContext)
 	{
 		return $securityContext->canChangeSettings($this->rootObjectId);

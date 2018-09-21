@@ -96,7 +96,6 @@ class DocumentController extends Internals\Controller
 			'publish' => 'publish',
 			'commit' => 'commit',
 			'rename' => 'rename',
-			'discard' => 'discard',
 			'getlastversionuri' => 'getlastversionuri',
 		));
 	}

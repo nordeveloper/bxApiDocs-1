@@ -20,90 +20,90 @@ use Bitrix\Main\ORM\Query\Filter\Expressions\ColumnExpression;
  *
  * Virtual WHERE methods (proxy to Filter):
  *
- * @method Query where(...$filter)
+ * @method $this where(...$filter)
  * @see Filter::where()
  *
- * @method Query whereNot(...$filter)
+ * @method $this whereNot(...$filter)
  * @see Filter::whereNot()
  *
- * @method Query whereColumn(...$filter)
+ * @method $this whereColumn(...$filter)
  * @see Filter::whereColumn()
  *
- * @method Query whereNull($column)
+ * @method $this whereNull($column)
  * @see Filter::whereNull()
  *
- * @method Query whereNotNull($column)
+ * @method $this whereNotNull($column)
  * @see Filter::whereNotNull()
  *
- * @method Query whereIn($column, $values)
+ * @method $this whereIn($column, $values)
  * @see Filter::whereIn()
  *
- * @method Query whereNotIn($column, $values)
+ * @method $this whereNotIn($column, $values)
  * @see Filter::whereNotIn()
  *
- * @method Query whereBetween($column, $valueMin, $valueMax)
+ * @method $this whereBetween($column, $valueMin, $valueMax)
  * @see Filter::whereBetween()
  *
- * @method Query whereNotBetween($column, $valueMin, $valueMax)
+ * @method $this whereNotBetween($column, $valueMin, $valueMax)
  * @see Filter::whereNotBetween()
  *
- * @method Query whereLike($column, $value)
+ * @method $this whereLike($column, $value)
  * @see Filter::whereLike()
  *
- * @method Query whereNotLike($column, $value)
+ * @method $this whereNotLike($column, $value)
  * @see Filter::whereNotLike()
  *
- * @method Query whereExists($query)
+ * @method $this whereExists($query)
  * @see Filter::whereExists()
  *
- * @method Query whereNotExists($query)
+ * @method $this whereNotExists($query)
  * @see Filter::whereNotExists()
  *
- * @method Query whereMatch($column, $value)
+ * @method $this whereMatch($column, $value)
  * @see Filter::whereMatch()
  *
- * @method Query whereNotMatch($column, $value)
+ * @method $this whereNotMatch($column, $value)
  * @see Filter::whereNotMatch()
  *
  * Virtual HAVING methods (proxy to Filter):
  *
- * @method Query having(...$filter)
+ * @method $this having(...$filter)
  * @see Filter::where()
  *
- * @method Query havingNot(...$filter)
+ * @method $this havingNot(...$filter)
  * @see Filter::whereNot()
  *
- * @method Query havingColumn(...$filter)
+ * @method $this havingColumn(...$filter)
  * @see Filter::whereColumn()
  *
- * @method Query havingNull($column)
+ * @method $this havingNull($column)
  * @see Filter::whereNull()
  *
- * @method Query havingNotNull($column)
+ * @method $this havingNotNull($column)
  * @see Filter::whereNotNull()
  *
- * @method Query havingIn($column, $values)
+ * @method $this havingIn($column, $values)
  * @see Filter::whereIn()
  *
- * @method Query havingNotIn($column, $values)
+ * @method $this havingNotIn($column, $values)
  * @see Filter::whereNotIn()
  *
- * @method Query havingBetween($column, $valueMin, $valueMax)
+ * @method $this havingBetween($column, $valueMin, $valueMax)
  * @see Filter::whereBetween()
  *
- * @method Query havingNotBetween($column, $valueMin, $valueMax)
+ * @method $this havingNotBetween($column, $valueMin, $valueMax)
  * @see Filter::whereNotBetween()
  *
- * @method Query havingLike($column, $value)
+ * @method $this havingLike($column, $value)
  * @see Filter::whereLike()
  *
- * @method Query havingNotLike($column, $value)
+ * @method $this havingNotLike($column, $value)
  * @see Filter::whereNotLike()
  *
- * @method Query havingExists($query)
+ * @method $this havingExists($query)
  * @see Filter::whereExists()
  *
- * @method Query havingNotExists($query)
+ * @method $this havingNotExists($query)
  * @see Filter::whereNotExists()
  *
  * @package Bitrix\Main\ORM
@@ -814,6 +814,59 @@ class Query
 		$this->is_executing = false;
 
 		return new Result($this, $result);
+	}
+
+	/**
+	 * Short alias for $result->fetch()
+	 *
+	 * @param Main\Text\Converter|null $converter
+	 *
+	 * @return array|false
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public function fetch(\Bitrix\Main\Text\Converter $converter = null)
+	{
+		return $this->exec()->fetch($converter);
+	}
+
+	/**
+	 * Short alias for $result->fetchAll()
+	 *
+	 * @param Main\Text\Converter|null $converter
+	 *
+	 * @return array
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public function fetchAll(\Bitrix\Main\Text\Converter $converter = null)
+	{
+		return $this->exec()->fetchAll($converter);
+	}
+
+	/**
+	 * Short alias for $result->fetchObject()
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public function fetchObject()
+	{
+		return $this->exec()->fetchObject();
+	}
+
+	/**
+	 * Short alias for $result->fetchCollection()
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public function fetchCollection()
+	{
+		return $this->exec()->fetchCollection();
 	}
 
 	/**

@@ -1704,9 +1704,9 @@ class CAllRatings
 				b_rating_vote RV
 			WHERE
 				RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
-				AND RV.ENTITY_ID = ".intval($arParam['ENTITY_ID'])."
-			".($bplus ? " AND RV.VALUE > 0 ": " and RV.VALUE < 0 ")." 
-			GROUP BY REACTION";
+				AND RV.ENTITY_ID = ".intval($arParam['ENTITY_ID'])." ".
+//				($bplus ? " AND RV.VALUE > 0 ": " and RV.VALUE < 0 ")." // ticket 103248
+			"GROUP BY REACTION";
 		$res_cnt = $DB->Query($sqlStr);
 
 		$cnt = 0;

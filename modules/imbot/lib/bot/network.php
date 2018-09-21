@@ -12,29 +12,16 @@ class Network extends Base
 {
 	const BOT_CODE = "network";
 
-	/* Important: sync with botcontroller/lib/bot/network.php:36 */
-	protected static $fdcCodes = Array(
-		'en' => "88c8eccd63f6ff5a59ba04e5b0f2012a",
-		'by' => "a588e1a88baf601b9d0b0b33b1eefc2b",
-		'ua' => "acb238d508bfbb0df68f200f21ae9b71",
-		'kz' => "9020c408d2d43f407b68bbc88601dbe7",
-		'ru' => "a588e1a88baf601b9d0b0b33b1eefc2b",
-		'de' => "511dda9c421cdd21270a5f31d11f2fe5",
-		'es' => "ae8cf733b2725127f755f8e75650a07a",
-		'la' => "ae8cf733b2725127f755f8e75650a07a",
-		'br' => "239e498332e63b5ee62b9e9fb0ff5a8d",
-	);
-
-	protected static $fdcLink = Array(
-		'en' => Array('helpdesk' => 'https://helpdesk.bitrix24.com/', 'webinars' => 'https://www.bitrix24.com/support/webinars.php'),
-		'by' => Array('helpdesk' => 'https://helpdesk.bitrix24.ru/', 'webinars' => 'https://webinars.bitrix24.ru/'),
-		'ua' => Array('helpdesk' => 'https://helpdesk.bitrix24.ua/', 'webinars' => 'https://www.bitrix24.ua/support/webinars.php'),
-		'kz' => Array('helpdesk' => 'https://helpdesk.bitrix24.ru/', 'webinars' => 'https://webinars.bitrix24.ru/'),
-		'ru' => Array('helpdesk' => 'https://helpdesk.bitrix24.ru/', 'webinars' => 'https://webinars.bitrix24.ru/'),
-		'de' => Array('helpdesk' => 'https://helpdesk.bitrix24.de/', 'webinars' => 'https://www.bitrix24.de/support/webinare.php'),
-		'es' => Array('helpdesk' => 'https://helpdesk.bitrix24.es/', 'webinars' => 'https://www.bitrix24.es/support/webinars.php'),
-		'la' => Array('helpdesk' => 'https://helpdesk.bitrix24.es/', 'webinars' => 'https://www.bitrix24.es/support/webinars.php'),
-		'br' => Array('helpdesk' => 'https://helpdesk.bitrix24.com/', 'webinars' => 'https://www.bitrix24.com/support/webinars.php'),
+	protected static $blackListOfCodes = Array(
+		'1' => "88c8eccd63f6ff5a59ba04e5b0f2012a",
+		'2' => "a588e1a88baf601b9d0b0b33b1eefc2b",
+		'3' => "acb238d508bfbb0df68f200f21ae9b71",
+		'4' => "9020c408d2d43f407b68bbc88601dbe7",
+		'5' => "a588e1a88baf601b9d0b0b33b1eefc2b",
+		'6' => "511dda9c421cdd21270a5f31d11f2fe5",
+		'7' => "ae8cf733b2725127f755f8e75650a07a",
+		'8' => "ae8cf733b2725127f755f8e75650a07a",
+		'9' => "239e498332e63b5ee62b9e9fb0ff5a8d",
 	);
 
 	public static function register(array $params = Array())
@@ -123,7 +110,10 @@ class Network extends Base
 			));
 			while ($row = $orm->fetch())
 			{
-				self::unRegister($row['code']);
+				if ($row['CODE'])
+				{
+					self::unRegister($row['CODE'], $serverRequest);
+				}
 			}
 
 			return true;
@@ -148,8 +138,10 @@ class Network extends Base
 		return $result;
 	}
 
-
-
+	public static function isNeedUpdateBotFieldsAfterNewMessage()
+	{
+		return true;
+	}
 
 	public static function onReceiveCommand($command, $params)
 	{
@@ -237,10 +229,20 @@ class Network extends Base
 	private static function clientMessageAdd($messageId, $messageFields)
 	{
 		if ($messageFields['SYSTEM'] == 'Y')
+		{
 			return false;
+		}
 
-		if ($messageFields['MESSAGE_TYPE'] != IM_MESSAGE_PRIVATE || $messageFields['TO_USER_ID'] != $messageFields['BOT_ID'])
+		if ($messageFields['MESSAGE_TYPE'] != IM_MESSAGE_PRIVATE)
+		{
+			$chat = new \CIMChat($messageFields['BOT_ID']);
+			$chat->DeleteUser($messageFields['CHAT_ID'], $messageFields['BOT_ID']);
+		}
+
+		if ($messageFields['TO_USER_ID'] != $messageFields['BOT_ID'])
+		{
 			return false;
+		}
 
 		$bot = \Bitrix\Im\Bot::getCache($messageFields['BOT_ID']);
 		if (substr($bot['CODE'], 0, 7) != self::BOT_CODE)
@@ -303,9 +305,36 @@ class Network extends Base
 		$messageFields['MESSAGE'] = preg_replace("/\\[USER=[0-9]+\\](.*?)\\[\\/USER\\]/", "\\1",  $messageFields['MESSAGE']);
 
 		$portalTariff = 'box';
+		$userLevel = 'ADMIN';
+		$portalIntegrator = false;
+		$portalTariffName = '';
+		$demoStartTime = 0;
 		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
 		{
 			$portalTariff = \CBitrix24::getLicenseType();
+			$portalTariffName = \CBitrix24::getLicenseName();
+
+			if ($portalTariff == 'demo')
+			{
+				$portalTariff = \CBitrix24::getLicenseType(\CBitrix24::LICENSE_TYPE_PREVIOUS);
+				$portalTariff = $portalTariff.'+demo';
+				$portalTariffName = \CBitrix24::getLicenseName("", \CBitrix24::LICENSE_TYPE_PREVIOUS);
+
+				$demoStartTime = intval(\COption::GetOptionInt("bitrix24", "DEMO_START"));
+			}
+
+			if (\CBitrix24::isIntegrator($messageFields['FROM_USER_ID']))
+			{
+				$userLevel = 'INTEGRATOR';
+			}
+			else if (\CBitrix24::IsPortalAdmin($messageFields['FROM_USER_ID']))
+			{
+				$userLevel = 'ADMIN';
+			}
+			else
+			{
+				$userLevel = 'USER';
+			}
 		}
 
 		$botMessageText = '';
@@ -347,7 +376,12 @@ class Network extends Base
 					'EMAIL' => $user['EMAIL'],
 					'PERSONAL_PHOTO' => $avatarUrl,
 					'TARIFF' => $portalTariff,
-					'REGISTER' => $portalTariff != 'box'? \COption::GetOptionInt('main', '~controller_date_create', time()): ''
+					'TARIFF_NAME' => $portalTariffName,
+					'TARIFF_LEVEL' => Support24::getSupportLevel(),
+					'GEO_DATA' => self::getUserGeoData(),
+					'REGISTER' => $portalTariff != 'box'? \COption::GetOptionInt('main', '~controller_date_create', time()): '',
+					'DEMO' => $demoStartTime,
+					'USER_LEVEL' => $userLevel,
 				),
 			)
 		);
@@ -556,7 +590,6 @@ class Network extends Base
 	}
 
 
-
 	private static function operatorMessageAdd($messageId, $messageFields)
 	{
 		if (!\Bitrix\Main\Loader::includeModule('im'))
@@ -650,7 +683,15 @@ class Network extends Base
 			}
 		}
 
-		if (!empty($messageFields['LINE']))
+		$needUpdateBotFields = true;
+
+		$bot = \Bitrix\Im\Bot::getCache($messageFields['BOT_ID']);
+		if (\Bitrix\Main\Loader::includeModule($bot['MODULE_ID']) && class_exists($bot["CLASS"]) && method_exists($bot["CLASS"], 'isNeedUpdateBotFieldsAfterNewMessage'))
+		{
+			$needUpdateBotFields = call_user_func_array(array($bot["CLASS"], 'isNeedUpdateBotFieldsAfterNewMessage'), Array());
+		}
+
+		if (!empty($messageFields['LINE']) && $needUpdateBotFields)
 		{
 			$botData = \Bitrix\Im\User::getInstance($messageFields['BOT_ID']);
 			$updateFields = Array();
@@ -663,7 +704,6 @@ class Network extends Base
 				$updateFields['WORK_POSITION'] = $messageFields['LINE']['DESC'];
 			}
 
-			$bot = \Bitrix\Im\Bot::getCache($messageFields['BOT_ID']);
 			if ($messageFields['LINE']['WELCOME_MESSAGE'] != $bot['TEXT_PRIVATE_WELCOME_MESSAGE'])
 			{
 				\Bitrix\Im\Bot::update(Array('BOT_ID' => $messageFields['BOT_ID']), Array(
@@ -913,6 +953,36 @@ class Network extends Base
 
 
 
+	public static function getUserGeoData()
+	{
+		if (isset($_SESSION["SESS_AUTH"]['GEO_DATA']))
+		{
+			return $_SESSION["SESS_AUTH"]['GEO_DATA'];
+		}
+
+		$contryCode = \Bitrix\Main\Service\GeoIp\Manager::getCountryCode();
+		if (!$contryCode)
+		{
+			return defined('BOT_CLIENT_GEO_DATA')? BOT_CLIENT_GEO_DATA: '';
+		}
+
+		$countryName = \Bitrix\Main\Service\GeoIp\Manager::getCountryName('', 'ru');
+		if (!$countryName)
+		{
+			$countryName = \Bitrix\Main\Service\GeoIp\Manager::getCountryName();
+		}
+
+		$cityName = \Bitrix\Main\Service\GeoIp\Manager::getCityName('', 'ru');
+		if (!$cityName)
+		{
+			$cityName = \Bitrix\Main\Service\GeoIp\Manager::getCityName();
+		}
+
+		$result = $_SESSION["SESS_AUTH"]['GEO_DATA'] = $contryCode.($countryName? ' / '.$countryName: '').($cityName? ' / '.$cityName: '');
+
+		return $result;
+	}
+
 	public static function getLangMessage($messageCode = '')
 	{
 		return Loc::getMessage($messageCode);
@@ -975,7 +1045,7 @@ class Network extends Base
 			return false;
 		}
 
-		if (!$register && self::isFdcCode($text))
+		if (!$register && in_array($text, self::$blackListOfCodes))
 		{
 			return false;
 		}
@@ -1196,513 +1266,69 @@ class Network extends Base
 		return false;
 	}
 
+	public static function isFdcCode($text)
+	{
+		return in_array($text, self::$blackListOfCodes);
+	}
+
 	public static function setBotId($id)
 	{
 		return false;
 	}
 
-	/*
-	******************************************
-	******************************************
-	* Bitrix24: Consultant of the first day
-	******************************************
-	******************************************
-	*/
-	private static function getLangForFdc()
-	{
-		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
-		{
-			$lang = 'en';
-			$prefix = \CBitrix24::getLicensePrefix();
-			if (isset(self::$fdcCodes[$prefix]))
-			{
-				$lang = $prefix;
-			}
-		}
-		else
-		{
-			$lang = 'ru';
-		}
-		return $lang;
-	}
-
-	public static function isFdcActive()
-	{
-		$lang = self::getLangForFdc();
-		$result = Option::get(self::MODULE_ID, 'fdc_active_'.$lang);
-
-		if ($result)
-		{
-			$distribution = Option::get(self::MODULE_ID, 'fdc_distribution');
-
-			$result = ((hexdec(substr(md5(BX24_HOST_NAME), -2)) % $distribution) == 0);
-		}
-
-		return $result;
-	}
-
-	public static function isFdcCode($code)
-	{
-		return in_array($code, self::$fdcCodes);
-	}
-
-	public static function getFdcCode()
-	{
-		$lang = self::getLangForFdc();
-		return isset(self::$fdcCodes[$lang])? self::$fdcCodes[$lang]: false;
-	}
-
-	public static function getFdcLink($type)
-	{
-		$lang = self::getLangForFdc();
-		return isset(self::$fdcLink[$lang][$type])? self::$fdcLink[$lang][$type]: '';
-	}
-
-	public static function getFdcLifetime($seconds = true)
-	{
-		$lang = self::getLangForFdc();
-
-		$lifetime = Option::get(self::MODULE_ID, 'fdc_lifetime_'.$lang);
-
-		return intval($lifetime)*($seconds? 86400: 1);
-	}
-
-	public static function isPartnerFdc()
-	{
-		if (!IsModuleInstalled('bitrix24'))
-			return false;
-
-		$partnerOlCode = \COption::GetOptionString("bitrix24", "partner_ol", "");
-
-		return (strlen($partnerOlCode) == 32);
-	}
-
-	public static function getPartnerId()
-	{
-		if (!IsModuleInstalled('bitrix24'))
-			return false;
-
-		$partnerId = \COption::GetOptionString("bitrix24", "partner_id", 0);
-
-		return $partnerId > 0? $partnerId: false;
-	}
-
+	/**
+	 * @deprecated
+	 */
 	public static function addFdc($userId)
 	{
-		if (!\Bitrix\Main\Loader::includeModule('im'))
-			return false;
-
-		$joinCode = \COption::GetOptionString("bitrix24", "partner_ol", "");
-		if (strlen($joinCode) == 32)
-		{
-			$joinOptions = Array(
-				'TYPE' => 'PARTNER',
-				'PARNER_NAME' => \COption::GetOptionString("bitrix24", "partner_name", "")
-			);
-		}
-		else
-		{
-			$joinCode = self::getFdcCode();
-			$joinOptions = Array();
-		}
-
-		$botId = self::join($joinCode, $joinOptions);
-		if ($botId)
-		{
-			if (self::isFdcCode($joinCode))
-			{
-				$days = self::getFdcLifetime(false);
-				if ($days == 30)
-				{
-					\CAgent::AddAgent('\\Bitrix\\ImBot\\Bot\\Network::sendTextFdc('.$userId.');', "imbot", "N", 120, "", "Y", \ConvertTimeStamp(time()+\CTimeZone::GetOffset()+120, "FULL"));
-				}
-				\CAgent::AddAgent('\\Bitrix\\ImBot\\Bot\\Network::removeFdc('.$userId.');', "imbot", "N", self::getFdcLifetime(), "", "Y", \ConvertTimeStamp(time()+\CTimeZone::GetOffset()+self::getFdcLifetime(), "FULL"));
-			}
-			\CIMMessage::GetChatId($userId, $botId);
-		}
-
 		return "";
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public static function sendTextFdc($userId, $text = '30-1')
 	{
-		global $pPERIOD;
-
-		$fdcCode = self::getFdcCode();
-		$botId = self::getNetworkBotId($fdcCode);
-		if (!\Bitrix\Main\Loader::includeModule('im') || $botId <= 0)
-			return "";
-
-		$botData = \Bitrix\Im\Bot::getCache($botId);
-		if ($botData['METHOD_MESSAGE_ADD'] == "fdcOnMessageAdd")
-			return "";
-
-		if ($text == '30-1')
-		{
-			if ($botData['COUNT_MESSAGE'] == 0)
-			{
-				\Bitrix\Im\Bot::addMessage(Array('BOT_ID' => $botId), Array(
-					'DIALOG_ID' => $userId,
-					'MESSAGE' => Loc::getMessage('IMBOT_NETWORK_FDC_30_MESSAGE_1_2'),
-					'PARAMS' => Array('IMOL_QUOTE_MSG' => 'Y')
-				));
-
-				$text = '30-2';
-				$pPERIOD = 1*86400;
-			}
-			else
-			{
-				$text = '30-7';
-				$pPERIOD = 7*86400;
-			}
-		}
-		else if ($text == '30-2')
-		{
-			if ($botData['COUNT_MESSAGE'] == 0)
-			{
-				\Bitrix\Im\Bot::addMessage(Array('BOT_ID' => $botId), Array(
-					'DIALOG_ID' => $userId,
-					'MESSAGE' => Loc::getMessage('IMBOT_NETWORK_FDC_30_MESSAGE_2'),
-					'PARAMS' => Array('IMOL_QUOTE_MSG' => 'Y')
-				));
-				$text = '30-7';
-				$pPERIOD = 6*86400;
-			}
-		}
-		else if ($text == '30-7')
-		{
-			\Bitrix\Im\Bot::addMessage(Array('BOT_ID' => $botId), Array(
-				'DIALOG_ID' => $userId,
-				'MESSAGE' => Loc::getMessage('IMBOT_NETWORK_FDC_30_MESSAGE_7'),
-				'PARAMS' => Array('IMOL_QUOTE_MSG' => 'Y')
-			));
-			$text = '30-15';
-			$pPERIOD = 7*86400;
-		}
-		else if ($text == '30-15')
-		{
-			\Bitrix\Im\Bot::addMessage(Array('BOT_ID' => $botId), Array(
-				'DIALOG_ID' => $userId,
-				'MESSAGE' => Loc::getMessage('IMBOT_NETWORK_FDC_30_MESSAGE_15'),
-				'PARAMS' => Array('IMOL_QUOTE_MSG' => 'Y')
-			));
-			$text = '30-23';
-			$pPERIOD = 9*86400;
-		}
-		else if ($text == '30-23')
-		{
-			\Bitrix\Im\Bot::addMessage(Array('BOT_ID' => $botId), Array(
-				'DIALOG_ID' => $userId,
-				'MESSAGE' => Loc::getMessage('IMBOT_NETWORK_FDC_30_MESSAGE_23'),
-				'PARAMS' => Array('IMOL_QUOTE_MSG' => 'Y')
-			));
-
-			if (self::checkNeedRunMessageDay25())
-			{
-				$text = '30-25';
-				$pPERIOD = 2*86400;
-			}
-			else
-			{
-				$text = '';
-			}
-		}
-		else if ($text == '30-25' && self::checkNeedRunMessageDay25())
-		{
-			$keyboard = new \Bitrix\Im\Bot\Keyboard($botId);
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMBOT_NETWORK_FDC_30_MESSAGE_25_BUTTON'),
-				'LINK' => Option::get(self::MODULE_ID, 'fdc_day25_link'),
-				"BG_COLOR" => "#4ba763",
-				"TEXT_COLOR" => "#fff",
-				"DISPLAY" => "LINE",
-			));
-
-			\Bitrix\Im\Bot::addMessage(Array('BOT_ID' => $botId), Array(
-				'DIALOG_ID' => $userId,
-				'MESSAGE' => Loc::getMessage('IMBOT_NETWORK_FDC_30_MESSAGE_25'),
-				'PARAMS' => Array('IMOL_QUOTE_MSG' => 'Y'),
-				'KEYBOARD' => $keyboard
-			));
-			$text = '';
-		}
-
-		return $text? '\\Bitrix\\ImBot\\Bot\\Network::sendTextFdc('.$userId.', "'.$text.'");': '';
+		return '';
 	}
 
-	public static function checkNeedRunMessageDay25()
-	{
-		if (!\Bitrix\Main\Loader::includeModule('bitrix24'))
-			return false;
-
-		if (!Option::get(self::MODULE_ID, 'fdc_day25_link'))
-			return false;
-
-		if (self::getPartnerId())
-			return false;
-
-		return true;
-	}
-
+	/**
+	 * @deprecated
+	 */
 	public static function removeFdc($userId)
 	{
-		if (!\Bitrix\Main\Loader::includeModule('im'))
-			return "";
-
-		$fdcCode = self::getFdcCode();
-		$botId = self::getNetworkBotId($fdcCode);
-		if (!$botId)
-			return "";
-
-		$botData = \Bitrix\Im\Bot::getCache($botId);
-		if ($botData['METHOD_WELCOME_MESSAGE'] != 'fdcOnChatStart')
-		{
-			\Bitrix\Im\Bot::update(Array('BOT_ID' => $botId), Array(
-				'CLASS' => __CLASS__,
-				'METHOD_BOT_DELETE' => '',
-				'METHOD_MESSAGE_ADD' => 'fdcOnMessageAdd',
-				'METHOD_WELCOME_MESSAGE' => 'fdcOnChatStart',
-				'TEXT_PRIVATE_WELCOME_MESSAGE' => '',
-			));
-		}
-
-		self::fdcOnChatStart($userId, Array(
-			'CHAT_TYPE' => IM_MESSAGE_PRIVATE,
-		));
-
 		return "";
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public static function fdcOnChatStart($dialogId, $joinFields)
 	{
-		if ($joinFields['CHAT_TYPE'] != IM_MESSAGE_PRIVATE)
-			return false;
-
-		$fdcCode = self::getFdcCode();
-		$botId = self::getNetworkBotId($fdcCode);
-		if (!$botId)
-			return "";
-
-		if (!\Bitrix\Main\Loader::includeModule('im'))
-			return false;
-
-		$martaId = \Bitrix\Imbot\Bot\Marta::getBotId();
-		$supportId = \Bitrix\Imbot\Bot\Support::getBotId();
-
-		$userId = $dialogId;
-		$userName = \Bitrix\Im\User::getInstance($userId)->getName();
-
-		$days = self::getFdcLifetime(false);
-		$prefix = in_array($days, Array(1,7,30))? $days: 1;
-
-		$langMessage = '';
-		if ($supportId)
-		{
-			if (!\CUserOptions::GetOption('imbot', 'fdc_30_message', false, $userId))
-			{
-				\CUserOptions::SetOption('imbot', 'fdc_30_message', true, false, $userId);
-				$langMessage = 'IMBOT_NETWORK_FDC_30_WITH_SUPPORT_BOT_2';
-			}
-			else
-			{
-				$langMessage = 'IMBOT_NETWORK_FDC_30_WITH_SUPPORT_BOT';
-			}
-		}
-		else if (!$langMessage || $prefix == 30)
-		{
-			$langMessage = 'IMBOT_NETWORK_FDC_30_MESSAGE_30';
-		}
-		else
-		{
-			$langMessage = 'IMBOT_NETWORK_FDC_END_MESSAGE_'.$prefix;
-		}
-		$message = Loc::getMessage($langMessage, Array(
-			'#USER_NAME#' => htmlspecialcharsback($userName),
-			'#LINK_START_1#' => '[USER='.$martaId.']', '#LINK_END_1#' => '[/USER]',
-			'#LINK_START_2#' => '[URL='.self::getFdcLink('helpdesk').']', '#LINK_END_2#' => '[/URL]',
-			'#LINK_START_3#' => '[URL='.self::getFdcLink('webinars').']', '#LINK_END_3#' => '[/URL]',
-			'#LINK_START_4#' => $supportId? '[USER='.$supportId.']': '',
-			'#LINK_END_4#' => $supportId? '[/USER]': '',
-			'#TARIFF_NAME#' => \Bitrix\Main\Loader::includeModule('bitrix24')? \CBitrix24::getLicenseName(): '',
-		));
-		if ($message)
-		{
-			\Bitrix\Im\Bot::startWriting(Array('BOT_ID' => $botId), $dialogId);
-			self::operatorMessageAdd(0, Array(
-				'BOT_ID' => $botId,
-				'DIALOG_ID' => $dialogId,
-				'MESSAGE' => $message,
-				'URL_PREVIEW' => 'N'
-			));
-		}
-
-		return true;
+		return false;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public static function fdcOnMessageAdd($messageId, $messageFields)
 	{
-		if ($messageFields['MESSAGE_TYPE'] != IM_MESSAGE_PRIVATE)
-			return false;
-
-		$fdcCode = self::getFdcCode();
-		$botId = self::getNetworkBotId($fdcCode);
-		if (!$botId)
-			return "";
-
-		if (!\Bitrix\Main\Loader::includeModule('im'))
-			return false;
-
-		$martaId = \Bitrix\Imbot\Bot\Marta::getBotId();
-		$supportId = \Bitrix\Imbot\Bot\Support::getBotId();
-
-		$userId = $messageFields['FROM_USER_ID'];
-		$userName = \Bitrix\Im\User::getInstance($userId)->getName();
-
-		$days = self::getFdcLifetime(false);
-		$prefix = in_array($days, Array(1,7,30))? $days: 1;
-
-		if ($supportId)
-		{
-			if (!\CUserOptions::GetOption('imbot', 'fdc_30_message', false, $userId))
-			{
-				\CUserOptions::SetOption('imbot', 'fdc_30_message', true, false, $userId);
-				$langMessage = 'IMBOT_NETWORK_FDC_30_WITH_SUPPORT_BOT_2';
-			}
-			else
-			{
-				$langMessage = 'IMBOT_NETWORK_FDC_30_WITH_SUPPORT_BOT';
-			}
-		}
-		else if ($prefix == 30)
-		{
-			$langMessage = 'IMBOT_NETWORK_FDC_30_MESSAGE_30';
-		}
-		else
-		{
-			$langMessage = 'IMBOT_NETWORK_FDC_END_MESSAGE_'.$prefix;
-		}
-		$message = Loc::getMessage($langMessage, Array(
-			'#USER_NAME#' => htmlspecialcharsback($userName),
-			'#LINK_START_1#' => '[USER='.$martaId.']', '#LINK_END_1#' => '[/USER]',
-			'#LINK_START_2#' => '[URL='.self::getFdcLink('helpdesk').']', '#LINK_END_2#' => '[/URL]',
-			'#LINK_START_3#' => '[URL='.self::getFdcLink('webinars').']', '#LINK_END_3#' => '[/URL]',
-			'#LINK_START_4#' => $supportId? '[USER='.$supportId.']': '',
-			'#LINK_END_4#' => $supportId? '[/USER]': '',
-			'#TARIFF_NAME#' => \Bitrix\Main\Loader::includeModule('bitrix24')? \CBitrix24::getLicenseName(): '',
-		));
-		if ($message)
-		{
-			\Bitrix\Im\Bot::startWriting(Array('BOT_ID' => $botId), $messageFields['TO_USER_ID']);
-			self::operatorMessageAdd(0, Array(
-				'BOT_ID' => $botId,
-				'DIALOG_ID' => $messageFields['DIALOG_ID'],
-				'MESSAGE' => $message,
-				'URL_PREVIEW' => 'N'
-			));
-		}
-
-		return true;
+		return false;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public static function fdcOnAfterUserAuthorize($params)
 	{
-		$auth = \CHTTP::ParseAuthRequest();
-		if (
-			isset($auth["basic"]) && $auth["basic"]["username"] <> '' && $auth["basic"]["password"] <> ''
-			&& strpos(strtolower($_SERVER['HTTP_USER_AGENT']), 'bitrix') === false
-		)
-		{
-			return true;
-		}
-
-		if (isset($params['update']) && $params['update'] === false)
-			return true;
-
-		if ($params['user_fields']['ID'] <= 0)
-			return true;
-
-		$params['user_fields']['ID'] = intval($params['user_fields']['ID']);
-
-		if (isset($_SESSION['USER_LAST_CHECK_MARTA_'.$params['user_fields']['ID']]))
-			return true;
-
-		$martaCheck = \CUserOptions::GetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', 0, $params['user_fields']['ID']);
-		if ($martaCheck > 0)
-		{
-			$_SESSION['USER_LAST_CHECK_MARTA_'.$params['user_fields']['ID']] = $martaCheck;
-		}
-		else
-		{
-			\CAgent::AddAgent('\\Bitrix\\ImBot\\Bot\\Network::fdcAddWelcomeMessageAgent('.$params['user_fields']['ID'].');', "imbot", "N", 60, "", "Y", \ConvertTimeStamp(time()+\CTimeZone::GetOffset()+60, "FULL"));
-		}
-
 		return true;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public static function fdcAddWelcomeMessageAgent($userId)
 	{
-		$userId = intval($userId);
-		if ($userId <= 0)
-			return "";
-
-		if (\CUserOptions::GetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', 0, $userId) > 0)
-			return "";
-
-		if (!\Bitrix\Main\Loader::includeModule('im'))
-			return "";
-
-		if (\Bitrix\Im\User::getInstance($userId)->isExists() && \Bitrix\Im\User::getInstance($userId)->isExtranet())
-		{
-			\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-			$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-
-			return "";
-		}
-
-		$userData = \Bitrix\Main\UserTable::getById($userId)->fetch();
-		if (in_array($userData['EXTERNAL_AUTH_ID'], Array('email', 'bot', 'network', 'imconnector')))
-		{
-			\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-			$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-
-			return "";
-		}
-
-		$language = null;
-		$botData = \Bitrix\Im\Bot::getCache(self::getBotId());
-		if ($botData['LANG'])
-		{
-			$language = $botData['LANG'];
-			Loc::loadLanguageFile(__FILE__, $language);
-		}
-
-		if (is_object($userData['TIMESTAMP_X']) && time() - $userData['TIMESTAMP_X']->getTimestamp() < 86400)
-		{
-			if (\Bitrix\ImBot\Bot\Network::isPartnerFdc())
-			{
-				$fdcEnable = true;
-			}
-			else
-			{
-				$fdcEnable = \Bitrix\ImBot\Bot\Network::isFdcActive();
-			}
-			if ($fdcEnable)
-			{
-				$generationDate = \COption::GetOptionInt('main', '~controller_date_create', 0);
-				if (\Bitrix\ImBot\Bot\Network::isPartnerFdc() || $generationDate == 0 || time() - $generationDate < 86400)
-				{
-					\Bitrix\ImBot\Bot\Network::addFdc($userId);
-
-					\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-					$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-					return "";
-				}
-			}
-		}
-
-		\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-		$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-
 		return "";
 	}
 }

@@ -369,6 +369,7 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * @method mixed get(\$fieldName)";
 		$code[] = "\t * @method mixed actual(\$fieldName)";
 		$code[] = "\t * @method mixed require(\$fieldName)";
+		$code[] = "\t * @method mixed runtime(\$fieldName)";
 		$code[] = "\t * @method {$objectClassName} set(\$fieldName, \$value)";
 		$code[] = "\t * @method {$objectClassName} reset(\$fieldName)";
 		$code[] = "\t * @method {$objectClassName} unset(\$fieldName)";
@@ -411,12 +412,26 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * Common methods:";
 		$code[] = "\t * ---------------";
 		$code[] = "\t *";
-		$code[] = "\t * @method void fill(\$fields = \\".FieldTypeMask::class."::ALL) flag or array of field names";
-		$code[] = "\t * @method {$objectClass} current()";
+		$code[] = "\t * @method void add({$objectClass} \$object)";
+		$code[] = "\t * @method bool has({$objectClass} \$object)";
+		$code[] = "\t * @method bool hasByPrimary(\$primary)";
+		$code[] = "\t * @method {$objectClass} getByPrimary(\$primary)";
 		$code[] = "\t * @method {$objectClass}[] getAll()";
+		$code[] = "\t * @method bool remove({$objectClass} \$object)";
+		$code[] = "\t * @method void fill(\$fields = \\".FieldTypeMask::class."::ALL) flag or array of field names";
+		$code[] = "\t * @method static {$collectionClassName} wakeUp(\$data)";
+		$code[] = "\t * @method void offsetSet() ArrayAccess";
+		$code[] = "\t * @method void offsetExists() ArrayAccess";
+		$code[] = "\t * @method void offsetUnset() ArrayAccess";
+		$code[] = "\t * @method void offsetGet() ArrayAccess";
+		$code[] = "\t * @method void rewind() Iterator";
+		$code[] = "\t * @method {$objectClass} current() Iterator";
+		$code[] = "\t * @method mixed key() Iterator";
+		$code[] = "\t * @method void next() Iterator";
+		$code[] = "\t * @method bool valid() Iterator";
 		// TODO we can put path to the original file here
 		$code[] = "\t */";
-		$code[] = "\tclass {$collectionClassName} extends \\".Collection::class." {}";
+		$code[] = "\tclass {$collectionClassName} implements \ArrayAccess, \Iterator {}";
 
 		// compatibility with default classes
 		if (strpos($objectClassName, Entity::DEFAULT_OBJECT_PREFIX) !== 0) // better to compare full classes definitions
@@ -430,17 +445,24 @@ class OrmAnnotateCommand extends Command
 
 		// annotate query and result
 		$dataClassName = $entity->getName().'Table';
-		$queryClassName = Entity::DEFAULT_OBJECT_PREFIX.$entity->getName().'Query';
-		$resultClassName = Entity::DEFAULT_OBJECT_PREFIX.$entity->getName().'Result';
+		$queryClassName = Entity::DEFAULT_OBJECT_PREFIX.$entity->getName().'_Query';
+		$resultClassName = Entity::DEFAULT_OBJECT_PREFIX.$entity->getName().'_Result';
+		$entityClassName = Entity::DEFAULT_OBJECT_PREFIX.$entity->getName().'_Entity';
 
 		$code[] = "namespace {$entityNamespace} {"; // start namespace
 		$code[] = "\t/**";
 		$code[] = "\t * @method $queryClassName query()";
+		$code[] = "\t * @method $resultClassName getByPrimary()";
+		$code[] = "\t * @method $resultClassName getById()";
+		$code[] = "\t * @method $resultClassName getList()";
+		$code[] = "\t * @method $entityClassName getEntity()";
 		$code[] = "\t */";
 		$code[] = "\tclass {$dataClassName} {}";
 
 		$code[] = "\t/**";
 		$code[] = "\t * @method $resultClassName exec()";
+		$code[] = "\t * @method {$objectClass} fetchObject()";
+		$code[] = "\t * @method {$collectionClass} fetchCollection()";
 		$code[] = "\t */";
 		$code[] = "\tclass {$queryClassName} extends \\".Query::class." {}";
 
@@ -449,6 +471,14 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * @method {$collectionClass} fetchCollection()";
 		$code[] = "\t */";
 		$code[] = "\tclass {$resultClassName} {}";
+
+		$code[] = "\t/**";
+		$code[] = "\t * @method {$objectClass} createObject(\$setDefaultValues = true)";
+		$code[] = "\t * @method {$collectionClass} createCollection()";
+		$code[] = "\t * @method {$objectClass} wakeUpObject()";
+		$code[] = "\t * @method {$collectionClass} wakeUpCollection()";
+		$code[] = "\t */";
+		$code[] = "\tclass {$entityClassName} {}";
 
 		$code[] = "}"; // end namespace
 

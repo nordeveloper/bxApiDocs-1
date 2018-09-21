@@ -13,23 +13,24 @@ class CommonActions extends BaseObject
 	{
 		$configureActions = parent::configureActions();
 		$configureActions['getArchiveLink'] = [
-			'prefilters' => [
-				new ActionFilter\Authentication,
+			'-prefilters' => [
+				ActionFilter\HttpMethod::class,
+			],
+			'+prefilters' => [
 				new ActionFilter\HttpMethod(
 					[ActionFilter\HttpMethod::METHOD_POST]
 				),
 				new Disk\Internals\Engine\ActionFilter\HumanReadableError(),
 			]
 		];
+
 		$configureActions['downloadArchive'] = [
-			'prefilters' => array_merge(
-				parent::getDefaultPreFilters(),
-				[
-					new ActionFilter\Authentication(true),
-					new ActionFilter\CloseSession(),
-					new Disk\Internals\Engine\ActionFilter\CheckArchiveSignature(),
-				]
-			),
+			'+prefilters' => [
+				new ActionFilter\Authentication(true),
+				new Disk\Internals\Engine\ActionFilter\HumanReadableError(),
+				new Disk\Internals\Engine\ActionFilter\CheckArchiveSignature(),
+				new ActionFilter\CloseSession(),
+			]
 		];
 
 		return $configureActions;

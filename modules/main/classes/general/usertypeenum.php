@@ -754,33 +754,17 @@ EOT;
 
 	public static function getPublicText($userField)
 	{
+		$result = array();
 		static::getEnumList($userField);
-
 		$value = static::normalizeFieldValue($userField['VALUE']);
-
-		$text = '';
-		$first = true;
-		$empty = true;
-
 		foreach ($value as $res)
 		{
-			if (array_key_exists($res, $userField['USER_TYPE']['FIELDS']))
+			if (isset($userField['USER_TYPE']['FIELDS'][$res]))
 			{
-				if (!$first)
-					$text .= ', ';
-				$first = false;
-
-				$text .= $userField['USER_TYPE']['FIELDS'][$res];
-				$empty = false;
+				$result[] = $userField['USER_TYPE']['FIELDS'][$res];
 			}
 		}
-
-		if ($empty)
-		{
-			$text = static::getEmptyCaption($userField);
-		}
-
-		return $text;
+		return (!empty($result) ? implode(', ', $result) : static::getEmptyCaption($userField));
 	}
 
 	public function getPublicEdit($arUserField, $arAdditionalParameters = array())

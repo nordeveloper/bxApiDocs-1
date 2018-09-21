@@ -228,7 +228,7 @@ class CRestUtil
 		return preg_match("/^http[s]{0,1}:\/\/[^\/]*?(\.apps-bitrix24\.com|\.bitrix24-cdn\.com|cdn\.bitrix24\.|app\.bitrix24\.com|upload-.*?\.s3\.amazonaws\.com\/app_local\/)/i", $url);
 	}
 
-	public static function GetFile($fileId)
+	public static function GetFile($fileId , $resizeParam = false)
 	{
 		$fileSrc = array();
 		$bMult = false;
@@ -244,7 +244,15 @@ class CRestUtil
 			$dbRes = CFile::GetList(array(), array('@ID' => $fileId));
 			while($arRes = $dbRes->Fetch())
 			{
-				$fileSrc[$arRes['ID']] = CHTTP::URN2URI(CFile::GetFileSrc($arRes));
+				if($resizeParam !== false)
+				{
+					$resizeResult = \CFile::ResizeImageGet($arRes, $resizeParam, BX_RESIZE_IMAGE_PROPORTIONAL_ALT, false, false, false);
+					$fileSrc[$arRes['ID']] = \CHTTP::URN2URI($resizeResult['src']);
+				}
+				else
+				{
+					$fileSrc[$arRes['ID']] = \CHTTP::URN2URI(CFile::GetFileSrc($arRes));
+				}
 			}
 		}
 

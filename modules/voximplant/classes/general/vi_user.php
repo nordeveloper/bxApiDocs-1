@@ -533,31 +533,21 @@ class CVoxImplantUser
 		return $result;
 	}
 
-	public static function GetByPhone($phone, $type = CVoxImplantPhone::PHONE_USER_INNER)
+	public static function GetByPhone($phone)
 	{
-		$phoneNormalize = CVoxImplantPhone::Normalize($phone);
-		if (!$phoneNormalize)
-		{
-			$phoneNormalize = preg_replace("/[^0-9\#\*]/i", "", $phone);
-		}
-		$phone = $phoneNormalize;
+		$phone = CVoxImplantPhone::stripLetters($phone);
 
-		$result = Bitrix\Voximplant\PhoneTable::getList(Array(
-			'select' => Array('USER_ID', 'PHONE_MNEMONIC'),
-			'filter' => Array('=PHONE_NUMBER' => $phone, '=USER.ACTIVE' => 'Y')
-		));
-
-		$userId = false;
-		while ($row = $result->fetch())
+		if ($phone == '')
 		{
-			if ($row['PHONE_MNEMONIC'] == $type)
-			{
-				$userId = $row['USER_ID'];
-				break;
-			}
+			return false;
 		}
 
-		return $userId;
+		$row = VI\PhoneTable::getRow([
+			'select' => ['USER_ID'],
+			'filter' => ['=PHONE_NUMBER' => $phone, '=USER.ACTIVE' => 'Y']
+		]);
+
+		return ($row ? (int)$row['USER_ID'] : false);
 	}
 
 	public static function IsExtranet($arUser)

@@ -90,24 +90,37 @@ class Chat
 			$skipUnmodifiedRecords = true;
 		}
 
+		$sqlSelectCounter = 'R.LAST_ID, R.COUNTER, R.COUNTER PREVIOUS_COUNTER';
+
+		$customCounter = false;
+		$customMaxId = 0;
+		$customMinId = 0;
+		$counters = [];
+
 		if (isset($params['REAL_COUNTERS']) && $params['REAL_COUNTERS'] != 'N' || $skipUnmodifiedRecords)
 		{
-			$lastId = "R.LAST_ID";
-			if (is_array($params['REAL_COUNTERS']))
+			if (is_array($params['REAL_COUNTERS']) && isset($params['REAL_COUNTERS']['LAST_ID']) && intval($params['REAL_COUNTERS']['LAST_ID']) > 0)
 			{
-				if (isset($params['REAL_COUNTERS']['LAST_ID']) && intval($params['REAL_COUNTERS']['LAST_ID']) > 0)
+				$sqlSelectCounter = "R.COUNTER PREVIOUS_COUNTER, (
+					SELECT COUNT(1) FROM b_im_message M WHERE M.CHAT_ID = R.CHAT_ID AND M.ID > ".intval($params['REAL_COUNTERS']['LAST_ID'])."
+				) COUNTER";
+			}
+			else
+			{
+				$customCounter = true;
+				$query = \Bitrix\Main\Application::getInstance()->getConnection()->query("
+					SELECT ID FROM b_im_message M WHERE M.CHAT_ID = {$chatId} ORDER BY ID DESC LIMIT 100
+				");
+				while ($row = $query->fetch())
 				{
-					$lastId = intval($params['REAL_COUNTERS']['LAST_ID']);
+					if (!$customMaxId)
+					{
+						$customMaxId = $row['ID'];
+					}
+					$counters[$row['ID']] = count($counters);
+					$customMinId = $row['ID'];
 				}
 			}
-
-			$sqlSelectCounter = "R.COUNTER PREVIOUS_COUNTER, (
-				SELECT COUNT(1) FROM b_im_message M WHERE M.CHAT_ID = R.CHAT_ID AND M.ID > $lastId
-			) COUNTER";
-		}
-		else
-		{
-			$sqlSelectCounter = 'R.COUNTER, R.COUNTER PREVIOUS_COUNTER';
 		}
 
 		$sql = "
@@ -116,13 +129,31 @@ class Chat
 			".($withUserFields && !$skipConnectorRelation? "LEFT JOIN b_user U ON R.USER_ID = U.ID": "")."
 			".($skipConnectorRelation? "INNER JOIN b_user U ON R.USER_ID = U.ID AND (EXTERNAL_AUTH_ID != 'imconnector' OR EXTERNAL_AUTH_ID IS NULL)": "")."
 			WHERE R.CHAT_ID = {$chatId} {$whereFields}
-			".($skipUnmodifiedRecords? ' HAVING COUNTER <> PREVIOUS_COUNTER': '')."
 		";
 		$relations = array();
 		$query = \Bitrix\Main\Application::getInstance()->getConnection()->query($sql);
 		while ($row = $query->fetch())
 		{
-			$row['COUNTER'] = $row['COUNTER']>99? 100: intval($row['COUNTER']);
+			if ($customCounter)
+			{
+				if (isset($counters[$row['LAST_ID']]))
+				{
+					$row['COUNTER'] = $counters[$row['LAST_ID']];
+				}
+				else if ($row['LAST_ID'] < $customMinId)
+				{
+					$row['COUNTER'] = count($counters);
+				}
+				else if ($row['LAST_ID'] > $customMaxId)
+				{
+					$row['COUNTER'] = 0;
+				}
+			}
+			else
+			{
+				$row['COUNTER'] = $row['COUNTER'] > 99? 100: intval($row['COUNTER']);
+			}
+
 			$row['PREVIOUS_COUNTER'] = intval($row['PREVIOUS_COUNTER']);
 
 			if ($skipUnmodifiedRecords && $row['COUNTER'] == $row['PREVIOUS_COUNTER'])

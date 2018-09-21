@@ -63,11 +63,6 @@ class Auth
 				$res = array('error' => 'session_failed', 'error_description' => 'Sessid check failed', 'additional' => array('sessid' => bitrix_sessid()));
 			}
 
-			if($error)
-			{
-				static::requireHttpAuth();
-			}
-
 			return !$error;
 		}
 

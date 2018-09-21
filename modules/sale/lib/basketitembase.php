@@ -217,7 +217,18 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 	 */
 	protected function __construct(array $fields = array())
 	{
+		$priceRoundedFields = ['BASE_PRICE', 'PRICE', 'DISCOUNT_PRICE'];
+
+		foreach ($priceRoundedFields as $code)
+		{
+			if (isset($fields[$code]))
+			{
+				$fields[$code] = PriceMaths::roundPrecision($fields[$code]);
+			}
+		}
+
 		parent::__construct($fields);
+
 		$this->calculatedFields = new Internals\Fields();
 	}
 

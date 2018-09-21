@@ -257,6 +257,12 @@ class Cleaner implements IErrorable, Volume\IVolumeTimeLimit
 						$taskDone = true;
 					}
 				}
+				else
+				{
+					$cleaner->instanceTask()->setLastError('Can not found folder #'.$folderId);
+					$cleaner->instanceTask()->raiseFatalError();
+					$taskDone = true;
+				}
 
 				break;
 			}

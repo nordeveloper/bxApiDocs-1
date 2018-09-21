@@ -31,7 +31,7 @@ class Loader
 		{
 			return;
 		}
-		
+
 		if (strpos($class, '\\') === false)
 		{
 			// define global namespace explicitly
@@ -50,10 +50,10 @@ class Loader
 				// entity without name, defined by namespace
 				$entityName = '';
 			}
-			elseif (substr($className, -10) == 'Collection')
+			elseif (substr($className, -11) == '_Collection')
 			{
 				$needFor = 'collection';
-				$entityName = substr($className, 3, -10);
+				$entityName = substr($className, 3, -11);
 			}
 			else
 			{

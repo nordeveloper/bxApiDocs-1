@@ -122,6 +122,11 @@ else
 			return \Bitrix\ImBot\Bot\Network::getNetworkBotId(self::getCode());
 		}
 
+		public static function isEnabled()
+		{
+			return self::getBotId();
+		}
+
 		public static function getCode()
 		{
 			if ($f = \Bitrix\Main\Localization\CultureTable::getList(array('filter' => array('=CODE' => 'ru')))->fetch())

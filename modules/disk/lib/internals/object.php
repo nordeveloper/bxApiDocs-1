@@ -252,7 +252,13 @@ class ObjectTable extends DataManager
 			'SEARCH_INDEX' => array(
 				'data_type' => 'string',
 				'expression'  => [
-					'SEARCH_INDEX'
+					'%%TABLE_ALIAS.SEARCH_INDEX'
+				],
+			),
+			'HAS_SEARCH_INDEX' => array(
+				'data_type' => 'boolean',
+				'expression'  => [
+					'IF(%%TABLE_ALIAS.SEARCH_INDEX IS NOT NULL, TRUE, FALSE)'
 				],
 			),
 		);

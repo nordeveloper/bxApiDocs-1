@@ -1,7 +1,7 @@
 <?php
 namespace Bitrix\Disk\Internals;
 
-use Bitrix\Main\Entity;
+use Bitrix\Main\Application;
 use Bitrix\Main\Type\DateTime;
 
 /**
@@ -65,5 +65,18 @@ final class DeletedLogTable extends DataManager
 	public static function insertBatch(array $items)
 	{
 		parent::insertBatch($items);
+	}
+
+	public static function deleteOldEntries()
+	{
+		$tableName = static::getTableName();
+		$connection = Application::getConnection();
+		$helper = $connection->getSqlHelper();
+		$quotedTableName = $helper->quote($tableName);
+
+		$deathTime = $helper->addSecondsToDateTime(365*24*3600, 'CREATE_TIME');
+		$now = $helper->getCurrentDateTimeFunction();
+
+		$connection->queryExecute("DELETE FROM {$quotedTableName} WHERE {$now} > {$deathTime}");
 	}
 }

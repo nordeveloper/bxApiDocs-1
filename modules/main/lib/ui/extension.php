@@ -33,7 +33,7 @@ class Extension
 			return true;
 		}
 
-		return false;
+		return \CJSCore::isExtRegistered($extName);
 	}
 
 	public static function registerAssets($id, array $options)
@@ -104,5 +104,17 @@ class Extension
 		}
 
 		return \getLocalPath($path, BX_PERSONAL_ROOT);
+	}
+
+	public static function getHtml($extName)
+	{
+		$isRegistered = static::register($extName);
+
+		if ($isRegistered)
+		{
+			return \CJSCore::getHTML($extName);
+		}
+
+		return null;
 	}
 }

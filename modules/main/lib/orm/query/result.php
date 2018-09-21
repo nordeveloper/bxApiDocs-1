@@ -444,7 +444,7 @@ class Result extends BaseResult
 		if (empty($remoteObject))
 		{
 			// define new object
-			$remoteObject = new $objectClass;
+			$remoteObject = new $objectClass(false);
 
 			// set right state
 			$remoteObject->sysChangeState(State::ACTUAL);

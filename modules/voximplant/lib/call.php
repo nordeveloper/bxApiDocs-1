@@ -552,9 +552,10 @@ class Call
 
 	/**
 	 * @param array $users
+	 * @param bool $sendTimeout
 	 * @throws \Exception
 	 */
-	public function removeUsers(array $users)
+	public function removeUsers(array $users, $sendTimeout = true)
 	{
 		foreach ($users as $userId)
 		{
@@ -567,28 +568,35 @@ class Call
 		}
 		if(count($users) > 0)
 		{
-			$this->signaling->sendTimeout($users);
+			if($sendTimeout)
+			{
+				$this->signaling->sendTimeout($users);
+			}
+			foreach ($users as $userId)
+			{
+				$userInfo = \CVoxImplantIncoming::getUserInfo($userId);
+				if($userInfo['AVAILABLE'] == 'Y')
+				{
+					CallQueue::dequeueFirstUserCall($userId);
+				}
+			}
 		}
 	}
 
 	public function removeAllInvitedUsers()
 	{
-		$usersToSendTimeout = [];
+		$usersToRemove = [];
 		foreach ($this->users as $userId => $user)
 		{
-			if($user['STATUS'] == CallUserTable::STATUS_INVITING)
+			if($user['STATUS'] == CallUserTable::STATUS_INVITING || $user['STATUS'] == CallUserTable::STATUS_CONNECTING)
 			{
-				$usersToSendTimeout[] = $userId;
-				CallUserTable::delete([
-					'CALL_ID' => $this->callId,
-					'USER_ID' => $userId
-				]);
-				unset($this->users[$userId]);
+				$usersToRemove[] = $userId;
 			}
 		}
-		if(count($usersToSendTimeout) > 0)
+
+		if(count($usersToRemove) > 0)
 		{
-			$this->signaling->sendTimeout($usersToSendTimeout);
+			$this->removeUsers($usersToRemove);
 		}
 	}
 
@@ -738,31 +746,29 @@ class Call
 		$this->updateStatus(Model\CallTable::STATUS_CONNECTING);
 
 		$this->signaling->sendAnswerSelf($userId);
-		$this->scenario->sendWait($userId);
+		$this->scenario->sendAnswer($userId);
 	}
 
 	public function handleUserConnected($userId, $device)
 	{
-		if(!isset($this->users[$userId]))
-		{
-			throw new SystemException("User is not participant of the call");
-		}
-
-		$this->updateUser($userId, [
-			'STATUS' => CallUserTable::STATUS_CONNECTED,
-			'DEVICE' => $device,
-		]);
-
-
 		$updatedFields = [
 			'STATUS' => Model\CallTable::STATUS_CONNECTED
 		];
-		if($this->incoming == \CVoxImplantMain::CALL_INCOMING || $this->incoming == \CVoxImplantMain::CALL_CALLBACK)
+
+		if(isset($this->users[$userId]))
 		{
-			$updatedFields['USER_ID'] = $userId;
-			if ($this->getCrmLead() > 0)
+			$this->updateUser($userId, [
+				'STATUS' => CallUserTable::STATUS_CONNECTED,
+				'DEVICE' => $device,
+			]);
+
+			if($this->incoming == \CVoxImplantMain::CALL_INCOMING || $this->incoming == \CVoxImplantMain::CALL_CALLBACK)
 			{
-				\CVoxImplantCrmHelper::UpdateLead($this->getCrmLead(), Array('ASSIGNED_BY_ID' => $userId));
+				$updatedFields['USER_ID'] = $userId;
+				if ($this->getCrmLead() > 0)
+				{
+					\CVoxImplantCrmHelper::UpdateLead($this->getCrmLead(), Array('ASSIGNED_BY_ID' => $userId));
+				}
 			}
 		}
 		$this->update($updatedFields);

@@ -364,18 +364,59 @@ class Entity
 
 	public static function getDefaultCollectionClassName($entityName)
 	{
-		$className = static::DEFAULT_OBJECT_PREFIX.$entityName.'Collection';
+		$className = static::DEFAULT_OBJECT_PREFIX.$entityName.'_Collection';
 
 		return $className;
 	}
 
 	/**
-	 * @return Collection
+	 * @param bool $setDefaultValues
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 */
+	public function createObject($setDefaultValues = true)
+	{
+		$objectClass = $this->getObjectClass();
+		return new $objectClass($setDefaultValues);
+	}
+
+	/**
+	 * @return null Actual type should be annotated by orm:annotate
 	 */
 	public function createCollection()
 	{
 		$collectionClass = $this->getCollectionClass();
 		return new $collectionClass($this);
+	}
+
+	/**
+	 * @see EntityObject::wakeUp()
+	 *
+	 * @param $row
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ArgumentException
+	 * @throws Main\SystemException
+	 */
+	public function wakeUpObject($row)
+	{
+		$objectClass = $this->getObjectClass();
+		return $objectClass::wakeUp($row);
+	}
+
+	/**
+	 * @see Collection::wakeUp()
+	 *
+	 * @param $rows
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ArgumentException
+	 * @throws Main\SystemException
+	 */
+	public function wakeUpCollection($rows)
+	{
+		$collectionClass = $this->getCollectionClass();
+		return $collectionClass::wakeUp($rows);
 	}
 
 	/**

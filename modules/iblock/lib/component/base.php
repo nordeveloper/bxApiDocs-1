@@ -1987,7 +1987,7 @@ abstract class Base extends \CBitrixComponent
 		$propertyCodes = array_fill_keys($propertyCodes, true);
 
 		$propertyIterator = Iblock\PropertyTable::getList(array(
-			'select' => array('ID', 'CODE'),
+			'select' => array('ID', 'CODE', 'SORT'),
 			'filter' => array('=IBLOCK_ID' => $iblock, '=ACTIVE' => 'Y'),
 			'order' => array('SORT' => 'ASC', 'ID' => 'ASC')
 		));
@@ -4322,10 +4322,16 @@ abstract class Base extends \CBitrixComponent
 				$documentRoot = Main\Application::getDocumentRoot();
 				$templateFolder = $this->getTemplate()->GetFolder();
 
-				$file = new Main\IO\File($documentRoot.$templateFolder.'/themes/'.$theme.'/style.css');
-				if (!$file->isExists())
+				$themesFolder = new Main\IO\Directory($documentRoot.$templateFolder.'/themes/');
+
+				if ($themesFolder->isExists())
 				{
-					$theme = '';
+					$file = new Main\IO\File($documentRoot.$templateFolder.'/themes/'.$theme.'/style.css');
+
+					if (!$file->isExists())
+					{
+						$theme = '';
+					}
 				}
 			}
 		}

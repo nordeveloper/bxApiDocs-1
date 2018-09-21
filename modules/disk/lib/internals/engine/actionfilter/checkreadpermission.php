@@ -4,6 +4,7 @@ namespace Bitrix\Disk\Internals\Engine\ActionFilter;
 
 use Bitrix\Disk\BaseObject;
 use Bitrix\Disk\Internals\Error\Error;
+use Bitrix\Disk\Storage;
 use Bitrix\Disk\Type;
 use Bitrix\Disk\Version;
 use Bitrix\Main\Engine\ActionFilter;
@@ -35,6 +36,15 @@ class CheckReadPermission extends ActionFilter\Base
 					return new EventResult(EventResult::ERROR, null, null, $this);
 				}
 			}
+			elseif ($argument instanceof Storage)
+			{
+				if (!$argument->canRead($argument->getSecurityContext($this->currentUser->getId())))
+				{
+					$this->addReadError();
+
+					return new EventResult(EventResult::ERROR, null, null, $this);
+				}
+			}
 			elseif ($argument instanceof Version)
 			{
 				$file = $argument->getObject();
@@ -46,9 +56,7 @@ class CheckReadPermission extends ActionFilter\Base
 				$securityContext = $file->getStorage()->getSecurityContext($this->currentUser->getId());
 				if (!$file->canRead($securityContext))
 				{
-					$this->errorCollection[] = new Error(
-						Loc::getMessage("DISK_CHECK_READ_PERMISSION_ERROR_MESSAGE"), self::ERROR_COULD_NOT_READ_OBJECT
-					);
+					$this->addReadError();
 
 					return new EventResult(EventResult::ERROR, null, null, $this);
 				}
@@ -73,13 +81,19 @@ class CheckReadPermission extends ActionFilter\Base
 		$securityContext = $object->getStorage()->getSecurityContext($this->currentUser->getId());
 		if (!$object->canRead($securityContext))
 		{
-			$this->errorCollection[] = new Error(
-				Loc::getMessage("DISK_CHECK_READ_PERMISSION_ERROR_MESSAGE"), self::ERROR_COULD_NOT_READ_OBJECT
-			);
+			$this->addReadError();
 
 			return false;
 		}
 
 		return true;
 	}
+
+	protected function addReadError()
+	{
+		$this->errorCollection[] = new Error(
+			Loc::getMessage("DISK_CHECK_READ_PERMISSION_ERROR_MESSAGE"), self::ERROR_COULD_NOT_READ_OBJECT
+		);
+	}
+
 }

@@ -540,6 +540,9 @@ abstract class CAllUser extends CDBResult
 			$_SESSION["SESS_AUTH"]["LAST_NAME"] = $arUser["LAST_NAME"];
 			$_SESSION["SESS_AUTH"]["PERSONAL_PHOTO"] = $arUser["PERSONAL_PHOTO"];
 			$_SESSION["SESS_AUTH"]["PERSONAL_GENDER"] = $arUser["PERSONAL_GENDER"];
+			$_SESSION["SESS_AUTH"]["PERSONAL_WWW"] = $arUser["PERSONAL_WWW"];
+			$_SESSION["SESS_AUTH"]["EXTERNAL_AUTH_ID"] = $arUser["EXTERNAL_AUTH_ID"];
+			$_SESSION["SESS_AUTH"]["XML_ID"] = $arUser["XML_ID"];
 			$_SESSION["SESS_AUTH"]["ADMIN"] = false;
 			$_SESSION["SESS_AUTH"]["POLICY"] = CUser::GetGroupPolicy($arUser["ID"]);
 			$_SESSION["SESS_AUTH"]["AUTO_TIME_ZONE"] = trim($arUser["AUTO_TIME_ZONE"]);

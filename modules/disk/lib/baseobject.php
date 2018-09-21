@@ -8,6 +8,7 @@ use Bitrix\Disk\Internals\ObjectTable;
 use Bitrix\Disk\Internals\SharingTable;
 use Bitrix\Disk\Security\SecurityContext;
 use Bitrix\Disk\Ui\Avatar;
+use Bitrix\Main\Application;
 use Bitrix\Main\ArgumentTypeException;
 use Bitrix\Main\Entity\AddResult;
 use Bitrix\Main\Entity\Result;
@@ -1323,25 +1324,72 @@ abstract class BaseObject extends Internals\Model implements \JsonSerializable
 
 		$suffix = null;
 		$mainParts = explode('.', $mainPartName);
-		if(count($mainParts) > 1)
+		if (count($mainParts) > 1)
 		{
 			$suffix = array_pop($mainParts);
 			$mainPartName = implode('.', $mainParts);
 		}
-		while(!static::isUniqueName($newName, $underObjectId))
+		while (!static::isUniqueName($newName, $underObjectId))
 		{
 			$count++;
-			if($suffix)
-			{
-				$newName = $mainPartName . " ({$count})." . $suffix;
-			}
-			else
-			{
-				$newName = $mainPartName . " ({$count})";
-			}
+			list($newName) = static::getNextGeneratedName($mainPartName, $suffix, $underObjectId);
 		}
 
 		return $newName;
+	}
+
+	private static function getNextGeneratedName($mainPartName, $suffix, $underObjectId)
+	{
+		$underObjectId = (int)$underObjectId;
+
+		$left = $mainPartName . ' (';
+		$right = ')';
+
+		if ($suffix)
+		{
+			$right = ').'. $suffix;
+		}
+		$lengthR = strlen($right);
+		$lengthL = strlen($left);
+
+		$connection = Application::getConnection();
+		$sqlHelper = $connection->getSqlHelper();
+
+		$sql = "
+			SELECT NAME FROM b_disk_object 
+			WHERE 
+				PARENT_ID = {$underObjectId} AND 
+				LEFT(NAME, {$lengthL}) = '" . $sqlHelper->forSql($left) . "' AND
+				MID(NAME, {$lengthL} + 1, CHAR_LENGTH(NAME) - {$lengthL} - {$lengthR}) regexp '^[[:digit:]]+$' AND
+				RIGHT(NAME, {$lengthR}) = '" . $sqlHelper->forSql($right) . "'
+			ORDER BY CHAR_LENGTH(NAME) DESC, NAME DESC
+			LIMIT 1;
+		";
+
+		$row = $connection->query($sql)->fetch();
+		if (!$row)
+		{
+			$newName = $mainPartName . " (1)";
+			if ($suffix)
+			{
+				$newName .= "." . $suffix;
+			}
+
+			return [
+				$newName,
+				null,
+				1
+			];
+		}
+
+		$counter = substr($row['NAME'], $lengthL, strlen($row['NAME']) - $lengthL - $lengthR);
+		$counter = (int)$counter + 1;
+
+		return [
+			$left . $counter . $right,
+			$row['NAME'],
+			$counter
+		];
 	}
 
 	protected function updateLinksAttributes(array $attr)

@@ -200,13 +200,20 @@ class User extends \IRestService
 
 		$sort = $query['SORT'];
 		$order = $query['ORDER'];
-
-		if(isset($query['FILTER']) && is_array($query['FILTER']))
-		{
-			$query = array_change_key_case($query['FILTER'], CASE_UPPER);
-		}
-
 		$adminMode = false;
+
+
+		//getting resize preset before user data preparing
+		$resizePresets = [
+			"small"=>["width"=>150, "height" => 150],
+			"medium"=>["width"=>300, "height" => 300],
+			"large"=>["width"=>1000, "height" => 1000],
+		];
+
+		$presetName = $query["IMAGE_RESIZE"];
+		$resize = ($presetName && $resizePresets[$presetName]
+			? $resizePresets[$presetName]
+			: false);
 
 		if(isset($query['ADMIN_MODE']) && $query['ADMIN_MODE'])
 		{
@@ -229,6 +236,16 @@ class User extends \IRestService
 		{
 			$allowedUserFields[] = 'FIND';
 			$allowedUserFields[] = 'UF_DEPARTMENT_NAME';
+		}
+
+
+		if(isset($query['FILTER']) && is_array($query['FILTER']))
+		{
+			/**
+			 * The following code is a mistake
+			 * but it must be here to save backward compatibility
+			 */
+			$query = array_change_key_case($query['FILTER'], CASE_UPPER);
 		}
 
 		$filter = self::prepareUserData($query, $allowedUserFields);
@@ -321,6 +338,7 @@ class User extends \IRestService
 
 			$result = array();
 			$files = array();
+
 			while($userInfo = $dbRes->fetch())
 			{
 				$result[] = self::getUserData($userInfo);
@@ -333,7 +351,7 @@ class User extends \IRestService
 
 			if(count($files) > 0)
 			{
-				$files = \CRestUtil::getFile($files);
+				$files = \CRestUtil::getFile($files, $resize);
 
 				foreach ($result as $key => $userInfo)
 				{

@@ -210,6 +210,8 @@ class CAllIBlockProperty
 		$seq = new CIBlockSequence($arProperty["IBLOCK_ID"], $ID);
 		$seq->Drop();
 
+		CIBlock::clearIblockTagCache($arProperty["IBLOCK_ID"]);
+
 		$res = $DB->Query("DELETE FROM b_iblock_property WHERE ID=".$ID, true);
 
 		foreach (GetModuleEvents("iblock", "OnAfterIBlockPropertyDelete", true) as $arEvent)
@@ -335,8 +337,11 @@ class CAllIBlockProperty
 		}
 
 		global $BX_IBLOCK_PROP_CACHE;
-		if(array_key_exists("IBLOCK_ID", $arFields))
+		if (isset($arFields["IBLOCK_ID"]))
+		{
 			unset($BX_IBLOCK_PROP_CACHE[$arFields["IBLOCK_ID"]]);
+			CIBlock::clearIblockTagCache($arFields["IBLOCK_ID"]);
+		}
 
 		$arFields["RESULT"] = &$Result;
 
@@ -558,8 +563,11 @@ class CAllIBlockProperty
 			}
 
 			global $BX_IBLOCK_PROP_CACHE;
-			if(array_key_exists("IBLOCK_ID", $arFields))
+			if (isset($arFields["IBLOCK_ID"]))
+			{
 				unset($BX_IBLOCK_PROP_CACHE[$arFields["IBLOCK_ID"]]);
+				CIBlock::clearIblockTagCache($arFields["IBLOCK_ID"]);
+			}
 
 			$Result = true;
 		}

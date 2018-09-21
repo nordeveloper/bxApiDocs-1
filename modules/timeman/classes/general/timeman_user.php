@@ -167,6 +167,8 @@ class CTimeManUser
 				if (isset($arFields['ACTIVE']) && $arFields['ACTIVE'] == 'N')
 					CTimeManNotify::SendMessage($last_entry['ID']);
 
+				static::clearFullReportCache();
+
 				return $this->_GetLastData(true);
 			}
 		}
@@ -258,11 +260,15 @@ class CTimeManUser
 		$ENTRY_ID = CTimeManEntry::Add($arFields);
 		if ($ENTRY_ID > 0)
 		{
+			CUser::SetLastActivityDate($this->USER_ID);
+
 			$APPLICATION->ResetException();
 			unset($_SESSION['BX_TIMEMAN_LAST_PAUSE_'.$this->USER_ID]);
 
 			if (isset($arFields['ACTIVE']) && $arFields['ACTIVE'] == 'N')
 				CTimeManNotify::SendMessage($ENTRY_ID);
+
+			static::clearFullReportCache();
 
 			$data = $this->_GetLastData(true);
 
@@ -360,10 +366,20 @@ class CTimeManUser
 			{
 				if (CTimeManEntry::Update($last_entry['ID'], $arFields))
 				{
+					CUser::SetLastActivityDate($this->USER_ID);
+
 					if (isset($arFields['ACTIVE']) && $arFields['ACTIVE'] == 'N')
 						CTimeManNotify::SendMessage($last_entry['ID']);
 
-					return $this->_GetLastData(true);
+					static::clearFullReportCache();
+
+					$data = $this->_GetLastData(true);
+
+					$e = GetModuleEvents('timeman', 'OnAfterTMDayEnd');
+					while ($a = $e->Fetch())
+						ExecuteModuleEventEx($a, array($data));
+
+					return $data;
 				}
 			}
 		}
@@ -396,6 +412,8 @@ class CTimeManUser
 
 			if (CTimeManEntry::Update($last_entry['ID'], $arFields))
 			{
+				CUser::SetLastActivityDate($this->USER_ID);
+
 				CTimeManReport::Reopen($last_entry['ID']);
 				CTimeManReportDaily::Reopen($last_entry['ID']);
 
@@ -415,7 +433,15 @@ class CTimeManUser
 					));
 				}
 
-				return $this->_GetLastData(true);
+				static::clearFullReportCache();
+
+				$data = $this->_GetLastData(true);
+
+				$e = GetModuleEvents('timeman', 'OnAfterTMDayContinue');
+				while ($a = $e->Fetch())
+					ExecuteModuleEventEx($a, array($data));
+
+				return $data;
 			}
 		}
 
@@ -440,7 +466,19 @@ class CTimeManUser
 			);
 
 			if (CTimeManEntry::Update($last_entry['ID'], $arFields))
-				return $this->_GetLastData(true);
+			{
+				CUser::SetLastActivityDate($this->USER_ID);
+
+				static::clearFullReportCache();
+
+				$data = $this->_GetLastData(true);
+
+				$e = GetModuleEvents('timeman', 'OnAfterTMDayPause');
+				while ($a = $e->Fetch())
+					ExecuteModuleEventEx($a, array($data));
+
+				return $data;
+			}
 		}
 		else
 		{
@@ -1146,6 +1184,14 @@ class CTimeManUser
 	public function ClearCache()
 	{
 		return $this->_GetLastData(true);
+	}
+
+	protected function clearFullReportCache()
+	{
+		global $CACHE_MANAGER;
+
+		$cacheId = CUserReportFull::getInfoCacheId($this->USER_ID);
+		$CACHE_MANAGER->Clean($cacheId, 'timeman_report_info');
 	}
 
 	public function isSocservEnabledByUser()

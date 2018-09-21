@@ -53,6 +53,19 @@ class Transferor
 		return $result;
 	}
 
+	public static function startBlindTransfer($callId, $userId)
+	{
+		$transferCall = Call::load($callId);
+		if(!$transferCall)
+		{
+			return false;
+		}
+
+		$parentCall = Call::load($transferCall->getParentCallId());
+		$transferCall->removeUsers([$userId], false);
+		$parentCall->removeUsers([$userId]);
+	}
+
 	/**
 	 * Finishes and removes transfer sub-call.
 	 *
@@ -87,17 +100,33 @@ class Transferor
 
 	 * @param string $callId Id of the transfer sub-call.
 	 * @param int $newUserId Id of the user, accepted the call.
-	 * @return void
+	 * @params string $device Device type of the connected user.
+	 * @return Result
 	 * @throws \Exception
 	 */
-	public static function completeTransfer($callId, $newUserId)
+	public static function completeTransfer($callId, $newUserId, $device)
 	{
+		$result = new Result();
 		$newUserId = (int)$newUserId;
 
 		$transferCall = Call::load($callId);
-		$parentCall = Call::load($transferCall->getParentCallId());
+		if(!$transferCall)
+		{
+			return $result->addError(new Error('Call ' . $callId . ' is not found'));
+		}
+		$parentCallId = $transferCall->getParentCallId();
+		$parentCall = Call::load($parentCallId);
+		if(!$parentCall)
+		{
+			return $result->addError(new Error('Parent call ' . $parentCallId . ' is not found'));
+		}
 
 		$transferorUserId = $transferCall->getUserId();
+
+		if($newUserId == 0)
+		{
+			$newUserId = \CVoxImplantUser::GetByPhone($transferCall->getCallerId());
+		}
 		if($newUserId > 0)
 		{
 			if($parentCall->getUserId() == $transferorUserId)
@@ -119,14 +148,15 @@ class Transferor
 				}
 			}
 
-			$transferCall->getSignaling()->sendCompleteTransfer($newUserId, $parentCall->getCallId());
+			$transferCall->getSignaling()->sendCompleteTransfer($newUserId, $parentCall->getCallId(), $device);
 
 			\CVoxImplantHistory::TransferMessage($transferorUserId, $newUserId, $parentCall->getCallerId());
 		}
-		$transferCall->removeUsers([$transferorUserId]);
+		$transferCall->removeUsers([$transferorUserId], false);
 		$parentCall->removeUsers([$transferorUserId]);
 
 		Call::delete($callId);
+		return $result;
 	}
 
 	/**
@@ -166,44 +196,71 @@ class Transferor
 	/**
 	 * Handler for the transfer completion event, when the transfer was performed using SIP phone.
 	 *
-	 * @param string $initiatorCallId Id of the transfer initiator call.
-	 * @param string $targetCallId Id of the transfer target call.
+	 * @param string $firstCallId Id of the transfer initiator call.
+	 * @param string $secondCallId Id of the transfer target call.
+	 * @param int $initiatorUserId Id of the user, who initiated call transfer.
 	 * @throws \Exception
 	 */
-	public static function completePhoneTransfer($initiatorCallId, $targetCallId)
+	public static function completePhoneTransfer($firstCallId, $secondCallId, $initiatorUserId)
 	{
-		$initiatorCall = Call::load($initiatorCallId);
-		$targetCall = Call::load($targetCallId);
+		$firstCall = Call::load($firstCallId);
+		$secondCall = Call::load($secondCallId);
 
-		if (!$initiatorCall || !$targetCall)
+		if (!$firstCall || !$secondCall)
 		{
 			return;
 		}
 
-		$initiatorUserId = $targetCall->getUserId();
-		$toUserId = $targetCall->getPortalUserId();
-		\CVoxImplantHistory::TransferMessage($initiatorCall->getUserId(), $toUserId, $initiatorCall->getCallerId());
+		$toUserId = $secondCall->getPortalUserId();
+		\CVoxImplantHistory::TransferMessage($firstCall->getUserId(), $toUserId, $firstCall->getCallerId());
 
-		$initiatorCall->removeUsers([$initiatorUserId]);
-		$initiatorCall->updateUserId($toUserId);
+		$firstCall->removeUsers([$initiatorUserId]);
+		$secondCall->removeUsers([$initiatorUserId]);
 
-		$targetCall->update([
-			'CRM' => $initiatorCall->isCrmEnabled() ? 'Y' : 'N',
-			'CRM_LEAD' => $initiatorCall->getCrmLead(),
-			'CRM_ENTITY_TYPE' => $initiatorCall->getCrmEntityType(),
-			'CRM_ENTITY_ID' => $initiatorCall->getCrmEntityId(),
-			'CRM_ACTIVITY_ID' => $initiatorCall->getCrmActivityId()
+		if(!$firstCall->isInternalCall() && !$secondCall->isInternalCall())
+		{
+			// both calls are external, nothing to do
+			return;
+		}
+		if($firstCall->isInternalCall() && $secondCall->isInternalCall())
+		{
+			// both calls are internal, nothing to do
+			return;
+		}
+		if($firstCall->isInternalCall())
+		{
+			$toUserId = $firstCall->getPortalUserId();
+			static::updateCrmData($secondCall, $firstCall, $toUserId);
+		}
+		else
+		{
+			//second call is internal call
+			$toUserId = $secondCall->getPortalUserId();
+			static::updateCrmData($firstCall, $secondCall, $toUserId);
+		}
+	}
+
+	protected static function updateCrmData(Call $clientCall, Call $internalCall, $newUserId)
+	{
+		$clientCall->updateUserId($newUserId);
+
+		$internalCall->update([
+			'CRM' => $clientCall->isCrmEnabled() ? 'Y' : 'N',
+			'CRM_LEAD' => $clientCall->getCrmLead(),
+			'CRM_ENTITY_TYPE' => $clientCall->getCrmEntityType(),
+			'CRM_ENTITY_ID' => $clientCall->getCrmEntityId(),
+			'CRM_ACTIVITY_ID' => $clientCall->getCrmActivityId()
 		]);
 
-		if($initiatorCall->isCrmEnabled())
+		if($clientCall->isCrmEnabled())
 		{
-			$config = $initiatorCall->getConfig();
-			if (isset($config['CRM_TRANSFER_CHANGE']) && $config['CRM_TRANSFER_CHANGE'] == 'Y' && $initiatorCall->getCrmLead() > 0 && $toUserId)
+			$config = $clientCall->getConfig();
+			if (isset($config['CRM_TRANSFER_CHANGE']) && $config['CRM_TRANSFER_CHANGE'] == 'Y' && $clientCall->getCrmLead() > 0 && $newUserId)
 			{
-				\CVoxImplantCrmHelper::UpdateLead($initiatorCall->getCrmLead(), ['ASSIGNED_BY_ID' => $toUserId]);
+				\CVoxImplantCrmHelper::UpdateLead($clientCall->getCrmLead(), ['ASSIGNED_BY_ID' => $newUserId]);
 			}
 		}
 
-		$targetCall->getSignaling()->sendReplaceCallerId($toUserId, $initiatorCall->getCallerId());
+		$internalCall->getSignaling()->sendReplaceCallerId($newUserId, $clientCall->getCallerId());
 	}
 }

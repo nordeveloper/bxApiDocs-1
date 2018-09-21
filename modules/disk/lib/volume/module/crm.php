@@ -763,6 +763,26 @@ class Crm extends Volume\Module\Module implements Volume\IVolumeIndicatorLink, V
 		return $url;
 	}
 
+	/**
+	 * @param Volume\Fragment $fragment File entity object.
+	 * @return string
+	 * @throws ArgumentTypeException
+	 */
+	public static function getActivity(Volume\Fragment $fragment)
+	{
+		if($fragment->getIndicatorType() == Volume\File::className())
+		{
+			$file = $fragment->getFolder();
+			if (!$file instanceof \Bitrix\Disk\File)
+			{
+				throw new ArgumentTypeException('Fragment must be subclass of '.\Bitrix\Disk\File::className());
+			}
+
+			return $file->getOriginalName();
+		}
+
+		return parent::getTitle($fragment);
+	}
 
 	/**
 	 * Sets start up time.

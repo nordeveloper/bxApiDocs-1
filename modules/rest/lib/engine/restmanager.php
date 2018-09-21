@@ -162,12 +162,22 @@ class RestManager extends \IRestService
 			$result = $result->toArray();
 		}
 
-		if (is_array($result) || $result instanceof \Traversable)
+		if (is_array($result))
 		{
 			foreach ($result as $key => $item)
 			{
 				$result[$key] = $this->processData($item);
 			}
+		}
+		elseif ($result instanceof \Traversable)
+		{
+			$newResult = [];
+			foreach ($result as $key => $item)
+			{
+				$newResult[$key] = $this->processData($item);
+			}
+
+			$result = $newResult;
 		}
 
 		return $result;

@@ -691,9 +691,9 @@ class CRatings extends CAllRatings
 				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", $externalAuthTypes)."') THEN 'Y' ELSE 'N' END) = 'N'
 				AND RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
 				and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
-				and RV.USER_ID = U.ID
-				".($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 ")."
-				".self::getReactionFilterSQL($arParam, $bplus)."
+				and RV.USER_ID = U.ID ".
+//				($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 "). // ticket 103248
+				self::getReactionFilterSQL($arParam, $bplus)."
 			GROUP BY RV.USER_ID
 			ORDER BY ".($bIntranetInstalled? "RV.VALUE DESC, RANK DESC, RV.ID DESC": "RANK DESC, RV.VALUE DESC, RV.ID DESC");
 	}
@@ -717,9 +717,9 @@ class CRatings extends CAllRatings
 				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", $externalAuthTypes)."') THEN 'Y' ELSE 'N' END) = 'N'
 				AND RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
 				and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
-				and RV.USER_ID = U.ID
-				".($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 ")."
-				".self::getReactionFilterSQL($arParam, $bplus)."
+				and RV.USER_ID = U.ID ".
+//				($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 "). // ticket 103248
+				self::getReactionFilterSQL($arParam, $bplus)."
 			GROUP BY RV.USER_ID
 			ORDER BY ".($bIntranetInstalled? "RV.VALUE DESC, RANK DESC, RV.ID DESC": "RANK DESC, RV.VALUE DESC, RV.ID DESC");
 	}

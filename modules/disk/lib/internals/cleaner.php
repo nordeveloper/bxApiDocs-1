@@ -176,4 +176,11 @@ final class Cleaner
 
 		return static::className() . "::deleteRightSetupSession();";
 	}
+
+	public static function emptyOldDeletedLogEntries()
+	{
+		DeletedLogTable::deleteOldEntries();
+
+		return static::className() . "::emptyOldDeletedLogEntries();";
+	}
 }

@@ -73,14 +73,7 @@ final class RecentlyUsedTable extends DataManager
 	 */
 	public static function deleteBatch(array $filter)
 	{
-		$tableName = static::getTableName();
-		$connection = Application::getConnection();
-		if(!empty($filter['OBJECT_ID']) && !empty($filter['USER_ID']))
-		{
-			$objectId = (int)$filter['OBJECT_ID'];
-			$userId = (int)$filter['USER_ID'];
-			$connection->queryExecute("DELETE FROM {$tableName} WHERE OBJECT_ID = {$objectId} AND USER_ID = {$userId}");
-		}
+		parent::deleteBatch($filter);
 	}
 
 	/**

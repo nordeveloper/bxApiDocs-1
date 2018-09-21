@@ -29,6 +29,22 @@ abstract class DataManager extends \Bitrix\Main\Entity\DataManager
 		return new Query(static::getEntity());
 	}
 
+	public static function mergeData(array $insert, array $update)
+	{
+		$entity = static::getEntity();
+		$connection = $entity->getConnection();
+		$helper = $connection->getSqlHelper();
+
+		$sql = $helper->prepareMerge($entity->getDBTableName(), $entity->getPrimaryArray(), $insert, $update);
+
+		$sql = current($sql);
+		if($sql <> '')
+		{
+			$connection->queryExecute($sql);
+			$entity->cleanCache();
+		}
+	}
+
 	/**
 	 * Deletes rows by filter.
 	 * @param array $filter Filter
@@ -78,6 +94,22 @@ abstract class DataManager extends \Bitrix\Main\Entity\DataManager
 	 */
 	protected static function deleteBatch(array $filter)
 	{
+		$tableName = static::getTableName();
+		$connection = Application::getConnection();
+		$helper = $connection->getSqlHelper();
+
+		$where = [];
+		foreach ($filter as $key => $value)
+		{
+			$where[] = $helper->prepareAssignment($tableName, $key, $value);
+		}
+		$where = implode(' AND ', $where);
+
+		if($where)
+		{
+			$quotedTableName = $helper->quote($tableName);
+			$connection->queryExecute("DELETE FROM {$quotedTableName} WHERE {$where}");
+		}
 	}
 
 	/**

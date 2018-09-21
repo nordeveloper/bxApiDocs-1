@@ -369,6 +369,7 @@ class Mail
 				$name = $this->encodeSubject($attachment["NAME"], $this->charset);
 				$part = (new Part())
 					->addHeader('Content-Type', $attachment['CONTENT_TYPE'] . "; name=\"$name\"")
+					->addHeader('Content-Disposition', "attachment; filename=\"$name\"")
 					->addHeader('Content-Transfer-Encoding', 'base64')
 					->addHeader('Content-ID', "<{$attachment['ID']}>")
 					->setBody($fileContent);

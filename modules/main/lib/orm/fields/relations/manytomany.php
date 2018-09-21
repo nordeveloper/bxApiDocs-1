@@ -207,6 +207,7 @@ class ManyToMany extends Relation
 					$remoteEntityName = $this->getRefEntity()->getName();
 					$fieldToClassName = Entity::snake2camel($this->name);
 
+					// each field has its own entity in case of ManyToMany definitions will be different
 					$this->mediatorEntityName = "MediatorFrom{$localEntityName}To{$remoteEntityName}Via{$fieldToClassName}Table";
 				}
 

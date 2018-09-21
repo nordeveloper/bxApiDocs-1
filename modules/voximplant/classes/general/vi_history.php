@@ -85,24 +85,6 @@ class CVoxImplantHistory
 		if (strlen($params["CALL_LOG"]) > 0)
 			$arFields["CALL_LOG"] = $params["CALL_LOG"];
 
-		if($call && intval($call['USER_ID']) > 0)
-		{
-			$arFields["PORTAL_USER_ID"] = $call["USER_ID"];
-		}
-		else if (intval($params["PORTAL_USER_ID"]) > 0)
-		{
-			$arFields["PORTAL_USER_ID"] = intval($params["PORTAL_USER_ID"]);
-		}
-		else if ($arFields['INCOMING'] == CVoxImplantMain::CALL_INFO)
-		{
-			// infocalls have no responsible
-			$arFields["PORTAL_USER_ID"] = null;
-		}
-		else
-		{
-			$arFields["PORTAL_USER_ID"] = intval(self::detectResponsible($call, $config, $params['PHONE_NUMBER']));
-		}
-
 		if($call && $call['CRM_ENTITY_TYPE'] && $call['CRM_ENTITY_ID'])
 		{
 			$arFields['CRM_ENTITY_TYPE'] = $call['CRM_ENTITY_TYPE'];
@@ -121,6 +103,35 @@ class CVoxImplantHistory
 				$arFields['CRM_ENTITY_TYPE'] = $crmData['ENTITY_TYPE_NAME'];
 				$arFields['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
 			}
+		}
+
+		if ($arFields["INCOMING"] == CVoxImplantMain::CALL_INFO)
+		{
+			// infocalls have no responsible
+			$arFields["PORTAL_USER_ID"] = null;
+		}
+		else if (
+			$arFields["CALL_FAILED_CODE"] == 304
+			&& (in_array($arFields["INCOMING"], [CVoxImplantMain::CALL_INCOMING, CVoxImplantMain::CALL_INCOMING_REDIRECT, CVoxImplantMain::CALL_CALLBACK]))
+			&& $arFields['CRM_ENTITY_TYPE']
+			&& $arFields['CRM_ENTITY_ID']
+			&& ($crmResponsibleId = CVoxImplantCrmHelper::getResponsible($arFields['CRM_ENTITY_TYPE'], $arFields['CRM_ENTITY_ID']))
+		)
+		{
+			// missed call should be assigned to a responsible user, if a client is found in CRM
+			$arFields["PORTAL_USER_ID"] = $crmResponsibleId;
+		}
+		else if($call && intval($call["USER_ID"]) > 0)
+		{
+			$arFields["PORTAL_USER_ID"] = $call["USER_ID"];
+		}
+		else if (intval($params["PORTAL_USER_ID"]) > 0)
+		{
+			$arFields["PORTAL_USER_ID"] = intval($params["PORTAL_USER_ID"]);
+		}
+		else
+		{
+			$arFields["PORTAL_USER_ID"] = intval(self::detectResponsible($call, $config, $params['PHONE_NUMBER']));
 		}
 
 		// Workaround to register call, somehow missing in b_voximplant_call table.

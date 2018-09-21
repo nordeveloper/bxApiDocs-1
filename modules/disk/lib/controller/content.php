@@ -18,11 +18,9 @@ final class Content extends Controller
 	{
 		return [
 			'upload' => [
-				'prefilters' => [
-					new ActionFilter\Authentication(),
-					new ActionFilter\Csrf(),
-					new ActionFilter\CloseSession(),
+				'+prefilters' => [
 					new ActionFilter\HttpMethod(['POST']),
+					new ActionFilter\CloseSession(),
 				],
 			],
 		];

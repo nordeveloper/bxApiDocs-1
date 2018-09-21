@@ -30,7 +30,6 @@
 		"bitrix\\disk\\internals\\model" => "lib/internals/model.php",
 		"bitrix\\disk\\internals\\object" => "lib/internals/object.php",
 		"bitrix\\disk\\internals\\objectpath" => "lib/internals/objectpath.php",
-		"bitrix\\disk\\internals\\recentlyused" => "lib/internals/recentlyused.php",
 		"bitrix\\disk\\internals\\right" => "lib/internals/right.php",
 		"bitrix\\disk\\internals\\sharing" => "lib/internals/sharing.php",
 		"bitrix\\disk\\internals\\simpleright" => "lib/internals/simpleright.php",
@@ -102,7 +101,6 @@
 		"bitrix\\disk\\user" => "lib/user.php",
 		"bitrix\\disk\\version" => "lib/version.php",
 		"bitrix\\disk\\document\\contract\\filecreatable" => "lib/document/contract/filecreatable.php",
-		"bitrix\\disk\\internals\\objectsaveindextable" => "lib/internals/objectsaveindextable.php",
 	)
 );
 

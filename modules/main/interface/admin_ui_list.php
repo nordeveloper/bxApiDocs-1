@@ -196,7 +196,7 @@ class CAdminUiList extends CAdminList
 		}
 
 		if ((empty($_REQUEST["action_all_rows_".$this->table_id]) ||
-			 $_REQUEST["action_all_rows_".$this->table_id] === "N") && isset($_REQUEST["ID"]))
+				$_REQUEST["action_all_rows_".$this->table_id] === "N") && isset($_REQUEST["ID"]))
 		{
 			if(!is_array($_REQUEST["ID"]))
 				$arID = array($_REQUEST["ID"]);
@@ -228,9 +228,9 @@ class CAdminUiList extends CAdminList
 		}
 
 		$postParams = array_merge(array(
-									  "action_button_".$this->table_id => $action_id,
-									  "ID" => $id
-								  ), $addParams);
+			"action_button_".$this->table_id => $action_id,
+			"ID" => $id
+		), $addParams);
 
 		return $this->ActionAjaxPostGrid($postParams);
 	}
@@ -244,7 +244,7 @@ class CAdminUiList extends CAdminList
 	public function ActionAjaxPostGrid($postParams)
 	{
 		return "BX.Main.gridManager.getById('".$this->table_id."').instance.reloadTable('POST', ".
-			   CUtil::PhpToJsObject($postParams).");";
+			CUtil::PhpToJsObject($postParams).");";
 	}
 
 	public function AddFilter(array $filterFields, array &$arFilter)
@@ -377,7 +377,7 @@ class CAdminUiList extends CAdminList
 	}
 
 	//TODO Finalize the function so that it can create a structure of any complexity.
-	public function GetGroupAction()
+	private function GetGroupAction()
 	{
 		if (empty($this->arActions))
 		{
@@ -610,17 +610,17 @@ class CAdminUiList extends CAdminList
 		{
 			ob_start();
 			?>
-			<div class="pagetitle-container pagetitle-flexible-space">
-				<?
-				$APPLICATION->includeComponent(
-					"bitrix:main.ui.filter",
-					"",
-					$params,
-					false,
-					array("HIDE_ICONS" => true)
-				);
-				?>
-			</div>
+				<div class="pagetitle-container pagetitle-flexible-space">
+					<?
+					$APPLICATION->includeComponent(
+						"bitrix:main.ui.filter",
+						"",
+						$params,
+						false,
+						array("HIDE_ICONS" => true)
+					);
+					?>
+				</div>
 			<?
 			$APPLICATION->AddViewContent("inside_pagetitle", ob_get_clean());
 		}

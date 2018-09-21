@@ -58,7 +58,6 @@ class Marta extends Base
 			self::setBotId($botId);
 
 			$eventManager = \Bitrix\Main\EventManager::getInstance();
-			$eventManager->registerEventHandlerCompatible("main", "OnAfterUserAuthorize", self::MODULE_ID, __CLASS__,  "onAfterUserAuthorize");
 			$eventManager->registerEventHandlerCompatible("timeman", "OnAfterTMDayStart", self::MODULE_ID, __CLASS__,  "onAfterTmDayStart");
 
 			\Bitrix\Im\Command::register(Array(
@@ -69,7 +68,7 @@ class Marta extends Base
 				'HIDDEN' => 'Y',
 				'METHOD_COMMAND_ADD' => 'onCommandAdd'
 			));
-			
+
 			\Bitrix\Im\Command::register(Array(
 				'MODULE_ID' => self::MODULE_ID,
 				'BOT_ID' => $botId,
@@ -78,7 +77,7 @@ class Marta extends Base
 				'CLASS' => __CLASS__,
 				'METHOD_COMMAND_ADD' => 'onLocalCommandAdd'
 			));
-			
+
 			\Bitrix\Im\Command::register(Array(
 				'MODULE_ID' => self::MODULE_ID,
 				'BOT_ID' => $botId,
@@ -87,7 +86,7 @@ class Marta extends Base
 				'CLASS' => __CLASS__,
 				'METHOD_COMMAND_ADD' => 'onSettingsCommandAdd'
 			));
-			
+
 			\Bitrix\Im\Command::register(Array(
 				'MODULE_ID' => self::MODULE_ID,
 				'BOT_ID' => $botId,
@@ -96,7 +95,7 @@ class Marta extends Base
 				'CLASS' => __CLASS__,
 				'METHOD_COMMAND_ADD' => 'onSettingsCommandAdd'
 			));
-			
+
 			if (\Bitrix\Main\Loader::includeModule('bitrix24'))
 			{
 				\Bitrix\Im\Command::register(Array(
@@ -107,14 +106,14 @@ class Marta extends Base
 					'CLASS' => "CBitrix24EventHandlers",
 					'METHOD_COMMAND_ADD' => 'OnSupportAccess'
 				));
-				
+
 				if (!\CBitrix24::isDomainChanged())
 				{
 					RegisterModuleDependences("bitrix24", "OnDomainChange", self::MODULE_ID, __CLASS__, "onRenamePortalDomainChange");
 					\CAgent::AddAgent('\\Bitrix\\ImBot\\Bot\\Marta::addRenameMessageAgent();', "imbot", "N", 86400, "", "Y", \ConvertTimeStamp(time()+\CTimeZone::GetOffset()+86400, "FULL"));
 				}
 			}
-			
+
 			\Bitrix\Im\App::register(Array(
 				'MODULE_ID' => 'imbot',
 				'BOT_ID' => $botId,
@@ -141,7 +140,6 @@ class Marta extends Base
 			self::setBotId(0);
 
 			$eventManager = \Bitrix\Main\EventManager::getInstance();
-			$eventManager->unRegisterEventHandler("main", "OnAfterUserAuthorize", self::MODULE_ID, __CLASS__, "onAfterUserAuthorize");
 			$eventManager->unRegisterEventHandler("timeman", "OnAfterTMDayStart", self::MODULE_ID, __CLASS__, "onAfterTmDayStart");
 		}
 
@@ -160,11 +158,6 @@ class Marta extends Base
 
 		if ($joinFields['CHAT_TYPE'] == IM_MESSAGE_PRIVATE)
 		{
-			if (isset($_SESSION['USER_LAST_CHECK_MARTA_'.$dialogId]))
-			{
-				return true;
-			}
-
 			$message = Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE', null, $language);
 			\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $dialogId);
 		}
@@ -214,7 +207,7 @@ class Marta extends Base
 			));
 			return true;
 		}
-		
+
 		if (strpos($messageFields['MESSAGE'], self::EDIT_PHRASE) !== false && \Bitrix\Im\User::getInstance($messageFields['FROM_USER_ID'])->isExtranet())
 		{
 			$messageFields['MESSAGE'] = str_replace(self::EDIT_PHRASE, '', $messageFields['MESSAGE']);
@@ -233,14 +226,14 @@ class Marta extends Base
 
 		return true;
 	}
-	
+
 	public static function onSettingsCommandAdd($messageId, $messageFields)
 	{
 		 if ($messageFields['MESSAGE_TYPE'] != IM_MESSAGE_PRIVATE)
   		    return false;
-		
+
 		$userName = \Bitrix\Im\User::getInstance()->getName();
-		
+
 		if ($messageFields['COMMAND'] == 'enable')
 		{
 			if ($messageFields['COMMAND_PARAMS'] == 'welcome')
@@ -270,15 +263,15 @@ class Marta extends Base
 		{
 			return false;
 		}
-		
+
 		\Bitrix\Im\Bot::startWriting(Array('BOT_ID' => $messageFields['TO_USER_ID']), $messageFields['DIALOG_ID']);
-		
+
 		\Bitrix\Im\Bot::addMessage(Array('BOT_ID' => $messageFields['TO_USER_ID']), Array(
 		   'DIALOG_ID' => $messageFields['DIALOG_ID'],
 		   'MESSAGE' => $message,
 		));
 	}
-	
+
 	public static function onLocalCommandAdd($messageId, $messageFields)
 	{
 		if ($messageFields['SYSTEM'] == 'Y')
@@ -398,7 +391,7 @@ class Marta extends Base
 		}
 		else
 		{
-			$result = new \Bitrix\ImBot\Error(__METHOD__, 'UNKNOWN_COMMAND', 'Command isnt found');
+			$result = new \Bitrix\ImBot\Error(__METHOD__, 'UNKNOWN_COMMAND', 'Command not found');
 		}
 
 		return $result;
@@ -406,44 +399,6 @@ class Marta extends Base
 
 	public static function onAfterUserAuthorize($params)
 	{
-		$auth = \CHTTP::ParseAuthRequest();
-		if (
-			isset($auth["basic"]) && $auth["basic"]["username"] <> '' && $auth["basic"]["password"] <> ''
-			&& strpos(strtolower($_SERVER['HTTP_USER_AGENT']), 'bitrix') === false
-		)
-		{
-			return true;
-		}
-
-		if (isset($params['update']) && $params['update'] === false)
-			return true;
-
-		if ($params['user_fields']['ID'] <= 0)
-			return true;
-
-		$params['user_fields']['ID'] = intval($params['user_fields']['ID']);
-
-		if (isset($_SESSION['USER_LAST_CHECK_MARTA_'.$params['user_fields']['ID']]))
-			return true;
-		
-		if (in_array($params['user_fields']['EXTERNAL_AUTH_ID'], Array("bot", "email", "controller", "replica", "imconnector")))
-			return true;
-
-		$martaCheck = \CUserOptions::GetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', 0, $params['user_fields']['ID']);
-		if ($martaCheck > 0)
-		{
-			$_SESSION['USER_LAST_CHECK_MARTA_'.$params['user_fields']['ID']] = $martaCheck;
-			//$dateNow = new \Bitrix\Main\Type\DateTime();
-			//if (self::getBotOption($params['user_fields']['ID'], 'planner_message', 0) < $dateNow->format('Ymd'))
-			//{
-			//	\CAgent::AddAgent('\\Bitrix\\ImBot\\Bot\\Marta::addPlannerMessageAgent('.$params['user_fields']['ID'].');', "imbot", "N", 60, "", "Y", \ConvertTimeStamp(time()+\CTimeZone::GetOffset()+60, "FULL"));
-			//}
-		}
-		else
-		{
-			\CAgent::AddAgent('\\Bitrix\\ImBot\\Bot\\Marta::addWelcomeMessageAgent('.$params['user_fields']['ID'].');', "imbot", "N", 60, "", "Y", \ConvertTimeStamp(time()+\CTimeZone::GetOffset()+60, "FULL"));
-		}
-
 		return true;
 	}
 
@@ -457,107 +412,6 @@ class Marta extends Base
 		self::notifyAboutPlans($params['USER_ID'], $params['USER_ID']);
 	}
 
-	public static function addWelcomeMessageAgent($userId)
-	{
-		$userId = intval($userId);
-		if ($userId <= 0)
-			return "";
-
-		if (\CUserOptions::GetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', 0, $userId) > 0)
-			return "";
-	
-		if (!\Bitrix\Main\Loader::includeModule('im'))
-			return "";
-
-		if (\Bitrix\Im\User::getInstance($userId)->isExists() && \Bitrix\Im\User::getInstance($userId)->isExtranet())
-		{
-			\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-			$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-
-			return "";
-		}
-
-		$userData = \Bitrix\Main\UserTable::getById($userId)->fetch();
-		if (in_array($userData['EXTERNAL_AUTH_ID'], Array('email', 'bot', 'network', 'imconnector')))
-		{
-			\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-			$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-
-			return "";
-		}
-
-		$language = null;
-		$botData = \Bitrix\Im\Bot::getCache(self::getBotId());
-		if ($botData['LANG'])
-		{
-			$language = $botData['LANG'];
-			Loc::loadLanguageFile(__FILE__, $language);
-		}
-		
-		if (is_object($userData['TIMESTAMP_X']) && time() - $userData['TIMESTAMP_X']->getTimestamp() < 86400)
-		{
-			if (\Bitrix\ImBot\Bot\Network::isPartnerFdc())
-			{
-				$fdcEnable = true;
-			}
-			else 
-			{
-				$fdcEnable = \Bitrix\ImBot\Bot\Network::isFdcActive();
-			}
-			if ($fdcEnable)
-			{
-				$generationDate = \COption::GetOptionInt('main', '~controller_date_create', 0);
-				if (\Bitrix\ImBot\Bot\Network::isPartnerFdc() || $generationDate == 0 || time() - $generationDate < 86400)
-				{
-					\Bitrix\ImBot\Bot\Network::addFdc($userId);
-
-					\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-					$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-					return "";
-				}
-				else
-				{
-					$userName = !empty($userData['NAME'])? $userData['NAME']: $userData['LAST_MAME'];
-					if (empty($userName))
-					{
-						$userData['LOGIN'];
-					}
-					$message = Loc::getMessage('IMBOT_BOT_MESSAGE_HELLO_DAY', Array('#USER_NAME#' => $userName), $language);
-				}
-			}
-			else
-			{
-				if ($userId == 1)
-				{
-					$message = Loc::getMessage('IMBOT_BOT_WELCOME_NEW_B24', null, $language);
-				}
-				else
-				{
-					$message = Loc::getMessage('IMBOT_BOT_WELCOME_NEW_USER', null, $language);
-				}
-			}
-		}
-		else
-		{
-			$userName = !empty($userData['NAME'])? $userData['NAME']: $userData['LAST_MAME'];
-			if (empty($userName))
-			{
-				$userData['LOGIN'];
-			}
-			$message = Loc::getMessage('IMBOT_BOT_WELCOME_AUTH_USER', Array('#USER_NAME#' => $userName), $language);
-		}
-
-		\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $userId);
-		$_SESSION['USER_LAST_CHECK_MARTA_'.$userId] = time();
-		
-		self::sendAnswer(0, Array(
-			'DIALOG_ID' => $userId,
-			'ANSWER' => $message.'[br]'.Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE', null, $language)
-		));
-
-		return "";
-	}
-
 	public static function addPlannerMessageAgent($userId)
 	{
 		$userId = intval($userId);
@@ -568,15 +422,15 @@ class Marta extends Base
 
 		return "";
 	}
-	
+
 	public static function addRenameMessageAgent($userId = null)
 	{
 		if (!\Bitrix\Main\Loader::includeModule('im') || !\Bitrix\Main\Loader::includeModule('bitrix24'))
 			return "";
-		
+
 		if (\CBitrix24::isDomainChanged())
 			return "";
-		
+
 		$language = null;
 		$botData = \Bitrix\Im\Bot::getCache(self::getBotId());
 		if ($botData['LANG'])
@@ -584,10 +438,10 @@ class Marta extends Base
 			$language = $botData['LANG'];
 			Loc::loadLanguageFile(__FILE__, $language);
 		}
-		
+
 		$option = \Bitrix\Main\Config\Option::get(self::MODULE_ID, 'marta_rename_message', serialize(Array()));
 		$messages = unserialize($option);
-		
+
 		$userId = intval($userId);
 		if ($userId)
 		{
@@ -606,7 +460,7 @@ class Marta extends Base
 					Array(
 						"TEXT" => Loc::getMessage('IMBOT_BOT_RENAME_BUTTON_NOW', null, $language),
 						"FUNCTION" => "BX.MessengerCommon.openRenamePortal(this);",
-						"BG_COLOR" => "#e98fa6", 
+						"BG_COLOR" => "#e98fa6",
 						"TEXT_COLOR" => "#FFF",
 						"DISPLAY" => "LINE",
 					),
@@ -618,11 +472,11 @@ class Marta extends Base
 				)
 			));
 		}
-		
+
 		\Bitrix\Main\Config\Option::set(self::MODULE_ID, 'marta_rename_message', serialize($messages));
-		
+
 		RegisterModuleDependences("bitrix24", "OnDomainChange", self::MODULE_ID, __CLASS__, "onRenamePortalDomainChange");
-		
+
 		$commandId = \Bitrix\Main\Config\Option::get(self::MODULE_ID, 'marta_rename_command', 0);
 		if ($commandId <= 0)
 		{
@@ -639,12 +493,12 @@ class Marta extends Base
 
 		return "";
 	}
-	
+
 	public static function onRenamePortalDomainChange($params)
 	{
 		if (!\Bitrix\Main\Loader::includeModule('im') || !\Bitrix\Main\Loader::includeModule('bitrix24'))
 			return true;
-		
+
 		$language = null;
 		$botData = \Bitrix\Im\Bot::getCache(self::getBotId());
 		if ($botData['LANG'])
@@ -652,7 +506,7 @@ class Marta extends Base
 			$language = $botData['LANG'];
 			Loc::loadLanguageFile(__FILE__, $language);
 		}
-		
+
 		$option = \Bitrix\Main\Config\Option::get(self::MODULE_ID, 'marta_rename_message', serialize(Array()));
 		$messages = unserialize($option);
 		foreach ($messages as $messageId)
@@ -662,11 +516,11 @@ class Marta extends Base
 				'KEYBOARD' => 'N',
 			));
 		}
-		
+
 		\Bitrix\Main\Config\Option::set(self::MODULE_ID, 'marta_rename_message', serialize(Array()));
-		
+
 		$newDomain = '[url=http://'.$params['new_domain'].']'.$params['new_domain'].'[/url]';
-		
+
 		$users = \CBitrix24::getAllAdminId();
 		foreach ($users as $userId)
 		{
@@ -676,9 +530,9 @@ class Marta extends Base
 				'RICH' => 'N'
 			));
 		}
-		
+
 		UnRegisterModuleDependences("bitrix24", "OnDomainChange", self::MODULE_ID, __CLASS__, "onRenamePortalDomainChange");
-		
+
 		$commandId = \Bitrix\Main\Config\Option::get(self::MODULE_ID, 'marta_rename_command', 0);
 		if ($commandId)
 		{
@@ -687,26 +541,26 @@ class Marta extends Base
 			));
 			\Bitrix\Main\Config\Option::set(self::MODULE_ID, 'marta_rename_command', 0);
 		}
-		
+
 		return true;
 	}
-	
+
 	public static function onRenamePortalLaterCommand($messageId, $messageFields)
 	{
 		if ($messageFields['MESSAGE_TYPE'] != IM_MESSAGE_PRIVATE)
   		    return false;
-		
+
 		if (!\Bitrix\Main\Loader::includeModule('bitrix24') || !\Bitrix\Main\Loader::includeModule('im'))
 			return false;
-		
+
 		if (\CBitrix24::isDomainChanged())
 			return false;
-		
+
 		\Bitrix\Im\Bot::updateMessage(Array('BOT_ID' => self::getBotId()), Array(
 			'MESSAGE_ID' => $messageId,
 			'KEYBOARD' => 'N',
 		));
-		
+
 		$language = null;
 		$botData = \Bitrix\Im\Bot::getCache(self::getBotId());
 		if ($botData['LANG'])
@@ -714,14 +568,14 @@ class Marta extends Base
 			$language = $botData['LANG'];
 			Loc::loadLanguageFile(__FILE__, $language);
 		}
-		
+
 		$messages[] = self::sendAnswer(0, Array(
 			'DIALOG_ID' => $messageFields['FROM_USER_ID'],
 			'ANSWER' => Loc::getMessage('IMBOT_BOT_RENAME_LATER', null, $language),
 		));
-		
+
 		\CAgent::AddAgent('\\Bitrix\\ImBot\\Bot\\Marta::addRenameMessageAgent('.$messageFields['FROM_USER_ID'].');', "imbot", "N", 86400*7, "", "Y", \ConvertTimeStamp(time()+\CTimeZone::GetOffset()+(86400*7), "FULL"));
-		
+
 		return true;
 	}
 
@@ -768,7 +622,7 @@ class Marta extends Base
 			$calendarEventUrl = $calendarUrl.((strpos($calendarUrl, "?") === false) ? '?' : '&').'EVENT_ID=';
 
 			$attach = new \CIMMessageParamAttach(1, \CIMMessageParamAttach::CHAT);
-			
+
 			$events = \CCalendarEventHandlers::OnPlannerInit(Array(
 				'FULL' => true,
 				'USER_ID' => $userId
@@ -915,7 +769,7 @@ class Marta extends Base
 			'PARAMS' => isset($messageFields['PARAMS'])? $messageFields['PARAMS']: Array(),
 			'URL_PREVIEW' => isset($messageFields['RICH'])? $messageFields['RICH']: "Y"
 		));
-		
+
 		return $messageId;
 	}
 
@@ -954,12 +808,12 @@ class Marta extends Base
 			if ($messageFields['COMMAND_CONTEXT'] == 'KEYBOARD')
 			{
 				\CIMMessageParam::Set($messageFields['MESSAGE_ID'], Array('KEYBOARD' => $keyboard? $keyboard: 'N', 'ATTACH' => $attach? $attach: Array()));
-				
+
 				if (!empty($messageParams['MESSAGE']))
 				{
 					\CIMMessenger::Update($messageFields['MESSAGE_ID'], $messageParams['MESSAGE'], true, false, self::getBotId());
 				}
-				
+
 				\CIMMessageParam::SendPull($messageFields['MESSAGE_ID'], Array('KEYBOARD', 'ATTACH'));
 			}
 			else
@@ -1016,7 +870,7 @@ class Marta extends Base
 		}
 		return Loc::getMessage($messageCode, null, $language);
 	}
-	
+
 	public static function onAppLang($icon, $lang = null)
 	{
 		$title = Loc::getMessage('IMBOT_ICON_'.strtoupper($icon).'_TITLE', null, $lang);
@@ -1034,5 +888,10 @@ class Marta extends Base
 		}
 
 		return $result;
+	}
+
+	public static function addWelcomeMessageAgent()
+	{
+		return "";
 	}
 }

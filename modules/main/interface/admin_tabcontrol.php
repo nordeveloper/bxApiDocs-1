@@ -31,6 +31,7 @@ class CAdminTabControl
 	protected $tabEvent = false;
 
 	var $isSidePanel = false;
+	var $publicSidePanel = false;
 	var $isShownSidePanelFields = false;
 
 	public function __construct($name, $tabs, $bCanExpand = true, $bDenyAutoSave = false)
@@ -46,6 +47,8 @@ class CAdminTabControl
 		$this->name = $name;
 		$this->unique_name = $name."_".md5($APPLICATION->GetCurPage());
 
+		global $adminSidePanelHelper;
+		$this->publicSidePanel =  (is_object($adminSidePanelHelper) && $adminSidePanelHelper->isPublicSidePanel());
 		$this->bPublicMode = defined('BX_PUBLIC_MODE') && BX_PUBLIC_MODE == 1;
 		$this->bCanExpand = !$this->bPublicMode && (bool)$bCanExpand;
 
@@ -511,6 +514,8 @@ echo '
 			$adminTabControlParams["isPublicFrame"] = "Y";
 		if ($this->isSidePanel)
 			$adminTabControlParams["isSidePanel"] = "Y";
+		if ($this->publicSidePanel)
+			$adminTabControlParams["publicSidePanel"] = "Y";
 		echo '
 if (!window.'.$this->name.' || !BX.is_subclass_of(window.'.$this->name.', BX.adminTabControl))
 	window.'.$this->name.' = new BX.adminTabControl("'.$this->name.'", "'.$this->unique_name.

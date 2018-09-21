@@ -165,11 +165,18 @@ class Helper
 
 		if($duplicateCall)
 		{
+			if($fields['SHOW'])
+			{
+				self::showExternalCall(array(
+					'CALL_ID' => $callId
+				));
+			}
+
 			return $result->setData([
 				'CALL_ID' => $duplicateCall['CALL_ID'],
-				'CRM_CREATED_LEAD' => $duplicateCall['CRM_LEAD'],
+				'CRM_CREATED_LEAD' => (int)$duplicateCall['CRM_LEAD'] ?: null,
 				'CRM_ENTITY_TYPE' => $duplicateCall['CRM_ENTITY_TYPE'],
-				'CRM_ENTITY_ID' => $duplicateCall['CRM_ENTITY_ID'],
+				'CRM_ENTITY_ID' => (int)$duplicateCall['CRM_ENTITY_ID'] ?: null,
 			]);
 		}
 
@@ -254,9 +261,9 @@ class Helper
 
 		$resultData = array(
 			'CALL_ID' => $call->getCallId(),
-			'CRM_CREATED_LEAD' => $call->getCrmLead(),
+			'CRM_CREATED_LEAD' => (int)$call->getCrmLead() ?: null,
 			'CRM_ENTITY_TYPE' => $call->getCrmEntityType(),
-			'CRM_ENTITY_ID' => $call->getCrmEntityId(),
+			'CRM_ENTITY_ID' => (int)$call->getCrmEntityId() ?: null,
 		);
 
 		if(isset($leadCreationError))
@@ -325,7 +332,7 @@ class Helper
 			'CALL_FAILED_REASON' => $fields['FAILED_REASON'],
 			'REST_APP_ID' => $call['REST_APP_ID'],
 			'REST_APP_NAME' => self::getRestAppName($call['REST_APP_ID']),
-			'CRM_ACTIVITY_ID' => $call['CRM_ACTIVITY_ID'],
+			'CRM_ACTIVITY_ID' => (int)$call['CRM_ACTIVITY_ID'] ?: null,
 			'COMMENT' => $call['COMMENT'],
 		);
 
@@ -1230,9 +1237,16 @@ class Helper
 	{
 		$result = new Result();
 		if(!Loader::includeModule('disk'))
+		{
 			return $result->addError(new Error('Disk module is not installed'));
+		}
 
 		$uploadFolder = \CVoxImplantDiskHelper::GetRecordsFolder($folderName);
+		if(!$uploadFolder)
+		{
+			return $result->addError(new Error('Could not create shared folder for call records'));
+		}
+
 		$accessCodes = Array();
 		$rightsManager = \Bitrix\Disk\Driver::getInstance()->getRightsManager();
 		$fullAccessTaskId = $rightsManager->getTaskIdByName($rightsManager::TASK_FULL);

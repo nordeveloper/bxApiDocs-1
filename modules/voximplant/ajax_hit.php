@@ -154,6 +154,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 		else if ($_POST['COMMAND'] == 'hold')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
+			$callId = $_POST['PARAMS']['CALL_ID'];
 
 			$call = \Bitrix\Voximplant\Call::load($callId);
 			if($call)
@@ -165,6 +166,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 		else if($_POST['COMMAND'] == 'unhold')
 		{
 			$_POST['PARAMS'] = CUtil::JsObjectToPhp($_POST['PARAMS']);
+			$callId = $_POST['PARAMS']['CALL_ID'];
 
 			$call = \Bitrix\Voximplant\Call::load($callId);
 			if($call)

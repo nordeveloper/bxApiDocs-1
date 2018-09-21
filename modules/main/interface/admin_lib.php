@@ -1897,11 +1897,22 @@ class CAdminSorting
 		}
 		else
 		{
-			$aOptSort = CUserOptions::GetOption("list", $this->table_id, array("by"=>$by_initial, "order"=>$order_initial));
-			if(!empty($aOptSort["by"]))
-				$GLOBALS[$this->by_name] = $aOptSort["by"];
-			elseif($by_initial !== false)
-				$GLOBALS[$this->by_name] = $by_initial;
+			if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1)
+			{
+				$gridOptions = new Bitrix\Main\Grid\Options($this->table_id);
+				$sorting = $gridOptions->getSorting();
+				$GLOBALS[$this->by_name] = key($sorting["sort"]);
+				if (empty($GLOBALS[$this->by_name]) && $by_initial !== false)
+					$GLOBALS[$this->by_name] = $by_initial;
+			}
+			else
+			{
+				$aOptSort = CUserOptions::GetOption("list", $this->table_id, array("by"=>$by_initial, "order"=>$order_initial));
+				if(!empty($aOptSort["by"]))
+					$GLOBALS[$this->by_name] = $aOptSort["by"];
+				elseif($by_initial !== false)
+					$GLOBALS[$this->by_name] = $by_initial;
+			}
 		}
 
 		if(isset($GLOBALS[$this->ord_name]))
@@ -1914,12 +1925,23 @@ class CAdminSorting
 		}
 		else
 		{
-			if(empty($aOptSort["order"]))
-				$aOptSort = CUserOptions::GetOption("list", $this->table_id, array("order"=>$order_initial));
-			if(!empty($aOptSort["order"]))
-				$GLOBALS[$this->ord_name] = $aOptSort["order"];
-			elseif($order_initial !== false)
-				$GLOBALS[$this->ord_name] = $order_initial;
+			if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1)
+			{
+				$gridOptions = new Bitrix\Main\Grid\Options($this->table_id);
+				$sorting = $gridOptions->getSorting();
+				$GLOBALS[$this->ord_name] = strtoupper(current($sorting["sort"])) === "ASC" ? "ASC" : "DESC";
+				if (empty($GLOBALS[$this->ord_name]) && $order_initial !== false)
+					$GLOBALS[$this->ord_name] = $order_initial;
+			}
+			else
+			{
+				if(empty($aOptSort["order"]))
+					$aOptSort = CUserOptions::GetOption("list", $this->table_id, array("order"=>$order_initial));
+				if(!empty($aOptSort["order"]))
+					$GLOBALS[$this->ord_name] = $aOptSort["order"];
+				elseif($order_initial !== false)
+					$GLOBALS[$this->ord_name] = $order_initial;
+			}
 		}
 
 		$this->field = $GLOBALS[$this->by_name];

@@ -33,6 +33,21 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 
 	private static $eventClassName = null;
 
+	protected function __construct(array $fields = array())
+	{
+		$priceRoundedFields = ['SUM', 'PRICE_COD'];
+
+		foreach ($priceRoundedFields as $code)
+		{
+			if (isset($fields[$code]))
+			{
+				$fields[$code] = PriceMaths::roundPrecision($fields[$code]);
+			}
+		}
+
+		parent::__construct($fields);
+	}
+
 	/**
 	 * @return array
 	 */

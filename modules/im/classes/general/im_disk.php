@@ -1459,10 +1459,14 @@ class CIMDisk
 				$linkType = 'disk.api.file.showPreview';
 				$fileName = 'preview.jpg';
 			}
-			else
+			else if ($isImage)
 			{
 				$linkType = 'disk.api.file.showImage';
 				$fileName = $fileModel->getName();
+			}
+			else
+			{
+				return $result;
 			}
 
 			$result = $urlManager->create($linkType, [

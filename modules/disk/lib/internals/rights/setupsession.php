@@ -22,10 +22,11 @@ final class SetupSession extends Internals\Entity\Model
 	const REF_OBJECT = 'object';
 	const REF_PARENT = 'parent';
 
-	const STATUS_STARTED  = Table\RightSetupSessionTable::STATUS_STARTED;
-	const STATUS_FINISHED = Table\RightSetupSessionTable::STATUS_FINISHED;
-	const STATUS_FORKED   = Table\RightSetupSessionTable::STATUS_FORKED;
-	const STATUS_BAD      = Table\RightSetupSessionTable::STATUS_BAD;
+	const STATUS_STARTED   = Table\RightSetupSessionTable::STATUS_STARTED;
+	const STATUS_FINISHED  = Table\RightSetupSessionTable::STATUS_FINISHED;
+	const STATUS_FORKED    = Table\RightSetupSessionTable::STATUS_FORKED;
+	const STATUS_BAD       = Table\RightSetupSessionTable::STATUS_BAD;
+	const STATUS_DUPLICATE = Table\RightSetupSessionTable::STATUS_DUPLICATE;
 
 	/** @var int */
 	protected $objectId;
@@ -58,6 +59,8 @@ final class SetupSession extends Internals\Entity\Model
 	 */
 	public static function register($objectId, $createdBy = null)
 	{
+		self::closeDuplicates($objectId);
+
 		$model = self::add(
 			array(
 				'OBJECT_ID' => $objectId,
@@ -136,6 +139,28 @@ final class SetupSession extends Internals\Entity\Model
 		return $this;
 	}
 
+	protected static function closeDuplicates($objectId)
+	{
+		$potentialDuplicates = self::getModelList(['filter' => [
+			'OBJECT_ID' => $objectId,
+			'STATUS' => self::STATUS_STARTED,
+		]]);
+
+		foreach ($potentialDuplicates as $duplicate)
+		{
+			$duplicate->setAsDuplicate();
+		}
+	}
+
+	public function setAsDuplicate()
+	{
+		Table\TmpSimpleRight::deleteBySessionId($this->id);
+
+		$this->update(array(
+			'STATUS' => self::STATUS_DUPLICATE,
+		));
+	}
+	
 	/**
 	 * Finishes the logic of setup session. It moves simple rights to original table.
 	 * @return void

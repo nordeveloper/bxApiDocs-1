@@ -163,7 +163,10 @@ class Router
 		else if($queueId)
 		{
 			$queueNode = $this->buildQueueGraph($queueId, false);
-			$lastNode->setNext($queueNode);
+			if($queueNode instanceof Node)
+			{
+				$lastNode->setNext($queueNode);
+			}
 		}
 		else
 		{
@@ -256,7 +259,10 @@ class Router
 			if($call->getQueueId())
 			{
 				$queueNode = $this->buildQueueGraph($call->getQueueId(), $config['TIMEMAN'] === 'Y');
-				$lastNode->setNext($queueNode);
+				if($queueNode instanceof Node)
+				{
+					$lastNode->setNext($queueNode);
+				}
 			}
 		}
 
@@ -276,7 +282,7 @@ class Router
 			{
 				if($config['TIMEMAN'] != 'Y' || \CVoxImplantUser::GetActiveStatusByTimeman($responsibleId))
 				{
-					list($crmNode, $nextNode) = $this->buildUserGraph($responsibleId, 'crm', $config['CRM_RULE']);
+					list($crmNode, $nextNode) = $this->buildUserGraph($responsibleId, 'crm', $config['CRM_RULE'], true);
 					$lastNode->setNext($crmNode);
 					$lastNode = $nextNode;
 				}
@@ -286,7 +292,10 @@ class Router
 		if($call->getQueueId())
 		{
 			$queueNode = $this->buildQueueGraph($call->getQueueId(), $config['TIMEMAN'] === 'Y');
-			$lastNode->setNext($queueNode);
+			if($queueNode instanceof Node)
+			{
+				$lastNode->setNext($queueNode);
+			}
 		}
 
 		return $rootNode;
@@ -302,11 +311,11 @@ class Router
 			$userPhone = \CVoxImplantPhone::GetUserPhone($userId);
 			if($userPhone)
 			{
-				$lastNode = new Pstn($userPhone, \CVoxImplantIncoming::RULE_VOICEMAIL);
+				$lastNode = new Pstn(\CVoxImplantPhone::Normalize($userPhone, 1), \CVoxImplantIncoming::RULE_VOICEMAIL, $userId);
 			}
 			else
 			{
-				$lastNode = new Voicemail('User have no phone number in the profile');
+				$lastNode = new Voicemail('User '. $userId .' have no phone number in the profile');
 			}
 		}
 		else if($skipRule == \CVoxImplantIncoming::RULE_QUEUE)
@@ -315,11 +324,11 @@ class Router
 		}
 		else if($skipRule == \CVoxImplantIncoming::RULE_VOICEMAIL)
 		{
-			$lastNode = new Voicemail('User have no phone number in the profile');
+			$lastNode = new Voicemail('Call skipped by rule voicemail. Connect type is ' . $connectType);;
 		}
 		else
 		{
-			$lastNode = new Hangup('480', 'User is not available at the moment');
+			$lastNode = new Hangup('480', 'Unknown rule ' . $skipRule);
 		}
 
 		if($lastNode !== $firstNode)
@@ -392,7 +401,10 @@ class Router
 		{
 			$queueId = $action['PARAMETERS']['QUEUE_ID'];
 			$queueNode = $this->buildQueueGraph($queueId, $config['TIMEMAN'] === 'Y');
-			$lastNode->setNext($queueNode);
+			if($queueNode instanceof Node)
+			{
+				$lastNode->setNext($queueNode);
+			}
 		}
 		else if ($action['ACTION'] === \Bitrix\Voximplant\Ivr\Action::ACTION_USER)
 		{
@@ -404,7 +416,7 @@ class Router
 		else if ($action['ACTION'] === \Bitrix\Voximplant\Ivr\Action::ACTION_PHONE)
 		{
 			$phoneNumber = $action['PARAMETERS']['PHONE_NUMBER'];
-			$pstnNode = new Pstn($phoneNumber, 'voicemail');
+			$pstnNode = new Pstn(\CVoxImplantPhone::Normalize($phoneNumber, 1), 'voicemail');
 			$lastNode->setNext($pstnNode);
 		}
 		else if ($action['ACTION'] === \Bitrix\Voximplant\Ivr\Action::ACTION_DIRECT_CODE)
@@ -427,6 +439,7 @@ class Router
 
 	protected function updateCallStateWithAction(Action $action)
 	{
+		$firstUserId = 0;
 		if($action->getCommand() == Command::INVITE)
 		{
 			$userIds = [];
@@ -437,17 +450,24 @@ class Router
 			if(count($userIds) > 0)
 			{
 				$this->call->addUsers($userIds, CallUserTable::ROLE_CALLEE, CallUserTable::STATUS_INVITING);
+				$firstUserId = (int)$userIds[0];
+			}
+		}
+		else if($action->getCommand() == Command::PSTN)
+		{
+			$firstUserId = (int)$action->getParameter('USER_ID');
+		}
 
-				$firstUserId = $userIds[0];
-				if($this->call->getIncoming() == \CVoxImplantMain::CALL_INCOMING)
-				{
-					$this->call->updateUserId($firstUserId);
-				}
+		if($firstUserId > 0)
+		{
+			if($this->call->getIncoming() == \CVoxImplantMain::CALL_INCOMING)
+			{
+				$this->call->updateUserId($firstUserId);
+			}
 
-				if(!$this->call->getCrmLead() && \CVoxImplantCrmHelper::shouldCreateLead($this->call->toArray(), $this->call->getConfig()))
-				{
-					\CVoxImplantCrmHelper::registerCallInCrm($this->call);
-				}
+			if(!$this->call->getCrmLead() && \CVoxImplantCrmHelper::shouldCreateLead($this->call->toArray(), $this->call->getConfig()))
+			{
+				\CVoxImplantCrmHelper::registerCallInCrm($this->call);
 			}
 		}
 	}

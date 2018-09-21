@@ -43,6 +43,21 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	const ENTITY_MARKER_AUTOFIX_TYPE_ACTION_RESERVE = "RESERVE";
 	const ENTITY_MARKER_AUTOFIX_TYPE_ACTION_SHIP = "SHIP";
 
+	protected function __construct(array $fields = array())
+	{
+		$priceRoundedFields = ['BASE_PRICE_DELIVERY', 'PRICE_DELIVERY', 'DISCOUNT_PRICE'];
+
+		foreach ($priceRoundedFields as $code)
+		{
+			if (isset($fields[$code]))
+			{
+				$fields[$code] = PriceMaths::roundPrecision($fields[$code]);
+			}
+		}
+
+		parent::__construct($fields);
+	}
+
 	/**
 	 * @return int
 	 */

@@ -69,7 +69,10 @@ final class Loc
 		self::$lazyLoadFiles[$file] = $file;
 	}
 
-	private static function getCurrentLang()
+	/**
+	 * @return string
+	 */
+	public static function getCurrentLang()
 	{
 		if(self::$currentLang === null)
 		{

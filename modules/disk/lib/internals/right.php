@@ -142,12 +142,6 @@ final class RightTable extends DataManager
 	 */
 	public static function deleteBatch(array $filter)
 	{
-		$tableName = static::getTableName();
-		$connection = Application::getConnection();
-		if(!empty($filter['ACCESS_CODE']))
-		{
-			$accessCode = $connection->getSqlHelper()->forSql($filter['ACCESS_CODE']);
-			$connection->queryExecute("DELETE FROM {$tableName} WHERE ACCESS_CODE = '{$accessCode}'");
-		}
+		parent::deleteBatch($filter);
 	}
 }

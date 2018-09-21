@@ -3552,12 +3552,10 @@ class CIBlockCMLImport
 
 				if(!array_key_exists("CODE", $arElement) && is_array($this->translit_on_update))
 				{
-					$arElement["CODE"] = CUtil::translit($arElement["NAME"], LANGUAGE_ID, $this->translit_on_update);
-					//Check if name was not changed in a way to update CODE
-					if(preg_match("#^".preg_quote($arElement["CODE"], "#")."_[0-9]+$#", $arDBElement["CODE"]))
-						unset($arElement["CODE"]);
-					else
-						$arElement["CODE"] = $this->CheckElementCode($this->next_step["IBLOCK_ID"], $arElement["CODE"]);
+					$CODE = CUtil::translit($arElement["NAME"], LANGUAGE_ID, $this->translit_on_update);
+					$CODE = $this->CheckElementCode($this->next_step["IBLOCK_ID"], $arDBElement["ID"], $CODE);
+					if($CODE !== false)
+						$arElement["CODE"] = $CODE;
 				}
 
 				//Check if detail picture hasn't been changed
@@ -3596,7 +3594,12 @@ class CIBlockCMLImport
 			else
 			{
 				if(!array_key_exists("CODE", $arElement) && is_array($this->translit_on_add))
-					$arElement["CODE"] = $this->CheckElementCode($this->next_step["IBLOCK_ID"], CUtil::translit($arElement["NAME"], LANGUAGE_ID, $this->translit_on_add));
+				{
+					$CODE = CUtil::translit($arElement["NAME"], LANGUAGE_ID, $this->translit_on_add);
+					$CODE = $this->CheckElementCode($this->next_step["IBLOCK_ID"], 0, $CODE);
+					if($CODE !== false)
+						$arElement["CODE"] = $CODE;
+				}
 
 				$arElement["IBLOCK_ID"] = $this->next_step["IBLOCK_ID"];
 				$this->fillDefaultPropertyValues($arElement, $this->arProperties);
@@ -4559,14 +4562,15 @@ class CIBlockCMLImport
 		$rsSection = $obSection->GetList(array(), array("IBLOCK_ID"=>$IBLOCK_ID, "XML_ID"=>$arSection["XML_ID"]), false);
 		if($arDBSection = $rsSection->Fetch())
 		{
-			if(!array_key_exists("CODE", $arSection) && is_array($this->translit_on_update))
+			if(
+				!array_key_exists("CODE", $arSection)
+				&& is_array($this->translit_on_update)
+			)
 			{
-				$arSection["CODE"] = CUtil::translit($arSection["NAME"], LANGUAGE_ID, $this->translit_on_update);
-				//Check if name was not changed in a way to update CODE
-				if(preg_match("#^".preg_quote($arSection["CODE"], "#")."_[0-9]+$#", $arDBSection["CODE"]))
-					unset($arSection["CODE"]);
-				else
-					$arSection["CODE"] = $this->CheckSectionCode($IBLOCK_ID, $arSection["CODE"]);
+				$CODE = CUtil::translit($arSection["NAME"], LANGUAGE_ID, $this->translit_on_update);
+				$CODE = $this->CheckSectionCode($IBLOCK_ID, $arDBSection["ID"], $CODE);
+				if ($CODE !== false)
+					$arSection["CODE"] = $CODE;
 			}
 
 			$bChanged = false;
@@ -4625,7 +4629,12 @@ class CIBlockCMLImport
 		else
 		{
 			if(!array_key_exists("CODE", $arSection) && is_array($this->translit_on_add))
-				$arSection["CODE"] = $this->CheckSectionCode($IBLOCK_ID, CUtil::translit($arSection["NAME"], LANGUAGE_ID, $this->translit_on_add));
+			{
+				$CODE = CUtil::translit($arSection["NAME"], LANGUAGE_ID, $this->translit_on_add);
+				$CODE = $this->CheckSectionCode($IBLOCK_ID, 0, $CODE);
+				if ($CODE !== false)
+					$arSection["CODE"] = $CODE;
+			}
 
 			$arSection["IBLOCK_ID"] = $IBLOCK_ID;
 			if(!isset($arSection["SORT"]))
@@ -4674,7 +4683,7 @@ class CIBlockCMLImport
 		return true;
 	}
 
-	function CheckElementCode($IBLOCK_ID, $CODE)
+	function CheckElementCode($IBLOCK_ID, $ID, $CODE)
 	{
 		$arCodes = array();
 		$rsCodeLike = CIBlockElement::GetList(array(), array(
@@ -4682,7 +4691,11 @@ class CIBlockCMLImport
 			"CODE" => $CODE."%",
 		), false, false, array("ID", "CODE"));
 		while($ar = $rsCodeLike->Fetch())
-			$arCodes[$ar["CODE"]] = $ar["ID"];
+		{
+			if ($ID == $ar["ID"])
+				return false;
+			$arCodes[$ar["CODE"]] = true;
+		}
 
 		if (array_key_exists($CODE, $arCodes))
 		{
@@ -4698,7 +4711,7 @@ class CIBlockCMLImport
 		}
 	}
 
-	function CheckSectionCode($IBLOCK_ID, $CODE)
+	function CheckSectionCode($IBLOCK_ID, $ID, $CODE)
 	{
 		$arCodes = array();
 		$rsCodeLike = CIBlockSection::GetList(array(), array(
@@ -4706,7 +4719,11 @@ class CIBlockCMLImport
 			"CODE" => $CODE."%",
 		), false, array("ID", "CODE"));
 		while($ar = $rsCodeLike->Fetch())
-			$arCodes[$ar["CODE"]] = $ar["ID"];
+		{
+			if ($ID == $ar["ID"])
+				return false;
+			$arCodes[$ar["CODE"]] = true;
+		}
 
 		if (array_key_exists($CODE, $arCodes))
 		{

@@ -100,6 +100,7 @@ class IblockValues extends BaseValues
 
 			if (empty($result))
 			{
+				$sqlHelper = $connection->getSqlHelper();
 				$result = parent::queryValues();
 				$fields = array(
 					"IBLOCK_ID",
@@ -112,7 +113,7 @@ class IblockValues extends BaseValues
 					$rows[] = array(
 						$this->iblockId,
 						$row["ID"],
-						$row["VALUE"],
+						$sqlHelper->forSql($row["VALUE"]),
 					);
 				}
 				$this->insertValues("b_iblock_iblock_iprop", $fields, $rows);

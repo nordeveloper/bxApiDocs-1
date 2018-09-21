@@ -88,12 +88,13 @@ abstract class Base implements \Bitrix\Disk\Volume\IVolumeIndicator, IErrorable
 	// type data to collect
 	const REGULAR_FILE = 'regular_file';
 	const DISK_FILE = 'disk_file';
-	const USER_FIELD = 'user_field';
 	const ATTACHED_OBJECT = 'attached_object';
 	const SHARING_OBJECT = 'sharing_object';
 	const EXTERNAL_LINK = 'external_link';
 	const UNNECESSARY_VERSION = 'unnecessary_version';
 	const PREVIEW_FILE = 'preview_file';
+	const CRM_OBJECT = 'crm_object';
+	//const USER_FIELD = 'user_field';
 
 	/** @var array Indicator list available in library. */
 	public static $indicatorTypeList = array();

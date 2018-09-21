@@ -438,6 +438,8 @@ class CIMMessenger
 
 				if (!$bConvert)
 				{
+					$pullIncluded = CModule::IncludeModule("pull");
+					$pullServerActive = $pullIncluded && CPullOptions::GetNginxStatus();
 					$relations = \Bitrix\Im\Chat::getRelation($chatId, Array(
 						'REAL_COUNTERS' => 'Y',
 						'USER_DATA' => 'Y',
@@ -469,14 +471,20 @@ class CIMMessenger
 						else
 						{
 							$relations[$id]['COUNTER'] = 0;
-							IM\Model\RelationTable::update($relation["ID"], array(
+							$relationUpdate = array(
 								"STATUS" => IM_STATUS_READ,
 								"MESSAGE_STATUS" => IM_MESSAGE_STATUS_RECEIVED,
 								"COUNTER" => 0,
 								"LAST_ID" => $messageID,
 								"LAST_SEND_ID" => $messageID,
 								"LAST_READ" => new Bitrix\Main\Type\DateTime(),
-							));
+							);
+							if (!$pullServerActive)
+							{
+								unset($relationUpdate['STATUS']);
+								unset($relationUpdate['LAST_ID']);
+							}
+							IM\Model\RelationTable::update($relation["ID"], $relationUpdate);
 						}
 						\Bitrix\Im\Counter::clearCache($relation['USER_ID']);
 					}
@@ -760,6 +768,7 @@ class CIMMessenger
 				));
 
 				$pullIncluded = CModule::IncludeModule("pull");
+				$pullServerActive = $pullIncluded && CPullOptions::GetNginxStatus();
 				$events = array();
 
 				$skippedRelations = Array();
@@ -821,14 +830,22 @@ class CIMMessenger
 					if ($relation["USER_ID"] == $arFields["FROM_USER_ID"])
 					{
 						$relations[$id]['COUNTER'] = $relation['COUNTER'] = 0;
-						IM\Model\RelationTable::update($relation["ID"], array(
+
+
+						$relationUpdate = array(
 							"STATUS" => IM_STATUS_READ,
 							"MESSAGE_STATUS" => IM_MESSAGE_STATUS_RECEIVED,
 							"COUNTER" => 0,
 							"LAST_ID" => $messageID,
 							"LAST_SEND_ID" => $messageID,
 							"LAST_READ" => new Bitrix\Main\Type\DateTime(),
-						));
+						);
+						if (!$pullServerActive)
+						{
+							unset($relationUpdate['STATUS']);
+							unset($relationUpdate['LAST_ID']);
+						}
+						IM\Model\RelationTable::update($relation["ID"], $relationUpdate);
 					}
 					else
 					{
@@ -1369,10 +1386,13 @@ class CIMMessenger
 		if ($message['MESSAGE_TYPE'] == IM_MESSAGE_PRIVATE)
 		{
 			$arFields['FROM_USER_ID'] = $arFields['AUTHOR_ID'];
+			$arFields['TO_USER_ID'] = $arFields['AUTHOR_ID'];
 			foreach ($relations as $rel)
 			{
 				if ($rel['USER_ID'] != $arFields['AUTHOR_ID'])
+				{
 					$arFields['TO_USER_ID'] = $rel['USER_ID'];
+				}
 			}
 
 			$arPullMessage['fromUserId'] = (int)$arFields['FROM_USER_ID'];
@@ -1575,6 +1595,7 @@ class CIMMessenger
 		if ($message['MESSAGE_TYPE'] == IM_MESSAGE_PRIVATE)
 		{
 			$arFields['FROM_USER_ID'] = $arFields['AUTHOR_ID'];
+			$arFields['TO_USER_ID'] = $arFields['AUTHOR_ID'];
 			foreach ($relations as $rel)
 			{
 				if ($rel['USER_ID'] != $arFields['AUTHOR_ID'])

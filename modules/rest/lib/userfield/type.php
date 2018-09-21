@@ -139,6 +139,12 @@ class Type extends TypeBase
 				}
 
 				BX('uf_rest_value_<?=$arUserField['FIELD_NAME']?>').innerHTML = html;
+
+				var input = BX('uf_rest_value_<?=$arUserField['FIELD_NAME']?>').firstChild;
+				if(input)
+				{
+					BX.fireEvent(input, 'change');
+				}
 <?
 			endif;
 ?>

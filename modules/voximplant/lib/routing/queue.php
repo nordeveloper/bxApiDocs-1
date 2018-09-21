@@ -108,7 +108,7 @@ class Queue extends Node
 		{
 			$hasMobile = \CVoxImplantUser::hasMobile($row['USER_ID']);
 
-			if ($row['IS_ONLINE'] != 'Y' && $row['UF_VI_PHONE'] != 'Y' && $hasMobile)
+			if ($row['IS_ONLINE'] != 'Y' && $row['UF_VI_PHONE'] != 'Y' && !$hasMobile)
 			{
 				continue;
 			}
@@ -174,7 +174,7 @@ class Queue extends Node
 			if (strlen($queue->getForwardNumber()) > 0)
 			{
 				$forwardNumber = \CVoxImplantPhone::Normalize($queue->getForwardNumber(), 1);
-				$this->insertAfter(new Pstn($forwardNumber,'voicemail'	));
+				$this->insertAfter(new Pstn(\CVoxImplantPhone::Normalize($forwardNumber, 1),'voicemail'));
 				return false;
 			}
 		}
@@ -184,7 +184,7 @@ class Queue extends Node
 			$userPhone = \CVoxImplantPhone::GetUserPhone($userId);
 			if ($userPhone)
 			{
-				$this->insertAfter(new Pstn($userPhone,'voicemail'	));
+				$this->insertAfter(new Pstn(\CVoxImplantPhone::Normalize($userPhone, 1),'voicemail', $userId));
 				return false;
 			}
 		}

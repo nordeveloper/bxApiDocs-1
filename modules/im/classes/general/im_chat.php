@@ -781,7 +781,7 @@ class CIMChat
 		));
 		if (!$chatId)
 			return false;
-		
+
 		$sql = "
 			insert into b_im_relation (USER_ID, MESSAGE_TYPE, CHAT_ID)
 			select distinct b_user.ID, '".IM_MESSAGE_OPEN."', ".intval($chatId)."
@@ -3086,7 +3086,7 @@ class CIMChat
 			{
 				if (self::GetGeneralChatAutoMessageStatus(self::GENERAL_MESSAGE_TYPE_LEAVE))
 				{
-					$message = GetMessage("IM_CHAT_GENERAL_LEAVE", Array('#USER_NAME#' => htmlspecialcharsback($arUsers[$userId]['name'])));
+					$message = GetMessage("IM_CHAT_GENERAL_LEAVE_".$arUsers[$userId]['gender'], Array('#USER_NAME#' => htmlspecialcharsback($arUsers[$userId]['name'])));
 				}
 			}
 			else

@@ -43,9 +43,14 @@ final class Router
 		{
 			$actionParts = explode('.', $this->action);
 
-			$this->module = array_shift($actionParts);
+			$this->module = $this->refineModuleName(array_shift($actionParts));
 			$this->action = implode('.', $actionParts);
 		}
+	}
+
+	protected function refineModuleName($module)
+	{
+		return str_replace('_', '.', $module);
 	}
 
 	/**

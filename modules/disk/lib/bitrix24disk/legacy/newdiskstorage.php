@@ -174,6 +174,21 @@ class NewDiskStorage extends DiskStorage
 		return $slice;
 	}
 
+	private function getSelectableColumnsForObject()
+	{
+		$fields = [];
+		$entity = ObjectTable::getEntity();
+		foreach ($entity->getScalarFields() as $field)
+		{
+			if($field->getColumnName() !== 'SEARCH_INDEX')
+			{
+				$fields[] = $field->getColumnName();
+			}
+		}
+
+		return $fields;
+	}
+
 	private function snapshotFromPersonalStorage(FixedArray $items, PageState $pageState, $internalVersion, $pageSize = self::SNAPSHOT_PAGE_SIZE)
 	{
 		if($pageState->getStep() !== $pageState::STEP_PERSONAL)
@@ -187,6 +202,7 @@ class NewDiskStorage extends DiskStorage
 		$cursor = $pageState->getCursor()?: $internalVersion;
 
 		$query = new Internals\Entity\Query(ObjectTable::getEntity());
+		$query->setSelect($this->getSelectableColumnsForObject());
 
 		if(!$this->checkOpportunityToSkipRights())
 		{
@@ -215,7 +231,6 @@ class NewDiskStorage extends DiskStorage
 		}
 
 		$query
-			->addSelect('*')
 			->addFilter('STORAGE_ID', $this->storage->getId())
 			->addFilter('DELETED_TYPE', ObjectTable::DELETED_TYPE_NONE)
 			->addOrder('SYNC_UPDATE_TIME')
@@ -504,7 +519,7 @@ class NewDiskStorage extends DiskStorage
 
 		$query = new Internals\Entity\Query(ObjectTable::getEntity());
 		$query
-			->addSelect('*')
+			->setSelect($this->getSelectableColumnsForObject())
 			->addFilter('PATH_CHILD.PARENT_ID', $link->realObjectId)
 			->addFilter('DELETED_TYPE', ObjectTable::DELETED_TYPE_NONE)
 			->addFilter('=RIGHTS_CHECK', true)
@@ -637,6 +652,11 @@ class NewDiskStorage extends DiskStorage
 		$this->loadTree();
 		foreach($this->treeData as $id => $treeNode)
 		{
+			if (!($treeNode instanceof TreeNode))
+			{
+				continue;
+			}
+
 			if(!$treeNode->isLink() || is_string($id) && substr($id, 0, 1) === TreeNode::TREE_SYMLINK_PREFIX)
 			{
 				continue;

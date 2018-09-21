@@ -25,7 +25,10 @@ class IvrAction extends Node
 		{
 			$queueId = $action['PARAMETERS']['QUEUE_ID'];
 			$queueNode = Router::buildQueueGraph($queueId, $config['TIMEMAN'] === 'Y');
-			$this->setNext($queueNode);
+			if($queueNode instanceof Node)
+			{
+				$this->setNext($queueNode);
+			}
 		}
 		else if ($action['ACTION'] === \Bitrix\Voximplant\Ivr\Action::ACTION_USER)
 		{
@@ -37,7 +40,7 @@ class IvrAction extends Node
 		else if ($action['ACTION'] === \Bitrix\Voximplant\Ivr\Action::ACTION_PHONE)
 		{
 			$phoneNumber = $action['PARAMETERS']['PHONE_NUMBER'];
-			$pstnNode = new Pstn($phoneNumber, 'voicemail');
+			$pstnNode = new Pstn(\CVoxImplantPhone::Normalize($phoneNumber, 1), 'voicemail');
 			$this->setNext($pstnNode);
 		}
 		else if ($action['ACTION'] === \Bitrix\Voximplant\Ivr\Action::ACTION_DIRECT_CODE)

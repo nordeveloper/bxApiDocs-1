@@ -9,6 +9,7 @@ class Scenario
 	protected $call;
 
 	const COMMAND_WAIT = 'wait';
+	const COMMAND_ANSWER = 'answer';
 	const COMMAND_HOLD = 'hold';
 	const COMMAND_UNHOLD = 'unhold';
 	const COMMAND_DEQUEUE = 'dequeue';
@@ -27,6 +28,14 @@ class Scenario
 	{
 		return $this->send([
 			'COMMAND' => static::COMMAND_WAIT,
+			'USER_ID' => $userId
+		], $waitResponse);
+	}
+
+	public function sendAnswer($userId, $waitResponse = false)
+	{
+		return $this->send([
+			'COMMAND' => static::COMMAND_ANSWER,
 			'USER_ID' => $userId
 		], $waitResponse);
 	}

@@ -109,7 +109,7 @@ class Controller implements Errorable, Controllerable
 		if (!$this->filePath)
 		{
 			$reflector = new \ReflectionClass($this);
-			$this->filePath = $reflector->getFileName();
+			$this->filePath = preg_replace('#[\\\/]+#', '/', $reflector->getFileName());
 		}
 
 		return $this->filePath;
@@ -475,10 +475,11 @@ class Controller implements Errorable, Controllerable
 	protected function getDefaultPreFilters()
 	{
 		return array(
-			new ActionFilter\Authentication,
+			new ActionFilter\Authentication(),
 			new ActionFilter\HttpMethod(
 				array(ActionFilter\HttpMethod::METHOD_GET, ActionFilter\HttpMethod::METHOD_POST)
 			),
+			new ActionFilter\Csrf(),
 		);
 	}
 
@@ -539,7 +540,56 @@ class Controller implements Errorable, Controllerable
 			$config['prefilters'][] = new ActionFilter\Csrf;
 		}
 
+		if (!empty($config['-prefilters']))
+		{
+			$config['prefilters'] = $this->removeFilters($config['prefilters'], $config['-prefilters']);
+		}
+
+		if (!empty($config['-postfilters']))
+		{
+			$config['postfilters'] = $this->removeFilters($config['postfilters'], $config['-postfilters']);
+		}
+
+		if (!empty($config['+prefilters']))
+		{
+			$config['prefilters'] = $this->appendFilters($config['prefilters'], $config['+prefilters']);
+		}
+
+		if (!empty($config['+postfilters']))
+		{
+			$config['postfilters'] = $this->appendFilters($config['postfilters'], $config['+postfilters']);
+		}
+
 		return $config;
+	}
+
+	final protected function appendFilters(array $filters, array $filtersToAppend)
+	{
+		return array_merge($filters, $filtersToAppend);
+	}
+
+	final protected function removeFilters(array $filters, array $filtersToRemove)
+	{
+		$cleanedFilters = [];
+		foreach ($filters as $filter)
+		{
+			$found = false;
+			foreach ($filtersToRemove as $filterToRemove)
+			{
+				if (is_a($filter, $filterToRemove))
+				{
+					$found = true;
+					break;
+				}
+			}
+
+			if (!$found)
+			{
+				$cleanedFilters[] = $filter;
+			}
+		}
+
+		return $cleanedFilters;
 	}
 
 	final protected function attachFilters(Action $action)
@@ -630,12 +680,12 @@ class Controller implements Errorable, Controllerable
 			return new Error($e->getMessage(), self::ERROR_REQUIRED_PARAMETER);
 		}
 
-		return new Error($e->getMessage());
+		return new Error($e->getMessage(), $e->getCode());
 	}
 
 	protected function buildErrorFromPhpError(\Error $error)
 	{
-		return new Error($error->getMessage());
+		return new Error($error->getMessage(), $error->getCode());
 	}
 
 	/**

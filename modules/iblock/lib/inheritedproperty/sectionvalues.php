@@ -125,6 +125,7 @@ class SectionValues extends BaseValues
 
 			if (empty($result))
 			{
+				$sqlHelper = $connection->getSqlHelper();
 				$fields = array(
 					"IBLOCK_ID",
 					"SECTION_ID",
@@ -139,7 +140,7 @@ class SectionValues extends BaseValues
 						$this->iblockId,
 						$this->sectionId,
 						$row["ID"],
-						$row["VALUE"],
+						$sqlHelper->forSql($row["VALUE"]),
 					);
 				}
 				$this->insertValues("b_iblock_section_iprop", $fields, $rows);

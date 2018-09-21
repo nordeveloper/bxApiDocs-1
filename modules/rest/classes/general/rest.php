@@ -63,7 +63,7 @@ class CRestServer
 	public function __construct($params)
 	{
 		$this->class = $params['CLASS'];
-		$this->method = $params['METHOD'];
+		$this->method = ToLower($params['METHOD']);
 		$this->query = $params['QUERY'];
 
 		$this->transport = $params['TRANSPORT'];

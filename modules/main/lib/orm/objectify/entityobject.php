@@ -726,6 +726,35 @@ abstract class EntityObject implements \ArrayAccess
 	}
 
 	/**
+	 * Fast popular alternative to __call().
+	 *
+	 * @return Collection|EntityObject|mixed
+	 * @throws ArgumentException
+	 * @throws SystemException
+	 */
+	public function getId()
+	{
+		if (array_key_exists('ID', $this->currentValues))
+		{
+			return $this->currentValues['ID'];
+		}
+		elseif (array_key_exists('ID', $this->actualValues))
+		{
+			return $this->actualValues['ID'];
+		}
+		elseif (!$this->entity()->hasField('ID'))
+		{
+			throw new SystemException(sprintf(
+				'Unknown method `%s` for object `%s`', 'getId', get_called_class()
+			));
+		}
+		else
+		{
+			return null;
+		}
+	}
+
+	/**
 	 * Query Runtime Field values or just any runtime value getter
 	 *
 	 * @param $name

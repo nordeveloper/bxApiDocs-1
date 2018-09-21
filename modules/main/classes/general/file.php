@@ -7,6 +7,7 @@
  */
 
 use Bitrix\Main\IO;
+use Bitrix\Main\UI\Viewer;
 
 IncludeModuleLangFile(__FILE__);
 

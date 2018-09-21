@@ -291,6 +291,68 @@ $arJSCoreConfig = array(
 		),
 		'rel' => array('admin_interface', 'sidepanel'),
 	),
+	'helper' => array(
+		'js' => '/bitrix/js/main/helper/helper.js',
+		'css' => '/bitrix/js/main/helper/css/helper.css',
+		'rel' => array('sidepanel', 'ajax')
+	),
+	'webrtc_adapter' => array(
+		'js' => '/bitrix/js/main/webrtc/adapter.js'
+	),
+
+	'update_stepper' => array(
+		'js' => $pathJS.'/core_update_stepper.js',
+		'css' => $pathCSS.'/core_update_stepper.css',
+		'lang' => $pathLang.'/js_core_update_stepper.php',
+		'rel' => array('ajax'),
+	),
+	'uf' => array(
+		'js' => $pathJS.'/core_uf.js',
+		'css' => $pathCSS.'/core_uf.css',
+		'rel' => array('ajax'),
+		'oninit' => function()
+		{
+			return array(
+				'lang_additional' => array(
+					'UF_SITE_TPL' => SITE_TEMPLATE_ID,
+					'UF_SITE_TPL_SIGN' => \Bitrix\Main\UserField\Dispatcher::instance()->getSignatureManager()->getSignature(SITE_TEMPLATE_ID),
+				),
+			);
+		}
+	),
+	'phone_number' => array(
+		'js' => '/bitrix/js/main/phonenumber/phonenumber.js',
+		'css' => '/bitrix/js/main/phonenumber/css/phonenumber.css',
+		'oninit' => function()
+		{
+			return array(
+				'lang_additional' => array(
+					'phone_number_default_country' => \Bitrix\Main\PhoneNumber\Parser::getDefaultCountry(),
+					'user_default_country' => \Bitrix\Main\PhoneNumber\Parser::getUserDefaultCountry()
+				)
+			);
+		},
+		'rel' => array('popup'),
+	),
+	'loader' => array(
+		'js' => '/bitrix/js/main/loader/loader.js',
+		'css' => '/bitrix/js/main/loader/loader.css'
+	),
+
+	/* auto loaded libs */
+
+	'promise' => array(
+		'js' => $pathJS.'/core_promise.js',
+		'autoload' => true,
+	),
+	'loadext' => array(
+		'js' => array(
+			'/bitrix/js/main/loadext/loadext.js',
+			'/bitrix/js/main/loadext/extension.js',
+		),
+		'rel' => array('main.polyfill.promise'),
+		'autoload' => true,
+	),
 
 	/* external libs */
 	'jquery' => array(
@@ -359,62 +421,16 @@ $arJSCoreConfig = array(
 		'rel' => array('amcharts'),
 		'skip_core' => true,
 	),
-	'helper' => array(
-		'js' => '/bitrix/js/main/helper/helper.js',
-		'css' => '/bitrix/js/main/helper/css/helper.css',
-		'rel' => array('sidepanel', 'ajax')
-	),
-	'webrtc_adapter' => array(
-		'js' => '/bitrix/js/main/webrtc/adapter.js'
-	),
 	'lamejs' => array(
 		'js' => '/bitrix/js/main/recorder/recorder.js'
 	),
-	'update_stepper' => array(
-		'js' => $pathJS.'/core_update_stepper.js',
-		'css' => $pathCSS.'/core_update_stepper.css',
-		'lang' => $pathLang.'/js_core_update_stepper.php',
-		'rel' => array('ajax'),
-	),
-	'uf' => array(
-		'js' => $pathJS.'/core_uf.js',
-		'css' => $pathCSS.'/core_uf.css',
-		'rel' => array('ajax'),
-		'oninit' => function()
-		{
-			return array(
-				'lang_additional' => array(
-					'UF_SITE_TPL' => SITE_TEMPLATE_ID,
-					'UF_SITE_TPL_SIGN' => \Bitrix\Main\UserField\Dispatcher::instance()->getSignatureManager()->getSignature(SITE_TEMPLATE_ID),
-				),
-			);
-		}
-	),
-	'phone_number' => array(
-		'js' => '/bitrix/js/main/phonenumber/phonenumber.js',
-		'css' => '/bitrix/js/main/phonenumber/css/phonenumber.css',
-		'oninit' => function()
-		{
-			return array(
-				'lang_additional' => array(
-					'phone_number_default_country' => \Bitrix\Main\PhoneNumber\Parser::getDefaultCountry(),
-					'user_default_country' => \Bitrix\Main\PhoneNumber\Parser::getUserDefaultCountry()
-				)
-			);
-		},
-		'rel' => array('popup'),
-	),
-	'loader' => array(
-		'js' => '/bitrix/js/main/loader/loader.js',
-		'css' => '/bitrix/js/main/loader/loader.css'
-	)
 );
 
 \Bitrix\Main\Page\Asset::getInstance()->addJsKernelInfo(
 	'main',
 	array(
 		'/bitrix/js/main/core/core.js', '/bitrix/js/main/core/core_ajax.js', '/bitrix/js/main/json/json2.min.js',
-		'/bitrix/js/main/core/core_ls.js', '/bitrix/js/main/core/core_popup.js', '/bitrix/js/main/core/core_tooltip.js',
+		'/bitrix/js/main/core/core_ls.js', '/bitrix/js/main/core/core_promise.js', '/bitrix/js/main/core/core_popup.js', '/bitrix/js/main/core/core_tooltip.js',
 		'/bitrix/js/main/core/core_date.js','/bitrix/js/main/core/core_timer.js', '/bitrix/js/main/core/core_fx.js',
 		'/bitrix/js/main/core/core_window.js', '/bitrix/js/main/core/core_autosave.js', '/bitrix/js/main/rating_like.js',
 		'/bitrix/js/main/session.js', '/bitrix/js/main/dd.js', '/bitrix/js/main/utils.js',

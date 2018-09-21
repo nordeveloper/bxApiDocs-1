@@ -84,14 +84,6 @@ class RightsManager implements IErrorable
 		$rights = $this->uniqualizeRightsOnObject($rights);
 		$rights = $this->cleanWrongNegativeRights($object, $rights);
 
-		if(!$this->validateNegativeRights($object, $rights))
-		{
-			$this->errorCollection->add(array(
-				new Error('Could not set negative right on not exist right (task + access_code)', self::ERROR_COULD_NOT_SET_NEGATIVE_RIGHT)
-			));
-			return false;
-		}
-
 		$this->deleteInternal($object);
 		if(!$this->insertRightsInternal($object, $rights))
 		{
@@ -132,14 +124,6 @@ class RightsManager implements IErrorable
 
 		$rights = $this->uniqualizeRightsOnObject($rights);
 		$rights = $this->cleanWrongNegativeRights($object, $rights);
-
-		if(!$this->validateNegativeRights($object, $rights))
-		{
-			$this->errorCollection->add(array(
-				new Error('Could not set negative right on not exist right (task + access_code)', self::ERROR_COULD_NOT_SET_NEGATIVE_RIGHT)
-			));
-			return false;
-		}
 
 		if(!$this->insertRightsInternal($object, $rights))
 		{
@@ -423,10 +407,10 @@ class RightsManager implements IErrorable
 		$filter = array('OBJECT_ID' => $object->getId());
 		if($domain !== null)
 		{
-			$filter['=DOMAIN'] = $domain;
+			$filter['DOMAIN'] = $domain;
 		}
 
-		return RightTable::deleteByFilter($filter);
+		return RightTable::deleteBatch($filter);
 	}
 
 	public function generateDomain($domain, $id)

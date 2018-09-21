@@ -21,7 +21,19 @@ class Controller
 			$params[$key] = $value;
 		}
 
-		if (class_exists('\\Bitrix\\ImBot\\Bot\\'.ucfirst($botName)) && method_exists('\\Bitrix\\ImBot\\Bot\\'.ucfirst($botName), 'onAnswerAdd'))
+		if ($params['BOT_ID'])
+		{
+			$bot = \Bitrix\Im\Bot::getCache($params['BOT_ID']);
+			if ($bot && class_exists($bot['CLASS']) && method_exists($bot['CLASS'], 'onAnswerAdd'))
+			{
+				return call_user_func_array(array($bot['CLASS'], 'onAnswerAdd'), Array($command, $params));
+			}
+		}
+
+		if (
+			class_exists('\\Bitrix\\ImBot\\Bot\\'.ucfirst($botName))
+			&& method_exists('\\Bitrix\\ImBot\\Bot\\'.ucfirst($botName), 'onAnswerAdd')
+		)
 		{
 			return call_user_func_array(array('\\Bitrix\\ImBot\\Bot\\'.ucfirst($botName), 'onAnswerAdd'), Array($command, $params));
 		}

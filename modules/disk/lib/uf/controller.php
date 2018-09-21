@@ -858,6 +858,7 @@ class Controller extends Internals\Controller
 				'id' => $baseObject->getId(),
 				'type' => $isFolder? 'folder' : 'file',
 				'name' => $baseObject->getName(),
+				'size' => $isFolder? null : $baseObject->getSize(),
 			);
 		}
 
