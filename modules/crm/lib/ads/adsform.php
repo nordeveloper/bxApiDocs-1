@@ -9,7 +9,8 @@ use Bitrix\Main\EventManager;
 use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\Localization\Loc;
-use Bitrix\Seo\LeadAds\Service;
+
+use Bitrix\Seo\LeadAds;
 
 Loc::loadMessages(__FILE__);
 
@@ -19,19 +20,81 @@ Loc::loadMessages(__FILE__);
  */
 class AdsForm extends AdsService
 {
+	/**
+	 * Can use.
+	 *
+	 * @return bool
+	 */
 	public static function canUse()
 	{
 		return parent::canUse();
 	}
 
 	/**
+	 * Get service types.
+	 *
+	 * @return array
+	 */
+	public static function getServiceTypes()
+	{
+		$types = [];
+		foreach (parent::getServiceTypes() as $type)
+		{
+			if ($type === LeadAds\Service::TYPE_VKONTAKTE && self::isDisabled())
+			{
+				continue;
+			}
+
+			$types[] = $type;
+		}
+
+		return $types;
+	}
+
+	/**
 	 * Get Service.
 	 *
-	 * @return Service
+	 * @return LeadAds\Service
 	 */
 	public static function getService()
 	{
-		return Service::getInstance();
+		return LeadAds\Service::getInstance();
+	}
+
+	/**
+	 * Remove group auth.
+	 *
+	 * @param string $type Type.
+	 * @return void
+	 */
+	public static function removeGroupAuth($type)
+	{
+		static::getService()->getGroupAuth($type)->removeAuth();
+	}
+
+	/**
+	 * Register group.
+	 *
+	 * @param string $type Type.
+	 * @return bool
+	 */
+	public static function registerGroup($type, $groupId)
+	{
+		return static::getService()->registerGroup($type, $groupId);
+	}
+
+	/**
+	 * Remove group auth.
+	 *
+	 * @param string $type Type.
+	 * @return bool
+	 */
+	public static function unRegisterGroup($type, $groupId)
+	{
+		$result = static::getService()->unRegisterGroup($type, $groupId);
+		static::removeGroupAuth($type);
+
+		return $result;
 	}
 
 	/**
@@ -68,7 +131,7 @@ class AdsForm extends AdsService
 	{
 		$result = array();
 
-		$form = Service::getForm($type);
+		$form = LeadAds\Service::getForm($type);
 
 		$form->setAccountId($accountId);
 		$formResult = $form->getList();
@@ -105,11 +168,26 @@ class AdsForm extends AdsService
 		$providers = static::getServiceProviders($types);
 		foreach ($providers as $type => $provider)
 		{
-			$form = Service::getForm($type);
-			$account = Service::getAccount($type);
-			$providers[$type]['URL_ACCOUNT_LIST'] =  $account->getUrlAccountList();
-			$providers[$type]['URL_FORM_LIST'] =  $form->getUrlFormList();
-			$providers[$type]['IS_SUPPORT_ACCOUNT'] =  $form->isSupportAccount();
+			$form = LeadAds\Service::getForm($type);
+			$account = LeadAds\Service::getAccount($type);
+			$provider['URL_INFO'] =  $account->getUrlInfo();
+			$provider['URL_ACCOUNT_LIST'] =  $account->getUrlAccountList();
+			$provider['URL_FORM_LIST'] =  $form->getUrlFormList();
+			$provider['IS_SUPPORT_ACCOUNT'] =  $form->isSupportAccount();
+
+			$groupAuthAdapter = $form->getGroupAuthAdapter();
+			$provider['GROUP'] = [
+				'IS_AUTH_USED' => $form->isGroupAuthUsed(),
+				'HAS_AUTH' => $groupAuthAdapter ? $groupAuthAdapter->hasAuth() : false,
+				'AUTH_URL' => $groupAuthAdapter ? $groupAuthAdapter->getAuthUrl() : null,
+				'GROUP_ID' => []
+			];
+			if ($provider['GROUP']['HAS_AUTH'])
+			{
+				$provider['GROUP']['GROUP_ID'] = current($form->getRegisteredGroups());
+			}
+
+			$providers[$type] = $provider;
 		}
 
 		return $providers;
@@ -253,7 +331,7 @@ class AdsForm extends AdsService
 		}
 
 		// 1. Send add query to Facebook.
-		$form = Service::getForm($type);
+		$form = LeadAds\Service::getForm($type);
 		$form->setAccountId($accountId);
 		$addResult = $form->add(array(
 			'NAME' => $formName,
@@ -333,7 +411,7 @@ class AdsForm extends AdsService
 		$result = true;
 		while ($link = $links->fetch())
 		{
-			$form = Service::getForm($link['ADS_TYPE']);
+			$form = LeadAds\Service::getForm($link['ADS_TYPE']);
 			$form->setAccountId($link['ADS_ACCOUNT_ID']);
 			if (!$form->unlink($link['ADS_FORM_ID']))
 			{
@@ -372,11 +450,16 @@ class AdsForm extends AdsService
 	 */
 	public static function getTemporaryDisabledMessage($type)
 	{
-		if (Option::get('crm', 'enable_fb_lead_ads', 'N') === 'Y')
+		if (!self::isDisabled())
 		{
 			return null;
 		}
 
 		return Loc::getMessage('CRM_ADS_FORM_TYPE_ERR_DISABLED_' . strtoupper($type));
+	}
+
+	protected static function isDisabled()
+	{
+		return false;
 	}
 }

@@ -529,9 +529,9 @@ class Basket
 		}
 
 		//If error happend while setting quantity field we will know the name of product.
-		if(!empty($elementFields['NAME']))
+		if(!empty($elementFields['~NAME']))
 		{
-			$basketItem->setField('NAME', $elementFields['NAME']);
+			$basketItem->setField('NAME', $elementFields['~NAME']);
 		}
 
 		$r = $basketItem->setField('QUANTITY', $fields['QUANTITY']);

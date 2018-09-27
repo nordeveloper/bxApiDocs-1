@@ -211,11 +211,28 @@ class CCatalogAdmin
 		if (empty($arCatalogs))
 			return;
 
+		$listIblockId = array_keys($arCatalogs);
+
+		if (isset($_REQUEST["public_menu"]) && Loader::includeModule("crm"))
+		{
+			$listIblockId = array_filter($listIblockId, function($itemId) {
+				$res = CCrmCatalog::getList(array(), array(
+					"ID" => $itemId), false, false, array("XML_ID"));
+				if ($crmIblock = $res->fetch())
+					return ((strpos($crmIblock["XML_ID"], "crm_external_") === false) ? true : false);
+				return true;
+			});
+		}
+
+		if (empty($listIblockId))
+			return;
+
 		$rsIBlocks = CIBlock::GetList(
 			array("SORT" => "ASC", "NAME" => "ASC"),
-			array('ID' => array_keys($arCatalogs), "MIN_PERMISSION" => "S")
+			array('ID' => $listIblockId, "MIN_PERMISSION" => "S")
 		);
 		$sortCount = 0.01;
+		$totalCount = (isset($_REQUEST["public_menu"]) ? $rsIBlocks->SelectedRowsCount() : 0);
 		while ($arIBlock = $rsIBlocks->Fetch())
 		{
 			if (CIBlock::GetAdminListMode($arIBlock["ID"]) == 'C')
@@ -322,8 +339,13 @@ class CCatalogAdmin
 				);
 			}
 
+			if (isset($_REQUEST["public_menu"]))
+				$text = ($totalCount > 1 ? htmlspecialcharsEx($arIBlock["NAME"]) : Loc::getMessage("CAT_MENU_ROOT_TITLE"));
+			else
+				$text = htmlspecialcharsEx($arIBlock["NAME"]);
+
 			$aMenu["items"][] = array(
-				"text" => Loc::getMessage("CAT_MENU_ROOT_TITLE"),
+				"text" => $text,
 				"title" => "",
 				"page_icon" => "iblock_page_icon_sections",
 				"items_id" => "menu_catalog_".$arIBlock["ID"],

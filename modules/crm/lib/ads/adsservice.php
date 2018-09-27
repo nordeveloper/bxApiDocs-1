@@ -133,7 +133,25 @@ abstract class AdsService
 			return array();
 		}
 
-		return static::getService()->getTypes();
+		$service = static::getService();
+		$types = $service->getTypes();
+		if (!Loader::includeModule('bitrix24') || in_array(\CBitrix24::getPortalZone(), ['ru', 'kz', 'by']))
+		{
+			return $types;
+		}
+
+		$result = [];
+		foreach ($types as $type)
+		{
+			if ($type === $service::TYPE_VKONTAKTE)
+			{
+				continue;
+			}
+
+			$result[] = $type;
+		}
+
+		return $result;
 	}
 
 	protected static function getServiceProviders(array $types = null)

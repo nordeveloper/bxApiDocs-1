@@ -357,6 +357,19 @@ class CVKontakteOAuthInterface extends CSocServOAuthTransport
 			$arResult = array();
 		}
 
+		foreach ($arResult as $key => $value)
+		{
+			if (strpos($key, 'access_token_') === 0)
+			{
+				$this->access_token = $value;
+				$this->userID = null;
+				$this->userEmail = null;
+
+				$_SESSION["OAUTH_DATA"] = array("OATOKEN" => $this->access_token);
+				return true;
+			}
+		}
+
 		if ((isset($arResult["access_token"]) && $arResult["access_token"] <> '') && isset($arResult["user_id"]) && $arResult["user_id"] <> '')
 		{
 			$this->access_token = $arResult["access_token"];

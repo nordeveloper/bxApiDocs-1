@@ -25,6 +25,9 @@ class CommonActions extends BaseObject
 		];
 
 		$configureActions['downloadArchive'] = [
+			'-prefilters' => [
+				ActionFilter\Csrf::class,
+			],
 			'+prefilters' => [
 				new ActionFilter\Authentication(true),
 				new Disk\Internals\Engine\ActionFilter\HumanReadableError(),

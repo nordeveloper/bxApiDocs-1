@@ -1927,6 +1927,16 @@ class EntityRequisite
 						else
 						{
 							$textValue = strval($fieldValue);
+
+							if (strlen($textValue) <= 0)
+							{
+								$skip = true;
+							}
+						}
+
+						if ($fieldInfo['title'] == '')
+						{
+							$skip = true;
 						}
 
 						if (!$skip)

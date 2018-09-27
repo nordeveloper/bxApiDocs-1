@@ -6,9 +6,25 @@ use Bitrix\Disk;
 use Bitrix\Disk\ZipNginx;
 use Bitrix\Main\Application;
 use Bitrix\Main\ArgumentTypeException;
+use Bitrix\Main\Engine\ActionFilter;
 
 class Folder extends BaseObject
 {
+	public function configureActions()
+	{
+		$configureActions = parent::configureActions();
+		$configureActions['downloadArchive'] = [
+			'-prefilters' => [
+				ActionFilter\Csrf::class,
+			],
+			'+prefilters' => [
+				new ActionFilter\CloseSession(),
+			]
+		];
+
+		return $configureActions;
+	}
+
 	public function getAction(Disk\Folder $folder)
 	{
 		return $this->get($folder);

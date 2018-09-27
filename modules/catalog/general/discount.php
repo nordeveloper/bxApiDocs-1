@@ -1390,10 +1390,10 @@ class CAllCatalogDiscount
 					);
 					$currentDatetime = new Main\Type\DateTime();
 					$discountRows = array_chunk($arDiscountIDs, 500);
-					foreach ($discountRows as $row)
+					foreach ($discountRows as $pageIds)
 					{
 						$discountFilter = array(
-							'@ID' => $row,
+							'@ID' => $pageIds,
 							'=SITE_ID' => $siteID,
 							'=TYPE' => Catalog\DiscountTable::TYPE_DISCOUNT,
 							array(
@@ -1463,7 +1463,7 @@ class CAllCatalogDiscount
 						unset($row, $iterator);
 						CTimeZone::Enable();
 					}
-					unset($row, $discountRows);
+					unset($pageIds, $discountRows);
 
 					self::$arCacheDiscountResult[$strCacheKey] = $arDiscountList;
 				}

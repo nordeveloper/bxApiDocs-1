@@ -3,10 +3,14 @@
 namespace Bitrix\Crm\Ads\Form;
 
 use Bitrix\Crm\WebForm\Form;
+use Bitrix\Main\Error;
+use Bitrix\Main\ErrorCollection;
 use Bitrix\Main\Event;
+use Bitrix\Main\EventResult;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Crm\Ads\Internals\AdsFormLinkTable;
 use Bitrix\Seo\LeadAds\Service as LeadAdsService;
+use Bitrix\Seo\WebHook\Payload;
 
 Loc::loadMessages(__FILE__);
 
@@ -16,70 +20,128 @@ Loc::loadMessages(__FILE__);
  */
 class WebHookFormFillHandler
 {
-	protected $data = array();
+	/** @var ErrorCollection $errorCollection Error collection.  */
+	protected $errorCollection = [];
+
+	/** @var  Payload\Batch $payload Payload. */
+	protected $payload;
 
 	/**
 	 * Handle form fill.
 	 *
 	 * @param Event $event Web hook event.
+	 * @return EventResult
 	 */
 	public static function handleEvent(Event $event)
 	{
-		$type = $event->getParameter('TYPE');
-		$type = explode('.', $type);
-		$type = $type[1];
-
-		$adsFormId = $event->getParameter('EXTERNAL_ID');
+		/** @var  Payload\Batch $payload Payload. */
 		$payload = $event->getParameter('PAYLOAD');
+		$instance = new self($payload);
+		$instance->process();
 
-		// check payload
-		if (!self::checkPayload($payload))
+		$eventResult = new EventResult(
+			$instance->hasErrors() ? EventResult::ERROR : EventResult::SUCCESS,
+			['ERROR_COLLECTION' => $instance->getErrorCollection(),]
+		);
+
+		return $eventResult;
+	}
+
+	public function __construct(Payload\Batch $payload)
+	{
+		$this->errorCollection = new ErrorCollection();
+		$this->payload = $payload;
+	}
+
+	protected function check()
+	{
+		if (count($this->payload->getItems()) === 0)
+		{
+			$this->addError('Empty payload items.');
+		}
+
+		if (!$this->payload->getCode())
+		{
+			$this->addError('Empty payload code.');
+		}
+
+		return !$this->hasErrors();
+	}
+
+	public function process()
+	{
+		if (!$this->check())
 		{
 			return;
 		}
 
-		foreach ($payload['BATCH'] as $adsResult)
-		{
-			$adsResultId = self::getAdsResultValue($adsResult, 'leadgen_id');
-			$adsFormId = self::getAdsResultValue($adsResult, 'form_id');
-			$adsAccountId = self::getAdsResultValue($adsResult, 'page_id');
-			if (!$adsResultId || !$adsFormId || !$adsAccountId)
-			{
-				continue;
-			}
+		$type = $this->payload->getCode();
+		$type = explode('.', $type);
+		$type = $type[1];
 
-			self::processAdsResult($type, $adsResultId, $adsFormId, $adsAccountId);
+		foreach ($this->payload->getItems() as $item)
+		{
+			$this->processItem($type, $item);
 		}
 	}
 
-	public function __construct(array $data)
+	protected function checkItem(Payload\LeadItem $item)
 	{
-		$this->data = $data;
+		$adsResultId = null;
+		$adsFormId = null;
+		$adsLeadId = null;
+
+		if (!$item->getFormId())
+		{
+			$this->addError("Empty payload item parameters `formId`.");
+		}
+
+		if (!$item->getLeadId())
+		{
+			$this->addError("Empty payload item parameters `leadId`.");
+		}
+
+		return !$this->hasErrors();
 	}
 
-	public function get($key)
+	protected function processItem($type, Payload\LeadItem $item)
 	{
-		if (!isset($this->data[$key]) || !$this->data[$key])
+		if (!$this->checkItem($item))
 		{
-			return null;
+			return;
 		}
 
-		return $this->data[$key];
-	}
+		$adsResultId = $item->getLeadId();
+		$adsFormId = $item->getFormId();
 
-	protected static function checkPayload($payload)
-	{
-		if (!is_array($payload) || !isset($payload['BATCH']))
+		// retrieve linked crm-forms
+		$crmForms = self::getLinkedCrmForms($type, $adsFormId);
+		if (count($crmForms) <= 0)
 		{
-			return false;
+			$this->addError("Linked crm-forms by ads-form-id `$adsFormId` not found.");
 		}
 
-		if (!is_array($payload['BATCH']) || count($payload['BATCH']) == 0)
+		$adsForm = LeadAdsService::getForm($type);
+		$adsResult = $adsForm->getResult($item);
+		if (!$adsResult->isSuccess())
 		{
-			return false;
+			$this->errorCollection->add($adsResult->getErrors());
 		}
 
-		return true;
+		$incomeFields = array();
+		while ($item = $adsResult->fetch())
+		{
+			$incomeFields[$item['NAME']] = $item['VALUES'];
+		}
+
+		$addResultParameters = array(
+			'ORIGIN_ID' => $type . '/' . $adsResultId
+		);
+		foreach ($crmForms as $crmFormId)
+		{
+			// add result
+			$this->addResult($crmFormId, $incomeFields, $addResultParameters);
+		}
 	}
 
 	protected static function getLinkedCrmForms($type, $adsFormId)
@@ -103,61 +165,20 @@ class WebHookFormFillHandler
 		return $crmForms;
 	}
 
-	protected static function getAdsResultValue($adsResult, $key)
-	{
-		if (!isset($adsResult[$key]) || !$adsResult[$key])
-		{
-			return null;
-		}
-
-		return $adsResult[$key];
-	}
-
-	protected static function processAdsResult($type, $adsResultId, $adsFormId, $adsAccountId)
-	{
-		// retrieve linked crm-forms
-		$crmForms = self::getLinkedCrmForms($type, $adsFormId);
-		if (count($crmForms) <= 0)
-		{
-			return;
-		}
-
-		$adsForm = LeadAdsService::getForm($type);
-		$adsResult = $adsForm->getResult($adsResultId);
-		if (!$adsResult->isSuccess())
-		{
-			return;
-		}
-
-		$incomeFields = array();
-		while ($item = $adsResult->fetch())
-		{
-			$incomeFields[$item['NAME']] = $item['VALUES'];
-		}
-
-		$addResultParameters = array(
-			'ORIGIN_ID' => $type . '/' . $adsResultId
-		);
-		foreach ($crmForms as $crmFormId)
-		{
-			// add result
-			static::addResult($crmFormId, $incomeFields, $addResultParameters);
-		}
-	}
-
-	protected static function addResult($formId, array $incomeFields, array $addResultParameters)
+	protected function addResult($formId, array $incomeFields, array $addResultParameters)
 	{
 		// check existing form
 		$form = new Form();
 		if (!$form->load($formId))
 		{
+			$this->addError("Can not load crm-form by id `$formId`.");
 			return false;
 		}
 
 		// check existing result
 		if ($form->hasResult($addResultParameters['ORIGIN_ID']))
 		{
-			return false;
+			return true;
 		}
 
 		// prepare fields
@@ -180,7 +201,33 @@ class WebHookFormFillHandler
 
 		// add result
 		$result = $form->addResult($fields, $addResultParameters);
-		$id = $result->getId();
-		return ($id && $id > 0);
+		$this->errorCollection->add($result->getErrors());
+
+		return ($result->getId() && $result->getId() > 0);
+	}
+
+	protected function addError($errorText)
+	{
+		$this->errorCollection->setError(new Error($errorText));
+	}
+
+	/**
+	 * Return true if it has errors.
+	 *
+	 * @return bool
+	 */
+	public function hasErrors()
+	{
+		return $this->errorCollection->count() > 0;
+	}
+
+	/**
+	 * Get error collection.
+	 *
+	 * @return ErrorCollection
+	 */
+	public function getErrorCollection()
+	{
+		return $this->errorCollection;
 	}
 }

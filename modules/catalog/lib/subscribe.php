@@ -637,6 +637,8 @@ class SubscribeTable extends Entity\DataManager
 		else
 		{
 			$protocol = Option::get('main', 'mail_link_protocol', 'https');
+			if (strrpos($protocol, '://') === false)
+				$protocol .= '://';
 		}
 
 		unset($currentApplication);
