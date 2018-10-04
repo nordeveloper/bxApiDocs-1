@@ -147,12 +147,25 @@ class Auth
 	public static function getAuthKey(array $query)
 	{
 		$authKey = null;
-		foreach(static::$authQueryParams as $key)
+
+		$authHeader = \Bitrix\Main\Application::getInstance()->getContext()->getRequest()->getHeader('Authorization');
+		if($authHeader !== null)
 		{
-			if(array_key_exists($key, $query) && !is_array($query[$key]))
+			if(preg_match('/^Bearer\s+/i', $authHeader))
 			{
-				$authKey = $query[$key];
-				break;
+				$authKey = preg_replace('/^Bearer\s+/i', '', $authHeader);
+			}
+		}
+
+		if($authKey === null)
+		{
+			foreach(static::$authQueryParams as $key)
+			{
+				if(array_key_exists($key, $query) && !is_array($query[$key]))
+				{
+					$authKey = $query[$key];
+					break;
+				}
 			}
 		}
 

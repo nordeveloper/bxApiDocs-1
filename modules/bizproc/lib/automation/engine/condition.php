@@ -90,8 +90,18 @@ class Condition
 	 */
 	public function check($needle, $fieldType, BaseTarget $target)
 	{
-		$result = false;
 		$operator = $this->getOperator();
+
+		if ($operator === 'empty')
+		{
+			return \CBPHelper::isEmptyValue($needle);
+		}
+		elseif ($operator === '!empty')
+		{
+			return !\CBPHelper::isEmptyValue($needle);
+		}
+
+		$result = false;
 		$value = $this->getValue();
 
 		$documentId = $target->getDocumentType();

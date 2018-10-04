@@ -8,11 +8,12 @@ class CCalendarSceleton
 	public static function InitJS($config = array(), $data = array(), $additionalParams = array())
 	{
 		global $APPLICATION;
-		CJSCore::Init(array('ajax', 'window', 'popup', 'access', 'date', 'viewer', 'socnetlogdest','color_picker', 'sidepanel', 'clipboard', 'tooltip'));
+		CJSCore::Init(array('ajax', 'window', 'popup', 'access', 'date', 'viewer', 'socnetlogdest','color_picker', 'sidepanel', 'clipboard'));
 
 		\Bitrix\Main\UI\Extension::load("ui.alerts");
 		\Bitrix\Main\UI\Extension::load("ui.buttons");
 		\Bitrix\Main\UI\Extension::load("ui.buttons.icons");
+		\Bitrix\Main\UI\Extension::load("ui.tooltip");
 
 		if(\Bitrix\Main\Loader::includeModule('rest'))
 		{

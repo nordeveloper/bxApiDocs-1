@@ -70,11 +70,6 @@ class CRestServer
 
 		$this->securityClientState = $params['STATE'];
 
-		$this->tokenCheck = in_array($this->method, array(
-			\CRestUtil::METHOD_DOWNLOAD,
-			\CRestUtil::METHOD_UPLOAD,
-		));
-
 		if(!$this->transport)
 		{
 			$this->transport = 'json';
@@ -118,6 +113,8 @@ class CRestServer
 				/* @var IRestService $handler */
 				$this->arServiceDesc = $handler->getDescription();
 
+				$this->tokenCheck = $this->isTokenCheck();
+
 				if($this->checkScope())
 				{
 					$APPLICATION->RestartBuffer();
@@ -125,6 +122,8 @@ class CRestServer
 					if($this->checkAuth())
 					{
 						\Bitrix\Rest\StatTable::log($this);
+
+
 						if($this->tokenCheck)
 						{
 							return $this->processTokenCheckCall();
@@ -167,6 +166,20 @@ class CRestServer
 		}
 
 		return null;
+	}
+
+	protected function isTokenCheck()
+	{
+		$methodDescription = $this->getMethodDescription();
+		if(!$methodDescription)
+		{
+			throw new RestException('Method not found!', RestException::ERROR_METHOD_NOT_FOUND, self::STATUS_NOT_FOUND);
+		}
+
+		return in_array($this->method, array(
+			\CRestUtil::METHOD_DOWNLOAD,
+			\CRestUtil::METHOD_UPLOAD,
+		)) || isset($this->query['token']);
 	}
 
 	protected function processTokenCheckCall()
@@ -357,10 +370,21 @@ class CRestServer
 
 	public function getTokenCheckSignature($method, $queryString)
 	{
+		if(!\Bitrix\Rest\OAuthService::getEngine()->isRegistered())
+		{
+			try
+			{
+				\Bitrix\Rest\OAuthService::register();
+			}
+			catch(\Bitrix\Main\SystemException $e)
+			{
+			}
+		}
+
 		$key = \Bitrix\Rest\OAuthService::getEngine()->getClientSecret();
 
 		$signatureState = $method
-			.\CRestUtil::TOKEN_DELIMITER.$this->scope
+			.\CRestUtil::TOKEN_DELIMITER.($this->scope === \CRestUtil::GLOBAL_SCOPE ? '' : $this->scope)
 			.\CRestUtil::TOKEN_DELIMITER.$queryString
 			.\CRestUtil::TOKEN_DELIMITER.implode(\CRestUtil::TOKEN_DELIMITER, $this->auth);
 

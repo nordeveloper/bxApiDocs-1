@@ -9,7 +9,7 @@ class CCalendarReminder
 			$skipReminding = false;
 			$nowTime = time();
 			//$nowTime = CCalendar::Timestamp('01.01.2018 12:00:00');
-			$bTmpUser = CCalendar::TempUser(false, true);
+			$tmpUser = CCalendar::TempUser(false, true);
 			$minReminderOffset = 30;
 
 			// We have to use this to set timezone offset to local user's timezone
@@ -166,8 +166,10 @@ class CCalendarReminder
 
 			CCalendar::SetOffset(false, null);
 
-			if ($bTmpUser)
-				CCalendar::TempUser($bTmpUser, false);
+			if ($tmpUser)
+			{
+				CCalendar::TempUser($tmpUser, false);
+			}
 		}
 	}
 
@@ -222,7 +224,7 @@ class CCalendarReminder
 	{
 		$eventId = intVal($params['id']);
 		$reminders = $params['reminders'];
-		$arFields = $params['arFields'];
+		$entryFields = $params['arFields'];
 		$userId = $params['userId'];
 		$minReminderOffset = 30; // In seconds
 
@@ -232,10 +234,10 @@ class CCalendarReminder
 
 		$remAgentParams = array(
 			'eventId' => $eventId,
-			'userId' => $arFields["CREATED_BY"],
+			'userId' => $entryFields["CREATED_BY"],
 			'viewPath' => $viewPath,
-			'calendarType' => $arFields["CAL_TYPE"],
-			'ownerId' => $arFields["OWNER_ID"],
+			'calendarType' => $entryFields["CAL_TYPE"],
+			'ownerId' => $entryFields["OWNER_ID"],
 			'maxIndex' => 10
 		);
 
@@ -243,7 +245,7 @@ class CCalendarReminder
 		self::RemoveAgent($remAgentParams);
 
 		// 2. Set new reminders
-		$startTs = $arFields['DATE_FROM_TS_UTC']; // Start of the event in UTC
+		$startTs = $entryFields['DATE_FROM_TS_UTC']; // Start of the event in UTC
 		$i = 0;
 
 		foreach($reminders as $reminder)
@@ -263,7 +265,7 @@ class CCalendarReminder
 			{
 				self::AddAgent(CCalendar::Date($agentTime), $remAgentParams);
 			}
-			elseif($arFields['RRULE'] != '')
+			elseif($entryFields['RRULE'] != '')
 			{
 				$events = CCalendarEvent::GetList(
 					array(

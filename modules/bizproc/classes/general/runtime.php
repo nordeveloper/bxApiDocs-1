@@ -168,7 +168,7 @@ class CBPRuntime
 	 * Creates new workflow instance from the specified template.
 	 *
 	 * @param int $workflowTemplateId - ID of the workflow template
-	 * @param string $documentId - ID of the document
+	 * @param array $documentId - ID of the document
 	 * @param mixed $workflowParameters - Optional parameters of the created workflow instance
 	 * @param array|null $parentWorkflow - Parent Workflow information.
 	 * @return CBPWorkflow
@@ -224,7 +224,9 @@ class CBPRuntime
 
 		$starterUserId = 0;
 		if (isset($workflowParameters[CBPDocument::PARAM_TAGRET_USER]))
+		{
 			$starterUserId = intval(substr($workflowParameters[CBPDocument::PARAM_TAGRET_USER], strlen("user_")));
+		}
 
 		$this->arServices["StateService"]->AddWorkflow($workflowId, $workflowTemplateId, $arDocumentId, $starterUserId);
 

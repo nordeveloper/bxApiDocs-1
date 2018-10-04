@@ -304,6 +304,11 @@ class CVoxImplantConfig
 
 	public static function GetLeadWorkflowExecution()
 	{
+		if (!CVoxImplantCrmHelper::isLeadEnabled())
+		{
+			return self::WORKFLOW_START_DEFERRED;
+		}
+
 		return COption::GetOptionString("voximplant", "lead_workflow_execution", self::WORKFLOW_START_DEFERRED);
 	}
 

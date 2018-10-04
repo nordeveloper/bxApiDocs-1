@@ -49,8 +49,6 @@ class CRestProvider
 
 			$ownMethods = array(
 				\CRestUtil::GLOBAL_SCOPE => array(
-					'app.info' => array(__CLASS__, 'appInfo'),
-
 					'app.option.get' => array(__CLASS__, 'appOptionGet'),
 					'app.option.set' => array(__CLASS__, 'appOptionSet'),
 					'user.option.get' => array(__CLASS__, 'userOptionGet'),
@@ -112,6 +110,11 @@ class CRestProvider
 					),
 				),
 			);
+
+			if(!\Bitrix\Main\ModuleManager::isModuleInstalled('oauth'))
+			{
+				$ownMethods[\CRestUtil::GLOBAL_SCOPE]['app.info'] = array(__CLASS__, 'appInfo');
+			}
 
 			$arDescription = array();
 

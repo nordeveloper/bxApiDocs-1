@@ -65,7 +65,7 @@ class Xss
 			$last = $this->processWhiteList($last, 'restore');
 			$this->setFilteredValue($last);
 			$found = true;
-		} 
+		}
 
 		return $found;
 	}
@@ -84,7 +84,7 @@ class Xss
 		$_M3 = '(?:[\x09\x0a\x0d\\\\\s]*)';
 		$_M2 = '(?:(?:[\x09\x0a\x0d\\\\\s]|(?:\/\*.*?\*\/))*)';
 
-		$_Al = '(?<![a-z0-9&_?])';
+		$_Al = '(?<![a-z0-9&_?-])';
 
 		$_Jj = '(?:j|(?:\\\\0*[64]a))';
 		$_Ja = '(?:a|(?:\\\\0*[64]1))';
@@ -113,7 +113,7 @@ class Xss
 		$filters = array(
 			0 => array(
 				'search' => array(
-					"/({$_Jb}{$_M}{$_Je}{$_M}{$_Jh}{$_M})({$_Ja}{$_M}{$_Jv}{$_M}{$_Ji}{$_M}{$_Jo}{$_M}{$_Jr}{$_WS_OPT}{$_Jdd})/is",
+					"/$_Al({$_Jb}{$_M}{$_Je}{$_M}{$_Jh}{$_M})({$_Ja}{$_M}{$_Jv}{$_M}{$_Ji}{$_M}{$_Jo}{$_M}{$_Jr}{$_WS_OPT}{$_Jdd})/is",
 					"/({$_Jj}{$_M3}{$_Ja}{$_M3}{$_Jv}{$_M3})({$_Ja}{$_M3}{$_Js}{$_M3}{$_Jc}{$_M3}{$_Jr}{$_M3}{$_Ji}{$_M3}{$_Jp}{$_M3}{$_Jt}{$_M3}{$_Jdd})/is",
 					"/({$_Jv}{$_M3}{$_Jb}{$_M3})({$_Js}{$_M3}{$_Jc}{$_M3}{$_Jr}{$_M3}{$_Ji}{$_M3}{$_Jp}{$_M3}{$_Jt}{$_M3}{$_Jdd})/is",
 					"/({$_Je}{$_M2}{$_Jx}{$_M2})({$_Jp}{$_M2}{$_Jr}{$_M2}{$_Je}{$_M2}{$_Js}{$_M2}{$_Js}{$_M2}{$_Ji}{$_M2}{$_Jo}{$_M2}{$_Jn}{$_M2}{$_Jss})/is",
@@ -155,8 +155,14 @@ class Xss
 				'search' => array(
 					"/{$_Al}(s{$_M}t{$_M})(y{$_M}l{$_M}e{$_WS_OPT}\=)
 						(?!\\s*
-							(?P<quot>\"|&quot;|')
-							(\\s*[a-z-]+\\s*:\\s*(([0-9a-z\\s%,.#!\-'\"\\/]|&quot;)*|rgb\\s*\\([0-9,\\s]+\\))\\s*(?:!important)?;?)*
+							(?P<quot>\"|&quot;|'|\"|\\\\\"|\\\\')
+							(
+								\\s*[a-z-]+\\s*:\\s*([0-9a-z\\s%,.#!\-'\"\\/]
+								|&quot;
+								|rgb\\s*\\([0-9,\\s]+\\))*\\s*(?:!important)?;?
+								|background-image\\s*\\:\\s*url\\s*\\([^)]+\\);?
+								|background\\s*\\:(?:\\s*url\\s*\\([^)]+\\)|\s\\#[0-9a-fA-F]+|\s[a-zA-Z-]+)+;?
+							)*
 							\\s*
 							(?P=quot)
 						)
@@ -200,25 +206,33 @@ class Xss
 	{
 		$safeReplacement = md5(mt_rand());
 		return array(
-			//video player insertion
-			array(
-				'store_match' => '#(<script)(\\s+type="text/javascript"\\s+src="/bitrix/components/bitrix/player/wmvplayer/(silverlight|wmvplayer).js"[\\s/]*></script>)#s',
-				'store_replacement' => '<'.$safeReplacement.'\\2',
-				'restore_match' => '#<'.$safeReplacement.'#',
-				'restore_replacement' => '<script',
+			'store' => array(
+				'match' => array(
+					//video player insertion
+					'#(<script)(\\s+type="text/javascript"\\s+)(src)(="/bitrix/components/bitrix/player/wmvplayer/(:?silverlight|wmvplayer).js"[\\s/]*>)(</script>)#s',
+					'#(<script)(\\s+type\\s*=\\s*"text/javascript"\\s*>\\s*new\\s+jeroenwijering\\.Player\\(\\s*document\\.getElementById\\(\\s*"[a-zA-Z0-9_]+"\\s*\\)\\s*,\\s*"/bitrix/components/bitrix/player/wmvplayer/wmvplayer.xaml"\\s*,\\s*{\\s*(?:[a-zA-Z0-9_]+:\\s+"[a-zA-Z0-9/.]*?"[,\\s]*)*}\\s*\\);\\s*)(</script>)#s',
+				),
+				'replacement' => array(
+					$safeReplacement.'11\\2'.$safeReplacement.'12\\4'.$safeReplacement.'13',
+					$safeReplacement.'21\\2'.$safeReplacement.'22',
+				),
 			),
-			array(
-				'store_match' => '#(<script)(\\s+type\\s*=\\s*"text/javascript"\\s*>\\s*new\\s+jeroenwijering\\.Player\\(\\s*document\\.getElementById\\(\\s*"[a-zA-Z0-9_]+"\\s*\\)\\s*,\\s*"/bitrix/components/bitrix/player/wmvplayer/wmvplayer.xaml"\\s*,\\s*{\\s*(?:[a-zA-Z0-9_]+:\\s+"[a-zA-Z0-9/.]*?"[,\\s]*)*}\\);</script>)#s',
-				'store_replacement' => '<'.$safeReplacement.'\\2',
-				'restore_match' => '#<'.$safeReplacement.'#',
-				'restore_replacement' => '<script',
-			)
+			'restore' => array(
+				'match' => array(
+					'#'.$safeReplacement.'11(.*?)'.$safeReplacement.'12(.*?)'.$safeReplacement.'13#',
+					'#'.$safeReplacement.'21(.*?)'.$safeReplacement.'22#',
+				),
+				'replacement' => array(
+					'<script\\1src\\2</script>',
+					'<script\\1</script>',
+				),
+			),
 		);
 	}
 
 	/**
 	 * @param string $value
-	 * @param string $action - only 'store' or 'replace'
+	 * @param string $action - only 'store' or 'restore'
 	 * @return string
 	 */
 	protected function processWhiteList($value, $action = 'store')
@@ -226,19 +240,12 @@ class Xss
 		if (!is_string($value) || !$value)
 			return '';
 
-		if (!in_array($action, array('store', 'replace')))
+		$this->initializeWhiteList();
+		if (!isset($this->whiteList[$action]))
 			return $value;
 
-		$this->initializeWhiteList();
-		$result = '';
-		while ($result != $value)
-		{
-			$result = $value;
-			foreach ($this->whiteList as $whiteListElement)
-			{
-				$result = preg_replace($whiteListElement[$action.'_match'], $whiteListElement[$action.'_replacement'], $value);
-			}
-		}
+		$result = preg_replace($this->whiteList[$action]['match'], $this->whiteList[$action]['replacement'], $value);
+
 		return $result;
 	}
 

@@ -1359,6 +1359,7 @@ abstract class BaseObject extends Internals\Model implements \JsonSerializable
 			SELECT NAME FROM b_disk_object 
 			WHERE 
 				PARENT_ID = {$underObjectId} AND 
+				NAME LIKE '" . $sqlHelper->forSql($left) . "%' AND
 				LEFT(NAME, {$lengthL}) = '" . $sqlHelper->forSql($left) . "' AND
 				MID(NAME, {$lengthL} + 1, CHAR_LENGTH(NAME) - {$lengthL} - {$lengthR}) regexp '^[[:digit:]]+$' AND
 				RIGHT(NAME, {$lengthR}) = '" . $sqlHelper->forSql($right) . "'

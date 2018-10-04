@@ -560,86 +560,101 @@ class CCalendarSect
 	public static function Edit($params)
 	{
 		global $DB;
-		$arFields = $params['arFields'];
-		if(!self::CheckFields($arFields))
+		$sectionFields = $params['arFields'];
+		if(!self::CheckFields($sectionFields))
 			return false;
 
 		$userId = intVal(isset($params['userId']) ? $params['userId'] : CCalendar::GetCurUserId());
 		//if (!CCalendarSect::CanDo('calendar_edit_section', $ID))
 		//	return CCalendar::ThrowError('EC_ACCESS_DENIED');
 
-		$bNew = !isset($arFields['ID']) || $arFields['ID'] <= 0;
-		if (isset($arFields['COLOR']) || $bNew)
-			$arFields['COLOR'] = CCalendar::Color($arFields['COLOR']);
+		$isNewSection = !isset($sectionFields['ID']) || $sectionFields['ID'] <= 0;
+		if (isset($sectionFields['COLOR']) || $isNewSection)
+			$sectionFields['COLOR'] = CCalendar::Color($sectionFields['COLOR']);
 
-		$arFields['TIMESTAMP_X'] = CCalendar::Date(mktime());
+		$sectionFields['TIMESTAMP_X'] = CCalendar::Date(mktime());
 
-		if (is_array($arFields['EXPORT']))
+		if (is_array($sectionFields['EXPORT']))
 		{
-			$arFields['EXPORT'] = array(
-				'ALLOW' => !!$arFields['EXPORT']['ALLOW'],
-				'SET' => (in_array($arFields['EXPORT']['set'], array('all', '3_9', '6_12'))) ? $arFields['EXPORT']['set'] : 'all'
+			$sectionFields['EXPORT'] = array(
+				'ALLOW' => !!$sectionFields['EXPORT']['ALLOW'],
+				'SET' => (in_array($sectionFields['EXPORT']['set'], array('all', '3_9', '6_12'))) ? $sectionFields['EXPORT']['set'] : 'all'
 			);
 			//if (!is_array($arFields['EXPORT']))
 			//	$arFields['EXPORT'] = array('ALLOW' => false,'SET' => 'all');
 
-			$arFields['EXPORT'] = serialize($arFields['EXPORT']);
+			$sectionFields['EXPORT'] = serialize($sectionFields['EXPORT']);
 		}
 
-		if ($bNew) // Add
+		if ($isNewSection) // Add
 		{
-			if (!isset($arFields['DATE_CREATE']))
-				$arFields['DATE_CREATE'] = CCalendar::Date(mktime());
+			if (!isset($sectionFields['DATE_CREATE']))
+				$sectionFields['DATE_CREATE'] = CCalendar::Date(mktime());
 
-			if ((!isset($arFields['CREATED_BY']) || !$arFields['CREATED_BY']))
-				$arFields['CREATED_BY'] = CCalendar::GetCurUserId();
+			if ((!isset($sectionFields['CREATED_BY']) || !$sectionFields['CREATED_BY']))
+				$sectionFields['CREATED_BY'] = CCalendar::GetCurUserId();
 
-			unset($arFields['ID']);
-			$ID = $DB->Add("b_calendar_section", $arFields, array('DESCRIPTION'));
+			unset($sectionFields['ID']);
+			$id = $DB->Add("b_calendar_section", $sectionFields, array('DESCRIPTION'));
 		}
 		else // Update
 		{
-			$ID = $arFields['ID'];
-			unset($arFields['ID']);
-			$strUpdate = $DB->PrepareUpdate("b_calendar_section", $arFields);
+			$id = $sectionFields['ID'];
+			unset($sectionFields['ID']);
+			$strUpdate = $DB->PrepareUpdate("b_calendar_section", $sectionFields);
 			$strSql =
 				"UPDATE b_calendar_section SET ".
 					$strUpdate.
-				" WHERE ID=".IntVal($ID);
+				" WHERE ID=".IntVal($id);
 
-			$DB->QueryBind($strSql, array('DESCRIPTION' => $arFields['DESCRIPTION']));
+			$DB->QueryBind($strSql, array('DESCRIPTION' => $sectionFields['DESCRIPTION']));
 		}
 
 		//SaveAccess
-		if ($ID > 0 && is_array($arFields['ACCESS']))
+		if ($id > 0 && is_array($sectionFields['ACCESS']))
 		{
-			if (($arFields['CAL_TYPE'] == 'user' && $arFields['OWNER_ID'] == $userId) || self::CanDo('calendar_edit_access', $ID))
+			if (($sectionFields['CAL_TYPE'] == 'user' && $sectionFields['OWNER_ID'] == $userId) || self::CanDo('calendar_edit_access', $id))
 			{
-				if (empty($arFields['ACCESS']))
-					self::SavePermissions($ID, CCalendarSect::GetDefaultAccess($arFields['CAL_TYPE'], $arFields['OWNER_ID']));
+				if (empty($sectionFields['ACCESS']))
+					self::SavePermissions($id, CCalendarSect::GetDefaultAccess($sectionFields['CAL_TYPE'], $sectionFields['OWNER_ID']));
 				else
-					self::SavePermissions($ID, $arFields['ACCESS']);
+					self::SavePermissions($id, $sectionFields['ACCESS']);
 			}
-			elseif($bNew)
+			elseif($isNewSection)
 			{
-				self::SavePermissions($ID, CCalendarSect::GetDefaultAccess($arFields['CAL_TYPE'], $arFields['OWNER_ID']));
+				self::SavePermissions($id, CCalendarSect::GetDefaultAccess($sectionFields['CAL_TYPE'], $sectionFields['OWNER_ID']));
 			}
 		}
 
-		if ($bNew && $ID > 0 && !isset($arFields['ACCESS']))
+		if ($isNewSection && $id > 0 && !isset($sectionFields['ACCESS']))
 		{
-			self::SavePermissions($ID, CCalendarSect::GetDefaultAccess($arFields['CAL_TYPE'], $arFields['OWNER_ID']));
+			self::SavePermissions($id, CCalendarSect::GetDefaultAccess($sectionFields['CAL_TYPE'], $sectionFields['OWNER_ID']));
 		}
 
 		CCalendar::ClearCache(array('section_list', 'event_list'));
 
-		if ($ID > 0 && isset(self::$Permissions[$ID]))
+		if ($id > 0 && isset(self::$Permissions[$id]))
 		{
-			unset(self::$Permissions[$ID]);
+			unset(self::$Permissions[$id]);
 			self::$arOp = array();
 		}
 
-		return $ID;
+		if ($isNewSection)
+		{
+			foreach(\Bitrix\Main\EventManager::getInstance()->findEventHandlers("calendar", "OnAfterCalendarSectionAdd") as $event)
+			{
+				ExecuteModuleEventEx($event, array('id' => $id, 'sectionFields' => $sectionFields));
+			}
+		}
+		else
+		{
+			foreach(\Bitrix\Main\EventManager::getInstance()->findEventHandlers("calendar", "OnAfterCalendarSectionUpdate") as $event)
+			{
+				ExecuteModuleEventEx($event, array('id' => $id, 'sectionFields' => $sectionFields));
+			}
+		}
+
+		return $id;
 	}
 
 	public static function Delete($id, $checkPermissions = true)
@@ -683,6 +698,12 @@ class CCalendarSect
 		self::CleanAccessTable();
 
 		CCalendar::ClearCache(array('section_list', 'event_list'));
+
+		foreach(\Bitrix\Main\EventManager::getInstance()->findEventHandlers("calendar", "OnAfterCalendarSectionDelete") as $event)
+		{
+			ExecuteModuleEventEx($event, array($id));
+		}
+
 		return true;
 	}
 

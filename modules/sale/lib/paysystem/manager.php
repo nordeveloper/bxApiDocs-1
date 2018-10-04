@@ -347,7 +347,7 @@ final class Manager
 					{
 						$data = array();
 						$psTitle = '';
-						$domain = null;
+						$psDomain = null;
 
 						if (strpos($item->getName(), '.description') !== false)
 						{
@@ -360,7 +360,7 @@ final class Manager
 								$psTitle = $data['NAME'].' ('.$handlerName.')';
 								if (isset($data['DOMAIN']))
 								{
-									$domain = $data['DOMAIN'];
+									$psDomain = $data['DOMAIN'];
 								}
 							}
 							else
@@ -374,22 +374,17 @@ final class Manager
 									$psTitle .= ' ('.$handlerName.')';
 								}
 
-								if (isset($psDomain))
-								{
-									$domain = $psDomain;
-								}
-
 								$handlerName = str_replace($documentRoot, '', $handler->getPath());
 							}
 							$group = (strpos($type, 'SYSTEM') !== false) ? 'SYSTEM' : 'USER';
 
 							if (!isset($result[$group][$handlerName]))
 							{
-								if ($domain !== null)
+								if ($psDomain !== null)
 								{
-									if ((IsModuleInstalled('bitrix24') && $domain === static::HANDLER_DOMAIN_BOX) ||
-										(!IsModuleInstalled('bitrix24') && $domain === static::HANDLER_DOMAIN_CLOUD) ||
-										$domain === static::HANDLER_DOMAIN_NONE
+									if ((IsModuleInstalled('bitrix24') && $psDomain === static::HANDLER_DOMAIN_BOX) ||
+										(!IsModuleInstalled('bitrix24') && $psDomain === static::HANDLER_DOMAIN_CLOUD) ||
+										$psDomain === static::HANDLER_DOMAIN_NONE
 									)
 									{
 										continue(2);

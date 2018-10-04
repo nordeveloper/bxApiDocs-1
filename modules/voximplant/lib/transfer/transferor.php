@@ -246,7 +246,6 @@ class Transferor
 
 		$internalCall->update([
 			'CRM' => $clientCall->isCrmEnabled() ? 'Y' : 'N',
-			'CRM_LEAD' => $clientCall->getCrmLead(),
 			'CRM_ENTITY_TYPE' => $clientCall->getCrmEntityType(),
 			'CRM_ENTITY_ID' => $clientCall->getCrmEntityId(),
 			'CRM_ACTIVITY_ID' => $clientCall->getCrmActivityId()

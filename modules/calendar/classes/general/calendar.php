@@ -1393,7 +1393,9 @@ class CCalendar
 				"<=DATE_ACTIVE_FROM" => $params['to']
 			);
 			if(IntVal($curEventId) > 0)
+			{
 				$arFilter["!ID"] = IntVal($curEventId);
+			}
 
 			$rsElement = CIBlockElement::GetList(Array('ACTIVE_FROM' => 'ASC'), $arFilter, false, false, $arSelect);
 			while($obElement = $rsElement->GetNextElement())
@@ -2095,7 +2097,9 @@ class CCalendar
 				$newParams['sendEditNotification'] = false;
 
 				if (!$newParams['arFields']['MEETING']['REINVITE'])
+				{
 					$newParams['saveAttendeesStatus'] = true;
+				}
 
 				$newParams['arFields']['RECURRENCE_ID'] = $curEvent['RECURRENCE_ID'] ? $curEvent['RECURRENCE_ID'] : $newParams['arFields']['ID'];
 
@@ -2190,7 +2194,9 @@ class CCalendar
 				}
 
 				if (!$newParams['arFields']['MEETING']['REINVITE'])
+				{
 					$newParams['saveAttendeesStatus'] = true;
+				}
 
 				$currentFromTs = self::Timestamp($newParams['arFields']['DATE_FROM']);
 				$length = self::Timestamp($newParams['arFields']['DATE_TO']) - self::Timestamp($newParams['arFields']['DATE_FROM']);
@@ -4500,7 +4506,6 @@ class CCalendar
 	{
 		if (!is_array($user) && intVal($user) > 0)
 			$user = self::GetUser($user);
-
 		if(!$user || !is_array($user))
 			return '';
 
@@ -5006,7 +5011,6 @@ class CCalendar
 					array('arFilter' => array('ID' => $result),
 					'checkPermissions' => false,
 					'getPermissions' => false
-
 				));
 				if($section && is_array($section) && is_array($section[0]))
 				{
@@ -5046,6 +5050,18 @@ class CCalendar
 					CCalendarUserSettings::Set($set, $userId);
 				}
 			}
+		}
+
+		$actualResult = $result;
+		foreach(\Bitrix\Main\EventManager::getInstance()->findEventHandlers("calendar", "OnGetMeetingSectionForUser") as $event)
+		{
+			ExecuteModuleEventEx($event, array($userId, &$result));
+		}
+
+		if ($actualResult != $result)
+		{
+			$set['meetSection'] = $result;
+			CCalendarUserSettings::Set($set, $userId);
 		}
 
 		self::$meetingSections[$userId] = $result;

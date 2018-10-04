@@ -730,12 +730,26 @@ class CBPCalc
 		$df2 = $GLOBALS["DB"]->DateFormatToPHP(FORMAT_DATE);
 		$date1Formatted = \DateTime::createFromFormat($df, $date1);
 		if ($date1Formatted === false)
+		{
 			$date1Formatted = \DateTime::createFromFormat($df2, $date1);
+			if ($date1Formatted)
+			{
+				$date1Formatted->setTime(0, 0);
+			}
+		}
 		$date2Formatted = \DateTime::createFromFormat($df, $date2);
 		if ($date2Formatted === false)
+		{
 			$date2Formatted = \DateTime::createFromFormat($df2, $date2);
+			if ($date2Formatted)
+			{
+				$date2Formatted->setTime(0, 0);
+			}
+		}
 		if ($date1Formatted === false || $date2Formatted === false)
+		{
 			return null;
+		}
 
 		$interval = $date1Formatted->diff($date2Formatted);
 
@@ -923,7 +937,7 @@ class CBPCalc
 				{
 					$ix = randString(5);
 					$attr = (!empty($attr) ? 'href="'.$attr.'"' : 'href="#" onClick="return false;"');
-					$result[] = '<a class="feed-post-user-name" id="bp_'.$userId.'_'.$ix.'" '.$attr.' bx-post-author-id="'.$userId.'" bx-post-author-gender="'.$ar['PERSONAL_GENDER'].'">'.CUser::FormatName(CSite::GetNameFormat(false), $ar, false).'</a><script type="text/javascript">BX.tooltip(\''.$userId.'\', "bp_'.$userId.'_'.$ix.'", "");</script>';
+					$result[] = '<a class="feed-post-user-name" id="bp_'.$userId.'_'.$ix.'" '.$attr.' bx-post-author-id="'.$userId.'" bx-post-author-gender="'.$ar['PERSONAL_GENDER'].'" bx-tooltip-user-id="'.$userId.'">'.CUser::FormatName(CSite::GetNameFormat(false), $ar, false).'</a>';
 				}
 			}
 

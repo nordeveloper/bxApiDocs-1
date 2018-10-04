@@ -529,8 +529,8 @@ abstract class CBPActivity
 
 			/** @var CBPDocumentService $documentService */
 			$documentService = $this->workflow->GetService("DocumentService");
-			$document = $documentService->GetDocument($documentId);
 			$documentType = $this->GetDocumentType();
+			$document = $documentService->GetDocument($documentId, $documentType);
 			$documentFields = $documentService->GetDocumentFields($documentType);
 			//check aliases
 			$documentFieldsAliasesMap = CBPDocument::getDocumentFieldsAliasesMap($documentFields);

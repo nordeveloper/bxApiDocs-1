@@ -32,6 +32,7 @@ class CIBlockPropertyDirectory
 			'GetPropertyFieldHtml' => array(__CLASS__, 'GetPropertyFieldHtml'),
 			'GetPropertyFieldHtmlMulty' => array(__CLASS__, 'GetPropertyFieldHtmlMulty'),
 			'PrepareSettings' => array(__CLASS__, 'PrepareSettings'),
+			'GetOptionsData' => array(__CLASS__, 'GetOptionsData'),
 			'GetAdminListViewHTML' => array(__CLASS__, 'GetAdminListViewHTML'),
 			'GetPublicViewHTML' => array(__CLASS__, 'GetPublicViewHTML'),
 			'GetPublicEditHTML' => array(__CLASS__, 'GetPublicEditHTML'),
@@ -472,6 +473,35 @@ HIBSELECT;
 			$cellOption = '<option value="" selected>'.Loc::getMessage('HIBLOCK_PROP_DIRECTORY_EMPTY_VALUE').'</option>';
 		}
 		return $defaultOption.$cellOption;
+	}
+
+	/**
+	 * Returns data for list.
+	 *
+	 * @param array $arProperty Property description.
+	 * @return array
+	 */
+	public static function GetOptionsData($arProperty)
+	{
+		$listData = array();
+
+		if(isset($arProperty["USER_TYPE_SETTINGS"]["TABLE_NAME"]))
+		{
+			$highLoadIBTableName = $arProperty["USER_TYPE_SETTINGS"]["TABLE_NAME"];
+			if (empty(self::$arFullCache[$highLoadIBTableName]))
+			{
+				self::$arFullCache[$highLoadIBTableName] = self::getEntityFieldsByFilter(
+					$highLoadIBTableName,
+					array("select" => array("UF_XML_ID", "UF_NAME", "ID"))
+				);
+			}
+			foreach(self::$arFullCache[$highLoadIBTableName] as $data)
+			{
+				$listData[$data['UF_XML_ID']] = $data["UF_NAME"]." [".$data["ID"]."]";
+			}
+		}
+
+		return $listData;
 	}
 
 	/**

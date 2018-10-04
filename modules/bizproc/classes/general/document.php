@@ -14,6 +14,7 @@ class CBPDocument
 	const PARAM_USE_FORCED_TRACKING = 'UseForcedTracking';
 	const PARAM_IGNORE_SIMULTANEOUS_PROCESSES_LIMIT = 'IgnoreSimultaneousProcessesLimit';
 	const PARAM_DOCUMENT_EVENT_TYPE = 'DocumentEventType';
+	const PARAM_DOCUMENT_TYPE = '__DocumentType';
 
 	public static function MigrateDocumentType($oldType, $newType)
 	{
@@ -303,26 +304,35 @@ class CBPDocument
 	 * @param int $workflowTemplateId - Template id.
 	 * @param array $documentId - Document id array(MODULE_ID, ENTITY, DOCUMENT_ID).
 	 * @param array $arParameters - Workflow parameters.
-	 * @param array $arErrors - Errors array(array("code" => error_code, "message" => message, "file" => file_path), ...).
+	 * @param array $errors - Errors array(array("code" => error_code, "message" => message, "file" => file_path), ...).
 	 * @param array|null $parentWorkflow - Parent workflow information.
 	 * @return string - Workflow id.
 	 */
-	public static function StartWorkflow($workflowTemplateId, $documentId, $arParameters, &$arErrors, $parentWorkflow = null)
+	public static function StartWorkflow($workflowTemplateId, $documentId, $arParameters, &$errors, $parentWorkflow = null)
 	{
-		$arErrors = array();
+		$errors = [];
 
 		$runtime = CBPRuntime::GetRuntime();
 
 		if (!is_array($arParameters))
+		{
 			$arParameters = array($arParameters);
-		if (!isset($arParameters[static::PARAM_TAGRET_USER]))
+		}
+
+		if (!array_key_exists(static::PARAM_TAGRET_USER, $arParameters))
+		{
 			$arParameters[static::PARAM_TAGRET_USER] = is_object($GLOBALS["USER"]) ? "user_".intval($GLOBALS["USER"]->GetID()) : null;
+		}
 
 		if (!isset($arParameters[static::PARAM_MODIFIED_DOCUMENT_FIELDS]))
+		{
 			$arParameters[static::PARAM_MODIFIED_DOCUMENT_FIELDS] = false;
+		}
 
 		if (!isset($arParameters[static::PARAM_DOCUMENT_EVENT_TYPE]))
+		{
 			$arParameters[static::PARAM_DOCUMENT_EVENT_TYPE] = CBPDocumentEventType::None;
+		}
 
 		try
 		{
@@ -332,7 +342,7 @@ class CBPDocument
 		}
 		catch (Exception $e)
 		{
-			$arErrors[] = array(
+			$errors[] = array(
 				"code" => $e->getCode(),
 				"message" => $e->getMessage(),
 				"file" => $e->getFile()." [".$e->getLine()."]"

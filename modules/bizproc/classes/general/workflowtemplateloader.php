@@ -1314,20 +1314,29 @@ class CBPWorkflowTemplateResult extends CDBResult
 
 		if ($res)
 		{
-			if (array_key_exists("DOCUMENT_TYPE", $res))
+			if (array_key_exists("DOCUMENT_TYPE", $res) && !is_array($res["DOCUMENT_TYPE"]))
+			{
 				$res["DOCUMENT_TYPE"] = array($res["MODULE_ID"], $res["ENTITY"], $res["DOCUMENT_TYPE"]);
-			if (array_key_exists("TEMPLATE", $res))
+			}
+
+			if (array_key_exists("TEMPLATE", $res) && !is_array($res["TEMPLATE"]))
+			{
 				$res["TEMPLATE"] = $this->GetFromSerializedForm($res["TEMPLATE"]);
-			if (array_key_exists("VARIABLES", $res))
+			}
+
+			if (array_key_exists("VARIABLES", $res) && !is_array($res["VARIABLES"]))
+			{
 				$res["VARIABLES"] = $this->GetFromSerializedForm($res["VARIABLES"]);
-			if (array_key_exists("CONSTANTS", $res))
+			}
+
+			if (array_key_exists("CONSTANTS", $res) && !is_array($res["CONSTANTS"]))
+			{
 				$res["CONSTANTS"] = $this->GetFromSerializedForm($res["CONSTANTS"]);
-			if (array_key_exists("PARAMETERS", $res))
+			}
+
+			if (array_key_exists("PARAMETERS", $res) && !is_array($res["PARAMETERS"]))
 			{
 				$res["PARAMETERS"] = $this->GetFromSerializedForm($res["PARAMETERS"]);
-				$arParametersKeys = array_keys($res["PARAMETERS"]);
-				foreach ($arParametersKeys as $parameterKey)
-					$res["PARAMETERS"][$parameterKey]["Type"] = $res["PARAMETERS"][$parameterKey]["Type"];
 			}
 		}
 

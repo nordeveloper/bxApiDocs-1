@@ -3,6 +3,7 @@
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Config\Option;
+use Bitrix\Iblock;
 
 Loc::loadMessages(__FILE__);
 
@@ -211,18 +212,26 @@ class CCatalogAdmin
 		if (empty($arCatalogs))
 			return;
 
-		$listIblockId = array_keys($arCatalogs);
-
+		//TODO: replace this hack to api
 		if (isset($_REQUEST["public_menu"]) && Loader::includeModule("crm"))
 		{
-			$listIblockId = array_filter($listIblockId, function($itemId) {
-				$res = CCrmCatalog::getList(array(), array(
-					"ID" => $itemId), false, false, array("XML_ID"));
-				if ($crmIblock = $res->fetch())
-					return ((strpos($crmIblock["XML_ID"], "crm_external_") === false) ? true : false);
-				return true;
-			});
+			$defaultCrmIblock = CCrmCatalog::GetDefaultID();
+			$iterator = Iblock\IblockTable::getList([
+				'select' => ['ID', 'XML_ID'],
+				'filter' => ['@ID' => array_keys($arCatalogs)]
+			]);
+			while ($row = $iterator->fetch())
+			{
+				$iblockId = (int)$row['ID'];
+				if ($iblockId == $defaultCrmIblock)
+					continue;
+				if (strncmp($row['XML_ID'], 'crm_external_', 13) === 0)
+					unset($arCatalogs[$iblockId]);
+			}
+			unset($iblockId, $row, $iterator);
 		}
+
+		$listIblockId = array_keys($arCatalogs);
 
 		if (empty($listIblockId))
 			return;

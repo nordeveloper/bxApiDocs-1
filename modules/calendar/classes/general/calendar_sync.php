@@ -6,7 +6,7 @@ use \Bitrix\Calendar\PushTable;
 
 class CCalendarSync
 {
-	public static $handleExchangeMeeting = false;
+	public static $handleExchangeMeeting;
 	public static $doNotSendToGoogle = false;
 
 	public static function doSync()
@@ -403,9 +403,21 @@ class CCalendarSync
 
 			if (!empty($arFields['PROPERTY_REMIND_SETTINGS']))
 			{
-				$ar = explode("_", $arFields["PROPERTY_REMIND_SETTINGS"]);
-				if(count($ar) == 2)
-					$arNewFields["REMIND"][] = array('type' => $ar[1],'count' => floatVal($ar[0]));
+				if (is_array($arFields['PROPERTY_REMIND_SETTINGS']))
+				{
+					foreach ($arFields['PROPERTY_REMIND_SETTINGS'] as $remindSetting)
+					{
+						$ar = explode("_", $remindSetting);
+						if(count($ar) == 2)
+							$arNewFields["REMIND"][] = array('type' => $ar[1],'count' => floatVal($ar[0]));
+					}
+				}
+				else
+				{
+					$ar = explode("_", $arFields["PROPERTY_REMIND_SETTINGS"]);
+					if(count($ar) == 2)
+						$arNewFields["REMIND"][] = array('type' => $ar[1],'count' => floatVal($ar[0]));
+				}
 			}
 
 			if (!empty($arFields['PROPERTY_ACCESSIBILITY']))
@@ -1042,6 +1054,10 @@ class CCalendarSync
 
 	public static function isExchangeMeetingEnabled()
 	{
+		if (!isset(self::$handleExchangeMeeting))
+		{
+			self::$handleExchangeMeeting = COption::GetOptionString('calendar', 'sync_exchange_meeting', false);
+		}
 		return self::$handleExchangeMeeting;
 	}
 }

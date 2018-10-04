@@ -62,6 +62,23 @@ class PropertyManager
 							"filterable" => ""
 						);
 						break;
+					case "directory":
+						if (array_key_exists("GetOptionsData", $property["PROPERTY_USER_TYPE"]))
+						{
+							$data = call_user_func_array(
+								$property["PROPERTY_USER_TYPE"]["GetOptionsData"],
+								array($property, array())
+							);
+							$fields = array(
+								"id" => $fieldId,
+								"name" => $fieldName,
+								"type" => "list",
+								"items" => $data,
+								"params" => array("multiple" => "Y"),
+								"filterable" => ""
+							);
+						}
+						break;
 					case "employee":
 					case "ECrm":
 						$fields = array(
@@ -88,15 +105,15 @@ class PropertyManager
 								"filterable" => ""
 							);
 						}
-						else
-						{
-							$listLikeProperty = array("HTML");
-							$fields = array(
-								"id" => $fieldId,
-								"name" => $fieldName,
-								"filterable" => in_array($userType, $listLikeProperty) ? "?" : ""
-							);
-						}
+				}
+				if (empty($fields))
+				{
+					$listLikeProperty = array("HTML");
+					$fields = array(
+						"id" => $fieldId,
+						"name" => $fieldName,
+						"filterable" => in_array($userType, $listLikeProperty) ? "?" : ""
+					);
 				}
 				$this->filterFields[] = $fields;
 			}

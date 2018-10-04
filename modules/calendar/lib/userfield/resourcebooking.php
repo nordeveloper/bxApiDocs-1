@@ -13,7 +13,7 @@ Loc::loadMessages(__FILE__);
 class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 {
 	const USER_TYPE_ID = 'resourcebooking';
-
+	const RESOURCE_CALENDAR_TYPE = 'resource';
 	const BITRIX24_RESTRICTION = 100;
 	const BITRIX24_RESTRICTION_CODE = 'uf_resourcebooking';
 
@@ -188,6 +188,10 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 				$fields['ID'] = $currentEntriesIndex[$value['type'].$value['id']]['EVENT_ID'];
 				$entryId = $currentEntriesIndex[$value['type'].$value['id']]['ID'];
 			}
+			else
+			{
+				unset($fields['ID']);
+			}
 
 			$resourceBookingId = self::saveResource(
 				$entryId,
@@ -235,7 +239,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		}
 	}
 
-	private static function saveResource($id, $resourceType, $resourceId, $eventFields = array(), $params = array())
+	public static function saveResource($id, $resourceType, $resourceId, $eventFields = array(), $params = array())
 	{
 		$valueToSave = false;
 		$currentUserId = \CCalendar::getCurUserId();
@@ -284,7 +288,6 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		{
 			$eventFields["CAL_TYPE"] = $resourceType;
 			$eventFields["SECTIONS"] = $resourceId;
-
 			$entryId = \CCalendarEvent::edit(array(
 				'arFields' => $eventFields
 			));
@@ -318,9 +321,9 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 				'EVENT_ID' => $entryId,
 				'CAL_TYPE' => $eventFields["CAL_TYPE"],
 				'RESOURCE_ID' => $resourceId,
-				'PARENT_TYPE' => $params['userField']['ENTITY_ID'],
-				'PARENT_ID' => $params['userField']['VALUE_ID'],
-				'UF_ID' => $params['userField']['ID'],
+				'PARENT_TYPE' => isset($params['bindingEntityType']) ? $params['bindingEntityType'] : $params['userField']['ENTITY_ID'],
+				'PARENT_ID' => isset($params['bindingEntityId']) ? $params['bindingEntityId'] :  $params['userField']['VALUE_ID'],
+				'UF_ID' => isset($params['bindingUserfieldId']) ? $params['bindingUserfieldId'] :  $params['userField']['ID'],
 				'DATE_FROM' => $from,
 				'DATE_TO' => $to,
 				'SKIP_TIME' => $eventFields['SKIP_TIME'],
@@ -343,8 +346,6 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 				$result = Internals\ResourceTable::add($resourceTableFields);
 			}
 
-			\CTimeZone::Enable();
-
 			if ($result->isSuccess())
 			{
 				$valueToSave = $result->getId();
@@ -358,7 +359,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		return $valueToSave;
 	}
 
-	private static function releaseResource($entry)
+	public static function releaseResource($entry)
 	{
 		\CCalendar::deleteEvent(intVal($entry['EVENT_ID']), false, array('checkPermissions' => false));
 		Internals\ResourceTable::delete($entry['ID']);
@@ -713,7 +714,9 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 
 		$typeList = Internals\TypeTable::getList(
 			array(
-				"filter" => array("=ACTIVE" => 'Y', "XML_ID" => 'resource'),
+				"filter" => array(
+					"XML_ID" => self::RESOURCE_CALENDAR_TYPE
+				),
 				"select" => array("XML_ID", "NAME")
 			)
 		);
@@ -724,9 +727,28 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			$result[$type['XML_ID']] = $type;
 		}
 
+		if (!$result[self::RESOURCE_CALENDAR_TYPE])
+		{
+			Internals\TypeTable::add([
+				'XML_ID' => self::RESOURCE_CALENDAR_TYPE,
+				'NAME' => self::RESOURCE_CALENDAR_TYPE,
+				'ACTIVE' => 'Y'
+			]);
+			\CCalendar::ClearCache('type_list');
+
+			$result[self::RESOURCE_CALENDAR_TYPE] = [
+				'XML_ID' => self::RESOURCE_CALENDAR_TYPE,
+				'NAME' =>  self::RESOURCE_CALENDAR_TYPE
+			];
+		}
+
 		$sectionList = Internals\SectionTable::getList(
 			array(
-				"filter" => array("=ACTIVE" => 'Y', "CAL_TYPE" => ['resource'], "!=NAME" => ''),
+				"filter" => array(
+					"=ACTIVE" => 'Y',
+					"CAL_TYPE" => [self::RESOURCE_CALENDAR_TYPE],
+					"!=NAME" => ''
+				),
 				"select" => array("ID", "CAL_TYPE", "NAME")
 			)
 		);
@@ -847,7 +869,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			{
 				$limit = 6;
 			}
-			elseif ($licenseType == 'tf')
+			elseif ($licenseType == 'tf' || $licenseType == 'retail')
 			{
 				$limit = 12;
 			}
@@ -872,5 +894,10 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			$userTypeFields['MULTIPLE'] = 'Y';
 		}
 		return true;
+	}
+
+	public static function getResourceEntriesList($idList = [])
+	{
+		return self::fetchFieldValue($idList);
 	}
 }

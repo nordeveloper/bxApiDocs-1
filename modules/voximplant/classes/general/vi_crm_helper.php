@@ -1514,4 +1514,15 @@ class CVoxImplantCrmHelper
 		$endTime->add($duration . ' seconds');
 		return $endTime;
 	}
+
+	public static function isLeadEnabled()
+	{
+		if(!\Bitrix\Main\Loader::includeModule('crm'))
+		{
+			return false;
+		}
+
+		return \Bitrix\Crm\Settings\LeadSettings::isEnabled();
+
+	}
 }

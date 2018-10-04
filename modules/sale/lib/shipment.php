@@ -1058,6 +1058,8 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	 */
 	protected function setDeliveryRequestMarker()
 	{
+		$order = $this->getParentOrder();
+
 		Requests\Manager::onBeforeShipmentSave($order, $this);
 	}
 

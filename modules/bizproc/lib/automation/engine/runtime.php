@@ -43,6 +43,7 @@ class Runtime
 				'=STATE.MODULE_ID'             => $documentType[0],
 				'=STATE.ENTITY'                => $documentType[1],
 				'=STATE.DOCUMENT_ID'           => $documentId,
+				'=STATE.TEMPLATE.DOCUMENT_TYPE' => $documentType[2],
 				'=STATE.TEMPLATE.AUTO_EXECUTE' => \CBPDocumentEventType::Automation
 			)
 		))->fetchAll();
@@ -67,13 +68,15 @@ class Runtime
 			$documentType = $this->getTarget()->getDocumentType();
 			$documentId = $this->getTarget()->getDocumentId();
 
-			$this->setStarted($documentId, $documentStatus);
+			$this->setStarted($documentType[2], $documentId, $documentStatus);
 			$workflowId = \CBPDocument::startWorkflow(
 				$template->getId(),
 				[$documentType[0], $documentType[1], $documentId],
 				array(
+					\CBPDocument::PARAM_TAGRET_USER => null, //Started by System
 					\CBPDocument::PARAM_USE_FORCED_TRACKING => !$template->isExternalModified(),
-					\CBPDocument::PARAM_IGNORE_SIMULTANEOUS_PROCESSES_LIMIT => true
+					\CBPDocument::PARAM_IGNORE_SIMULTANEOUS_PROCESSES_LIMIT => true,
+					\CBPDocument::PARAM_DOCUMENT_TYPE => $documentType,
 				),
 				$errors
 			);
@@ -130,7 +133,10 @@ class Runtime
 	public function onDocumentAdd()
 	{
 		$status = $this->getTarget()->getDocumentStatus();
-		if ($status && !$this->isStarted($this->getTarget()->getDocumentId(), $status))
+		$documentType = $this->getTarget()->getDocumentType()[2];
+		$documentId = $this->getTarget()->getDocumentId();
+
+		if ($status && !$this->isStarted($documentType, $documentId, $status))
 		{
 			$this->runTemplates($status);
 		}
@@ -144,24 +150,38 @@ class Runtime
 	public function onDocumentStatusChanged()
 	{
 		$status = $this->getTarget()->getDocumentStatus();
-		if ($status && !$this->isStarted($this->getTarget()->getDocumentId(), $status))
+		$documentType = $this->getTarget()->getDocumentType()[2];
+		$documentId = $this->getTarget()->getDocumentId();
+
+		if ($status && !$this->isStarted($documentType, $documentId, $status))
 		{
 			$this->stopTemplates();
 			$this->runTemplates($status);
 		}
 	}
 
-	private function setStarted($documentId, $status)
+	/**
+	 * Document moving handler.
+	 * @return void
+	 */
+	public function onDocumentMove()
 	{
-		static::$startedTemplates[$documentId] = (string) $status;
+		$this->stopTemplates();
+	}
+
+	private function setStarted($documentType, $documentId, $status)
+	{
+		$key = $documentType .'_'. $documentId;
+		static::$startedTemplates[$key] = (string) $status;
 		return $this;
 	}
 
-	private function isStarted($documentId, $status)
+	private function isStarted($documentType, $documentId, $status)
 	{
+		$key = $documentType .'_'. $documentId;
 		return (
-			isset(static::$startedTemplates[$documentId])
-			&& (string) $status === static::$startedTemplates[$documentId]
+			isset(static::$startedTemplates[$key])
+			&& (string) $status === static::$startedTemplates[$key]
 		);
 	}
 }

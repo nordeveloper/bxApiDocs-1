@@ -58,7 +58,7 @@ class AppTable extends Main\Entity\DataManager
 	protected static $applicationCache = array();
 
 	protected static $localAppDeniedScope = array(
-		'landing_cloud'
+		'landing_cloud', 'rating',
 	);
 
 	/**
@@ -161,6 +161,10 @@ class AppTable extends Main\Entity\DataManager
 				'data_type' => 'string',
 			),
 			'MOBILE' => array(
+				'data_type' => 'boolean',
+				'values' => array(static::INACTIVE, static::ACTIVE),
+			),
+			'USER_INSTALL' => array(
 				'data_type' => 'boolean',
 				'values' => array(static::INACTIVE, static::ACTIVE),
 			),

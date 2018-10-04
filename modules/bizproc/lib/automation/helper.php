@@ -57,16 +57,16 @@ class Helper
 			{
 				foreach ($documentUserFields as $field)
 				{
-					if ($user !== $field['Expression'])
-						continue;
-
-					$result[] = array(
-						'id'         => 'BPR_'.$field['Id'],
-						'entityId'   => $field['Expression'],
-						'name'       => htmlspecialcharsBx($field['Name']),
-						'avatar' => '',
-						'desc' => '&nbsp;'
-					);
+					if ($user === $field['Expression'] || $user === $field['SystemExpression'])
+					{
+						$result[] = array(
+							'id'       => 'BPR_'.$field['Id'],
+							'entityId' => $field['Expression'],
+							'name'     => htmlspecialcharsBx($field['Name']),
+							'avatar'   => '',
+							'desc'     => '&nbsp;'
+						);
+					}
 				}
 			}
 		}

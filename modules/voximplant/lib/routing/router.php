@@ -200,7 +200,7 @@ class Router
 				$userInfo = \CVoxImplantIncoming::getUserByDirectCode($extension);
 				if($userInfo)
 				{
-					list($sipNode, $nextNode) = $this->buildUserGraph($userInfo['USER_ID'], 'sip_to', 'voicemail');
+					list($sipNode, $nextNode) = $this->buildUserGraph($userInfo['USER_ID'], 'sip_to', \CVoxImplantIncoming::RULE_QUEUE);
 					$lastNode->setNext($sipNode);
 					$lastNode = $nextNode;
 				}

@@ -98,7 +98,11 @@ class CBPWorkflow
 		$rootActivity->SetDocumentId($arDocumentId);
 
 		$documentService = $this->GetService("DocumentService");
-		$documentType = $documentService->GetDocumentType($arDocumentId);
+		$documentType = isset($workflowParameters[CBPDocument::PARAM_DOCUMENT_TYPE]) ?
+			$workflowParameters[CBPDocument::PARAM_DOCUMENT_TYPE]
+			: $documentService->GetDocumentType($arDocumentId);
+
+		unset($workflowParameters[CBPDocument::PARAM_DOCUMENT_TYPE]);
 
 		if ($documentType !== null)
 		{

@@ -51,15 +51,16 @@ class ConditionGroup
 			return true;
 		}
 
-		$documentId = $target->getDocumentType();
+		$documentType = $target->getDocumentType();
+		$documentId = $documentType;
 		$documentId[2] = $target->getDocumentId();
 
 		$runtime = \CBPRuntime::getRuntime();
 		$runtime->startRuntime();
 
 		$documentService = $runtime->getService("DocumentService");
-		$document = $documentService->getDocument($documentId);
-		$documentFields = $documentService->getDocumentFields($documentService->getDocumentType($documentId));
+		$document = $documentService->getDocument($documentId, $documentType);
+		$documentFields = $documentService->getDocumentFields($documentType);
 
 		$result = array(0 => true);
 		$i = 0;

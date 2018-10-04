@@ -149,6 +149,7 @@ class CCalendarLocation
 
 	public static function checkAccessibility($location = '', $params = array())
 	{
+
 		$location = CCalendar::ParseLocation($location);
 		$res = true;
 		if ($location['room_id'] || $location['mrid'])
@@ -161,21 +162,30 @@ class CCalendarLocation
 			$curUserId = CCalendar::GetCurUserId();
 			$deltaOffset = isset($params['timezone']) ? (CCalendar::GetTimezoneOffset($params['timezone']) - CCalendar::GetCurrentOffsetUTC($curUserId)) : 0;
 
-//			$fromTs = $fromTs - CCalendar::GetTimezoneOffset($params['fields']['TZ_FROM'], $fromTs);
-//			$toTs = $toTs - CCalendar::GetTimezoneOffset($params['fields']['TZ_TO'], $toTs);
-//			$dateFromUtc = CCalendar::Date($fromTs);
-//			$dateToUtc = CCalendar::Date($toTs);
-
 			if($location['mrid'])
 			{
-				//$mrid = 'MR_'.$location['mrid'];
-//				$meetingRoomRes = CCalendar::GetAccessibilityForMeetingRoom(array(
-//					'allowReserveMeeting' => true,
-//					'id' => $location['mrid'],
-//					'from' => $dateFromUtc,
-//					'to' => $dateToUtc,
-//					'curEventId' => $location['mrevid']
-//				));
+				$meetingRoomRes = CCalendar::GetAccessibilityForMeetingRoom(array(
+					'allowReserveMeeting' => true,
+					'id' => $location['mrid'],
+					'from' => CCalendar::Date($fromTs - CCalendar::DAY_LENGTH, false),
+					'to' => CCalendar::Date($toTs + CCalendar::DAY_LENGTH, false),
+					'curEventId' => $location['mrevid']
+				));
+
+				foreach($meetingRoomRes as $entry)
+				{
+					if ($entry['ID'] != $location['mrevid'])
+					{
+						$entryfromTs = CCalendar::Timestamp($entry['DT_FROM']);
+						$entrytoTs = CCalendar::Timestamp($entry['DT_TO']);
+
+						if ($entryfromTs < $toTs && $entrytoTs > $fromTs)
+						{
+							$res = false;
+							break;
+						}
+					}
+				}
 			}
 			elseif ($location['room_id'])
 			{

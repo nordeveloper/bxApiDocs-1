@@ -157,10 +157,13 @@ class CVoxImplantHistory
 				$arFields['CRM_ENTITY_TYPE'] = CCrmOwnerType::LeadName;
 				$arFields['CRM_ENTITY_ID'] = $leadId;
 
-				CVoxImplantCrmHelper::StartLeadWorkflow($leadId, [
-					'LINE_NUMBER' => $arFields['PORTAL_NUMBER'],
-					'START_TRIGGER' => ($arFields['INCOMING'] == CVoxImplantMain::CALL_INCOMING)
-				]);
+				if(CVoxImplantConfig::GetLeadWorkflowExecution() == CVoxImplantConfig::WORKFLOW_START_IMMEDIATE)
+				{
+					CVoxImplantCrmHelper::StartLeadWorkflow($leadId, [
+						'LINE_NUMBER' => $arFields['PORTAL_NUMBER'],
+						'START_TRIGGER' => ($arFields['INCOMING'] == CVoxImplantMain::CALL_INCOMING)
+					]);
+				}
 			}
 		}
 

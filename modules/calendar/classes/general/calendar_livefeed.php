@@ -678,7 +678,7 @@ class CCalendarLiveFeed
 		if ($eventId > 0)
 		{
 			$arSoFields = Array(
-				"ENTITY_ID" => ($arFields["OWNER_ID"] > 0 ? $arFields["OWNER_ID"] : 1),
+				"ENTITY_ID" => $arFields["CREATED_BY"],
 				"USER_ID" => $arFields["CREATED_BY"],
 				"=LOG_DATE" =>$DB->CurrentTimeFunction(),
 				"TITLE_TEMPLATE" => "#TITLE#",
@@ -1007,6 +1007,20 @@ class CCalendarLiveFeed
 					CSocNetLogFollow::Set(intval($value), "L".$logEntry['ID'], 'N');
 				}
 				CSocNetLogFollow::Set(intval($params['userId']), "L".$logEntry['ID'], $params['status']);
+
+				if (
+					$params['status'] == 'Y'
+					&& method_exists('\Bitrix\Socialnetwork\ComponentHelper','userLogSubscribe')
+				)
+				{
+					\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+						'logId' => $logEntry['ID'],
+						'userId' => $value,
+						'typeList' => array(
+							'COUNTER_COMMENT_PUSH'
+						)
+					));
+				}
 
 				if (!empty($codesList))
 				{
