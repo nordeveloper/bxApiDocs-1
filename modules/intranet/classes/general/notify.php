@@ -289,7 +289,9 @@ class CIntranetNotify
 				}
 
 				if (!$arResult['CREATED_BY']['FORMATTED'])
-					$arResult['CREATED_BY']['FORMATTED'] = self::GetSiteName();
+				{
+					$arResult['CREATED_BY']['FORMATTED'] = htmlspecialcharsEx(self::GetSiteName());
+				}
 
 				$arResult['ENTITY']['FORMATTED']["NAME"] = ($bExtranetUser ? GetMessage('I_NEW_USER_EXTERNAL_TITLE') : GetMessage('I_NEW_USER_TITLE'));
 				$arResult['ENTITY']['FORMATTED']["URL"] = $user_url;

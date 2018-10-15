@@ -119,7 +119,18 @@ class OrderController extends EntityController
 			return;
 		}
 
-		$settings = array();
+		$settingFields = [
+			'PRICE' => $fields['PRICE'],
+			'CURRENCY' => $fields['CURRENCY']
+		];
+
+		if ($fields['DATE_INSERT'] instanceof Main\Type\Date)
+		{
+			$settingFields['DATE_INSERT_TIMESTAMP'] = $fields['DATE_INSERT']->getTimestamp();
+		}
+
+		$settings = ['FIELDS' => $settingFields];
+
 		if(isset($fields['LEAD_ID']) && $fields['LEAD_ID'] > 0)
 		{
 			$settings['BASE'] = array(
@@ -199,21 +210,10 @@ class OrderController extends EntityController
 
 		$historyEntryID = null;
 		$authorID = self::resolveEditorID($params);
-		$historyEntryID = ModificationEntry::create(
-			array(
-				'ENTITY_TYPE_ID' => \CCrmOwnerType::Order,
-				'ENTITY_ID' => $ownerID,
-				'AUTHOR_ID' => $authorID,
-				'SETTINGS' => array(
-					'FIELD' => 'CANCELED',
-					'VALUE' => $value,
-				)
-			)
-		);
 
-		if (!empty($fields['REASON_CANCELED']) && strlen($fields['REASON_CANCELED']) > 0)
+		if (!empty($fields['REASON_CANCELED']) && strlen($fields['REASON_CANCELED']) > 0 && $value === 'Y')
 		{
-			ModificationEntry::create(
+			$historyEntryID = ModificationEntry::create(
 				array(
 					'ENTITY_TYPE_ID' => \CCrmOwnerType::Order,
 					'ENTITY_ID' => $ownerID,
@@ -247,7 +247,7 @@ class OrderController extends EntityController
 				$tag,
 				array(
 					'module_id' => 'crm',
-					'command' => 'timeline_order_cancel',
+					'command' => 'timeline_activity_add',
 					'params' => $pushParams,
 				)
 			);
@@ -311,6 +311,56 @@ class OrderController extends EntityController
 			);
 		}
 	}
+
+	public function updateSettingFields($ownerID, $entryTypeID, array $fields)
+	{
+		$result = new Main\Result();
+		$ownerID = (int)$ownerID;
+		$entryTypeID = (int)$entryTypeID;
+		if($ownerID <= 0)
+		{
+			throw new Main\ArgumentException('Owner ID must be greater than zero.', 'ownerID');
+		}
+
+		$timelineData = Entity\TimelineTable::getList([
+			'filter' => [
+				'ASSOCIATED_ENTITY_ID' => $ownerID,
+				'ASSOCIATED_ENTITY_TYPE_ID' => \CCrmOwnerType::Order,
+				'TYPE_ID' => $entryTypeID,
+			],
+		]);
+		while ($row = $timelineData->fetch())
+		{
+			$settings = $row['SETTINGS'];
+			$settings['FIELDS'] = $fields;
+			$r = Entity\TimelineTable::update($row['ID'], ['SETTINGS' => $settings]);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+			}
+			else
+			{
+				$row['SETTINGS'] = $settings;
+				$items = array($row['ID'] => $row);
+				TimelineManager::prepareDisplayData($items);
+				if(Main\Loader::includeModule('pull') && \CPullOptions::GetQueueServerStatus())
+				{
+					$tag = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Order, $ownerID);
+					\CPullWatch::AddToStack(
+						$tag,
+						array(
+							'module_id' => 'crm',
+							'command' => 'timeline_item_update',
+							'params' => array('ENTITY_ID' => $row['ID'], 'TAG' => $tag, 'HISTORY_ITEM' => $items[$row['ID']]),
+						)
+					);
+				}
+			}
+		}
+
+		return $result;
+	}
+
 	protected static function getEntity($ID)
 	{
 		$resultDB = Order::getList(
@@ -381,7 +431,36 @@ class OrderController extends EntityController
 		$settings = $data['SETTINGS'];
 		if($typeID === TimelineType::CREATION)
 		{
+			$fields = $settings['FIELDS'];
 			$data['TITLE'] = Loc::getMessage('CRM_ORDER_CREATION');
+			$title = $data['ASSOCIATED_ENTITY']['TITLE'];
+			if (!empty($fields['DATE_INSERT_TIMESTAMP']))
+			{
+				$dateInsert = \CCrmComponentHelper::TrimDateTimeString(ConvertTimeStamp($fields['DATE_INSERT_TIMESTAMP'],'SHORT'));
+			}
+			if (empty($dateInsert))
+			{
+				$dateInsert = \CCrmComponentHelper::TrimDateTimeString(ConvertTimeStamp(MakeTimeStamp($data['DATE_INSERT']),'SHORT'));
+			}
+
+			$data['ASSOCIATED_ENTITY']['TITLE'] = Loc::getMessage(
+				'CRM_ORDER_CREATION_MESSAGE',
+					[
+						'#ACCOUNT_NUMBER#' => $title,
+						'#DATE_INSERT#' => $dateInsert,
+					]
+			);
+			if (!empty($fields['PRICE']) && !empty($fields['CURRENCY']))
+			{
+				$sum = \CCrmCurrency::MoneyToString($fields['PRICE'], $fields['CURRENCY']);
+				if (strlen($sum) > 0)
+				{
+					$data['ASSOCIATED_ENTITY']['TITLE'] .= " ".Loc::getMessage(
+							'CRM_ORDER_CREATION_MESSAGE_SUM',
+							['#PRICE_WITH_CURRENCY#' => $sum]
+						);
+				}
+			}
 			unset($data['SETTINGS']);
 		}
 		elseif($typeID === TimelineType::MODIFICATION)

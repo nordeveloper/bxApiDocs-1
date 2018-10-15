@@ -139,7 +139,7 @@ final class FromTemplate extends Util\Replicator\Task
 									$wereErrors = true;
 
 									$errors = $creationResult->getErrors();
-									$neededError = $errors->find(array('code' => 'ACCESS_DENIED.RESPONSIBLE_AND_ORIGINATOR_NOT_ALLOWED'));
+									$neededError = $errors->find(array('CODE' => 'ACCESS_DENIED.RESPONSIBLE_AND_ORIGINATOR_NOT_ALLOWED'));
 
 									if ($errors->count() == 1 && !$neededError->isEmpty())
 									{
@@ -210,33 +210,100 @@ final class FromTemplate extends Util\Replicator\Task
 	}
 
 	/**
+	 * Returns execution time from replicate parameters or agent
+	 *
+	 * @param $agentName
+	 * @param $replicateParams
+	 * @return bool
+	 */
+	private static function getExecutionTime($agentName, $replicateParams)
+	{
+		$executionTime = false;
+
+		if (array_key_exists('NEXT_EXECUTION_TIME', $replicateParams))
+		{
+			$executionTime = $replicateParams['NEXT_EXECUTION_TIME'];
+		}
+		else
+		{
+			$agent = \CAgent::getList(array(), array('NAME' => $agentName))->fetch();
+			if ($agent)
+			{
+				$executionTime = $agent['NEXT_EXEC'];
+			}
+		}
+
+		return $executionTime;
+	}
+
+	/**
+	 * Checks if task was already created by template in $executionTime
+	 *
+	 * @param $executionTime
+	 * @param $templateId
+	 * @return bool
+	 */
+	private static function taskByTemplateAlreadyExist($templateId, $executionTime)
+	{
+		try
+		{
+			$select = array('ID', 'CREATED_DATE');
+			$filter = array(
+				'FORKED_BY_TEMPLATE_ID' => $templateId,
+				'CREATED_DATE' => $executionTime
+			);
+			$params = array('USER_ID' => 1);
+
+			$tasks = \CTasks::GetList(array(), $filter, $select, $params);
+			if ($tasks->Fetch())
+			{
+				return true;
+			}
+
+			return false;
+		}
+		catch (\TasksException $exception)
+		{
+			return false;
+		}
+	}
+
+	/**
 	 * Agent handler for repeating tasks.
 	 * Create new task based on given template.
 	 *
-	 * @param integer $templateId - id of task template
-	 * @param mixed[] $parameters
-	 *
-	 * @return string empty string.
+	 * @param $templateId
+	 * @param array $parameters
+	 * @return mixed|string
+	 * @throws \Bitrix\Main\ArgumentException
 	 */
 	public static function repeatTask($templateId, array $parameters = array())
 	{
-		$templateId = (int) $templateId;
-		if(!$templateId)
+		$templateId = (int)$templateId;
+		if (!$templateId)
 		{
 			return ''; // delete agent
 		}
 
 		static::liftLogAgent();
 
-		$rsTemplate = \CTaskTemplates::getList(array(),  array('ID' => $templateId), false, false, array('*', 'UF_*')); // todo: replace this with item\orm call
-		$arTemplate = $rsTemplate->Fetch();
+		// todo: replace this with item\orm call
+		$templateDbRes = \CTaskTemplates::getList(array(),  array('ID' => $templateId), false, false, array('*', 'UF_*'));
+		$template = $templateDbRes->Fetch();
 
-		if($arTemplate && $arTemplate['REPLICATE'] == 'Y')
+		if ($template && $template['REPLICATE'] == 'Y')
 		{
 			$agentName = str_replace('#ID#', $templateId, $parameters['AGENT_NAME_TEMPLATE']); // todo: when AGENT_NAME_TEMPLATE is not set?
+			$replicateParams = $template['REPLICATE_PARAMS'] = unserialize($template['REPLICATE_PARAMS']);
 
-			$result = new \Bitrix\Tasks\Util\Replicator\Result();
-			if(is_array($parameters['RESULT']))
+			$executionTime = static::getExecutionTime($agentName, $replicateParams);
+			if ($executionTime && (static::taskByTemplateAlreadyExist($templateId, $executionTime) || time() < MakeTimeStamp($executionTime)))
+			{
+				return $agentName;
+			}
+
+			$result = new Util\Replicator\Result();
+			if (is_array($parameters['RESULT']))
 			{
 				$parameters['RESULT']['RESULT'] = $result;
 			}
@@ -248,14 +315,14 @@ final class FromTemplate extends Util\Replicator\Task
 
 			// get effective user is (actually, admin)
 			$userId = static::getEffectiveUser();
-			if(!$userId)
+			if (!$userId)
 			{
 				$createMessage = Loc::getMessage('TASKS_REPLICATOR_TASK_WAS_NOT_CREATED');
 				$result->addError('REPLICATION_FAILED', Loc::getMessage('TASKS_REPLICATOR_CANT_IDENTIFY_USER'));
 			}
 
 			// check if CREATOR is alive
-			if(!User::isActive($arTemplate['CREATED_BY']))
+			if (!User::isActive($template['CREATED_BY']))
 			{
 				$resumeReplication = false; // no need to make another try
 				$createMessage = Loc::getMessage('TASKS_REPLICATOR_TASK_WAS_NOT_CREATED');
@@ -263,16 +330,17 @@ final class FromTemplate extends Util\Replicator\Task
 			}
 
 			// create task if no error occured
-			if($result->isSuccess())
+			if ($result->isSuccess())
 			{
 				// todo: remove this spike
 				$userChanged = false;
-				$origUser = null;
-				if (intval($arTemplate['CREATED_BY']))
+				$originalUser = null;
+
+				if (intval($template['CREATED_BY']))
 				{
 					$userChanged = true;
-					$origUser = User::getOccurAsId();
-					User::setOccurAsId($arTemplate['CREATED_BY']); // not admin in logs, but template creator
+					$originalUser = User::getOccurAsId();
+					User::setOccurAsId($template['CREATED_BY']); // not admin in logs, but template creator
 				}
 
 				try
@@ -280,24 +348,24 @@ final class FromTemplate extends Util\Replicator\Task
 					/** @var \Bitrix\Tasks\Util\Replicator\Task $replicator */
 					$replicator = new static();
 					$replicator->setConfig('DISABLE_SOURCE_ACCESS_CONTROLLER', true); // do not query rights and do not check it
-					$produceResult = $replicator->produce($templateId, $userId);
+					$produceResult = $replicator->produce($templateId, $userId, array('OVERRIDE_DATA' => array('CREATED_DATE' => $executionTime)));
 
-					if($produceResult->isSuccess())
+					if ($produceResult->isSuccess())
 					{
-						static::incrementReplicationCount($templateId, $arTemplate['TPARAM_REPLICATION_COUNT']);
+						static::incrementReplicationCount($templateId, $template['TPARAM_REPLICATION_COUNT']);
 
 						$task = $produceResult->getInstance();
 						$subInstanceResult = $produceResult->getSubInstanceResult();
 
 						$result->setInstance($task);
-						if(Collection::isA($subInstanceResult))
+						if (Collection::isA($subInstanceResult))
 						{
 							$result->setSubInstanceResult($produceResult->getSubInstanceResult());
 						}
 
 						$taskId = $task->getId();
 
-						if($produceResult->getErrors()->isEmpty())
+						if ($produceResult->getErrors()->isEmpty())
 						{
 							$createMessage = Loc::getMessage('TASKS_REPLICATOR_TASK_CREATED');
 						}
@@ -306,7 +374,7 @@ final class FromTemplate extends Util\Replicator\Task
 							$createMessage = Loc::getMessage('TASKS_REPLICATOR_TASK_CREATED_WITH_ERRORS');
 						}
 
-						if($taskId)
+						if ($taskId)
 						{
 							$createMessage .= ' (#'.$taskId.')';
 						}
@@ -321,7 +389,7 @@ final class FromTemplate extends Util\Replicator\Task
 				catch(\Exception $e) // catch EACH exception, as we dont want the agent to repeat every 10 minutes in case of smth is wrong
 				{
 					$createMessage = Loc::getMessage('TASKS_REPLICATOR_TASK_POSSIBLY_WAS_NOT_CREATED');
-					if($taskId)
+					if ($taskId)
 					{
 						$createMessage = Loc::getMessage('TASKS_REPLICATOR_TASK_CREATED_WITH_ERRORS').' (#'.$taskId.')';
 					}
@@ -330,63 +398,51 @@ final class FromTemplate extends Util\Replicator\Task
 				}
 
 				// switch an original hit user back, unless we want some strange things to happen
-				if($userChanged)
+				if ($userChanged)
 				{
-					User::setOccurAsId($origUser);
+					User::setOccurAsId($originalUser);
 				}
 			}
 
-			if($createMessage !== '')
+			if ($createMessage !== '')
 			{
 				static::sendToSysLog($templateId, intval($taskId), $createMessage, $result->getErrors());
 			}
 
-			//////////////
 			// calculate next execution time
 
-			$arTemplate['REPLICATE_PARAMS'] = unserialize($arTemplate['REPLICATE_PARAMS']);
-
-			// get agent time
-			$agentTime = false;
-			$agent = \CAgent::getList(array(), array('NAME' => $agentName))->fetch();
-			if($agent)
+			if ($resumeReplication)
 			{
-				$agentTime = $agent['NEXT_EXEC']; // user time
-			}
+				$currentUserTimezone = User::getTimeZoneOffsetCurrentUser();
+				$lastTime = $executionTime;
+				$iterationCount = 0;
 
-			// get next time task will be created, i.e. next Thursday if today is Thursday (and task marked as repeated) and so on;
-
-			if($resumeReplication)
-			{
-				$tzCurrent = User::getTimeZoneOffsetCurrentUser();
-				$lastTime = $agentTime;
-				$iterations = 0;
 				do
 				{
-					$nextResult = static::getNextTime($arTemplate, $lastTime);
+					$nextResult = static::getNextTime($template, $lastTime);
 					$nextData = $nextResult->getData();
 					$nextTime = $nextData['TIME'];
 
 					// next time is legal, but goes before or equals to the current time
-					if(($nextTime && MakeTimeStamp($lastTime) >= MakeTimeStamp($nextTime)) || ($iterations > 10000))
+					if (($nextTime && MakeTimeStamp($lastTime) >= MakeTimeStamp($nextTime)) || ($iterationCount > 10000))
 					{
-						if($iterations > 10000)
+						if ($iterationCount > 10000)
 						{
 							$message = 'insane iteration count reached while calculating next execution time';
 						}
 						else
 						{
-							$creator = $arTemplate['CREATED_BY'];
-							$tzCreator =  User::getTimeZoneOffset($arTemplate['CREATED_BY']);
+							$creator = $template['CREATED_BY'];
+							$creatorTimezone =  User::getTimeZoneOffset($creator);
 
 							$eDebug = array(
 								$creator,
 								time(),
-								$tzCurrent,
-								$tzCreator,
-								$arTemplate['REPLICATE_PARAMS']['TIME'],
-								$arTemplate['REPLICATE_PARAMS']['TIMEZONE_OFFSET'],
-								$iterations
+								$currentUserTimezone,
+								$creatorTimezone,
+								$replicateParams['TIME'],
+								$replicateParams['TIMEZONE_OFFSET'],
+								$iterationCount
 							);
 							$message = 'getNextTime() loop detected for replication by template '.$templateId.' ('.$nextTime.' => '.$lastTime.') ('.implode(', ', $eDebug).')';
 						}
@@ -402,11 +458,11 @@ final class FromTemplate extends Util\Replicator\Task
 
 					$lastTime = $nextTime;
 					// we can compare one user`s time only with another user`s time, we canna just take time() value
-					$cTime = time() + $tzCurrent;
+					$cTime = time() + $currentUserTimezone;
 
-					$iterations++;
+					$iterationCount++;
 				}
-				while(($nextResult->isSuccess() && $nextTime) && MakeTimeStamp($nextTime) < $cTime);
+				while (($nextResult->isSuccess() && $nextTime) && MakeTimeStamp($nextTime) < $cTime);
 
 				if ($nextTime)
 				{
@@ -414,8 +470,17 @@ final class FromTemplate extends Util\Replicator\Task
 					global $pPERIOD;
 
 					// still have $nextTime in current user timezone, we need server time now, so:
-					$nextTime = MakeTimeStamp($nextTime) - $tzCurrent;
+					$nextTime = MakeTimeStamp($nextTime) - $currentUserTimezone;
 					$nextTimeFormatted = UI::formatDateTime($nextTime);
+
+					$replicateParams['NEXT_EXECUTION_TIME'] = $nextTimeFormatted;
+
+					$template = new \CTaskTemplates();
+					$template->Update(
+						$templateId,
+						array('REPLICATE_PARAMS' => serialize($replicateParams)),
+						array('SKIP_AGENT_PROCESSING' => true)
+					);
 
 					// ... but we may set some global var called $pPERIOD
 					// "why ' - time()'?" you may ask. see CAgent::ExecuteAgents(), in the last sql we got:
@@ -424,18 +489,22 @@ final class FromTemplate extends Util\Replicator\Task
 
 					$timeZoneFromGmtInSeconds = date('Z', time());
 
-					static::sendToSysLog($templateId, 0, Loc::getMessage('TASKS_REPLICATOR_NEXT_TIME', array(
-						'#TIME#' => $nextTimeFormatted.' ('.UI::formatTimezoneOffsetUTC($timeZoneFromGmtInSeconds).')',
-						'#PERIOD#' => $pPERIOD,
-						'#SECONDS#' => Loc::getMessage('TASKS_REPLICATOR_SECOND_'.UI::getPluralForm($pPERIOD)),
-					)));
+					static::sendToSysLog(
+						$templateId,
+						0,
+						Loc::getMessage('TASKS_REPLICATOR_NEXT_TIME', array(
+							'#TIME#' => $nextTimeFormatted.' ('.UI::formatTimezoneOffsetUTC($timeZoneFromGmtInSeconds).')',
+							'#PERIOD#' => $pPERIOD,
+							'#SECONDS#' => Loc::getMessage('TASKS_REPLICATOR_SECOND_'.UI::getPluralForm($pPERIOD)),
+						))
+					);
 
 					return $agentName; // keep agent working
 				}
 				else
 				{
 					$firstError = $nextResult->getErrors()->first();
-					if($firstError)
+					if ($firstError)
 					{
 						$replicationCancelReason = $firstError->getMessage();
 					}
@@ -445,7 +514,7 @@ final class FromTemplate extends Util\Replicator\Task
 			static::sendToSysLog(
 				$templateId,
 				0,
-				Loc::getMessage('TASKS_REPLICATOR_PROCESS_STOPPED').($replicationCancelReason != '' ? ': '.$replicationCancelReason : '')
+				Loc::getMessage('TASKS_REPLICATOR_PROCESS_STOPPED').($replicationCancelReason != ''? ': '.$replicationCancelReason : '')
 			);
 		}
 
@@ -527,7 +596,6 @@ final class FromTemplate extends Util\Replicator\Task
 		// now get max of dates and add time
 		$baseTime = max($baseTime, $startTime);
 
-		//////////////////////////////////////////////////////////////
 		// now calculate next time based on current $baseTime
 
 		$arPeriods = array("daily", "weekly", "monthly", "yearly");
@@ -604,7 +672,7 @@ final class FromTemplate extends Util\Replicator\Task
 		}
 
 		$result->setData(array(
-			'TIME' => $nextTime ? UI::formatDateTime($nextTime) : '',
+			'TIME' => ($nextTime? UI::formatDateTime($nextTime) : '')
 		));
 
 		return $result;

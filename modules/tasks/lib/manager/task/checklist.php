@@ -118,37 +118,48 @@ class CheckList extends \Bitrix\Tasks\Manager
 	{
 		$errors = static::ensureHaveErrorCollection($parameters);
 
-		if($parameters['PUBLIC_MODE'])
+		if ($parameters['PUBLIC_MODE'])
 		{
 			$data = static::filterData($data, \CTaskCheckListItem::getPublicFieldMap(), $errors);
 		}
 
 		$item = null;
 		$task = null;
-		if($errors->checkNoFatals())
+		$display = null;
+
+		if ($errors->checkNoFatals())
 		{
 			$taskId = 0;
-			if(array_key_exists('TASK_ID', $parameters))
+
+			if (array_key_exists('TASK_ID', $parameters))
 			{
 				$taskId = intval($parameters['TASK_ID']);
 			}
-			if(!$taskId)
+
+			if (!$taskId)
 			{
 				$taskId = \CTaskCheckListItem::getTaskIdByItemId($itemId);
 			}
 
-			$task = static::getTask($userId, $taskId);
-			$item = new \CTaskCheckListItem($task, $itemId);
+			if ($taskId)
+			{
+				$task = static::getTask($userId, $taskId);
+				$item = new \CTaskCheckListItem($task, $itemId);
 
-			try
-			{
-				$item->update($data);
+				try
+				{
+					$item->update($data);
+				}
+				catch (\TasksException $e)
+				{
+					$originMessage = $e->getMessageOrigin();
+					$message = Loc::getMessage('TASKS_MANAGER_TASK_CHECKLIST_ITEMS').': '.$originMessage->messages[0]['text'];
+					$errors->add($e->getCode(), $message);
+				}
 			}
-			catch (\TasksException $e)
+			else
 			{
-				$originMessage = $e->getMessageOrigin();
-				$message = Loc::getMessage('TASKS_MANAGER_TASK_CHECKLIST_ITEMS').': '.$originMessage->messages[0]['text'];
-				$errors->add($e->getCode(), $message);
+				$errors->add('GETTING_TASK_ID_ERROR', Loc::getMessage('TASKS_MANAGER_TASK_CHECKLIST_GETTING_TASK_ID_ERROR'));
 			}
 		}
 
@@ -160,7 +171,11 @@ class CheckList extends \Bitrix\Tasks\Manager
 		}
 		
 		return array(
-			'DATA' => array('ID' => $itemId, 'DISPLAY'=>$display, 'TITLE'=>strip_tags($display)),
+			'DATA' => array(
+				'ID' => $itemId,
+				'DISPLAY' => $display,
+				'TITLE' => strip_tags($display)
+			),
 			'ERRORS' => $errors,
 		);
 	}

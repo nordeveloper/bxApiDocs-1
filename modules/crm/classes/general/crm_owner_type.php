@@ -1917,6 +1917,8 @@ class CCrmOwnerType
 				return CAllCrmCompany::$sUFEntityID;
 			case self::Invoice:
 				return CAllCrmInvoice::$sUFEntityID;
+			case self::Order:
+				return \Bitrix\Crm\Order\Manager::getUfId();
 			case self::Undefined:
 			case self::Quote:
 				return CAllCrmQuote::$sUFEntityID;
@@ -1957,6 +1959,8 @@ class CCrmOwnerType
 				return self::Quote;
 			case $requisiteUfId:
 				return self::Requisite;
+			case \Bitrix\Crm\Order\Manager::getUfId():
+				return self::Order;
 			default:
 				return self::Undefined;
 		}
@@ -2608,6 +2612,11 @@ class CCrmOwnerTypeAbbr
 				return CCrmOwnerType::SystemName;
 		}
 		return '';
+	}
+
+	public static function ResolveTypeID($abbr)
+	{
+		return CCrmOwnerType::ResolveID(self::ResolveName($abbr));
 	}
 }
 

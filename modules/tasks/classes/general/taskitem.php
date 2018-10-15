@@ -12,6 +12,7 @@ use Bitrix\Main\Localization\Loc;
 
 use \Bitrix\Tasks\Internals\Task\FavoriteTable;
 use \Bitrix\Tasks\Task\DependenceTable;
+use \Bitrix\Tasks\Integration;
 use \Bitrix\Tasks\Integration\Rest\Task\UserField;
 use \Bitrix\Tasks\Integration\Disk\Rest\Attachment;
 use \Bitrix\Tasks\Util\Type\DateTime;
@@ -1595,9 +1596,9 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 	/**
 	 * Remove task
 	 */
-	public function delete()
+	public function delete(array $params=array())
 	{
-		$this->proceedAction(self::ACTION_REMOVE);
+		$this->proceedAction(self::ACTION_REMOVE, array('PARAMETERS' => $params));
 	}
 
 
@@ -2203,8 +2204,10 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 
 			$this->markCacheAsDirty();
 
+			$arParams = $arActionArguments['PARAMETERS'];
+
 			/** @noinspection PhpDeprecationInspection */
-			if (CTasks::Delete($this->taskId) !== true)
+			if (CTasks::Delete($this->taskId, $arParams) !== true)
 			{
 				throw new TasksException(
 					'Cannot delete task '.$this->taskId,
@@ -2242,8 +2245,7 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 					!$this->isActionAllowed(self::ACTION_CHANGE_DIRECTOR) ||
 					(
 						count($arFields) == 1 &&
-						!(\Bitrix\Tasks\Integration\Bitrix24\User::isAdmin($this->executiveUserId) ||
-						  \Bitrix\Tasks\Util\User::isAdmin($this->executiveUserId)) &&
+						!User::isSuper($this->executiveUserId) &&
 						(int)$arTaskData['RESPONSIBLE_ID'] !== $this->executiveUserId
 					)
 				)
@@ -2453,54 +2455,56 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 
 	private function checkProjectDates($arTaskData, $arNewFields)
 	{
-		$groupId = (array_key_exists('GROUP_ID', $arNewFields) && (int)$arNewFields['GROUP_ID'] > 0)
-			? (int)$arNewFields['GROUP_ID'] : (int)$arTaskData['GROUP_ID'];
-
-		$deadline = (array_key_exists('DEADLINE', $arNewFields) && $arNewFields['DEADLINE']) ? $arNewFields['DEADLINE']
-			: $arTaskData['DEADLINE'];
-
-		$endDatePlan = (array_key_exists('END_DATE_PLAN', $arNewFields) && $arNewFields['END_DATE_PLAN'])
-			? $arNewFields['END_DATE_PLAN'] : $arTaskData['END_DATE_PLAN'];
-		$startDatePlan = (array_key_exists('START_DATE_PLAN', $arNewFields) && $arNewFields['START_DATE_PLAN'])
-			? $arNewFields['START_DATE_PLAN'] : $arTaskData['START_DATE_PLAN'];
+		if (array_key_exists('GROUP_ID', $arNewFields) && (int)$arNewFields['GROUP_ID'] > 0)
+		{
+			$groupId = (int)$arNewFields['GROUP_ID'];
+		}
+		else
+		{
+			$groupId = (int)$arTaskData['GROUP_ID'];
+		}
 
 		if (!$groupId)
 		{
-			return true;
+			return;
 		}
 
-		\CModule::includeModule('socialnetwork');
-		$group = \CSocNetGroup::getById($groupId);
-		if (!empty($group) && $group['PROJECT'] == 'Y' && ($group['PROJECT_DATE_START'] || $group['PROJECT_DATE_FINISH']))
+		if (\CModule::includeModule('socialnetwork'))
 		{
-			if($endDatePlan)
+			$group = \CSocNetGroup::getById($groupId);
+
+			if ($group && $group['PROJECT'] == 'Y' && ($group['PROJECT_DATE_START'] || $group['PROJECT_DATE_FINISH']))
 			{
-				if(!Calendar::isDateInRange($endDatePlan, $group['PROJECT_DATE_START'], $group['PROJECT_DATE_FINISH']))
+				$projectStartDate = $group['PROJECT_DATE_START'];
+				$projectFinishDate = $group['PROJECT_DATE_FINISH'];
+				if ($projectFinishDate)
 				{
-					$this->_errors[] = array("text" => GetMessage("TASKS_PLAN_DATE_END_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE");
+					$projectFinishDate = Bitrix\Tasks\UI::formatDateTime(MakeTimeStamp($projectFinishDate) + 86399); // + 23:59:59
 				}
-			}
 
-			if($startDatePlan)
-			{
-				if(!Calendar::isDateInRange($startDatePlan, $group['PROJECT_DATE_START'], $group['PROJECT_DATE_FINISH']))
+				$deadline = (array_key_exists('DEADLINE', $arNewFields) && $arNewFields['DEADLINE']? $arNewFields['DEADLINE'] : $arTaskData['DEADLINE']);
+				$endDatePlan = (array_key_exists('END_DATE_PLAN', $arNewFields) && $arNewFields['END_DATE_PLAN']? $arNewFields['END_DATE_PLAN'] : $arTaskData['END_DATE_PLAN']);
+				$startDatePlan = (array_key_exists('START_DATE_PLAN', $arNewFields) && $arNewFields['START_DATE_PLAN']? $arNewFields['START_DATE_PLAN'] : $arTaskData['START_DATE_PLAN']);
+
+				if ($deadline && !Calendar::isDateInRange($deadline, $projectStartDate, $projectFinishDate))
 				{
-					$this->_errors[] = array("text" => GetMessage("TASKS_PLAN_DATE_START_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE");
+					$this->_errors[] = ["text" => GetMessage("TASKS_DEADLINE_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE"];
 				}
-			}
 
-			if($deadline)
-			{
-				if(!Calendar::isDateInRange($deadline, $group['PROJECT_DATE_START'], $group['PROJECT_DATE_FINISH']))
+				if ($endDatePlan && !Calendar::isDateInRange($endDatePlan, $projectStartDate, $projectFinishDate))
 				{
-					$this->_errors[] = array("text" => GetMessage("TASKS_DEADLINE_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE");
+					$this->_errors[] = ["text" => GetMessage("TASKS_PLAN_DATE_END_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE"];
 				}
-			}
 
+				if ($startDatePlan && !Calendar::isDateInRange($startDatePlan, $projectStartDate, $projectFinishDate))
+				{
+					$this->_errors[] = ["text" => GetMessage("TASKS_PLAN_DATE_START_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE"];
+				}
 
-			if(!empty($this->_errors))
-			{
-				static::throwExceptionVerbose($this->_errors);
+				if (!empty($this->_errors))
+				{
+					static::throwExceptionVerbose($this->_errors);
+				}
 			}
 		}
 	}
@@ -2552,73 +2556,63 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 		static::disableUpdateBatchMode();
 	}
 
-	private static function getSubUsers($userId)
-	{
-		static $arSubUsersIdsCache = array();
-
-		if ( ! isset($arSubUsersIdsCache[$userId]) )
-		{
-			$arSubUsersIds = array();
-
-			if(CModule::IncludeModule('intranet'))
-			{
-				/** @noinspection PhpDynamicAsStaticMethodCallInspection */
-				// todo: move this call to tasks/lib/integration/intranet/user
-				$rsSubUsers = CIntranetUtils::GetSubordinateEmployees($userId, $bRecursive = true, $onlyActive = 'N', array('ID'));
-				while ($ar = $rsSubUsers->fetch())
-					$arSubUsersIds[] = (int) $ar['ID'];
-			}
-
-			$arSubUsersIdsCache[$userId] = $arSubUsersIds;
-		}
-
-		return ($arSubUsersIdsCache[$userId]);
-	}
-
-	private static function getUserRolesArray($userId, array $arTask)
+	private static function getUserRolesArray($userId, array $taskData)
 	{
 		$userRole = 0;
 
-		if ($arTask['CREATED_BY'] == $userId)
+		if ($taskData['CREATED_BY'] == $userId)
+		{
 			$userRole |= self::ROLE_DIRECTOR;
+		}
 
-		if ($arTask['RESPONSIBLE_ID'] == $userId)
+		if ($taskData['RESPONSIBLE_ID'] == $userId)
+		{
 			$userRole |= self::ROLE_RESPONSIBLE;
+		}
 
-		if ($arTask['ACCOMPLICES'] && in_array($userId, $arTask['ACCOMPLICES']))
+		if ($taskData['ACCOMPLICES'] && in_array($userId, $taskData['ACCOMPLICES']))
+		{
 			$userRole |= self::ROLE_ACCOMPLICE;
+		}
 
-		if ($arTask['AUDITORS'] && in_array($userId, $arTask['AUDITORS']))
+		if ($taskData['AUDITORS'] && in_array($userId, $taskData['AUDITORS']))
+		{
 			$userRole |= self::ROLE_AUDITOR;
+		}
 
 		// Now, process subordinated users
 		$allRoles = self::ROLE_DIRECTOR | self::ROLE_RESPONSIBLE | self::ROLE_ACCOMPLICE | self::ROLE_AUDITOR;
+
 		if ($userRole !== $allRoles)
 		{
-			$arSubUsersIds = self::getSubUsers($userId);
+			$subEmployees = Integration\Intranet\User::getSubordinateSubDepartments($userId);
 
-			if ( ! empty($arSubUsersIds) )
+			if (!empty($subEmployees))
 			{
 				// Check only roles, that user doesn't have already
-				if ( ! ($userRole & self::ROLE_DIRECTOR) )
+				if (!($userRole & self::ROLE_DIRECTOR))
 				{
-					if (in_array((int)$arTask['CREATED_BY'], $arSubUsersIds, true))
-						$userRole |= self::ROLE_DIRECTOR;
-				}
-
-				if ( ! ($userRole & self::ROLE_RESPONSIBLE) )
-				{
-					if (in_array((int)$arTask['RESPONSIBLE_ID'], $arSubUsersIds, true))
-						$userRole |= self::ROLE_RESPONSIBLE;
-				}
-
-				if ( ! ($userRole & self::ROLE_ACCOMPLICE) )
-				{
-					if(is_array($arTask['ACCOMPLICES']))
+					if (in_array($taskData['CREATED_BY'], $subEmployees, true))
 					{
-						foreach ($arTask['ACCOMPLICES'] as $accompliceId)
+						$userRole |= self::ROLE_DIRECTOR;
+					}
+				}
+
+				if (!($userRole & self::ROLE_RESPONSIBLE))
+				{
+					if (in_array($taskData['RESPONSIBLE_ID'], $subEmployees, true))
+					{
+						$userRole |= self::ROLE_RESPONSIBLE;
+					}
+				}
+
+				if (!($userRole & self::ROLE_ACCOMPLICE))
+				{
+					if (is_array($taskData['ACCOMPLICES']))
+					{
+						foreach ($taskData['ACCOMPLICES'] as $accompliceId)
 						{
-							if (in_array((int)$accompliceId, $arSubUsersIds, true))
+							if (in_array($accompliceId, $subEmployees, true))
 							{
 								$userRole |= self::ROLE_ACCOMPLICE;
 								break;
@@ -2627,13 +2621,13 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 					}
 				}
 
-				if ( ! ($userRole & self::ROLE_AUDITOR) )
+				if (!($userRole & self::ROLE_AUDITOR))
 				{
-					if(is_array($arTask['AUDITORS']))
+					if (is_array($taskData['AUDITORS']))
 					{
-						foreach ($arTask['AUDITORS'] as $auditorId)
+						foreach ($taskData['AUDITORS'] as $auditorId)
 						{
-							if (in_array((int)$auditorId, $arSubUsersIds, true))
+							if (in_array($auditorId, $subEmployees, true))
 							{
 								$userRole |= self::ROLE_AUDITOR;
 								break;
@@ -2646,7 +2640,9 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 
 		// No role in task?
 		if ($userRole === 0)
+		{
 			$userRole = self::ROLE_NOT_A_MEMBER;
+		}
 
 		return $userRole;
 	}

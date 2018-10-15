@@ -173,6 +173,7 @@ class QuoteTable extends Entity\DataManager
 				),
 				'join_type' => 'INNER',
 			),
+			new Entity\StringField('LOCATION_ID'),
 		);
 	}
 }

@@ -554,7 +554,7 @@ class User extends \IRestService
 
 		if($userFields['ID'] > 0)
 		{
-			if($bAdmin || $USER->getID() == $userFields['ID'])
+			if($bAdmin || ($USER->getID() == $userFields['ID'] && $USER->CanDoOperation('edit_own_profile')))
 			{
 				$updateFields = self::prepareUserData($userFields);
 

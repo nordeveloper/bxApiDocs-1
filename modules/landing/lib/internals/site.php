@@ -67,6 +67,10 @@ class SiteTable extends Entity\DataManager
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_SITE_ACTIVE'),
 				'default_value' => 'Y'
 			)),
+			'DELETED' => new Entity\StringField('DELETED', array(
+				'title' => Loc::getMessage('LANDING_TABLE_FIELD_LANDING_DELETED'),
+				'default_value' => 'N'
+			)),
 			'TITLE' => new Entity\StringField('TITLE', array(
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_SITE_TITLE'),
 				'required' => true
@@ -105,7 +109,7 @@ class SiteTable extends Entity\DataManager
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_LANDING_ID_404')
 			)),
 			'LANDING_ID_503' => new Entity\IntegerField('LANDING_ID_503', array(
-				'title' => Loc::getMessage('LANDING_TABLE_FIELD_LANDING_ID_404')
+				'title' => Loc::getMessage('LANDING_TABLE_FIELD_LANDING_ID_503')
 			)),
 			'CREATED_BY_ID' => new Entity\IntegerField('CREATED_BY_ID', array(
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_CREATED_BY_ID'),
@@ -220,6 +224,29 @@ class SiteTable extends Entity\DataManager
 	}
 
 	/**
+	 * Check 'bitrix'-named domain.
+	 * @param string $domainName Domain name.
+	 * @return boolean
+	 */
+	public static function checkBitrixUse($domainName)
+	{
+		$isB24Domain = self::isB24Domain($domainName);
+		$disableMask = '/bitrix[^\.]*\.bitrix[^\.]+\.[a-z]+$/';
+		if (
+			Manager::isB24() &&
+			(
+				$isB24Domain && preg_match_all($disableMask, $domainName)
+				||
+				!$isB24Domain && strpos($domainName, 'bitrix') !== false
+			)
+		)
+		{
+			return true;
+		}
+		return false;
+	}
+
+	/**
 	 * Prepare change to save.
 	 * @param Entity\Event $event Event instance.
 	 * @param string $actionType Action type: add / update.
@@ -234,6 +261,12 @@ class SiteTable extends Entity\DataManager
 		$modifyFields = array();
 		$siteController = self::getSiteController();
 
+		// if delete, set unpublic always
+		if (isset($fields['DELETED']))
+		{
+			$modifyFields['ACTIVE'] = 'N';
+		}
+
 		// additional fields save after
 		if (array_key_exists('ADDITIONAL_FIELDS', $fields))
 		{
@@ -243,6 +276,60 @@ class SiteTable extends Entity\DataManager
 		else
 		{
 			self::$additionalFields = array();
+		}
+
+		// check active first (limit count)
+		if (
+			isset($fields['ACTIVE']) &&
+			$fields['ACTIVE'] == 'Y'
+		)
+		{
+			if (
+				$primary &&
+				!array_key_exists('TYPE', $fields)
+			)
+			{
+				$res = self::getList(array(
+					 'select' => array(
+						'TYPE'
+					 ),
+					 'filter' => array(
+						'ID' => $primary['ID']
+					 )
+				 ));
+				if ($row = $res->fetch())
+				{
+					$fields['TYPE'] = $row['TYPE'];
+				}
+			}
+			if (!array_key_exists('TYPE', $fields))
+			{
+				$fields['TYPE'] = null;
+			}
+			$canPublicSite = Manager::checkFeature(
+				Manager::FEATURE_PUBLICATION_SITE,
+				$primary
+				? array(
+					'filter' => array(
+						'!ID' => $primary['ID'],
+					),
+					'type' => $fields['TYPE']
+				)
+				: array(
+					'type' => $fields['TYPE']
+				)
+			);
+			if (!$canPublicSite)
+			{
+				$result->unsetFields($unsetFields);
+				$result->setErrors(array(
+					new Entity\EntityError(
+						Loc::getMessage('LANDING_PUBLIC_SITE_REACHED'),
+						'PUBLIC_SITE_REACHED'
+					)
+				));
+				return $result;
+			}
 		}
 
 		// prepare CODE - base part of URL
@@ -425,12 +512,29 @@ class SiteTable extends Entity\DataManager
 				if ($domainExist)
 				{
 					$result->unsetFields($unsetFields);
-					$result->setErrors(array(
-						new Entity\EntityError(
-							Loc::getMessage('LANDING_TABLE_ERROR_DOMAIN_EXIST'),
-							'DOMAIN_EXIST'
-						)
-					));
+					if (self::checkBitrixUse($domainName))
+					{
+						$result->setErrors(
+							array(
+								new Entity\EntityError(
+									Loc::getMessage('LANDING_TABLE_ERROR_DOMAIN_BITRIX_DISABLE'),
+									'DOMAIN_DISABLE'
+								)
+							)
+						);
+					}
+					else
+					{
+						$result->setErrors(
+							array(
+								new Entity\EntityError(
+									Loc::getMessage('LANDING_TABLE_ERROR_DOMAIN_EXIST'),
+									'DOMAIN_EXIST'
+								)
+							)
+						);
+					}
+
 					return $result;
 				}
 
@@ -490,7 +594,7 @@ class SiteTable extends Entity\DataManager
 											$siteController::addDomain(
 												$domainName,
 												$publicUrl,
-												'Y',
+												'N',
 												$row['TYPE']
 											);
 										}
@@ -593,7 +697,7 @@ class SiteTable extends Entity\DataManager
 			!Manager::checkFeature(
 				Manager::FEATURE_CREATE_SITE,
 				array(
-					'TYPE' => $fields['TYPE']
+					'type' => $fields['TYPE']
 				)
 			)
 		)
@@ -648,6 +752,31 @@ class SiteTable extends Entity\DataManager
 	}
 
 	/**
+	 * Get entity rows.
+	 * @param array $params Params array.
+	 * @return \Bitrix\Main\ORM\Query\Result
+	 */
+	public static function getList(array $params = array())
+	{
+		if (
+			!isset($params['filter']) ||
+			!is_array($params['filter'])
+		)
+		{
+			$params['filter'] = array();
+		}
+		if (
+			!isset($params['filter']['DELETED']) &&
+			!isset($params['filter']['=DELETED'])
+		)
+		{
+			$params['filter']['=DELETED'] = 'N';
+		}
+
+		return parent::getList($params);
+	}
+
+	/**
 	 * After add handler.
 	 * @param Entity\Event $event Event instance.
 	 * @return Entity\EventResult
@@ -681,10 +810,12 @@ class SiteTable extends Entity\DataManager
 			$primary = $event->getParameter('primary');
 			$res = self::getList(array(
 				'select' => array(
+					'ACTIVE', 'DELETED',
 					'DOMAIN_NAME' => 'DOMAIN.DOMAIN'
 				),
 				'filter' => array(
-					'ID' => $primary['ID']
+					'ID' => $primary['ID'],
+					'=DELETED' => ['Y', 'N']
 				)
 			));
 			if ($row = $res->fetch())
@@ -692,7 +823,9 @@ class SiteTable extends Entity\DataManager
 				try
 				{
 					$siteController::activateDomain(
-						$row['DOMAIN_NAME']
+						$row['DOMAIN_NAME'],
+						($row['ACTIVE'] == 'Y' && $row['DELETED'] == 'N')
+						? 'Y' : 'N'
 					);
 				}
 				catch (\Bitrix\Main\SystemException $ex)

@@ -88,6 +88,7 @@ class RestClient
 		$additionalParams['version'] = $this->version;
 		$additionalParams['client_id'] = $this->accessSettings['client_id'];
 		$additionalParams['client_secret'] = $this->accessSettings['client_secret'];
+		$additionalParams['lang'] = LANGUAGE_ID;
 
 		if ($licenseCheck)
 		{

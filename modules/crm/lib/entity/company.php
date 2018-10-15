@@ -23,6 +23,11 @@ class Company extends EntityBase
 		return self::$instance;
 	}
 
+	public function getEntityTypeID()
+	{
+		return \CCrmOwnerType::Company;
+	}
+
 	//region Db
 	protected function getDbEntity()
 	{

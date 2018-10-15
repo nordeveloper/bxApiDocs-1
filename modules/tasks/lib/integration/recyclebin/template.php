@@ -10,6 +10,7 @@ namespace Bitrix\Tasks\Integration\Recyclebin;
 
 use Bitrix\Main\Application;
 use Bitrix\Main\Error;
+use Bitrix\Main\Loader;
 use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\Result;
 use Bitrix\Tasks\Integration\Forum;
@@ -18,229 +19,208 @@ use Bitrix\Recyclebin\Internals\Contracts\Recyclebinable;
 use Bitrix\Recyclebin\Internals\Entity;
 use Bitrix\Main\Localization\Loc;
 
-
-class Template implements Recyclebinable
+if (Loader::includeModule('recyclebin'))
 {
-	/**
-	 * @param $templateId
-	 * @param array $template
-	 *
-	 * @return \Bitrix\Main\Result
-	 */
-	public static function OnBeforeDelete($templateId, array $template = [])
+	class Template implements Recyclebinable
 	{
-		$recyclebin = new Entity($templateId, Manager::TASKS_TEMPLATE_RECYCLEBIN_ENTITY, Manager::MODULE_ID);
-		$recyclebin->setTitle($template['TITLE']);
-
-		$additionalData = self::collectAdditionalData($templateId);
-		if ($additionalData)
+		/**
+		 * @param       $templateId
+		 * @param array $template
+		 *
+		 * @return \Bitrix\Main\Result
+		 */
+		public static function OnBeforeDelete($templateId, array $template = [])
 		{
-			foreach ($additionalData as $action => $data)
+			$recyclebin = new Entity($templateId, Manager::TASKS_TEMPLATE_RECYCLEBIN_ENTITY, Manager::MODULE_ID);
+			$recyclebin->setTitle($template['TITLE']);
+
+			$additionalData = self::collectAdditionalData($templateId);
+			if ($additionalData)
 			{
-				$recyclebin->add($action, $data);
-			}
-		}
-
-		$result = $recyclebin->save();
-
-		return $result;
-	}
-
-	private static function collectAdditionalData($templateId)
-	{
-		$data = [];
-
-		return $data;
-	}
-
-	/**
-	 * @param Entity $entity
-	 *
-	 * @return Result
-	 */
-	public static function moveFromRecyclebin(Entity $entity)
-	{
-		$result = new Result();
-
-		$connection = Application::getConnection();
-
-		try
-		{
-			$connection->queryExecute(
-				'UPDATE '.TemplateTable::getTableName().' SET ZOMBIE=\'N\' WHERE ID='.$entity->getEntityId()
-			);
-		}
-		catch (\Exception $e)
-		{
-			$result->addError(new Error($e->getMessage(), $e->getCode()));
-		}
-
-		try
-		{
-			$template = $connection->query(
-				'SELECT ID, REPLICATE, REPLICATE_PARAMS FROM '.
-				TemplateTable::getTableName().
-				' WHERE ID='.
-				$entity->getEntityId()
-			)->fetch();
-
-			if ($template["REPLICATE"] == "Y")
-			{
-				$name = 'CTasks::RepeatTaskByTemplateId('.$entity->getEntityId().');';
-
-				// First, remove all agents for this template
-				//				self::removeAgents($id);
-
-				// Set up new agent
-
-				$nextTime = \CTasks::getNextTime(
-					unserialize($template['REPLICATE_PARAMS']),
-					$entity->getEntityId()
-				); // localtime
-				if ($nextTime)
+				foreach ($additionalData as $action => $data)
 				{
-					/** @noinspection PhpDynamicAsStaticMethodCallInspection */
-					\CAgent::AddAgent(
-						$name,
-						'tasks',
-						'N',        // is periodic?
-						86400,        // interval (24 hours)
-						$nextTime,    // datecheck
-						'Y',        // is active?
-						$nextTime    // next_exec
-					);
-
+					$recyclebin->add($action, $data);
 				}
 			}
 
+			$result = $recyclebin->save();
+
+			return $result;
 		}
-		catch (\Exception $e)
+
+		private static function collectAdditionalData($templateId)
 		{
-			$result->addError(new Error($e->getMessage(), $e->getCode()));
+			$data = [];
+
+			return $data;
 		}
 
-		return $result;
-	}
-
-	/**
-	 * @param Entity $entity
-	 *
-	 * @return Result
-	 */
-	public static function removeFromRecyclebin(Entity $entity)
-	{
-		$result = new Result;
-
-		try
+		/**
+		 * @param Entity $entity
+		 *
+		 * @return Result
+		 */
+		public static function moveFromRecyclebin(Entity $entity)
 		{
-			$res = Application::getConnection()->query(
-				'SELECT FORUM_TOPIC_ID FROM b_tasks WHERE ID = '.$entity->getEntityId()
-			);
-			$task = $res->fetch();
-
-			Forum\Task\Topic::delete($task["FORUM_TOPIC_ID"]);
+			$result = new Result();
 
 			$connection = Application::getConnection();
 
-			$connection->queryExecute('DELETE FROM b_tasks WHERE ID='.$entity->getId());
-		}
-		catch (\Exception $e)
-		{
-			$result->addError(new Error($e->getMessage(), $e->getCode()));
-		}
+			try
+			{
+				$connection->queryExecute(
+					'UPDATE '.TemplateTable::getTableName().' SET ZOMBIE=\'N\' WHERE ID='.$entity->getEntityId()
+				);
+			} catch (\Exception $e)
+			{
+				$result->addError(new Error($e->getMessage(), $e->getCode()));
+			}
 
-		return $result;
-	}
+			try
+			{
+				$template = $connection->query(
+					'SELECT ID, REPLICATE, REPLICATE_PARAMS FROM '.
+					TemplateTable::getTableName().
+					' WHERE ID='.
+					$entity->getEntityId()
+				)->fetch();
 
-	/**
-	 * @param Entity $entity
-	 *
-	 * @return bool|void
-	 * @throws NotImplementedException
-	 */
-	public static function previewFromRecyclebin(Entity $entity)
-	{
-		throw new NotImplementedException("Coming soon...");
-	}
-
-	private static function restoreAdditionalData($taskId, $action, array $data = [])
-	{
-		$result = new Result();
-
-		try
-		{
-			/*	foreach ($data as $value)
+				if ($template["REPLICATE"] == "Y")
 				{
-					switch ($action)
+					$name = 'CTasks::RepeatTaskByTemplateId('.$entity->getEntityId().');';
+
+					// First, remove all agents for this template
+					//				self::removeAgents($id);
+
+					// Set up new agent
+
+					$nextTime = \CTasks::getNextTime(
+						unserialize($template['REPLICATE_PARAMS']),
+						$entity->getEntityId()
+					); // localtime
+					if ($nextTime)
 					{
-						case 'MEMBERS':
-							$member = new \CTaskMembers;
-							$member->Add(
-								[
-									'TASK_ID' => $taskId,
-									'USER_ID' => $value['USER_ID'],
-									'TYPE'    => $value['TYPE']
-								]
-							);
-							break;
-
-						case 'TAGS':
-							$tag = new \CTaskTags;
-							$tag->Add(
-								[
-									'TASK_ID' => $taskId,
-									'USER_ID' => $value['USER_ID'],
-									'NAME'    => $value['NAME']
-								]
-							);
-							break;
-
-						case 'DEPENDENCE_TASK':
-							$tag = new \CTaskDependence;
-							$tag->Add(
-								[
-									'TASK_ID'       => $taskId,
-									'USER_ID'       => $value['USER_ID'],
-									'DEPENDS_ON_ID' => $value['DEPENDS_ON_ID']
-								]
-							);
-							break;
-
-						case 'PARAMS':
-							ParameterTable::add(
-								[
-									'TASK_ID' => $taskId,
-									'CODE'    => $value['CODE'],
-									'VALUE'   => $value['VALUE']
-								]
-							);
-							break;
+						/** @noinspection PhpDynamicAsStaticMethodCallInspection */
+						\CAgent::AddAgent(
+							$name,
+							'tasks',
+							'N',        // is periodic?
+							86400,        // interval (24 hours)
+							$nextTime,    // datecheck
+							'Y',        // is active?
+							$nextTime    // next_exec
+						);
 					}
-				}*/
+				}
+			}
+			catch (\Exception $e)
+			{
+				$result->addError(new Error($e->getMessage(), $e->getCode()));
+			}
+
+			return $result;
 		}
-		catch (\Exception $e)
+
+		/**
+		 * @param Entity $entity
+		 *
+		 * @return Result
+		 */
+		public static function removeFromRecyclebin(Entity $entity)
 		{
-			$result->addError(new Error($e->getMessage(), $e->getCode()));
+			$result = new Result;
+
+			return $result;
 		}
 
-		return $result;
+		/**
+		 * @param Entity $entity
+		 *
+		 * @return bool|void
+		 * @throws NotImplementedException
+		 */
+		public static function previewFromRecyclebin(Entity $entity)
+		{
+			throw new NotImplementedException("Coming soon...");
+		}
+
+		private static function restoreAdditionalData($taskId, $action, array $data = [])
+		{
+			$result = new Result();
+
+			try
+			{
+				/*	foreach ($data as $value)
+					{
+						switch ($action)
+						{
+							case 'MEMBERS':
+								$member = new \CTaskMembers;
+								$member->Add(
+									[
+										'TASK_ID' => $taskId,
+										'USER_ID' => $value['USER_ID'],
+										'TYPE'    => $value['TYPE']
+									]
+								);
+								break;
+
+							case 'TAGS':
+								$tag = new \CTaskTags;
+								$tag->Add(
+									[
+										'TASK_ID' => $taskId,
+										'USER_ID' => $value['USER_ID'],
+										'NAME'    => $value['NAME']
+									]
+								);
+								break;
+
+							case 'DEPENDENCE_TASK':
+								$tag = new \CTaskDependence;
+								$tag->Add(
+									[
+										'TASK_ID'       => $taskId,
+										'USER_ID'       => $value['USER_ID'],
+										'DEPENDS_ON_ID' => $value['DEPENDS_ON_ID']
+									]
+								);
+								break;
+
+							case 'PARAMS':
+								ParameterTable::add(
+									[
+										'TASK_ID' => $taskId,
+										'CODE'    => $value['CODE'],
+										'VALUE'   => $value['VALUE']
+									]
+								);
+								break;
+						}
+					}*/
+			}
+			catch (\Exception $e)
+			{
+				$result->addError(new Error($e->getMessage(), $e->getCode()));
+			}
+
+			return $result;
+		}
+
+
+		public static function getNotifyMessages()
+		{
+			return [
+				'NOTIFY' => [
+					'RESTORE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_RESTORE_MESSAGE'),
+					'REMOVE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_REMOVE_MESSAGE'),
+				],
+				'CONFIRM' => [
+					'RESTORE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_RESTORE_CONFIRM'),
+					'REMOVE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_REMOVE_CONFIRM')
+				]
+			];
+		}
 
 	}
-
-
-
-	public static function getNotifyMessages()
-	{
-		return [
-			'NOTIFY'=> [
-				'RESTORE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_RESTORE_MESSAGE'),
-				'REMOVE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_REMOVE_MESSAGE'),
-			],
-			'CONFIRM' => [
-				'RESTORE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_RESTORE_CONFIRM'),
-				'REMOVE' => Loc::getMessage('TASKS_TEMPLATE_RECYCLEBIN_REMOVE_CONFIRM')
-			]
-		];
-	}
-
 }

@@ -12,11 +12,13 @@
 
 namespace Bitrix\Tasks\Manager\Task;
 
+use Bitrix\Main\Localization\Loc;
 use Bitrix\Tasks\Integration\SocialNetwork;
 use Bitrix\Tasks\Util\Assert;
 use Bitrix\Tasks\Util\Error\Collection;
 use Bitrix\Tasks\Util\Type;
 use Bitrix\Tasks\Internals\Task\Template\ReplicateParamsCorrector;
+use Bitrix\Tasks\Integration\SocialNetwork\User;
 
 // todo: inherit this class from \Bitrix\Tasks\Manager\Task ?
 final class Template extends \Bitrix\Tasks\Manager
@@ -444,7 +446,10 @@ final class Template extends \Bitrix\Tasks\Manager
 		$data = array();
 
 		$replicate = $taskData[$replicateKey] == 'Y';
-		$templateId = false;
+		$templateResult = array(
+			'ID' => 0,
+			'ERRORS' => array()
+		);
 
 		if($replicate) // replication was changed to true
 		{
@@ -461,22 +466,28 @@ final class Template extends \Bitrix\Tasks\Manager
 				if($parameters['MODE'] == static::MODE_ADD) // task add, replicate = y
 				{
 					// then add template
-					$templateId = static::addTemplateByTask($userId, $taskId, $taskData);
+					$templateResult = static::addTemplateByTask($userId, $taskId, $taskData);
 				}
 				elseif($parameters['MODE'] == static::MODE_UPDATE) // task update, replicate = y
 				{
 					$template = static::getByParentTask(false, $taskId);
 					if(intval($template['DATA']['ID'])) // then update template
 					{
-						static::update($userId, intval($template['DATA']['ID']), array(
-							'REPLICATE_PARAMS' => $replicateParams,
-							'REPLICATE' => 'Y' // required for agent re-creation by update()
-						), $parameters);
-						$templateId = intval($template['DATA']['ID']);
+						static::update(
+							$userId,
+							intval($template['DATA']['ID']),
+							array(
+								'REPLICATE_PARAMS' => $replicateParams,
+								'REPLICATE' => 'Y' // required for agent re-creation by update()
+							),
+							$parameters
+						);
+
+						$templateResult['ID'] = intval($template['DATA']['ID']);
 					}
 					else // no template? add!
 					{
-						$templateId = static::addTemplateByTask($userId, $taskId, $taskData);
+						$templateResult = static::addTemplateByTask($userId, $taskId, $taskData);
 					}
 				}
 			}
@@ -494,9 +505,13 @@ final class Template extends \Bitrix\Tasks\Manager
 			}
 		}
 
-		if($templateId)
+		if ($templateResult['ID'])
 		{
-			$data['ID'] = $templateId;
+			$data['ID'] = $templateResult['ID'];
+		}
+		elseif (!empty($templateResult['ERRORS']))
+		{
+			$result['ERRORS']->addWarning('SAVE_AS_TEMPLATE_ERROR', $templateResult['ERRORS'][0]);
 		}
 
 		$result['DATA'] = $data;
@@ -507,6 +522,7 @@ final class Template extends \Bitrix\Tasks\Manager
 	private static function addTemplateByTask($userId, $taskId, $data)
 	{
 		$id = 0;
+		$errors = array();
 
 		$task = new \Bitrix\Tasks\Item\Task($taskId, $userId);
 		$conversionResult = $task->transformToTemplate();
@@ -541,10 +557,23 @@ final class Template extends \Bitrix\Tasks\Manager
 			else
 			{
 				$conversionResult->abortConversion();
+				$errors = $saveResult->getErrors()->getMessages();
 			}
 		}
+		else
+		{
+			$errors[] = Loc::getMessage('TASKS_MANAGER_TASK_TEMPLATE_CONVERSION_ERROR');
+		}
 
-		return $id;
+		if (!$id && empty($errors))
+		{
+			$errors[] = Loc::getMessage('TASKS_MANAGER_TASK_TEMPLATE_UNKNOWN_ERROR');
+		}
+
+		return array(
+			'ID' => $id,
+			'ERRORS' => $errors
+		);
 	}
 
 	public static function getByParentTask($userId, $taskId)
@@ -552,7 +581,10 @@ final class Template extends \Bitrix\Tasks\Manager
 		$access = array();
 		if($userId !== false)
 		{
-			$access = array('USER_ID' => $userId);
+			$access = array(
+				'USER_ID' => $userId,
+				'USER_IS_ADMIN' => User::isAdmin($userId)
+			);
 		}
 
 		$item = \CTaskTemplates::getList(array(), array('TASK_ID' => $taskId), array(), $access, array(

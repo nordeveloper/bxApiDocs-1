@@ -274,7 +274,6 @@ CModule::AddAutoloadClasses(
 		'\Bitrix\Crm\Recurring\DateType\Year' => 'lib/recurring/datetype/year.php',
 		'\Bitrix\Crm\InvoiceRecurTable' => 'lib/invoicerecur.php',
 		'\Bitrix\Crm\Order\Matcher\Internals\OrderPropsMatchTable' => 'lib/order/matcher/internals/orderpropsmatchtable.php',
-		'\Bitrix\Crm\Order\PropertyTable' => 'lib/order/propertytable.php',
 		'\Bitrix\Crm\Order\Matcher\Internals\QueueTable' => 'lib/order/matcher/internals/queuetable.php',
 		'\Bitrix\Crm\Order\Matcher\Internals\FormTable' => 'lib/order/matcher/internals/formtable.php',
 		'\Bitrix\Crm\Invoice\Internals\InvoiceDiscountTable' => 'lib/invoice/internals/invoicediscount.php',
@@ -285,6 +284,7 @@ CModule::AddAutoloadClasses(
 		'\Bitrix\Crm\Invoice\Internals\InvoiceRulesDescrTable' => 'lib/invoice/internals/invoicediscount.php',
 		'\Bitrix\Crm\Invoice\Internals\InvoiceRoundTable' => 'lib/invoice/internals/invoiceround.php',
 		'\Bitrix\Crm\Communication\Type' => 'lib/communication/type.php',
+		'\Bitrix\Crm\Order\Manager' => 'lib/order/manager.php'
 	)
 );
 

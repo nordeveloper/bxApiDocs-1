@@ -31,7 +31,7 @@ final class Comment extends \Bitrix\Tasks\Integration\Forum\Comment
 	 *
 	 * @param $taskId
 	 * @param mixed[] $data
-	 * @return array|bool
+	 * @return Result
 	 *
 	 * @access private
 	 */

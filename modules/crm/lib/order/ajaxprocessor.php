@@ -3,13 +3,17 @@ namespace Bitrix\Crm\Order;
 
 use \Bitrix\Main\Error;
 use Bitrix\Main\Loader;
-use \Bitrix\Main\Result;
+use \Bitrix\Sale\Result;
 use \Bitrix\Main\Localization\Loc;
 use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\ArgumentOutOfRangeException;
 
 Loc::loadMessages(__FILE__);
 
+if (!Loader::includeModule('sale'))
+{
+	return;
+}
 /** @internal */
 class AjaxProcessor
 {
@@ -21,6 +25,8 @@ class AjaxProcessor
 	protected $request = [];
 	/** @var Result */
 	protected $result = null;
+	/** @var Result */
+	protected $showWarnings = true;
 
 	/**
 	 * AjaxProcessor constructor.
@@ -79,6 +85,10 @@ class AjaxProcessor
 		if(!empty($this->request['ACTION']))
 		{
 			$action = trim($this->request['ACTION']);
+			if ($action == 'SAVE')
+			{
+				$this->showWarnings = false;
+			}
 		}
 		elseif(!empty($this->request['MODE']))
 		{
@@ -128,6 +138,20 @@ class AjaxProcessor
 			$response['ERROR'] = implode(', ', $result->getErrorMessages());
 		}
 
+		if($result->hasWarnings() && $this->showWarnings)
+		{
+			$warningString = implode(', ', $result->getWarningMessages());
+
+			if (empty($response['ERROR']))
+			{
+				$response['ERROR'] = $warningString;
+			}
+			else
+			{
+				$response['ERROR'] .= ', '.$warningString;
+			}
+		}
+
 		if(!empty($response))
 		{
 			echo \CUtil::PhpToJSObject($response);
@@ -171,6 +195,16 @@ class AjaxProcessor
 	protected function addErrors(array $errors)
 	{
 		$this->result->addErrors($errors);
+	}
+
+	protected function addWarning($message)
+	{
+		$this->result->addWarning(new \Bitrix\Sale\ResultWarning($message));
+	}
+
+	protected function addWarnings(array $errors)
+	{
+		$this->result->addWarnings($errors);
 	}
 
 	protected function addData(array $data)

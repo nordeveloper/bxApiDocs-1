@@ -25,5 +25,14 @@ abstract class Node
 	 * @param array $manifestFull Full manifest of block (by ref).
 	 * @return array|null Return null no delete from manifest.
 	 */
+
+	/**
+	 * Get data for this node.
+	 * @param \Bitrix\Landing\Block &$block Block instance.
+	 * @param string $selector Selector.
+	 * @return array
+	 */
+	abstract public static function getNode(\Bitrix\Landing\Block &$block, $selector);
+
 	//abstract public static function prepareManifest(\Bitrix\Landing\Block $block, array $manifest, array &$manifestFull = array());
 }

@@ -109,7 +109,7 @@ class OrderDocumentHandler extends PaySystem\BaseServiceHandler
 
 		foreach ($templateList as $item)
 		{
-			$result[$item['ID']] = $item['NAME'];
+			$result[$item['ID']] = htmlspecialcharsbx($item['NAME']);
 		}
 
 		return $result;

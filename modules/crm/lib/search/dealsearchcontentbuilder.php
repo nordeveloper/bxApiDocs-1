@@ -1,5 +1,7 @@
 <?php
 namespace Bitrix\Crm\Search;
+
+use Bitrix\Crm;
 use Bitrix\Crm\DealTable;
 use Bitrix\Crm\Binding\DealContactTable;
 class DealSearchContentBuilder extends SearchContentBuilder
@@ -7,6 +9,10 @@ class DealSearchContentBuilder extends SearchContentBuilder
 	public function getEntityTypeID()
 	{
 		return \CCrmOwnerType::Deal;
+	}
+	protected function getUserFieldEntityID()
+	{
+		return \CCrmDeal::GetUserFieldEntityID();
 	}
 	public function isFullTextSearchEnabled()
 	{
@@ -41,6 +47,7 @@ class DealSearchContentBuilder extends SearchContentBuilder
 	 * Prepare search map.
 	 * @param array $fields Entity Fields.
 	 * @return SearchMap
+	 * @throws \Bitrix\Main\ArgumentException
 	 */
 	protected function prepareSearchMap(array $fields)
 	{
@@ -55,6 +62,16 @@ class DealSearchContentBuilder extends SearchContentBuilder
 		$map->add($entityID);
 		$map->addField($fields, 'ID');
 		$map->addField($fields, 'TITLE');
+
+		$title = isset($fields['TITLE']) ? $fields['TITLE'] : '';
+		if($title !== '')
+		{
+			$delimiterIndex = strpos($title, '#');
+			if($delimiterIndex !== false)
+			{
+				$map->addTextFragments(substr($title, $delimiterIndex + 1));
+			}
+		}
 
 		$map->addField($fields, 'OPPORTUNITY');
 		$map->add(
@@ -97,6 +114,55 @@ class DealSearchContentBuilder extends SearchContentBuilder
 				$contactID,
 				array(\CCrmFieldMulti::PHONE, \CCrmFieldMulti::EMAIL)
 			);
+		}
+		//endregion
+
+		if(isset($fields['TYPE_ID']))
+		{
+			$map->addStatus('DEAL_TYPE', $fields['TYPE_ID']);
+		}
+
+		if(isset($fields['STAGE_ID']))
+		{
+			$map->add(
+				Crm\Category\DealCategory::getStageName(
+					$fields['STAGE_ID'],
+					isset($fields['CATEGORY_ID']) ? $fields['CATEGORY_ID'] : -1
+				)
+			);
+		}
+
+		if(isset($fields['BEGINDATE']))
+		{
+			$map->add($fields['BEGINDATE']);
+		}
+
+		if(isset($fields['CLOSEDATE']))
+		{
+			$map->add($fields['CLOSEDATE']);
+		}
+
+		if(isset($fields['COMMENTS']))
+		{
+			$map->addHtml($fields['COMMENTS'], 1024);
+		}
+
+		//region Source
+		if(isset($fields['SOURCE_ID']))
+		{
+			$map->addStatus('SOURCE', $fields['SOURCE_ID']);
+		}
+
+		if(isset($fields['SOURCE_DESCRIPTION']))
+		{
+			$map->addText($fields['SOURCE_DESCRIPTION'], 1024);
+		}
+		//endregion
+
+		//region UserFields
+		foreach($this->getUserFields($entityID) as $userField)
+		{
+			$map->addUserField($userField);
 		}
 		//endregion
 

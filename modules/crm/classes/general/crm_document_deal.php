@@ -438,11 +438,7 @@ class CCrmDocumentDeal extends CCrmDocument
 
 		if(isset($arFields['COMMENTS']))
 		{
-			if(preg_match('/<[^>]+[\/]?>/i', $arFields['COMMENTS']) === 1)
-			{
-				$arFields['COMMENTS'] = htmlspecialcharsbx($arFields['COMMENTS']);
-			}
-			$arFields['COMMENTS'] = str_replace(array("\r\n", "\r", "\n"), "<br>", $arFields['COMMENTS']);
+			$arFields['COMMENTS'] = static::sanitizeCommentsValue($arFields['COMMENTS']);
 		}
 
 		//region Category & Stage
@@ -613,7 +609,7 @@ class CCrmDocumentDeal extends CCrmDocument
 
 		if(isset($arFields['COMMENTS']) && $arFields['COMMENTS'] !== '')
 		{
-			$arFields['COMMENTS'] = preg_replace("/[\r\n]+/".BX_UTF_PCRE_MODIFIER, "<br/>", $arFields['COMMENTS']);
+			$arFields['COMMENTS'] = static::sanitizeCommentsValue($arFields['COMMENTS']);
 		}
 
 		//region Category & Stage
@@ -671,7 +667,11 @@ class CCrmDocumentDeal extends CCrmDocument
 			$arFields,
 			true,
 			true,
-			array('REGISTER_SONET_EVENT' => true, 'CURRENT_USER' => static::getSystemUserId())
+			[
+				'DISABLE_USER_FIELD_CHECK' => true,
+				'REGISTER_SONET_EVENT' => true,
+				'CURRENT_USER' => static::getSystemUserId()
+			]
 		);
 
 		if (!$res)

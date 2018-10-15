@@ -4,6 +4,7 @@ namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\QuoteTable;
 use Bitrix\DocumentGenerator\Nameable;
+use Bitrix\DocumentGenerator\Value\DateTime;
 
 class Quote extends ProductsDataProvider implements Nameable
 {
@@ -20,13 +21,13 @@ class Quote extends ProductsDataProvider implements Nameable
 			$this->fields['ID'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_ID_TITLE'),];
 			$this->fields['TITLE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TITLE_TITLE'),];
 			$this->fields['OPPORTUNITY'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_OPPORTUNITY_TITLE'),];
-			$this->fields['TAX_VALUE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TAX_VALUE_TITLE'),];
 			$this->fields['CURRENCY_ID'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CURRENCY_ID_TITLE'),];
+			$this->fields['LOCATION_ID'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_LOCATION_ID_TITLE'),];
 			$this->fields['COMMENTS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_COMMENTS_TITLE'), 'TYPE' => static::FIELD_TYPE_TEXT];
-			$this->fields['BEGINDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_BEGINDATE_TITLE'),];
-			$this->fields['CLOSEDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CLOSEDATE_TITLE'),];
-			$this->fields['DATE_CREATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_CREATE_TITLE'),];
-			$this->fields['DATE_MODIFY'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_MODIFY_TITLE'),];
+			$this->fields['BEGINDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_BEGINDATE_TITLE'), 'TYPE' => DateTime::class];
+			$this->fields['CLOSEDATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CLOSEDATE_TITLE'), 'TYPE' => DateTime::class];
+			$this->fields['DATE_CREATE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_CREATE_TITLE'), 'TYPE' => DateTime::class];
+			$this->fields['DATE_MODIFY'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_DATE_MODIFY_TITLE'), 'TYPE' => DateTime::class];
 			$this->fields['CONTENT'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_CONTENT_TITLE'), 'TYPE' => static::FIELD_TYPE_TEXT];
 			$this->fields['TERMS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_QUOTE_TERM_TITLE'), 'TYPE' => static::FIELD_TYPE_TEXT];
 	//		$this->fields['LEAD'] = [
@@ -122,5 +123,16 @@ class Quote extends ProductsDataProvider implements Nameable
 	protected function getUserFieldEntityID()
 	{
 		return \CCrmQuote::GetUserFieldEntityID();
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getHiddenFields()
+	{
+		return array_merge(parent::getHiddenFields(), [
+			'BEGINDATE_SHORT',
+			'CLOSEDATE_SHORT',
+		]);
 	}
 }

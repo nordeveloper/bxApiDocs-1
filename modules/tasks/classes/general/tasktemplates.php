@@ -497,7 +497,9 @@ class CTaskTemplates
 					}
 				}
 
-				if ($isReplicateParamsChanged)
+				$skipAgentProcessing = (isset($arParams['SKIP_AGENT_PROCESSING'])? $arParams['SKIP_AGENT_PROCESSING'] : false);
+
+				if ($isReplicateParamsChanged && !$skipAgentProcessing)
 				{
 					$name = 'CTasks::RepeatTaskByTemplateId('.$ID.');';
 
@@ -1141,12 +1143,15 @@ class CTaskTemplates
 						"CONCAT_WS(' ', CU.NAME, CU.LAST_NAME, CU.SECOND_NAME, CU.LOGIN, RU.NAME, RU.LAST_NAME, RU.SECOND_NAME, RU.LOGIN)"
 					);
 
-					$filter = CTasks::FilterCreate("TT.ID", (int)$val, "number", $bFullJoin, $cOperationType);
+					$filter = '(';
+					$filter .= CTasks::FilterCreate("TT.ID", (int)$val, "number", $bFullJoin, $cOperationType);
 
 					foreach ($fieldsToLike as $field)
 					{
 						$filter .= " OR ".CTasks::FilterCreate($field, $val, "string", $bFullJoin, "S");
 					}
+					$filter .= ')';
+
 					$arSqlSearch[] = $filter;
 
 					break;
@@ -1228,10 +1233,10 @@ class CTaskTemplates
 			"END_DATE" => true,
 			"TIME" => true,
 			"TIMEZONE_OFFSET" => true,
-
 			"DAILY_MONTH_INTERVAL" => true,
 			"REPEAT_TILL" => true,
 			"TIMES" => true,
+			"NEXT_EXECUTION_TIME" => true
 		);
 
 		foreach($params as $fld => $value)

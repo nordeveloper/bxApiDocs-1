@@ -1,6 +1,7 @@
 <?
 namespace Sale\Handlers\Delivery\Additional;
 
+use Bitrix\Main\Application;
 use Bitrix\Main\Error;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Text\Encoding;
@@ -8,17 +9,10 @@ use Bitrix\Main\Web\HttpClient;
 use Bitrix\Sale\Result;
 use Bitrix\Main\IO\File;
 use Bitrix\Main\Localization\Loc;
-use Bitrix\Sale\Location\Comparator;
 use Bitrix\Sale\Delivery\ExternalLocationMap;
 
 Loc::loadMessages(__FILE__);
 
-Loader::registerAutoLoadClasses(
-	'sale',
-	array(
-		'\Sale\Handlers\Delivery\Additional\Location\Replacement' => 'handlers/delivery/additional/location/ru/replacement.php',
-	)
-);
 /**
  * Class Location
  * Convert service locations to local and back
@@ -220,8 +214,50 @@ class Location extends ExternalLocationMap
 		return  self::unpackLocations($archiveFileName);
 	}
 
+	protected static function getReplacementClass()
+	{
+		$result = null;
+
+		$replacementPath = Application::getDocumentRoot().
+			'/bitrix/modules/sale/handlers/delivery/additional/location/'.
+			LANGUAGE_ID.'/replacement.php';
+
+		if(file_exists($replacementPath))
+		{
+			require_once($replacementPath);
+
+			if(class_exists('\Sale\Handlers\Delivery\Additional\Location\Replacement'))
+			{
+				$result = '\Sale\Handlers\Delivery\Additional\Location\Replacement';
+			}
+		}
+
+		return $result;
+	}
+
+	protected static function getCountryName()
+	{
+		$result = '';
+		/** @var \Sale\Handlers\Delivery\Additional\Location\Replacement $relpacementClass */
+		$relpacementClass = static::getReplacementClass();
+
+		if($relpacementClass)
+		{
+			$result = $relpacementClass::getCountryName();
+		}
+
+		return $result;
+	}
+
 	protected static function mapByNames($srvId, $startId = 0, $timeout = 0)
 	{
+		$countryName = self::getCountryName();
+
+		if(strlen($countryName) <= 0)
+		{
+			return 0;
+		}
+
 		$startTime = mktime(true);
 		$con = \Bitrix\Main\Application::getConnection();
 		$sqlHelper = $con->getSqlHelper();
@@ -246,7 +282,6 @@ class Location extends ExternalLocationMap
 		}
 
 		$dbRes = $con->query($query);
-		$t = $t1 = mktime(true);
 
 		while($ethLoc = $dbRes->fetch())
 		{

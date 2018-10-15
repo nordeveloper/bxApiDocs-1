@@ -120,6 +120,26 @@ class ManagerCounters extends DataSource
 					}
 				}
 			}
+
+			if ($dbRes = WaitTable::getList(array(
+				'select' => array(
+					new ExpressionField('CNT', 'COUNT(*)'),
+					'AUTHOR_ID',
+					'OWNER_TYPE_ID'
+				),
+				'filter' => array(
+					'=COMPLETED' => 'N',
+					'=AUTHOR_ID' => array_keys($result),
+				),
+			)))
+			{
+				while ($res = $dbRes->Fetch())
+				{
+					$name = \CCrmOwnerType::ResolveName($res["OWNER_TYPE_ID"]);
+					$result[$res["AUTHOR_ID"]]["VALUE"][$name][0] -= $res["CNT"];
+					$result[$res["AUTHOR_ID"]]["TOTAL"][0] -= $res["CNT"];
+				}
+			}
 		}
 
 		return array(
@@ -166,7 +186,7 @@ class ManagerCounters extends DataSource
 			{
 				$val = is_array($val) ? $val : array(0, 0);
 				$result[$k]["TOTAL"][0] += ($val[0] > 0 ? $val[0] : 0);
-				$result[$k]["TOTAL"][1] += ($val[1] > 1 ? $val[1] : 0);
+				$result[$k]["TOTAL"][1] += ($val[1] > 0 ? $val[1] : 0);
 			}
 		}
 		uasort($result, array(__CLASS__, 'sortPersonalStatistic'));
@@ -576,7 +596,6 @@ HTML;
 						'filter' => (array(
 							'=STATUS_SEMANTIC_ID' => PhaseSemantics::PROCESS,
 							'==UA.OWNER_ID' => null,
-							'==W.OWNER_ID' => null,
 						) + (!\CCrmPerms::IsAdmin($this->getUserID()) ? array('@ASSIGNED_BY_ID' => $this->getSubordinates()) : array())),
 						'group' => array(
 							'ASSIGNED_BY_ID',
@@ -607,7 +626,7 @@ HTML;
 								WaitTable::getEntity(),
 								array(
 									'=ref.OWNER_ID' => 'this.ID',
-									'=ref.OWNER_TYPE_ID' => new SqlExpression(\CCrmOwnerType::Deal),
+									'=ref.OWNER_TYPE_ID' => new SqlExpression(\CCrmOwnerType::Lead),
 									'=ref.COMPLETED' => new SqlExpression('?s', 'N')
 								),
 								array('join_type' => 'LEFT')
@@ -629,7 +648,6 @@ HTML;
 								'=STAGE_SEMANTIC_ID' => PhaseSemantics::PROCESS,
 								'=IS_RECURRING' => 'N',
 								'==UA.OWNER_ID' => null,
-								'==W.OWNER_ID' => null,
 							) + (!\CCrmPerms::IsAdmin($this->getUserID()) ? array('@ASSIGNED_BY_ID' => $this->getSubordinates()) : array())),
 						'group' => array(
 							'ASSIGNED_BY_ID'

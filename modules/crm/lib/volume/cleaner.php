@@ -821,7 +821,13 @@ class Cleaner
 
 				if (!empty($this->param['FILTER']))
 				{
-					$this->indicator->setFilter(unserialize($this->param['FILTER']));
+					$filter = unserialize($this->param['FILTER']);
+					if ($filter === false || !is_array($filter))
+					{
+						return false;
+					}
+
+					$this->indicator->setFilter($filter);
 				}
 			}
 			catch(\Bitrix\Main\ObjectException $ex)

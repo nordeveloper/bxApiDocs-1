@@ -48,6 +48,15 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 	}
 
 	/**
+	 * Tells that is is participated in the total volume.
+	 * @return boolean
+	 */
+	public function isParticipatedTotal()
+	{
+		return false;
+	}
+
+	/**
 	 * Get entity list path.
 	 * @return string
 	 */

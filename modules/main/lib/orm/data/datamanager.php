@@ -159,7 +159,7 @@ abstract class DataManager
 	 *
 	 * @return string
 	 */
-	public static function getObjectClassName()
+	final public static function getObjectClassName()
 	{
 		$class = static::getObjectClass();
 		return substr($class, strrpos($class, '\\')+1);
@@ -193,10 +193,60 @@ abstract class DataManager
 	 *
 	 * @return string
 	 */
-	public static function getCollectionClassName()
+	final public static function getCollectionClassName()
 	{
 		$class = static::getCollectionClass();
 		return substr($class, strrpos($class, '\\')+1);
+	}
+
+	/**
+	 * @param bool $setDefaultValues
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ArgumentException
+	 * @throws Main\SystemException
+	 */
+	final public function createObject($setDefaultValues = true)
+	{
+		return static::getEntity()->createObject($setDefaultValues);
+	}
+
+	/**
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ArgumentException
+	 * @throws Main\SystemException
+	 */
+	final public function createCollection()
+	{
+		return static::getEntity()->createCollection();
+	}
+
+	/**
+	 * @see EntityObject::wakeUp()
+	 *
+	 * @param $row
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ArgumentException
+	 * @throws Main\SystemException
+	 */
+	final public function wakeUpObject($row)
+	{
+		return static::getEntity()->wakeUpObject($row);
+	}
+
+	/**
+	 * @see Collection::wakeUp()
+	 *
+	 * @param $rows
+	 *
+	 * @return null Actual type should be annotated by orm:annotate
+	 * @throws Main\ArgumentException
+	 * @throws Main\SystemException
+	 */
+	final public function wakeUpCollection($rows)
+	{
+		return static::getEntity()->wakeUpCollection($rows);
 	}
 
 	/**
@@ -689,7 +739,7 @@ abstract class DataManager
 			foreach ($fields as $fieldName => $value)
 			{
 				// sometimes data array can be used for storing non-entity data
-				if ($object->entity()->hasField($fieldName))
+				if ($object->entity->hasField($fieldName))
 				{
 					$object->sysSetValue($fieldName, $value);
 				}
@@ -719,10 +769,10 @@ abstract class DataManager
 			$event->mergeObjectFields($object);
 
 			// actualize old-style fields array from object
-			$fields = $object->values(Values::CURRENT, FieldTypeMask::SCALAR);
+			$fields = $object->collectValues(Values::CURRENT, FieldTypeMask::SCALAR);
 
 			// uf values
-			$ufdata = $object->values(Values::CURRENT, FieldTypeMask::USERTYPE);
+			$ufdata = $object->collectValues(Values::CURRENT, FieldTypeMask::USERTYPE);
 
 			// check data
 			static::checkFields($result, null, $fields);
@@ -911,7 +961,7 @@ abstract class DataManager
 			foreach ($fields as $fieldName => $value)
 			{
 				// sometimes data array can be used for storing non-entity data
-				if ($object->entity()->hasField($fieldName))
+				if ($object->entity->hasField($fieldName))
 				{
 					$object->sysSetValue($fieldName, $value);
 				}
@@ -944,10 +994,10 @@ abstract class DataManager
 			$event->mergeObjectFields($object);
 
 			// actualize old-style fields array from object
-			$fields = $object->values(Values::CURRENT, FieldTypeMask::SCALAR);
+			$fields = $object->collectValues(Values::CURRENT, FieldTypeMask::SCALAR);
 
 			// uf values
-			$ufdata = $object->values(Values::CURRENT, FieldTypeMask::USERTYPE);
+			$ufdata = $object->collectValues(Values::CURRENT, FieldTypeMask::USERTYPE);
 
 			// check data
 			static::checkFields($result, $primary, $fields);

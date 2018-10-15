@@ -9,6 +9,7 @@ use Bitrix\Main\Text\Encoding;
 
 final class DocxXml extends Xml
 {
+	const EMPTY_IMAGE_PLACEHOLDER = '{__SystemEmptyImage}';
 	protected $arrayImageValues = [];
 
 	/**
@@ -63,56 +64,8 @@ final class DocxXml extends Xml
 		foreach($bracketNodes as $bracketNode)
 		{
 			/** @var \DOMElement $bracketNode */
-			$deleteNodes = [];
-			$startNode = $endNode = false;
-			$text = '';
 			$rowNodes = $bracketNode->getElementsByTagNameNS($this->getNamespaces()['w'], 'r');
-			foreach($rowNodes as $rowNode)
-			{
-				$startNodeFound = false;
-				/** @var \DOMElement $rowNode */
-				if(!$startNode && strpos($rowNode->textContent, '{') !== false)
-				{
-					$startNode = $rowNode;
-					$startNodeFound = true;
-				}
-				if($startNode && !$endNode)
-				{
-					$text .= $rowNode->textContent;
-					if(!$startNodeFound)
-					{
-						$deleteNodes[] = $rowNode;
-					}
-				}
-				$lastClosedBracketPosition = strrpos($text, '}');
-				$lastOpenBracketPosition = strrpos($text, '{');
-				if($lastOpenBracketPosition > 0 && $lastOpenBracketPosition > 0 && $lastOpenBracketPosition > $lastClosedBracketPosition)
-				{
-					continue;
-				}
-				$closedBracketsFound = substr_count($rowNode->textContent, '}');
-				if($startNode && !$endNode && $closedBracketsFound > 0)
-				{
-					$endNode = $rowNode;
-				}
-				if($startNode && $endNode)
-				{
-					$textNodes = $startNode->getElementsByTagNameNS($this->getNamespaces()['w'], 't');
-					if($textNodes->length > 0)
-					{
-						$node = $textNodes->item(0);
-						$node->nodeValue = $text;
-					}
-					$startNode = $endNode = false;
-					$text = '';
-					$bracketNode->normalize();
-				}
-			}
-			foreach($deleteNodes as $node)
-			{
-				/** @var \DOMElement $node */
-				$node->parentNode->removeChild($node);
-			}
+			$this->normalizeNodeList($rowNodes, $bracketNode);
 		}
 		$this->saveContent();
 		$this->clearPlaceholdersInAttributes();
@@ -146,6 +99,115 @@ final class DocxXml extends Xml
 
 				return $matches[0];
 			}, $this->content);
+		}
+	}
+
+	/**
+	 * Walk through $nodeList, finds start node and text with all placeholdersþ
+	 *
+	 * @param \DOMNodeList $nodeList
+	 * @param \DOMElement|null $parentNode
+	 */
+	protected function normalizeNodeList(\DOMNodeList $nodeList, \DOMElement $parentNode = null)
+	{
+		$deleteNodes = [];
+		$startNode = $endNode = false;
+		$text = '';
+		foreach($nodeList as $node)
+		{
+			$startNodeFound = false;
+			/** @var \DOMElement $node */
+			if(!$startNode && strpos($node->textContent, '{') !== false)
+			{
+				$startNode = $node;
+				$startNodeFound = true;
+			}
+			if($startNode && !$endNode)
+			{
+				$text .= $node->textContent;
+				if(!$startNodeFound)
+				{
+					$deleteNodes[] = $node;
+				}
+			}
+			$lastClosedBracketPosition = strrpos($text, '}');
+			$lastOpenBracketPosition = strrpos($text, '{');
+			if($lastOpenBracketPosition > 0 && $lastOpenBracketPosition > $lastClosedBracketPosition)
+			{
+				continue;
+			}
+			$closedBracketsFound = substr_count($node->textContent, '}');
+			if($startNode && !$endNode && $closedBracketsFound > 0)
+			{
+				$endNode = $node;
+			}
+			if($startNode && $endNode)
+			{
+				$this->refillTextNode($startNode, $text);
+				foreach($deleteNodes as $deleteNode)
+				{
+					/** @var \DOMElement $deleteNode */
+					if($deleteNode->parentNode)
+					{
+						$deleteNode->parentNode->removeChild($deleteNode);
+					}
+				}
+				if($parentNode)
+				{
+					$parentNode->normalize();
+				}
+				$deleteNodes = [];
+				$startNode = $endNode = false;
+				$text = '';
+			}
+		}
+	}
+
+	/**
+	 * Change text nodes content
+	 *
+	 * @param \DOMElement $rowNode
+	 * @param $textContent
+	 */
+	protected function refillTextNode(\DOMElement $rowNode, $textContent)
+	{
+		$textNodes = $rowNode->getElementsByTagNameNS($this->getNamespaces()['w'], 't');
+		if($textNodes->length == 0)
+		{
+			return;
+		}
+		if($textNodes->length == 1)
+		{
+			$node = $textNodes->item(0);
+			$node->nodeValue = $textContent;
+			return;
+		}
+		$deleteNodes = [];
+		$startNode = false;
+		foreach($textNodes as $node)
+		{
+			$startNodeFound = false;
+			if(!$startNode && strpos($node->textContent, '{') !== false)
+			{
+				$startNode = $node;
+				$startNodeFound = true;
+			}
+			if(!$startNodeFound)
+			{
+				$deleteNodes[] = $node;
+			}
+		}
+		if($startNode)
+		{
+			$startNode->nodeValue = $textContent;
+		}
+		foreach($deleteNodes as $deleteNode)
+		{
+			/** @var \DOMElement $deleteNode */
+			if($deleteNode->parentNode)
+			{
+				$deleteNode->parentNode->removeChild($deleteNode);
+			}
 		}
 	}
 
@@ -267,7 +329,14 @@ final class DocxXml extends Xml
 									// multiply images
 									if($this->isImageValue($matches[2], $values))
 									{
-										return $matches[0];
+										if($values[$matches[2]])
+										{
+											return $matches[0];
+										}
+										else
+										{
+											return static::EMPTY_IMAGE_PLACEHOLDER;
+										}
 									}
 									return $this->printValue($values[$matches[2]], $matches[2], $matches[3]);
 								}
@@ -422,7 +491,7 @@ final class DocxXml extends Xml
 	 */
 	protected function clearRowsWithoutValues()
 	{
-		$fieldsToHide = [];
+		$fieldsToHide = [static::EMPTY_IMAGE_PLACEHOLDER];
 		$fields = $this->getFields();
 		foreach($fields as $placeholder => $field)
 		{

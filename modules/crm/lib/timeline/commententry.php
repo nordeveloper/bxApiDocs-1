@@ -21,7 +21,7 @@ class CommentEntry extends TimelineEntry
 			$authorID = \CCrmSecurityHelper::GetCurrentUserID();
 		}
 
-		$settings = isset($params['SETTINGS']) ? $params['SETTINGS'] : "";
+		$settings = isset($params['SETTINGS']) && is_array($params['SETTINGS']) ? $params['SETTINGS'] : array();
 
 		$created = isset($params['CREATED']) && ($params['CREATED'] instanceof DateTime)
 			? $params['CREATED'] : new DateTime();

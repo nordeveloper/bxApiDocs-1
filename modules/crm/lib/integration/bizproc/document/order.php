@@ -35,33 +35,37 @@ class Order extends \CCrmDocument
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_ID'),
 				'Type' => 'int',
 			),
-			'LID' => array(
-				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_LID'),
-				'Type' => 'string',
-				'Required' => true,
-			),
 			'ACCOUNT_NUMBER' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_ACCOUNT_NUMBER'),
 				'Type' => 'string',
-				'Required' => true,
+			),
+			'SHOP_TITLE' => array(
+				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_SHOP_TITLE'),
+				'Type' => 'string',
+			),
+			'SHOP_PUBLIC_URL' => array(
+				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_SHOP_PUBLIC_URL'),
+				'Type' => 'string',
 			),
 			'DATE_INSERT' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_DATE_INSERT'),
-				'Type' => 'datetime',
+				'Type' => 'date',
 			),
 			'DATE_UPDATE' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_DATE_UPDATE'),
-				'Type' => 'datetime',
+				'Type' => 'date',
 			),
 			'PERSON_TYPE_ID' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_PERSON_TYPE_ID'),
 				'Type' => 'string',
-				'Required' => true,
 			),
 			'USER_ID' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_USER_ID'),
 				'Type' => 'user',
-				'Required' => true,
+			),
+			'USER_ID_PRINTABLE' => array(
+				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_USER_ID_PRINTABLE'),
+				'Type' => 'string',
 			),
 			'PAYED' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_PAYED'),
@@ -69,7 +73,7 @@ class Order extends \CCrmDocument
 			),
 			'DATE_PAYED' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_DATE_PAYED'),
-				'Type' => 'datetime',
+				'Type' => 'date',
 			),
 			'EMP_PAYED_ID' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_EMP_PAYED_ID'),
@@ -81,7 +85,7 @@ class Order extends \CCrmDocument
 			),
 			'DATE_DEDUCTED' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_DATE_DEDUCTED'),
-				'Type' => 'datetime',
+				'Type' => 'date',
 			),
 			'EMP_DEDUCTED_ID' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_EMP_DEDUCTED_ID'),
@@ -94,12 +98,11 @@ class Order extends \CCrmDocument
 			'STATUS_ID' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_STATUS_ID'),
 				'Type' => 'select',
-				'Options' => self::getStatusOptions(),
-				'Required' => true,
+				'Options' => self::getStatusOptions()
 			),
 			'DATE_STATUS' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_DATE_STATUS'),
-				'Type' => 'datetime',
+				'Type' => 'date',
 			),
 			'EMP_STATUS_ID' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_EMP_STATUS_ID'),
@@ -115,7 +118,7 @@ class Order extends \CCrmDocument
 			),
 			'DATE_ALLOW_DELIVERY' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_DATE_ALLOW_DELIVERY'),
-				'Type' => 'datetime',
+				'Type' => 'date',
 			),
 			'EMP_ALLOW_DELIVERY_ID' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_EMP_ALLOW_DELIVERY_ID'),
@@ -133,6 +136,10 @@ class Order extends \CCrmDocument
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_CURRENCY'),
 				'Type' => 'select',
 				'Options' => \CCrmCurrencyHelper::PrepareListItems(),
+			),
+			'PRICE_FORMATTED' => array(
+				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_PRICE_FORMATTED'),
+				'Type' => 'string',
 			),
 			'TAX_VALUE' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_TAX_VALUE'),
@@ -189,10 +196,18 @@ class Order extends \CCrmDocument
 			),
 			'DATE_CANCELED' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_DATE_CANCELED'),
-				'Type' => 'datetime',
+				'Type' => 'date',
 			),
 			'REASON_CANCELED' => array(
 				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_REASON_CANCELED'),
+				'Type' => 'string',
+			),
+			'LID' => array(
+				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_LID'),
+				'Type' => 'string',
+			),
+			'LID_PRINTABLE' => array(
+				'Name' => GetMessage('CRM_BP_DOCUMENT_ORDER_FIELD_LID_PRINTABLE'),
 				'Type' => 'string',
 			),
 		];
@@ -229,7 +244,9 @@ class Order extends \CCrmDocument
 	{
 		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
+		{
 			throw new \CBPArgumentNullException('documentId');
+		}
 
 		$arResult = null;
 		$order = Crm\Order\Order::load($arDocumentID['ID']);
@@ -237,6 +254,7 @@ class Order extends \CCrmDocument
 		if ($order && $fields = $order->getFieldValues())
 		{
 			$responsibleId = $fields['RESPONSIBLE_ID'];
+			$buyerId = $fields['USER_ID'];
 
 			$userKeys = [
 				'USER_ID', 'EMP_PAYED_ID', 'EMP_DEDUCTED_ID', 'EMP_STATUS_ID', 'EMP_MARKED_ID',
@@ -269,7 +287,19 @@ class Order extends \CCrmDocument
 				}
 			}
 
+			$fields['LID_PRINTABLE'] = $fields['LID'];
+			if ($siteResult = \CSite::GetByID($fields['LID']))
+			{
+				$site = $siteResult->fetch();
+				$fields['LID_PRINTABLE'] = $site['NAME'];
+			}
+
+			$fields['PRICE_FORMATTED'] = \CCrmCurrency::MoneyToString($fields['PRICE'], $fields['CURRENCY']);
+
 			self::fillResponsibleFields($responsibleId, $fields);
+			self::fillBuyerFields($buyerId, $fields);
+			self::fillShopFields($order, $fields);
+			self::convertDateFields($fields);
 
 			return $fields;
 		}
@@ -520,5 +550,67 @@ class Order extends \CCrmDocument
 			],
 			true, false
 		);
+	}
+
+	private static function fillBuyerFields($buyerId, array &$fields)
+	{
+		$dbUsers = \CUser::GetList(
+			($sortBy = 'id'), ($sortOrder = 'asc'),
+			array('ID' => (int) $buyerId),
+			array('SELECT' => array(
+				'LOGIN',
+				'NAME',
+				'LAST_NAME',
+				'SECOND_NAME',
+				'EMAIL',
+			))
+		);
+
+		$arUser = is_object($dbUsers) ? $dbUsers->fetch() : null;
+		if (!$arUser)
+		{
+			return false;
+		}
+
+		$fields['USER_ID_PRINTABLE'] = \CUser::FormatName(
+			\CSite::GetNameFormat(false),
+			$arUser,
+			true, false
+		);
+	}
+
+	private static function fillShopFields(Crm\Order\Order $order, array &$fields)
+	{
+		$collection = $order->getTradeBindingCollection();
+		/** @var \Bitrix\Crm\Order\TradeBindingEntity $entity */
+		foreach ($collection as $entity)
+		{
+			$platform = $entity->getTradePlatform();
+			$data = $platform->getInfo();
+			$fields['SHOP_TITLE'] = $data['TITLE'];
+			$fields['SHOP_PUBLIC_URL'] = $data['PUBLIC_URL'];
+			break;
+		}
+	}
+
+	private static function convertDateFields(array &$fields)
+	{
+		foreach ($fields as $field => $value)
+		{
+			if ($value instanceof Main\Type\DateTime)
+			{
+				$fields[$field] = $value->format(Main\Type\Date::getFormat());
+			}
+		}
+	}
+
+	public static function isFeatureEnabled($documentType, $feature)
+	{
+		if ($feature === 'FEATURE_SET_MODIFIED_BY')
+		{
+			return false;
+		}
+
+		return parent::isFeatureEnabled($documentType, $feature);
 	}
 }

@@ -15,6 +15,7 @@ use Bitrix\Sale\Cashbox\Manager;
 use Bitrix\Sale\Compatible;
 use Bitrix\Sale\Internals;
 use Bitrix\Sale\Helpers;
+use Bitrix\Sale\TradingPlatform\Platform;
 
 Main\Localization\Loc::loadMessages(__FILE__);
 
@@ -969,8 +970,16 @@ class Notify
 				"EMAIL" => static::getUserEmail($order),
 				"SALE_EMAIL" => Main\Config\Option::get("sale", "order_email", "order@".$_SERVER["SERVER_NAME"]),
 				"CHECK_LINK" => $check['LINK'],
-				"ORDER_PUBLIC_URL" => Helpers\Order::isAllowGuestView($order) ? Helpers\Order::getPublicLink($order) : ""
+				"ORDER_PUBLIC_URL" => Helpers\Order::isAllowGuestView($order) ? Helpers\Order::getPublicLink($order) : "",
+				"LINK_URL" => static::getOrderPersonalDetailLink($order)
 			);
+
+			$info = static::getSiteInfo($order);
+			if ($info)
+			{
+				$fields["SITE_NAME"] = $info['TITLE'];
+				$fields["SERVER_NAME"] = $info['PUBLIC_URL'];
+			}
 
 			$eventName = static::EVENT_ON_CHECK_PRINT_SEND_EMAIL;
 			$event = new \CEvent;
@@ -984,6 +993,62 @@ class Notify
 			{
 				static::addSentEvent('s'.$entity->getId(), $eventName);
 			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param Order $order
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	protected static function getSiteInfo(Order $order)
+	{
+		$collection = $order->getTradeBindingCollection();
+		/** @var TradeBindingEntity $tradeBinding */
+		foreach ($collection as $tradeBinding)
+		{
+			$platform = $tradeBinding->getTradePlatform();
+			return $platform->getInfo();
+		}
+
+		return [];
+	}
+
+	/**
+	 * @param Order $order
+	 * @return string
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	protected static function getOrderPersonalDetailLink(Order $order)
+	{
+		$context = Main\Context::getCurrent();
+		$server = $context->getServer();
+
+		$accountNumberEncode = urlencode(urlencode($order->getField("ACCOUNT_NUMBER")));
+		$result = 'http://'.$server->getServerName().'/personal/order/detail/'.$accountNumberEncode.'/';
+
+		$collection = $order->getTradeBindingCollection();
+		/** @var TradeBindingEntity $tradeBinding */
+		foreach ($collection as $tradeBinding)
+		{
+			$platform = $tradeBinding->getTradePlatform();
+			$link = $platform->getExternalLink(Platform::LINK_TYPE_PUBLIC_DETAIL_ORDER, $order);
+			if ($link)
+			{
+				$result = $link;
+			}
+
+			break;
 		}
 
 		return $result;

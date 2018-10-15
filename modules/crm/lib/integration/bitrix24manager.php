@@ -425,7 +425,7 @@ class Bitrix24Manager
 			return true;
 		}
 
-		return \Bitrix\Bitrix24\Release::isAvailable($releaseName);
+		return \Bitrix\Bitrix24\Feature::isFeatureEnabled($releaseName);
 	}
 }
 ?>

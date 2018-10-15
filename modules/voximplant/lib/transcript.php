@@ -41,9 +41,7 @@ class Transcript
 
 	public function fetch()
 	{
-		$httpClient = HttpClientFactory::create(array(
-			'waitResponse' => false
-		));
+		$httpClient = HttpClientFactory::create();
 		$response = $httpClient->get($this->url);
 		$responseCharset = $httpClient->getCharset();
 		if($responseCharset != '')

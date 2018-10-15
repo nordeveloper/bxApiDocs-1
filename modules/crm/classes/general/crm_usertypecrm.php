@@ -185,6 +185,54 @@ class CUserTypeCrm extends CUserTypeString
 		}
 		return $sLongEntityType;
 	}
+
+	public static function getPublicText($userField)
+	{
+		$entityTypeMap = array();
+		$settings = isset($userField['SETTINGS']) && is_array($userField['SETTINGS']) ? $userField['SETTINGS'] : array();
+		foreach($settings as $entityTypeName => $flag)
+		{
+			if(strtoupper($flag) === 'Y')
+			{
+				$entityTypeMap[CCrmOwnerType::ResolveID($entityTypeName)] = true;
+			}
+		}
+
+		$primaryEntityTypeID = CCrmOwnerType::Undefined;
+		if(count($entityTypeMap) > 0)
+		{
+			reset($entityTypeMap);
+			$primaryEntityTypeID = key($entityTypeMap);
+		}
+
+		$results = array();
+		$value = static::normalizeFieldValue($userField['VALUE']);
+		if(count($value) > 0 && $value[0] !== null)
+		{
+			foreach($value as $slug)
+			{
+				if(is_numeric($slug))
+				{
+					$results[] = CCrmOwnerType::GetCaption($primaryEntityTypeID, $slug, false);
+				}
+				else
+				{
+					$parts = explode('_', $slug);
+					if(count($parts) <= 1)
+					{
+						continue;
+					}
+
+					$entityTypeID = \CCrmOwnerTypeAbbr::ResolveTypeID($parts[0]);
+					if(isset($entityTypeMap[$entityTypeID]))
+					{
+						$results[] = CCrmOwnerType::GetCaption($entityTypeID, $parts[1], false);
+					}
+				}
+			}
+		}
+		return implode(', ', $results);
+	}
 }
 
 ?>

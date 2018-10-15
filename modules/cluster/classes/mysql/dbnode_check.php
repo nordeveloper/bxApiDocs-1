@@ -30,6 +30,13 @@ class CClusterDBNodeCheck extends CAllClusterDBNodeCheck
 			"WIZ_REC" => GetMessage("CLU_AFTER_CONNECT_WIZREC"),
 		);
 
+		$is_ok = !file_exists($_SERVER["DOCUMENT_ROOT"].BX_PERSONAL_ROOT."/php_interface/after_connect_d7.php");
+		$result["after_connect_d7"] = array(
+			"IS_OK" => $is_ok? CClusterDBNodeCheck::OK: CClusterDBNodeCheck::ERROR,
+			"MESSAGE" => GetMessage("CLU_AFTER_CONNECT_D7_MSG"),
+			"WIZ_REC" => GetMessage("CLU_AFTER_CONNECT_WIZREC"),
+		);
+
 		$arVariables = $this->GetServerVariables($DB, array(
 			"character_set_server" => "",
 			"character_set_database" => "",

@@ -19,6 +19,8 @@ class CAllCrmLead
 {
 	static public $sUFEntityID = 'CRM_LEAD';
 	public $LAST_ERROR = '';
+	protected $checkExceptions = array();
+
 	public $cPerms = null;
 	protected $bCheckPermission = true;
 	const TABLE_ALIAS = 'L';
@@ -37,6 +39,11 @@ class CAllCrmLead
 	// Service -->
 	public static function GetFieldCaption($fieldName)
 	{
+		if(\CCrmFieldMulti::IsSupportedType($fieldName))
+		{
+			return \CCrmFieldMulti::GetEntityTypeCaption($fieldName);
+		}
+
 		$result = GetMessage("CRM_LEAD_FIELD_{$fieldName}");
 		return is_string($result) ? $result : '';
 	}
@@ -1095,6 +1102,7 @@ class CAllCrmLead
 		global $DB;
 
 		$this->LAST_ERROR = '';
+		$this->checkExceptions = array();
 
 		if(!is_array($options))
 		{
@@ -1125,6 +1133,11 @@ class CAllCrmLead
 		if(!isset($arFields['OPPORTUNITY']))
 		{
 			$arFields['OPPORTUNITY'] = 0.0;
+		}
+
+		if(!isset($arFields['TITLE']) || trim($arFields['TITLE']) === '')
+		{
+			$arFields['TITLE'] = self::GetDefaultTitle();
 		}
 
 		if(!$this->CheckFields($arFields, false, $options))
@@ -1343,6 +1356,17 @@ class CAllCrmLead
 
 		unset($arFields['ID']);
 		$ID = intval($DB->Add('b_crm_lead', $arFields, array(), '', false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__));
+		//Append ID to TITLE if required
+		if($ID > 0 && substr(rtrim($arFields['TITLE']), -1) === '#')
+		{
+			$arFields['TITLE'] .= $ID;
+			$sUpdate = $DB->PrepareUpdate('b_crm_lead', array('TITLE' => $arFields['TITLE']));
+			if(strlen($sUpdate) > 0)
+			{
+				$DB->Query("UPDATE b_crm_lead SET {$sUpdate} WHERE ID = {$ID}", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
+			};
+		}
+
 		$arFields['ID'] = $ID;
 		$arFields['DATE_CREATE'] = $arFields['DATE_MODIFY'] = ConvertTimeStamp(time() + CTimeZone::GetOffset(), 'FULL');
 
@@ -1504,6 +1528,7 @@ class CAllCrmLead
 				$logEventID
 				&& $assignedByID != $createdByID
 				&& CModule::IncludeModule("im")
+				&& \Bitrix\Crm\Settings\LeadSettings::isEnabled()
 			)
 			{
 				$url = CCrmOwnerType::GetEntityShowPath(CCrmOwnerType::Lead, $ID);
@@ -1625,6 +1650,8 @@ class CAllCrmLead
 		global $DB;
 
 		$this->LAST_ERROR = '';
+		$this->checkExceptions = array();
+
 		$ID = (int) $ID;
 		if(!is_array($options))
 		{
@@ -1637,11 +1664,14 @@ class CAllCrmLead
 			$arFilterTmp['CHECK_PERMISSIONS'] = 'N';
 		}
 
-		$obRes = self::GetListEx(array(), $arFilterTmp);
+		$obRes = self::GetListEx(array(), $arFilterTmp, false, false, array('*', 'UF_*'));
 		if (!($arRow = $obRes->Fetch()))
 		{
 			return false;
 		}
+
+		$arRow['FM'] = Crm\Entity\Lead::getInstance()->getEntityMultifields($ID, array('skipEmpty' => true));
+
 		if(isset($options['CURRENT_USER']))
 		{
 			$iUserId = intval($options['CURRENT_USER']);
@@ -1698,6 +1728,8 @@ class CAllCrmLead
 			? CustomerType::RETURNING : CustomerType::GENERAL;
 
 		$bResult = false;
+		$options['CURRENT_FIELDS'] = $arRow;
+
 		if(!$this->CheckFields($arFields, $ID, $options))
 		{
 			$arFields['RESULT_MESSAGE'] = &$this->LAST_ERROR;
@@ -2359,6 +2391,7 @@ class CAllCrmLead
 					if (
 						$logEventID
 						&& CModule::IncludeModule("im")
+						&& \Bitrix\Crm\Settings\LeadSettings::isEnabled()
 					)
 					{
 						$title = CCrmOwnerType::GetCaption(CCrmOwnerType::Lead, $ID, false);
@@ -2677,6 +2710,7 @@ class CAllCrmLead
 	{
 		global $APPLICATION, $USER_FIELD_MANAGER;
 		$this->LAST_ERROR = '';
+		$this->checkExceptions = array();
 
 		if (($ID == false || isset($arFields['TITLE'])) && empty($arFields['TITLE']))
 			$this->LAST_ERROR .= GetMessage('CRM_ERROR_FIELD_IS_MISSING', array('%FIELD_NAME%' => GetMessage('CRM_LEAD_FIELD_TITLE')))."<br />";
@@ -2721,19 +2755,137 @@ class CAllCrmLead
 		if($enableUserFieldCheck)
 		{
 			// We have to prepare field data before check (issue #22966)
-			CCrmEntityHelper::NormalizeUserFields($arFields, self::$sUFEntityID, $USER_FIELD_MANAGER, array('IS_NEW' => ($ID == false)));
+			CCrmEntityHelper::NormalizeUserFields(
+				$arFields,
+				self::$sUFEntityID,
+				$USER_FIELD_MANAGER,
+				array('IS_NEW' => ($ID == false))
+			);
 
 			$enableRequiredUserFieldCheck = !(isset($options['DISABLE_REQUIRED_USER_FIELD_CHECK'])
 				&& $options['DISABLE_REQUIRED_USER_FIELD_CHECK'] === true);
 
-			if(!$USER_FIELD_MANAGER->CheckFields(self::$sUFEntityID, $ID, $arFields, false, $enableRequiredUserFieldCheck))
+			$fieldsToCheck = $arFields;
+			$requiredFields = null;
+			if($enableRequiredUserFieldCheck)
+			{
+				$currentFields = null;
+				if($ID > 0)
+				{
+					if(isset($options['CURRENT_FIELDS']) && is_array($options['CURRENT_FIELDS']))
+					{
+						$currentFields = $options['CURRENT_FIELDS'];
+					}
+					else
+					{
+						$dbResult = self::GetListEx(
+							array(),
+							array('ID' => $ID, 'CHECK_PERMISSIONS' => 'N'),
+							false,
+							false,
+							array('*', 'UF_*')
+						);
+						$currentFields = $dbResult->Fetch();
+						if(is_array($currentFields))
+						{
+							$currentFields['FM'] = Crm\Entity\Lead::getInstance()->getEntityMultifields($ID, array('skipEmpty' => true));
+						}
+					}
+				}
+
+				//If Status ID is changed we must perform check of all fields.
+				if(is_array($currentFields))
+				{
+					CCrmEntityHelper::NormalizeUserFields(
+						$currentFields,
+						self::$sUFEntityID,
+						$USER_FIELD_MANAGER,
+						array('IS_NEW' => ($ID == false))
+					);
+
+					if(isset($arFields['STATUS_ID']) && $arFields['STATUS_ID'] !== $currentFields['STATUS_ID'])
+					{
+						$fieldsToCheck = array_merge($currentFields, $arFields);
+						if(self::GetSemanticID($arFields['STATUS_ID']) === Bitrix\Crm\PhaseSemantics::FAILURE)
+						{
+							//Disable required fields check for failure status due to backward compatibility.
+							$enableRequiredUserFieldCheck = false;
+						}
+					}
+					elseif(!isset($arFields['STATUS_ID']) && isset($currentFields['STATUS_ID']))
+					{
+						$fieldsToCheck = array_merge($arFields, array('STATUS_ID' => $currentFields['STATUS_ID']));
+					}
+				}
+
+				$requiredFields = Crm\Attribute\FieldAttributeManager::isEnabled()
+					? Crm\Attribute\FieldAttributeManager::getRequiredFields(
+						CCrmOwnerType::Lead,
+						$ID,
+						$fieldsToCheck,
+						Crm\Attribute\FieldOrigin::UNDEFINED,
+						isset($options['FIELD_CHECK_OPTIONS']) && is_array($options['FIELD_CHECK_OPTIONS']) ? $options['FIELD_CHECK_OPTIONS'] : array()
+					)
+					: array();
+
+				$requiredSystemFields = isset($requiredFields[Crm\Attribute\FieldOrigin::SYSTEM])
+					? $requiredFields[Crm\Attribute\FieldOrigin::SYSTEM] : array();
+
+				if(!empty($requiredSystemFields))
+				{
+					$systemFieldCheckErrors = array();
+					$validator = new Crm\Entity\LeadValidator($ID, $fieldsToCheck);
+
+					foreach($requiredSystemFields as $fieldName)
+					{
+						if(!$validator->checkFieldPresence($fieldName))
+						{
+							$systemFieldCheckErrors[] = array(
+								'id' => $fieldName,
+								'text' => GetMessage(
+									'CRM_ERROR_FIELD_IS_MISSING',
+									array('%FIELD_NAME%' => \CCrmLead::GetFieldCaption($fieldName))
+								)
+							);
+						}
+					}
+
+					if(!empty($systemFieldCheckErrors))
+					{
+						$e = new CAdminException($systemFieldCheckErrors);
+						$this->checkExceptions[] = $e;
+						$this->LAST_ERROR .= $e->GetString();
+					}
+				}
+			}
+
+			CCrmEntityHelper::NormalizeUserFields($fieldsToCheck, self::$sUFEntityID, $USER_FIELD_MANAGER, array('IS_NEW' => ($ID == false)));
+
+			$requiredUserFields = is_array($requiredFields) && isset($requiredFields[Crm\Attribute\FieldOrigin::CUSTOM])
+				? $requiredFields[Crm\Attribute\FieldOrigin::CUSTOM] : array();
+
+			if (!$USER_FIELD_MANAGER->CheckFields(
+					self::$sUFEntityID,
+					$ID,
+					$fieldsToCheck,
+					false,
+					$enableRequiredUserFieldCheck,
+					$requiredUserFields
+				)
+			)
 			{
 				$e = $APPLICATION->GetException();
+				$this->checkExceptions[] = $e;
 				$this->LAST_ERROR .= $e->GetString();
 			}
 		}
 
-		return $this->LAST_ERROR === '';
+		return ($this->LAST_ERROR === '');
+	}
+
+	public function GetCheckExceptions()
+	{
+		return $this->checkExceptions;
 	}
 
 	public static function CompareFields(array $arFieldsOrig, array $arFieldsModif, $bCheckPerms = true, array $arOptions = null)
@@ -3798,6 +3950,32 @@ class CAllCrmLead
 		$DB->Query("UPDATE b_crm_lead SET COMPANY_ID = NULL WHERE COMPANY_ID = {$companyID}", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
 	}
 
+	public static function ProcessStatusModification(array $fields)
+	{
+		$entityID = isset($fields['ENTITY_ID']) ? $fields['ENTITY_ID'] : '';
+		$statusID = isset($fields['STATUS_ID']) ? $fields['STATUS_ID'] : '';
+
+		if($entityID === 'STATUS' && $statusID !== '')
+		{
+			Crm\Attribute\FieldAttributeManager::processPhaseModification(
+				$statusID,
+				\CCrmOwnerType::Lead,
+				'',
+				\CCrmStatus::GetStatus('STATUS')
+			);
+		}
+	}
+	public static function ProcessStatusDeletion(array $fields)
+	{
+		$entityID = isset($fields['ENTITY_ID']) ? $fields['ENTITY_ID'] : '';
+		$statusID = isset($fields['STATUS_ID']) ? $fields['STATUS_ID'] : '';
+
+		if($entityID === 'STATUS' && $statusID !== '')
+		{
+			Crm\Attribute\FieldAttributeManager::processPhaseDeletion($statusID, \CCrmOwnerType::Lead, '');
+		}
+	}
+
 	public static function GetCustomerType($ID)
 	{
 		$ID = intval($ID);
@@ -3838,6 +4016,11 @@ class CAllCrmLead
 			'ADDRESS_PROVINCE', 'ADDRESS_POSTAL_CODE',
 			'ADDRESS_COUNTRY', 'ADDRESS_COUNTRY_CODE',
 		);
+	}
+
+	public static function GetDefaultTitle()
+	{
+		return GetMessage('CRM_LEAD_DEFAULT_TITLE');
 	}
 }
 ?>

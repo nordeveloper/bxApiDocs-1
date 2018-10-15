@@ -502,21 +502,9 @@ class ResultEntity
 				'IS_DUPLICATE' => !$isEntityAdded
 			);
 
-			$errors = array();
-
-			\CCrmBizProcHelper::AutoStartWorkflows(
-				\CCrmOwnerType::ResolveID($entityName),
-				$id,
-				$isEntityAdded ? \CCrmBizProcEventType::Create : \CCrmBizProcEventType::Edit,
-				$errors
-			);
-
-			if($isEntityAdded)
-			{
-				Automation\Factory::runOnAdd(\CCrmOwnerType::ResolveID($entityName), $id);
-			}
-			elseif (
-				$this->duplicateMode === self::DUPLICATE_CONTROL_MODE_REPLACE
+			if (
+				!$isEntityAdded
+				&& $this->duplicateMode === self::DUPLICATE_CONTROL_MODE_REPLACE
 				&& $entityName === \CCrmOwnerType::LeadName
 				&& isset($entityFields['STATUS_ID'])
 			)
@@ -942,11 +930,27 @@ class ResultEntity
 		}
 	}
 
-	protected function executeTrigger()
+	protected function runAutomation()
 	{
 		$bindings = array();
 		foreach($this->resultEntityPack as $entity)
 		{
+			$isEntityAdded = !$entity['IS_DUPLICATE'];
+			$entityTypeName = $entity['ENTITY_NAME'];
+			$entityId = $entity['ITEM_ID'];
+			$errors = array();
+			\CCrmBizProcHelper::AutoStartWorkflows(
+				\CCrmOwnerType::ResolveID($entityTypeName),
+				$entityId,
+				$isEntityAdded ? \CCrmBizProcEventType::Create : \CCrmBizProcEventType::Edit,
+				$errors
+			);
+
+			if($isEntityAdded)
+			{
+				Automation\Factory::runOnAdd(\CCrmOwnerType::ResolveID($entityTypeName), $entityId);
+			}
+
 			$bindings[] = array(
 				'OWNER_ID' => $entity['ITEM_ID'],
 				'OWNER_TYPE_ID' => \CCrmOwnerType::ResolveID($entity['ENTITY_NAME'])
@@ -1108,7 +1112,7 @@ class ResultEntity
 
 			$this->addActivity();
 			$this->addConsent();
-			$this->executeTrigger();
+			$this->runAutomation();
 
 			if(count($this->resultEntityPack) > 0)
 			{

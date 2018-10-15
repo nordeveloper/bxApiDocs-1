@@ -27,6 +27,10 @@ class Payment extends Sale\Payment
 		{
 			$this->addTimelineEntryOnCreate();
 		}
+		elseif ($this->fields->isChanged('SUM') || $this->fields->isChanged('CURRENCY') )
+		{
+			$this->updateTimelineCreationEntity();
+		}
 
 		if ($this->fields->isChanged('PAID') && $this->isPaid())
 		{
@@ -46,6 +50,26 @@ class Payment extends Sale\Payment
 		Crm\Timeline\OrderPaymentController::getInstance()->onCreate(
 			$this->getId(),
 			array('FIELDS' => $this->getFields()->getValues())
+		);
+	}
+
+	/**
+	 * @throws Main\ArgumentException
+	 * @return void;
+	 */
+	private function updateTimelineCreationEntity()
+	{
+		$fields = $this->getFields();
+		$selectedFields =[
+			'DATE_BILL_TIMESTAMP' => $fields['DATE_BILL']->getTimestamp(),
+			'SUM' => $fields['SUM'],
+			'CURRENCY' => $fields['CURRENCY']
+		];
+
+		Crm\Timeline\OrderPaymentController::getInstance()->updateSettingFields(
+			$this->getId(),
+			Crm\Timeline\TimelineType::CREATION,
+			$selectedFields
 		);
 	}
 }

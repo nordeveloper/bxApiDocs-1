@@ -58,6 +58,19 @@ class BooleanField extends ScalarField
 	}
 
 	/**
+	 * Short alias for configureStorageValues
+	 *
+	 * @param $falseValue
+	 * @param $trueValue
+	 *
+	 * @return BooleanField
+	 */
+	public function configureValues($falseValue, $trueValue)
+	{
+		return $this->configureStorageValues($falseValue, $trueValue);
+	}
+
+	/**
 	 * Convert true/false values to actual field values
 	 * @param boolean|integer|string $value
 	 * @return mixed

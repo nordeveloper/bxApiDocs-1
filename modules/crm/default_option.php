@@ -71,7 +71,6 @@ $crm_default_option = array(
 	'path_to_start' => '/crm/start/',
 
 	'path_to_perm_list' => '/crm/configs/perms/',
-	'path_to_emailtracker' => '/crm/configs/emailtracker/',
 	'path_to_user_field_edit' => '/crm/configs/fields/#entity_id#/edit/#field_id#/',
 
 	'email_from' => '',

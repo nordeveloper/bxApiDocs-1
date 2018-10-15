@@ -1143,15 +1143,20 @@ class CCrmPaySystem
 		{
 			$arPersTypeIds = self::getPersonTypeIDs();
 
-			$dbOrderProps = CSaleOrderProps::GetList(
-					array("SORT" => "ASC", "NAME" => "ASC"),
-					array("PERSON_TYPE_ID" => $arPersTypeIds),
-					false,
-					false,
-					array("ID", "CODE", "NAME", "TYPE", "SORT", "PERSON_TYPE_ID")
-				);
+			$dbRes = \Bitrix\Crm\Invoice\Property::getList([
+				'select' => [
+					'ID', 'CODE', 'NAME', 'TYPE', 'SORT', 'PERSON_TYPE_ID'
+				],
+				'filter' => [
+					'PERSON_TYPE_ID' => $arPersTypeIds
+				],
+				'order' => [
+					'SORT' => 'ASC',
+					'NAME' => 'ASC'
+				]
+			]);
 
-			while ($arOrderProps = $dbOrderProps->Fetch())
+			while ($arOrderProps = $dbRes->fetch())
 			{
 				$title = htmlspecialcharsbx($arOrderProps["NAME"]);
 				$code = htmlspecialcharsbx($arOrderProps["CODE"]);

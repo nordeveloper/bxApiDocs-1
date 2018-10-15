@@ -238,6 +238,13 @@ class CCrmStatus
 		if(!$DB->Query('UPDATE b_crm_status SET '.$strUpdate.' WHERE ID='.$ID, false, array(), 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__))
 			return false;
 
+		$fields = $this->GetStatusById($ID);
+		if(is_array($fields))
+		{
+			CCrmLead::ProcessStatusModification($fields);
+			CCrmDeal::ProcessStatusModification($fields);
+		}
+
 		self::ClearCachedStatuses($this->entityId);
 		return $ID;
 	}
@@ -247,9 +254,19 @@ class CCrmStatus
 		$this->LAST_ERROR = '';
 		$ID = IntVal($ID);
 
+		$fields = $this->GetStatusById($ID);
+		if(!is_array($fields))
+		{
+			return false;
+		}
+
+		CCrmLead::ProcessStatusDeletion($fields);
+		CCrmDeal::ProcessStatusDeletion($fields);
+
 		global $DB;
 		$res = $DB->Query("DELETE FROM b_crm_status WHERE ID=$ID", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
 		self::ClearCachedStatuses($this->entityId);
+
 		return $res;
 	}
 

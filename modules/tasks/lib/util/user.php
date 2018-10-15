@@ -297,6 +297,10 @@ final class User
 			$departmentUFCode = Intranet\User::getDepartmentUFCode();
 
 			$select = array('*');
+			if (\Bitrix\Main\Loader::includeModule('crm'))
+			{
+				$select[] = 'UF_USER_CRM_ENTITY';
+			}
 			if(\Bitrix\Tasks\Util\Userfield\User::checkFieldExists($departmentUFCode))
 			{
 				$select[] = $departmentUFCode;
@@ -316,6 +320,7 @@ final class User
 			{
 				$item['IS_EXTRANET_USER'] = Extranet\User::isExtranet($item);
 				$item['IS_EMAIL_USER'] = Mail\User::isEmail($item);
+				$item['IS_CRM_EMAIL_USER'] = $item['IS_EMAIL_USER'] && !empty($item['UF_USER_CRM_ENTITY']);
 				$item['IS_NETWORK_USER'] = ($item["EXTERNAL_AUTH_ID"] === "replica");
 
 				if($item['ID'] != $current)
@@ -374,6 +379,7 @@ final class User
 
 		$keys = static::getPublicDataKeys();
 		$keys[] = 'IS_EXTRANET_USER';
+		$keys[] = 'IS_CRM_EMAIL_USER';
 		$keys[] = 'IS_EMAIL_USER';
 		$keys[] = 'IS_NETWORK_USER';
 		$safe = array();

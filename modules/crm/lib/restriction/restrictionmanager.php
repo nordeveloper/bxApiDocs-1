@@ -19,6 +19,8 @@ class RestrictionManager
 	private static $historyViewRestriction = null;
 	/** @var Bitrix24QuantityRestriction|null  */
 	private static $dealCategoryLimitRestriction = null;
+	/** @var Bitrix24AccessRestriction|null  */
+	private static $attributeConfigRestriction = null;
 	/**
 	* @return SqlRestriction
 	*/
@@ -59,6 +61,16 @@ class RestrictionManager
 		self::initialize();
 		return self::$dealCategoryLimitRestriction;
 	}
+
+	/**
+	 * @return AccessRestriction
+	 */
+	public static function getAttributeConfigRestriction()
+	{
+		self::initialize();
+		return self::$attributeConfigRestriction;
+	}
+
 	/**
 	* @return void
 	*/
@@ -71,12 +83,14 @@ class RestrictionManager
 		self::$dupControlRestriction->reset();
 		self::$historyViewRestriction->reset();
 		self::$dealCategoryLimitRestriction->reset();
+		self::$attributeConfigRestriction->reset();
 
 		self::$sqlRestriction = null;
 		self::$conversionRestriction = null;
 		self::$dupControlRestriction = null;
 		self::$historyViewRestriction = null;
 		self::$dealCategoryLimitRestriction = null;
+		self::$attributeConfigRestriction = null;
 
 		self::$isInitialized = false;
 	}
@@ -196,13 +210,36 @@ class RestrictionManager
 			array(
 				'ID' => 'crm_deal_category',
 				'TITLE' => GetMessage('CRM_RESTR_MGR_DEAL_CATEGORY_POPUP_TITLE'),
-				'CONTENT' => GetMessage('CRM_RESTR_MGR_DEAL_CATEGORY_POPUP_CONTENT_2')
+				'CONTENT' => GetMessage(
+					'CRM_RESTR_MGR_DEAL_CATEGORY_POPUP_CONTENT_2',
+					array('#TEAM_CRM_FUNNEL#' => 10)
+				)
 			)
 		);
 
 		if(!self::$dealCategoryLimitRestriction->load())
 		{
 			self::$dealCategoryLimitRestriction->setQuantityLimit(Bitrix24Manager::getDealCategoryCount());
+		}
+		//endregion
+
+		//region Attribute configurator
+		self::$attributeConfigRestriction = new Bitrix24AccessRestriction(
+			'crm_clr_cfg_attr_configurator',
+			false,
+			null,
+			array(
+				'ID' => 'crm_attr_configurator',
+				'TITLE' => GetMessage('CRM_RESTR_MGR_POPUP_TITLE'),
+				'CONTENT' => GetMessage('CRM_RESTR_MGR_CONDITIONALLY_REQUIRED_FIELD_POPUP_CONTENT')
+			)
+		);
+
+		if(!self::$attributeConfigRestriction->load())
+		{
+			self::$attributeConfigRestriction->permit(
+				Bitrix24Manager::isFeatureEnabled("crm_attr_configurator")
+			);
 		}
 		//endregion
 

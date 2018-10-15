@@ -41,7 +41,7 @@ class Result extends BaseResult
 	/** @var Chain[][] Result chains map by entity path */
 	protected $selectChainsMap = [];
 
-	/** @var string Cache for object class of init entity */
+	/** @var EntityObject|string Cache for object class of init entity */
 	protected $objectClass;
 
 	/** @var IdentityMap */
@@ -79,7 +79,7 @@ class Result extends BaseResult
 	 * @throws SystemException
 	 * @throws ArgumentException
 	 */
-	public function fetchObject()
+	final public function fetchObject()
 	{
 		// TODO when join, add primary and hide it in ARRAY result, but use for OBJECT fetch
 		// e.g. when first fetchObject, remove data modifier that cuts 'unexpected' primary fields
@@ -92,7 +92,7 @@ class Result extends BaseResult
 
 		if (empty($row))
 		{
-			return false;
+			return null;
 		}
 
 		if (is_object($row) && $row instanceof EntityObject)
@@ -122,7 +122,7 @@ class Result extends BaseResult
 
 		if (empty($object))
 		{
-			$object = new $objectClass;
+			$object = new $objectClass(false);
 
 			// set right state
 			$object->sysChangeState(State::ACTUAL);
@@ -174,7 +174,7 @@ class Result extends BaseResult
 
 					// set value as actual to the object
 					$isRuntimeField
-						? $currentObject->runtimeSet($field->getName(), $value)
+						? $currentObject->sysSetRuntime($field->getName(), $value)
 						: $currentObject->sysSetActual($field->getName(), $value);
 				}
 				else
@@ -226,7 +226,7 @@ class Result extends BaseResult
 
 						// set remoteObject to baseObject
 						$isRuntimeField
-							? $currentObject->runtimeSet($field->getName(), $remoteObject)
+							? $currentObject->sysSetRuntime($field->getName(), $remoteObject)
 							: $currentObject->sysSetActual($field->getName(), $remoteObject);
 					}
 					elseif ($field instanceof OneToMany || $field instanceof ManyToMany)
@@ -234,15 +234,15 @@ class Result extends BaseResult
 						// get collection of remote objects
 						if ($isRuntimeField)
 						{
-							if (empty($currentObject->runtimeGet($field->getName())))
+							if (empty($currentObject->sysGetRuntime($field->getName())))
 							{
 								// create new collection and set as value for current object
 								$collection = $remoteEntity->createCollection();
-								$currentObject->runtimeSet($field->getName(), $collection);
+								$currentObject->sysSetRuntime($field->getName(), $collection);
 							}
 							else
 							{
-								$collection = $currentObject->runtimeGet($field->getName());
+								$collection = $currentObject->sysGetRuntime($field->getName());
 							}
 						}
 						else
@@ -300,11 +300,12 @@ class Result extends BaseResult
 	 * @return null Actual type should be annotated by orm:annotate
 	 * @throws \Bitrix\Main\SystemException
 	 */
-	public function fetchCollection()
+	final public function fetchCollection()
 	{
 		// base object initialization
 		$this->initializeFetchObject(true);
 
+		/** @var Collection $collection */
 		$collection = $this->query->getEntity()->createCollection();
 
 		while ($object = $this->fetchObject())
@@ -354,6 +355,7 @@ class Result extends BaseResult
 			// if there are back references, fetch everything and make virtual ArrayResult
 			if (!$asCollection && $this->query->hasBackReference())
 			{
+				/** @var Collection $collection */
 				$collection = $this->fetchCollection();
 				$this->result = new ArrayResult($collection->getAll());
 			}

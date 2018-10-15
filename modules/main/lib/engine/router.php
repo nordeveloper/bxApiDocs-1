@@ -17,6 +17,7 @@ final class Router
 	const COMPONENT_MODE_AJAX  = 'ajax';
 	const COMPONENT_MODE_CLASS = 'class';
 
+	protected $vendor = Resolver::DEFAULT_VENDOR;
 	protected $module = 'main';
 	protected $action = 'index';
 	protected $component;
@@ -41,16 +42,46 @@ final class Router
 		$this->action = $this->request->get('action');
 		if ($this->action && is_string($this->action) && !$this->component)
 		{
-			$actionParts = explode('.', $this->action);
+			list($this->vendor, $this->action) = $this->resolveVendor($this->action);
+			list($module, $this->action) = $this->resolveModuleAndModule($this->action);
 
-			$this->module = $this->refineModuleName(array_shift($actionParts));
-			$this->action = implode('.', $actionParts);
+			$this->module = $this->refineModuleName($this->vendor, $module);
 		}
 	}
 
-	protected function refineModuleName($module)
+	private function resolveModuleAndModule($action)
 	{
-		return str_replace('_', '.', $module);
+		$actionParts = explode('.', $action);
+		$module = array_shift($actionParts);
+		$action = implode('.', $actionParts);
+
+		return [
+			$module, $action
+		];
+	}
+
+	private function resolveVendor($action)
+	{
+		list($vendor, $action) = explode(':', $action);
+		if (!$action)
+		{
+			$action = $vendor;
+			$vendor = Resolver::DEFAULT_VENDOR;
+		}
+
+		return [
+			$vendor, $action
+		];
+	}
+
+	protected function refineModuleName($vendor, $module)
+	{
+		if ($vendor === Resolver::DEFAULT_VENDOR)
+		{
+			return $module;
+		}
+
+		return $vendor . '.' . $module;
 	}
 
 	/**
@@ -108,7 +139,7 @@ final class Router
 		}
 
 		$this->includeModule($this->module);
-		$controllerAndAction = Resolver::getControllerAndAction($this->module, $this->action);
+		$controllerAndAction = Resolver::getControllerAndAction($this->vendor, $this->module, $this->action);
 		if ($controllerAndAction)
 		{
 			return $controllerAndAction;
@@ -220,4 +251,44 @@ final class Router
 
 		return $this;
 	}
-}	
+
+	/**
+	 * @return string
+	 */
+	public function getVendor()
+	{
+		return $this->vendor;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getModule()
+	{
+		return $this->module;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getAction()
+	{
+		return $this->action;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getComponent()
+	{
+		return $this->component;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getMode()
+	{
+		return $this->mode;
+	}
+}

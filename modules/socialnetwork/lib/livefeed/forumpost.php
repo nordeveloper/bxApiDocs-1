@@ -64,7 +64,7 @@ final class ForumPost extends Provider
 						'SOURCE_ID' => $messageId,
 						'@EVENT_ID' => $this->getEventId(),
 					),
-					'select' => array('LOG_ID')
+					'select' => array('ID', 'LOG_ID', 'SHARE_DEST')
 				));
 				if ($logComentFields = $res->fetch())
 				{
@@ -105,6 +105,8 @@ final class ForumPost extends Provider
 						$this->setSourceTitle(truncateText($title, 100));
 						$this->setSourceAttachedDiskObjects($this->getAttachedDiskObjects($messageId));
 						$this->setSourceDiskObjects($this->getDiskObjects($messageId, $this->cloneDiskObjects));
+						$this->setSourceOriginalText($message['POST_MESSAGE']);
+						$this->setSourceAuxData($logComentFields);
 					}
 				}
 			}
@@ -721,4 +723,32 @@ final class ForumPost extends Provider
 		return $result;
 	}
 
+	public function getAdditionalData($params = array())
+	{
+		$result = array();
+
+		if (
+			!$this->checkAdditionalDataParams($params)
+			|| !Loader::includeModule('forum')
+		)
+		{
+			return $result;
+		}
+
+		$res = MessageTable::getList(array(
+			'filter' => array(
+				'@ID' => $params['id']
+			),
+			'select' => array('ID', 'USE_SMILES')
+		));
+
+		while ($message = $res->fetch())
+		{
+			$data = $message;
+			unset($data['ID']);
+			$result[$message['ID']] = $data;
+		}
+
+		return $result;
+	}
 }

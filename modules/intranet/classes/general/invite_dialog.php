@@ -327,12 +327,12 @@ class CIntranetInviteDialog
 				}
 				else
 				{
-					$errorEmails[] = $addr;
+					$errorEmails[] = htmlspecialcharsbx($addr);
 				}
 			}
 			if (count($arEmailOriginal) > count($arEmail))
 			{
-				$arError = array(GetMessage("BX24_INVITE_DIALOG_EMAIL_ERROR").implode("<br/>", $errorEmails));
+				$arError = array(GetMessage("BX24_INVITE_DIALOG_EMAIL_ERROR").": ".implode(", ", $errorEmails));
 				return false;
 			}
 

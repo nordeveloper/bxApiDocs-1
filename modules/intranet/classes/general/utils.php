@@ -130,7 +130,6 @@ class CIntranetUtils
 		if (null === $CACHE_ABSENCE)
 		{
 			$cache_ttl = (24-date('G')) * 3600;
-			$cache_uid = 'intranet_absence';
 			$cache_dir = '/'.SITE_ID.'/intranet/absence';
 
 			$obCache = new CPHPCache();
@@ -150,7 +149,8 @@ class CIntranetUtils
 						'DATE_START' => $dt,
 						'DATE_FINISH' => $dt,
 						'PER_USER' => true,
-						'SELECT' => array('DATE_ACTIVE_FROM', 'DATE_ACTIVE_TO')
+						'SELECT' => array('DATE_ACTIVE_FROM', 'DATE_ACTIVE_TO'),
+						'CHECK_PERMISSIONS' => 'N'
 					)
 				);
 
@@ -412,6 +412,7 @@ class CIntranetUtils
 				'iblockId' => $arParams['CALENDAR_IBLOCK_ID'],
 				'arUserIds' => $arParams['USERS'],
 				'bList' => true,
+				'checkPermissions' => $arParams['CHECK_PERMISSIONS'] !== 'N'
 			);
 
 			if ($arParams['DATE_START'])
@@ -1520,7 +1521,7 @@ class CIntranetUtils
 						CIMNotify::add(array(
 							'TO_USER_ID'     => $user_id,
 							'FROM_USER_ID'   => 0,
-							'NOTIFY_TYPE'    => IM_NOTIFY_SYSTEM, 
+							'NOTIFY_TYPE'    => IM_NOTIFY_SYSTEM,
 							'NOTIFY_MODULE'  => 'intranet',
 							'NOTIFY_MESSAGE' => str_replace(
 								array('#DOMAIN#', '#SERVER#'),
@@ -1692,7 +1693,7 @@ class CIntranetUtils
 				if ($service['FLAGS'] & CMail::F_DOMAIN_REG)
 					return '';
 			}
-			
+
 			$r = CEvent::send('INTRANET_MAILDOMAIN_NOREG', array($sid), array(
 				'EMAIL_TO'       => $arAdmin['EMAIL'],
 				'LEARNMORE_LINK' => $learnmoreLink,
@@ -1832,8 +1833,11 @@ class CIntranetUtils
 		return $firstPagePath;
 	}
 
-	public static function getCurrentDateTimeFormat()
+	public static function getCurrentDateTimeFormat($params = array())
 	{
+		$woYear = (!empty($params['woYear']) && $params['woYear']);
+		$woTime = (!empty($params['woTime']) && $params['woTime']);
+
 		$rsSite = CSite::GetByID(SITE_ID);
 		if ($arSite = $rsSite->Fetch())
 		{
@@ -1841,16 +1845,21 @@ class CIntranetUtils
 			$curTimeFormat = str_replace($curDateFormat." ", "", $arSite["FORMAT_DATETIME"]);
 		}
 
-		$currentDateTimeFormat = "j F Y";
+		$currentDateTimeFormat = ($woYear ? "j F" : "j F Y");
 		if (LANGUAGE_ID == "de")
-			$currentDateTimeFormat = "j. F Y";
+			$currentDateTimeFormat = ($woYear ? "j. F" : "j. F Y");
 		else if (LANGUAGE_ID == "en")
-			$currentDateTimeFormat = "F j, Y";
+			$currentDateTimeFormat = ($woYear ? "F j" : "F j, Y");
+		else if (in_array(LANGUAGE_ID, array("sc", "tc", "ja")))
+			$currentDateTimeFormat = ($woYear ? "Fj" : "YFj");
 
-		if ($curTimeFormat == "HH:MI:SS")
-			$currentDateTimeFormat.= " G:i";
-		else //($curTimeFormat == "H:MI:SS TT")
-			$currentDateTimeFormat.= " g:i a";
+		if (!$woTime)
+		{
+			if ($curTimeFormat == "HH:MI:SS")
+				$currentDateTimeFormat.= " G:i";
+			else //($curTimeFormat == "H:MI:SS TT")
+				$currentDateTimeFormat.= " g:i a";
+		}
 
 		return $currentDateTimeFormat;
 	}

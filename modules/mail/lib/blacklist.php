@@ -2,6 +2,7 @@
 
 namespace Bitrix\Mail;
 
+use Bitrix\Main\Application;
 use Bitrix\Main\Entity;
 use Bitrix\Main\Localization;
 
@@ -43,6 +44,63 @@ class BlacklistTable extends Entity\DataManager
 		}
 	}
 
+	/**
+	 * @param array $list
+	 * @param array $mailbox
+	 * @return int
+	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 */
+	public static function addMailsBatch(array $list, $userId = null)
+	{
+		if (empty($list))
+		{
+			return 0;
+		}
+		if (is_null($userId))
+		{
+			$userId = 0;
+		}
+		$sqlHelper = Application::getConnection()->getSqlHelper();
+		$addList = [];
+		foreach ($list as $index => $item)
+		{
+			$itemToAdd = [
+				'SITE_ID' => SITE_ID,
+				'MAILBOX_ID' => 0,
+				'USER_ID' => $userId,
+				'ITEM_TYPE' => Blacklist\ItemType::resolveByValue($item),
+				'ITEM_VALUE' => $item,
+			];
+			$addList[] = $itemToAdd;
+		}
+
+		if (count($addList) === 0)
+		{
+			return 0;
+		}
+		$keys = implode(', ', array_keys(current($addList)));
+		$values = [];
+		foreach ($addList as $item)
+		{
+			$values[] = implode(
+				", ",
+				[
+					"'" . $sqlHelper->forSql($item['SITE_ID']) . "'",
+					(int)$item['MAILBOX_ID'],
+					(int)$item['USER_ID'],
+					$item['ITEM_TYPE'],
+					"'" . $sqlHelper->forSql($item['ITEM_VALUE']) . "'",
+				]
+			);
+		}
+		$values = implode('), (', $values);
+
+		$tableName = static::getTableName();
+		$sql = "INSERT IGNORE $tableName($keys) VALUES($values)";
+		Application::getConnection()->query($sql);
+		return Application::getConnection()->getAffectedRowsCount();
+	}
+
 	public static function getMap()
 	{
 		return array(
@@ -56,6 +114,9 @@ class BlacklistTable extends Entity\DataManager
 				'required'  => true,
 			),
 			'MAILBOX_ID' => array(
+				'data_type' => 'integer',
+			),
+			'USER_ID' => array(
 				'data_type' => 'integer',
 			),
 			'ITEM_TYPE' => array(

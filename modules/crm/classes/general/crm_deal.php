@@ -23,6 +23,8 @@ class CAllCrmDeal
 {
 	static public $sUFEntityID = 'CRM_DEAL';
 	public $LAST_ERROR = '';
+	protected $checkExceptions = array();
+
 	public $cPerms = null;
 	protected $bCheckPermission = true;
 	const TABLE_ALIAS = 'L';
@@ -78,6 +80,9 @@ class CAllCrmDeal
 					'TYPE' => 'char'
 				),
 				'IS_RETURN_CUSTOMER' => array(
+					'TYPE' => 'char'
+				),
+				'IS_REPEATED_APPROACH' => array(
 					'TYPE' => 'char'
 				),
 				'PROBABILITY' => array(
@@ -156,6 +161,13 @@ class CAllCrmDeal
 				'DATE_MODIFY' => array(
 					'TYPE' => 'datetime',
 					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'SOURCE_ID' => array(
+					'TYPE' => 'crm_status',
+					'CRM_STATUS_TYPE' => 'SOURCE'
+				),
+				'SOURCE_DESCRIPTION' => array(
+					'TYPE' => 'string'
 				),
 				'LEAD_ID' => array(
 					'TYPE' => 'crm_lead',
@@ -270,6 +282,10 @@ class CAllCrmDeal
 			'IS_NEW' => array('FIELD' => 'L.IS_NEW', 'TYPE' => 'char'),
 			'IS_RECURRING' => array('FIELD' => 'L.IS_RECURRING', 'TYPE' => 'char'),
 			'IS_RETURN_CUSTOMER' => array('FIELD' => 'L.IS_RETURN_CUSTOMER', 'TYPE' => 'char'),
+			'IS_REPEATED_APPROACH' => array('FIELD' => 'L.IS_REPEATED_APPROACH', 'TYPE' => 'char'),
+
+			'SOURCE_ID' => array('FIELD' => 'L.SOURCE_ID', 'TYPE' => 'string'),
+			'SOURCE_DESCRIPTION' => array('FIELD' => 'L.SOURCE_DESCRIPTION', 'TYPE' => 'string'),
 
 			'WEBFORM_ID' => array('FIELD' => 'L.WEBFORM_ID', 'TYPE' => 'int'),
 			'ORIGINATOR_ID' => array('FIELD' => 'L.ORIGINATOR_ID', 'TYPE' => 'string'), //EXTERNAL SYSTEM THAT OWNS THIS ITEM
@@ -1241,6 +1257,7 @@ class CAllCrmDeal
 		}
 
 		$this->LAST_ERROR = '';
+		$this->checkExceptions = array();
 
 		$userID = isset($options['CURRENT_USER']) ? (int)$options['CURRENT_USER'] : 0;
 		if($userID <= 0)
@@ -1268,6 +1285,11 @@ class CAllCrmDeal
 
 		if (!isset($arFields['ASSIGNED_BY_ID']) || (int)$arFields['ASSIGNED_BY_ID'] <= 0)
 			$arFields['ASSIGNED_BY_ID'] = $userID;
+
+		if(!isset($arFields['TITLE']) || trim($arFields['TITLE']) === '')
+		{
+			$arFields['TITLE'] = self::GetDefaultTitle();
+		}
 
 		if (!$this->CheckFields($arFields, false, $options))
 		{
@@ -1496,7 +1518,20 @@ class CAllCrmDeal
 				$arFields['COMPANY_ID'] = 0;
 			}
 
+			unset($arFields['ID']);
 			$ID = intval($DB->Add('b_crm_deal', $arFields, array(), 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__));
+			//Append ID to TITLE if required
+			if($ID > 0 && substr(rtrim($arFields['TITLE']), -1) === '#')
+			{
+				$arFields['TITLE'] .= $ID;
+				$sUpdate = $DB->PrepareUpdate('b_crm_deal', array('TITLE' => $arFields['TITLE']));
+				if(strlen($sUpdate) > 0)
+				{
+					$DB->Query("UPDATE b_crm_deal SET {$sUpdate} WHERE ID = {$ID}", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
+				};
+			}
+
+			$result = $arFields['ID'] = $ID;
 
 			//Restore BEGINDATE and CLOSEDATE
 			if(isset($arFields['__BEGINDATE']))
@@ -1540,7 +1575,7 @@ class CAllCrmDeal
 			{
 				$arFields['CONTACT_ID'] = EntityBinding::getPrimaryEntityID(CCrmOwnerType::Contact, $contactBindings);
 			}
-			self::SynchronizeCustomerData($arFields);
+			self::SynchronizeCustomerData($ID, $arFields);
 
 			//Statistics & History -->
 			if ($arFields['IS_RECURRING'] !== 'Y')
@@ -1592,8 +1627,6 @@ class CAllCrmDeal
 					$arFilterTmp["CHECK_PERMISSIONS"] = "N";
 				CCrmSearch::UpdateSearch($arFilterTmp, 'DEAL', true);
 			}
-
-			$result = $arFields['ID'] = $ID;
 
 			if (isset($GLOBALS['USER']) && isset($arFields['COMPANY_ID']) && intval($arFields['COMPANY_ID']) > 0)
 			{
@@ -1723,10 +1756,10 @@ class CAllCrmDeal
 	{
 		global $APPLICATION, $USER_FIELD_MANAGER;
 		$this->LAST_ERROR = '';
+		$this->checkExceptions = array();
 
 		if (($ID == false || isset($arFields['TITLE'])) && empty($arFields['TITLE']))
-			$this->LAST_ERROR .= GetMessage('CRM_ERROR_FIELD_IS_MISSING', array('%FIELD_NAME%' => GetMessage('CRM_FIELD_TITLE')))."<br />\n";
-
+			$this->LAST_ERROR .= GetMessage('CRM_ERROR_FIELD_IS_MISSING', array('%FIELD_NAME%' => GetMessage('CRM_DEAL_FIELD_TITLE')))."<br />\n";
 
 		if (!empty($arFields['BEGINDATE']) && !CheckDateTime($arFields['BEGINDATE']))
 			$this->LAST_ERROR .= GetMessage('CRM_ERROR_FIELD_INCORRECT', array('%FIELD_NAME%' => GetMessage('CRM_FIELD_BEGINDATE')))."<br />\n";
@@ -1759,6 +1792,7 @@ class CAllCrmDeal
 				$arFields['PROBABILITY'] = 100;
 		}
 
+
 		if (!is_array($options))
 		{
 			$options = array();
@@ -1770,22 +1804,129 @@ class CAllCrmDeal
 		if ($enableUserFieldCheck)
 		{
 			// We have to prepare field data before check (issue #22966)
-			CCrmEntityHelper::NormalizeUserFields($arFields, self::$sUFEntityID, $USER_FIELD_MANAGER, array('IS_NEW' => ($ID == false)));
+			CCrmEntityHelper::NormalizeUserFields(
+				$arFields,
+				self::$sUFEntityID,
+				$USER_FIELD_MANAGER,
+				array('IS_NEW' => ($ID == false))
+			);
 
 			$enableRequiredUserFieldCheck = !(isset($options['DISABLE_REQUIRED_USER_FIELD_CHECK'])
 				&& $options['DISABLE_REQUIRED_USER_FIELD_CHECK'] === true);
 
-			if (!$USER_FIELD_MANAGER->CheckFields(self::$sUFEntityID, $ID, $arFields, false, $enableRequiredUserFieldCheck))
+			$fieldsToCheck = $arFields;
+			$requiredFields = null;
+			if($enableRequiredUserFieldCheck)
+			{
+				$currentFields = null;
+				if($ID > 0)
+				{
+					if(isset($options['CURRENT_FIELDS']) && is_array($options['CURRENT_FIELDS']))
+					{
+						$currentFields = $options['CURRENT_FIELDS'];
+					}
+					else
+					{
+						$dbResult = self::GetListEx(
+							array(),
+							array('ID' => $ID, 'CHECK_PERMISSIONS' => 'N'),
+							false,
+							false,
+							array('*', 'UF_*')
+						);
+						$currentFields = $dbResult->Fetch();
+					}
+				}
+
+				if(is_array($currentFields))
+				{
+					CCrmEntityHelper::NormalizeUserFields(
+						$currentFields,
+						self::$sUFEntityID,
+						$USER_FIELD_MANAGER,
+						array('IS_NEW' => ($ID == false))
+					);
+
+					//If Stage ID is changed we must perform check of all fields.
+					if(isset($arFields['STAGE_ID']) && $arFields['STAGE_ID'] !== $currentFields['STAGE_ID'])
+					{
+						$fieldsToCheck = array_merge($currentFields, $arFields);
+						if(self::GetSemanticID($arFields['STAGE_ID'], $currentFields['CATEGORY_ID']) === Bitrix\Crm\PhaseSemantics::FAILURE)
+						{
+							//Disable required fields check for failure stage due to backward compatibility.
+							$enableRequiredUserFieldCheck = false;
+						}
+					}
+					elseif(!isset($arFields['STAGE_ID']) && isset($currentFields['STAGE_ID']))
+					{
+						$fieldsToCheck = array_merge($arFields, array('STAGE_ID' => $currentFields['STAGE_ID']));
+					}
+				}
+
+				$requiredFields = Crm\Attribute\FieldAttributeManager::isEnabled()
+					? Crm\Attribute\FieldAttributeManager::getRequiredFields(
+						CCrmOwnerType::Deal,
+						$ID,
+						$fieldsToCheck,
+						Crm\Attribute\FieldOrigin::UNDEFINED,
+						isset($options['FIELD_CHECK_OPTIONS']) && is_array($options['FIELD_CHECK_OPTIONS']) ? $options['FIELD_CHECK_OPTIONS'] : array()
+					)
+					: array();
+
+				$requiredSystemFields = isset($requiredFields[Crm\Attribute\FieldOrigin::SYSTEM])
+					? $requiredFields[Crm\Attribute\FieldOrigin::SYSTEM] : array();
+				if(!empty($requiredSystemFields))
+				{
+					$systemFieldCheckErrors = array();
+					$validator = new Crm\Entity\DealValidator($ID, $fieldsToCheck);
+					foreach($requiredSystemFields as $fieldName)
+					{
+						if(!$validator->checkFieldPresence($fieldName))
+						{
+							$systemFieldCheckErrors[] = array(
+								'id' => $fieldName,
+								'text' => GetMessage(
+									'CRM_ERROR_FIELD_IS_MISSING',
+									array('%FIELD_NAME%' => \CCrmDeal::GetFieldCaption($fieldName))
+								)
+							);
+						}
+					}
+
+					if(!empty($systemFieldCheckErrors))
+					{
+						$e = new CAdminException($systemFieldCheckErrors);
+						$this->checkExceptions[] = $e;
+						$this->LAST_ERROR .= $e->GetString();
+					}
+				}
+			}
+
+			$requiredUserFields = is_array($requiredFields) && isset($requiredFields[Crm\Attribute\FieldOrigin::CUSTOM])
+				? $requiredFields[Crm\Attribute\FieldOrigin::CUSTOM] : array();
+
+			if (!$USER_FIELD_MANAGER->CheckFields(
+					self::$sUFEntityID,
+					$ID,
+					$fieldsToCheck,
+					false,
+					$enableRequiredUserFieldCheck,
+					$requiredUserFields
+				)
+			)
 			{
 				$e = $APPLICATION->GetException();
+				$this->checkExceptions[] = $e;
 				$this->LAST_ERROR .= $e->GetString();
 			}
 		}
 
-		if (strlen($this->LAST_ERROR) > 0)
-			return false;
+		return ($this->LAST_ERROR === '');
+	}
 
-		return true;
+	public function GetCheckExceptions()
+	{
+		return $this->checkExceptions;
 	}
 
 	static public function BuildEntityAttr($userID, $arAttr = array())
@@ -1867,7 +2008,7 @@ class CAllCrmDeal
 		}
 	}
 
-	static protected function SynchronizeCustomerData(array $fields, array $options = null)
+	static protected function SynchronizeCustomerData($sourceID, array $fields, array $options = null)
 	{
 		if(!is_array($options))
 		{
@@ -1877,47 +2018,74 @@ class CAllCrmDeal
 		$companyID = isset($fields['COMPANY_ID']) ? (int)$fields['COMPANY_ID'] : 0;
 		$contactID = isset($fields['CONTACT_ID']) ? (int)$fields['CONTACT_ID'] : 0;
 
+		$enableSource = !isset($options['ENABLE_SOURCE']) || $options['ENABLE_SOURCE'] === true;
 		$connection = \Bitrix\Main\Application::getInstance()->getConnection();
-		if($companyID <= 0 && $contactID <= 0)
+
+		//region REPEATED APPROACH
+		if($enableSource)
 		{
-			$ID =  isset($fields['ID']) ? (int)$fields['ID'] : 0;
-			$resetToDefault = !isset($options['RESET_TO_DEFAULT']) || $options['RESET_TO_DEFAULT'] === true;
-			if($ID > 0 && $resetToDefault)
+			$isRepeatedApproach = false;
+			if(isset($fields['LEAD_ID'])
+				&& $fields['LEAD_ID'] > 0
+				&& \CCrmLead::GetCustomerType($fields['LEAD_ID']) === CustomerType::RETURNING
+				&& ($companyID > 0 || $contactID > 0)
+			)
 			{
-				$connection->queryExecute("UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'N' WHERE ID = {$ID}");
+				if($companyID > 0)
+				{
+					$dbResult = $connection->query("SELECT MIN(ID) AS ID FROM b_crm_deal WHERE COMPANY_ID = {$companyID} AND STAGE_SEMANTIC_ID = 'S'");
+				}
+				else//if($contactID > 0)
+				{
+					$dbResult = $connection->query("SELECT MIN(ID) AS ID FROM b_crm_deal WHERE CONTACT_ID = {$contactID} AND COMPANY_ID <= 0 AND STAGE_SEMANTIC_ID = 'S'");
+				}
+
+				$resultData = $dbResult->fetch();
+				$primaryID = is_array($resultData) && isset($resultData['ID']) ? (int)$resultData['ID'] : 0;
+				$isRepeatedApproach = ($primaryID === 0);
 			}
-			return;
-		}
 
-		if($companyID > 0)
-		{
-			$dbResult = $connection->query("SELECT MIN(ID) AS ID FROM b_crm_deal WHERE COMPANY_ID = {$companyID}");
+			$flag = $isRepeatedApproach ? 'Y' : 'N';
+			$connection->queryExecute("UPDATE b_crm_deal SET IS_REPEATED_APPROACH = '{$flag}' WHERE ID = {$sourceID}");
 		}
-		else//if($contactID > 0)
-		{
-			$dbResult = $connection->query("SELECT MIN(ID) AS ID FROM b_crm_deal WHERE CONTACT_ID = {$contactID} AND COMPANY_ID <= 0");
-		}
+		//endregion
 
-		$fields = $dbResult->fetch();
-		$primaryID = is_array($fields) && isset($fields['ID']) ? (int)$fields['ID'] : 0;
-		if($primaryID <= 0)
+		//region RETURN CUSTOMER
+		if($companyID > 0 || $contactID > 0)
 		{
-			return;
-		}
+			if($companyID > 0)
+			{
+				$dbResult = $connection->query("SELECT MIN(ID) AS ID FROM b_crm_deal WHERE COMPANY_ID = {$companyID} AND STAGE_SEMANTIC_ID = 'S'");
+			}
+			else//if($contactID > 0)
+			{
+				$dbResult = $connection->query("SELECT MIN(ID) AS ID FROM b_crm_deal WHERE CONTACT_ID = {$contactID} AND COMPANY_ID <= 0 AND STAGE_SEMANTIC_ID = 'S'");
+			}
 
-		if($companyID > 0)
-		{
-			$connection->queryExecute(
-				"UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'Y' WHERE IS_RETURN_CUSTOMER = 'N' AND COMPANY_ID = {$companyID}"
-			);
+			$resultData = $dbResult->fetch();
+			$primaryID = is_array($resultData) && isset($resultData['ID']) ? (int)$resultData['ID'] : 0;
+			if($primaryID > 0)
+			{
+				if($companyID > 0)
+				{
+					$connection->queryExecute(
+						"UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'Y', IS_REPEATED_APPROACH = 'N' WHERE IS_RETURN_CUSTOMER = 'N' AND COMPANY_ID = {$companyID}"
+					);
+				}
+				elseif($contactID > 0)
+				{
+					$connection->queryExecute(
+						"UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'Y', IS_REPEATED_APPROACH = 'N' WHERE IS_RETURN_CUSTOMER = 'N' AND CONTACT_ID = {$contactID} AND IFNULL(COMPANY_ID, 0) = 0"
+					);
+				}
+				$connection->queryExecute("UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'N' WHERE ID = {$primaryID}");
+			}
 		}
-		else//if($contactID > 0)
+		elseif($enableSource)
 		{
-			$connection->queryExecute(
-				"UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'Y' WHERE IS_RETURN_CUSTOMER = 'N' AND CONTACT_ID = {$contactID} AND IFNULL(COMPANY_ID, 0) = 0"
-			);
+			$connection->queryExecute("UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'N' WHERE ID = {$sourceID}");
 		}
-		$connection->queryExecute("UPDATE b_crm_deal SET IS_RETURN_CUSTOMER = 'N' WHERE ID = {$primaryID}");
+		//endregion
 	}
 
 	public function Update($ID, array &$arFields, $bCompare = true, $bUpdateSearch = true, $options = array())
@@ -1931,6 +2099,7 @@ class CAllCrmDeal
 		}
 
 		$this->LAST_ERROR = '';
+		$this->checkExceptions = array();
 
 		$userID = isset($options['CURRENT_USER']) ? (int)$options['CURRENT_USER'] : 0;
 		if($userID <= 0)
@@ -1942,7 +2111,7 @@ class CAllCrmDeal
 		if (!$this->bCheckPermission)
 			$arFilterTmp['CHECK_PERMISSIONS'] = 'N';
 
-		$obRes = self::GetListEx(array(), $arFilterTmp);
+		$obRes = self::GetListEx(array(), $arFilterTmp, false, false, array('*', 'UF_*'));
 		if (!($arRow = $obRes->Fetch()))
 			return false;
 
@@ -1957,6 +2126,11 @@ class CAllCrmDeal
 		}
 
 		$arFields['~DATE_MODIFY'] = $DB->CurrentTimeFunction();
+
+		if(isset($arFields['TITLE']) && trim($arFields['TITLE']) === '')
+		{
+			unset($arFields['TITLE']);
+		}
 
 		//Scavenging
 		if(isset($arFields['BEGINDATE']) && (!is_string($arFields['BEGINDATE']) || trim($arFields['BEGINDATE']) === ''))
@@ -1982,6 +2156,8 @@ class CAllCrmDeal
 		$assignedByID = (int)(isset($arFields['ASSIGNED_BY_ID']) ? $arFields['ASSIGNED_BY_ID'] : $arRow['ASSIGNED_BY_ID']);
 
 		$bResult = false;
+
+		$options['CURRENT_FIELDS'] = $arRow;
 		if (!$this->CheckFields($arFields, $ID, $options))
 		{
 			$arFields['RESULT_MESSAGE'] = &$this->LAST_ERROR;
@@ -2403,8 +2579,8 @@ class CAllCrmDeal
 			}
 			//endregion
 
-			self::SynchronizeCustomerData($arRow, array('RESET_TO_DEFAULT' => false));
-			self::SynchronizeCustomerData($currentFields);
+			self::SynchronizeCustomerData($ID, $arRow, array('ENABLE_SOURCE' => false));
+			self::SynchronizeCustomerData($ID, $currentFields);
 
 			if (isset($GLOBALS['USER']) && isset($arFields['COMPANY_ID']) && $arFields['COMPANY_ID'] > 0)
 			{
@@ -2798,7 +2974,7 @@ class CAllCrmDeal
 		$dbRes = $DB->Query("DELETE FROM b_crm_deal WHERE ID = {$ID}{$sWherePerm}", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
 		if (is_object($dbRes) && $dbRes->AffectedRowsCount() > 0)
 		{
-			self::SynchronizeCustomerData($arFields, array('RESET_TO_DEFAULT' => false));
+			self::SynchronizeCustomerData($ID, $arFields, array('ENABLE_SOURCE' => false));
 
 			CCrmSearch::DeleteSearch('DEAL', $ID);
 
@@ -2814,7 +2990,7 @@ class CAllCrmDeal
 			$CCrmEvent = new CCrmEvent();
 			$CCrmEvent->DeleteByElement('DEAL', $ID);
 
-			if(!isset($options['REGISTER_STATISTICS']) || $options['REGISTER_STATISTICS'] === true)
+			if(!isset($arOptions['REGISTER_STATISTICS']) || $arOptions['REGISTER_STATISTICS'] === true)
 			{
 				DealStageHistoryEntry::unregister($ID);
 				DealSumStatisticEntry::unregister($ID);
@@ -4417,6 +4593,50 @@ class CAllCrmDeal
 	{
 		global $DB;
 		$DB->Query("UPDATE b_crm_deal SET LEAD_ID = NULL WHERE LEAD_ID = {$leadID}", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
+	}
+	public static function ProcessStatusModification(array $fields)
+	{
+		$entityID = isset($fields['ENTITY_ID']) ? $fields['ENTITY_ID'] : '';
+		$statusID = isset($fields['STATUS_ID']) ? $fields['STATUS_ID'] : '';
+
+		if(($entityID === 'DEAL_STAGE' || preg_match("/DEAL_STAGE_\d+/", $entityID) == 1) && $statusID !== '')
+		{
+			$categoryID = Crm\Category\DealCategory::convertFromStatusEntityID($entityID);
+			Crm\Attribute\FieldAttributeManager::processPhaseModification(
+				$statusID,
+				\CCrmOwnerType::Deal,
+				Crm\Attribute\FieldAttributeManager::resolveEntityScope(
+					\CCrmOwnerType::Deal,
+					0,
+					array('CATEGORY_ID' => $categoryID)
+				),
+				Crm\Category\DealCategory::getStageInfos($categoryID)
+			);
+		}
+	}
+	public static function ProcessStatusDeletion(array $fields)
+	{
+		$entityID = isset($fields['ENTITY_ID']) ? $fields['ENTITY_ID'] : '';
+		$statusID = isset($fields['STATUS_ID']) ? $fields['STATUS_ID'] : '';
+
+		if(($entityID === 'DEAL_STAGE' || preg_match("/DEAL_STAGE_\d+/", $entityID) == 1) && $statusID !== '')
+		{
+			$categoryID = Crm\Category\DealCategory::convertFromStatusEntityID($entityID);
+			Crm\Attribute\FieldAttributeManager::processPhaseDeletion(
+				$statusID,
+				\CCrmOwnerType::Deal,
+				Crm\Attribute\FieldAttributeManager::resolveEntityScope(
+					\CCrmOwnerType::Deal,
+					0,
+					array('CATEGORY_ID' => $categoryID)
+				)
+			);
+		}
+	}
+
+	public static function GetDefaultTitle()
+	{
+		return GetMessage('CRM_DEAL_DEFAULT_TITLE');
 	}
 }
 

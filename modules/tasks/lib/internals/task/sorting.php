@@ -262,7 +262,7 @@ class SortingTable extends Entity\DataManager
 			if ($prevTaskId)
 			{
 				$prevTask = static::getTask($prevTaskId, $userId, $groupId);
-				if (!$prevTask)
+				if (!$prevTask || $prevTask["SORT"] > $targetTask["SORT"])
 				{
 					//try to correct wrong prev_task_id
 					$filter = $groupId ? array("=GROUP_ID" => $groupId) : array("=USER_ID" => $userId);
@@ -287,7 +287,7 @@ class SortingTable extends Entity\DataManager
 			if ($nextTaskId)
 			{
 				$nextTask = static::getTask($nextTaskId, $userId, $groupId);
-				if (!$nextTask)
+				if (!$nextTask || $nextTask["SORT"] < $targetTask["SORT"])
 				{
 					//try to correct wrong next_task_id
 					$filter = $groupId ? array("=GROUP_ID" => $groupId) : array("=USER_ID" => $userId);
@@ -307,7 +307,7 @@ class SortingTable extends Entity\DataManager
 			$prevTaskSort = $targetTask["SORT"];
 		}
 
-		if ($nextTask !== null && $nextTaskSort - $prevTaskSort < static::MIN_SORT_DELTA)
+		if ($nextTask !== null  && $prevTask !== null && ($nextTaskSort - $prevTaskSort) < static::MIN_SORT_DELTA)
 		{
 			$connection = Application::getConnection();
 			$filter = $groupId > 0 ? "GROUP_ID = {$groupId}" : "USER_ID = {$userId}";
@@ -320,11 +320,25 @@ class SortingTable extends Entity\DataManager
 			$nextTaskSort = $nextTask["SORT"];
 		}
 
-		$sourceTaskSort =
-			$nextTaskSort > $prevTaskSort
-				? ($nextTaskSort + $prevTaskSort) / 2
-				: $prevTaskSort + static::SORT_INDEX_INCREMENT
-		;
+		$sourceTaskSort = 0;
+		if ($prevTaskId === 0)
+		{
+			$sourceTaskSort = $nextTaskSort - static::SORT_INDEX_INCREMENT;
+		}
+		else if ($nextTaskId === 0)
+		{
+			$sourceTaskSort = $prevTaskSort + static::SORT_INDEX_INCREMENT;
+		}
+		else
+		{
+			$sourceTaskSort = ($nextTaskSort + $prevTaskSort) / 2;
+		}
+
+//		$sourceTaskSort =
+//			$nextTaskSort > $prevTaskSort
+//				? ($nextTaskSort + $prevTaskSort) / 2
+//				: $prevTaskSort + static::SORT_INDEX_INCREMENT
+//		;
 
 		$sourceTask = static::getTask($sourceId, $userId, $groupId);
 		if ($sourceTask)

@@ -23,6 +23,11 @@ class Contact extends EntityBase
 		return self::$instance;
 	}
 
+	public function getEntityTypeID()
+	{
+		return \CCrmOwnerType::Contact;
+	}
+
 	//region Db
 	protected function getDbEntity()
 	{

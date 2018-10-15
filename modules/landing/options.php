@@ -29,29 +29,45 @@ if ($postRight >= 'R'):
 		array('text', 32)
 	);
 
+	$allOptions[] = array(
+		'deleted_lifetime_days',
+		Loc::getMessage('LANDING_OPT_DELETED_LIFETIME_DAYS') . ':',
+		array('text', 4)
+	);
+
 	// paths for sites
-	$res = \Bitrix\Main\SiteTable::getList(array(
-		'select' => array(
-			'*'
-		),
-		'filter' => array(
-			'ACTIVE' => 'Y'
-		),
-		'order' => array(
-			'SORT' => 'ASC'
-		)
-	));
-	while ($row = $res->fetch())
+	if (!Manager::isB24())
 	{
-		$row['NAME']  = \htmlspecialcharsbx($row['NAME']);
-		$allOptions[] = array(
-			'pub_path_' . $row['LID'],
-			Loc::getMessage('LANDING_OPT_PUB_PATH') .
-			' (' . $row['NAME'] . '[' . $row['LID'] . ']' . ')' . ':',
-			array('text', 32),
-			\Bitrix\Landing\Manager::PUBLICATION_PATH
-		);
+		/*$allOptions[] = array(
+			'show_admin_panel',
+			Loc::getMessage('LANDING_OPT_SHOW_PANEL_BUTTON') . ':',
+			array('checkbox')
+		);*/
+		
+		$res = \Bitrix\Main\SiteTable::getList(array(
+			'select' => array(
+				'*'
+			),
+			'filter' => array(
+				'ACTIVE' => 'Y'
+			),
+			'order' => array(
+				'SORT' => 'ASC'
+			)
+		));
+		while ($row = $res->fetch())
+		{
+			$row['NAME']  = \htmlspecialcharsbx($row['NAME']);
+			$allOptions[] = array(
+				'pub_path_' . $row['LID'],
+				Loc::getMessage('LANDING_OPT_PUB_PATH') .
+				' (' . $row['NAME'] . '[' . $row['LID'] . ']' . ')' . ':',
+				array('text', 32),
+				\Bitrix\Landing\Manager::PUBLICATION_PATH
+			);
+		}
 	}
+
 
 	$tabControl = new \CAdmintabControl('tabControl', array(
 		array('DIV' => 'edit1', 'TAB' => Loc::getMessage('MAIN_TAB_SET'), 'ICON' => ''),

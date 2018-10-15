@@ -158,8 +158,9 @@ class ChannelOpenLine implements iProvider
 			array(
 				'name' => 'ol_imcon_icon_style.css',
 				'type' => 'text/css',
-				'path' => '/bitrix/js/imconnector/icon.css',
-			)
+				'path' => '/bitrix/js/ui/icons/ui.icons.css',
+				'pathToIcons' => '/bitrix/js/ui/icons/'
+			),
 		);
 	}
 
@@ -243,6 +244,7 @@ class ChannelOpenLine implements iProvider
 		$sort = 400;
 		$type = self::getType();
 		$connectors = self::getConnectors($lineId);
+
 		foreach ($connectors as $connector)
 		{
 			if (in_array($connector['id'], $excluded))
@@ -284,9 +286,9 @@ class ChannelOpenLine implements iProvider
 			else
 			{
 				$widget['classList'] = array(
-					'connector-icon',
-					'connector-icon-45',
-					'connector-icon-' . $connector['id']
+					'ui-icon',
+					'ui-icon-service-' . $connector['icon'],
+					'connector-icon-45'
 				);
 				$widget['sort'] = $sort;
 				$sort += 100;
@@ -331,6 +333,8 @@ class ChannelOpenLine implements iProvider
 		}
 
 		$list = array();
+		$iconCodeMap = \Bitrix\ImConnector\Connector::getIconClassMap();
+
 		foreach ($connectors as $code => $connector)
 		{
 			if (in_array($code, self::$excludedConnectors))
@@ -360,6 +364,7 @@ class ChannelOpenLine implements iProvider
 			$list[] = array(
 				'id' => $id,
 				'code' => $code,
+				'icon' => $iconCodeMap[$code],
 				'title' => $title,
 				'name' => $connector['connector_name'],
 				'desc' => $connector['name'],

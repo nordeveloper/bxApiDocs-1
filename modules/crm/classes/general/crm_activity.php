@@ -43,7 +43,7 @@ class CAllCrmActivity
 	// CRUD -->
 	public static function Add(&$arFields, $checkPerms = true, $regEvent = true, $options = array())
 	{
-		global $DB;
+		global $DB, $USER_FIELD_MANAGER;
 		if(!is_array($options))
 		{
 			$options = array();
@@ -272,6 +272,8 @@ class CAllCrmActivity
 
 		if(is_int($ID) && $ID > 0)
 		{
+			$USER_FIELD_MANAGER->update(static::UF_ENTITY_TYPE, $ID, $arFields, $arFields['EDITOR_ID']);
+
 			if ($provider !== null && $provider::canUseLiveFeedEvents($providerTypeId) === false)
 				$options['REGISTER_SONET_EVENT'] = false;
 
@@ -332,7 +334,6 @@ class CAllCrmActivity
 			}
 		}
 
-
 		return $ID;
 	}
 
@@ -340,7 +341,7 @@ class CAllCrmActivity
 	{
 		self::$LAST_UPDATE_FIELDS = null;
 
-		global $DB;
+		global $DB, $USER_FIELD_MANAGER;
 		if(!is_array($options))
 		{
 			$options = array();
@@ -755,6 +756,8 @@ class CAllCrmActivity
 			$arFields['STORAGE_ELEMENT_IDS'] = $storageElementIDs;
 		}
 
+		$USER_FIELD_MANAGER->update(static::UF_ENTITY_TYPE, $ID, $arFields, $arFields['EDITOR_ID']);
+
 		$rsEvents = GetModuleEvents('crm', 'OnActivityUpdate');
 		while ($arEvent = $rsEvents->Fetch())
 		{
@@ -779,6 +782,7 @@ class CAllCrmActivity
 	}
 	public static function Delete($ID, $checkPerms = true, $regEvent = true, $options = array())
 	{
+		global $USER_FIELD_MANAGER;
 		$ID = intval($ID);
 		if(!is_array($options))
 		{
@@ -819,6 +823,7 @@ class CAllCrmActivity
 		{
 			self::DeleteStorageElements($ID, $ary);
 		}
+		$USER_FIELD_MANAGER->Delete(static::UF_ENTITY_TYPE, $ID);
 
 		$responsibleID = isset($ary['RESPONSIBLE_ID']) ? (int)$ary['RESPONSIBLE_ID'] : 0;
 		// Synchronize user activity -->
@@ -1272,7 +1277,7 @@ class CAllCrmActivity
 	//Check fields before ADD and UPDATE.
 	private static function CheckFields($action, &$fields, $ID, $params = null)
 	{
-		global $DB;
+		global $DB, $USER_FIELD_MANAGER, $APPLICATION;
 		self::ClearErrors();
 
 		if(!(is_array($fields) && count($fields) > 0))
@@ -1550,6 +1555,15 @@ class CAllCrmActivity
 			}
 		}
 
+		if (empty($params['DISABLE_USER_FIELD_CHECK']))
+		{
+			if (!$USER_FIELD_MANAGER->checkFields(static::UF_ENTITY_TYPE, $ID, $fields, false, empty($params['DISABLE_REQUIRED_USER_FIELD_CHECK'])))
+			{
+				$error = $APPLICATION->getException();
+				self::registerError(array('text' => $error->getMessage()));
+			}
+		}
+
 		return self::GetErrorCount() == 0;
 	}
 	public static function DeleteBindings($activityID)
@@ -1820,7 +1834,7 @@ class CAllCrmActivity
 			CCrmActivity::TABLE_NAME,
 			self::TABLE_ALIAS,
 			self::GetFields(),
-			'',
+			static::UF_ENTITY_TYPE,
 			'',
 			array('CAllCrmActivity', 'BuildPermSql'),
 			array('CAllCrmActivity', '__AfterPrepareSql')
@@ -1836,9 +1850,14 @@ class CAllCrmActivity
 			? new CCrmActivityDbResult($result, $arSelectFields)
 			: $result;
 	}
-	public static function GetCount($arFilter)
+	public static function GetCount($arFilter, array $arOptions = null)
 	{
-		$result = self::GetList(array(), $arFilter, array(), false, array());
+		if($arOptions === null)
+		{
+			$arOptions = array();
+		}
+
+		$result = self::GetList(array(), $arFilter, array(), false, array(), $arOptions);
 		return is_int($result) ? $result : 0;
 	}
 	static public function BuildPermSql($aliasPrefix = 'A', $permType = 'READ', $arOptions = array())

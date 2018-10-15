@@ -2370,8 +2370,8 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @param $value
-	 *
 	 * @return Result
+	 * @throws Main\ArgumentException
 	 */
 	protected function setReasonMarked($value)
 	{

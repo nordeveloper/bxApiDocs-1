@@ -1,5 +1,7 @@
 <?php
 return [
-	'TAX_INCLUDED' => 'Imposto de',
-	'TAX_NOT_INCLUDED' => 'Imposto de',
+	'TAX_INCLUDED' => 'Incluído #NAME#',
+	'TAX_NOT_INCLUDED' => '#NAME#',
+	'TAX_INCLUDED_NOT_VAT' => 'Incluído #NAME#',
+	'TAX_NOT_INCLUDED_NOT_VAT' => '#NAME#',
 ];

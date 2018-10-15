@@ -174,25 +174,23 @@ class ActualRanking
 	 *
 	 * @param integer $entityTypeId Entity type id.
 	 * @param array $list List of entity ids.
-	 * @param bool $filterByActiveStatus Filter by active status.
+	 * @param bool $isRankable Is rankable.
 	 * @return $this
 	 */
-	public function rank($entityTypeId, array $list, $filterByActiveStatus = true)
+	public function rank($entityTypeId, array $list, $isRankable = true)
 	{
 		$this->clearRuntime();
 		$this->entityTypeId = $entityTypeId;
 		$this->setRankedList($list);
 
-		if (count($this->list) === 0)
+		if (count($this->list) === 0 || !$isRankable)
 		{
 			return $this;
 		}
 
+
 		// filter by active status
-		if ($filterByActiveStatus)
-		{
-			$this->filterByActiveStatus();
-		}
+		$this->filterByActiveStatus();
 
 		// filter or sort by custom modifiers
 		$this->runModifiers();
@@ -246,7 +244,7 @@ class ActualRanking
 				break;
 
 			default:
-				return null;
+				return;
 		}
 
 		$rankedList = array();
@@ -313,6 +311,11 @@ class ActualRanking
 
 	protected function rankByOrders($findOrdersOnly = false)
 	{
+		if (!in_array($this->entityTypeId, [\CCrmOwnerType::Contact, \CCrmOwnerType::Company]))
+		{
+			return;
+		}
+
 		$topEntityId = null;
 		$rankedList = [];
 		$list = Binding\OrderContactCompanyTable::getList([

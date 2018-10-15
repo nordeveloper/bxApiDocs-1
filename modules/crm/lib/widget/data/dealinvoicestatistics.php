@@ -285,39 +285,58 @@ class DealInvoiceStatistics extends DealDataSource
 	public function prepareEntityListFilter(array $filterParams)
 	{
 		$filter = self::internalizeFilter($filterParams);
+
 		$query = new Query(DealInvoiceStatisticsTable::getEntity());
 		$query->addSelect('OWNER_ID');
-		$query->addGroup('OWNER_ID');
+		$query->setTableAliasPostfix('_s2');
+
+		$subQuery = new Query(DealInvoiceStatisticsTable::getEntity());
+		$subQuery->setTableAliasPostfix('_s1');
+		$subQuery->addSelect('OWNER_ID');
 
 		$period = $filter->getPeriod();
 		$periodStartDate = $period['START'];
 		$periodEndDate = $period['END'];
 
-		$query->addFilter('>=END_DATE', $periodStartDate);
-		$query->addFilter('<=START_DATE', $periodEndDate);
+		$subQuery->addFilter('>=END_DATE', $periodStartDate);
+		$subQuery->addFilter('<=START_DATE', $periodEndDate);
 
 		$responsibleIDs = $filter->getResponsibleIDs();
 		if(!empty($responsibleIDs))
 		{
-			$query->addFilter('@RESPONSIBLE_ID', $responsibleIDs);
+			$subQuery->addFilter('@RESPONSIBLE_ID', $responsibleIDs);
 		}
 
 		$semanticID = $filter->getExtraParam('semanticID', PhaseSemantics::UNDEFINED);
 		if($semanticID !== PhaseSemantics::UNDEFINED)
 		{
-			$query->addFilter('=STAGE_SEMANTIC_ID', $semanticID);
+			$subQuery->addFilter('=STAGE_SEMANTIC_ID', $semanticID);
 		}
 
 		$categoryID = (int)$filter->getExtraParam('dealCategoryID', -1);
 		if($categoryID >= 0)
 		{
 			//HACK: use SqlExpression to avoid filter sql like (CATEGORY_ID IS NULL OR CATEGORY_ID = 0), that cause the filesort.
-			$query->addFilter('=CATEGORY_ID', new Main\DB\SqlExpression('?i', $categoryID));
+			$subQuery->addFilter('=CATEGORY_ID', new Main\DB\SqlExpression('?i', $categoryID));
 		}
+
+		$subQuery->addGroup('OWNER_ID');
+		$subQuery->addSelect('MAX_CREATED_DATE');
+		$subQuery->registerRuntimeField('', new ExpressionField('MAX_CREATED_DATE', 'MAX(CREATED_DATE)'));
+
+		$query->registerRuntimeField('',
+			new ReferenceField('M',
+				Base::getInstanceByQuery($subQuery),
+				array('=this.OWNER_ID' => 'ref.OWNER_ID', '=this.CREATED_DATE' => 'ref.MAX_CREATED_DATE'),
+				array('join_type' => 'INNER')
+			)
+		);
+
 		$field = isset($filterParams['FIELD']) ? $filterParams['FIELD'] : '';
 		if($field === 'TOTAL_INVOICE_SUM' || $field === 'TOTAL_OWED')
 		{
-			$query->addFilter("!={$field}", 0);
+			//$query->addFilter("!={$field}", 0);
+			$query->addFilter("!={$field}", new Main\DB\SqlExpression('?i', 0));
 		}
 
 		return array(

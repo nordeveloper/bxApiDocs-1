@@ -4,9 +4,13 @@ namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\EntityRequisite;
 use Bitrix\Crm\RequisiteAddress;
+use Bitrix\DocumentGenerator\Value\Name;
 
 class Requisite extends BaseRequisite
 {
+	protected $nameData;
+	protected $rawNameValues = [];
+
 	/**
 	 * Returns list of value names for this Provider.
 	 *
@@ -17,6 +21,18 @@ class Requisite extends BaseRequisite
 		if($this->fields === null)
 		{
 			parent::getFields();
+			foreach($this->getSmartNameFields() as $placeholder)
+			{
+				$this->fields[$placeholder]['TYPE'] = static::FIELD_TYPE_NAME;
+				$this->fields[$placeholder]['VALUE'] = [$this, 'getNameValue'];
+			}
+			$this->fields['RQ_FIRST_NAME']['TYPE'] = static::FIELD_TYPE_NAME;
+			$this->fields['RQ_FIRST_NAME']['VALUE'] = [$this, 'getNameValue'];
+			$this->fields['RQ_SECOND_NAME']['TYPE'] = static::FIELD_TYPE_NAME;
+			$this->fields['RQ_SECOND_NAME']['VALUE'] = [$this, 'getNameValue'];
+			$this->fields['RQ_LAST_NAME']['TYPE'] = static::FIELD_TYPE_NAME;
+			$this->fields['RQ_LAST_NAME']['VALUE'] = [$this, 'getNameValue'];
+
 			$this->fields = array_merge($this->fields, $this->getAddressFields());
 		}
 
@@ -86,10 +102,33 @@ class Requisite extends BaseRequisite
 			{
 				$this->data = EntityRequisite::getSingleInstance()->getList(['select' => ['*', 'UF_*',], 'filter' => ['ID' => $this->source]])->fetch();
 				$this->loadAddresses();
+				$this->nameData = [
+					'NAME' => $this->data['RQ_FIRST_NAME'],
+					'SECOND_NAME' => $this->data['RQ_SECOND_NAME'],
+					'LAST_NAME' => $this->data['RQ_LAST_NAME'],
+				];
+				unset($this->data['RQ_FIRST_NAME']);
+				unset($this->data['RQ_SECOND_NAME']);
+				unset($this->data['RQ_LAST_NAME']);
+				foreach($this->getSmartNameFields() as $placeholder)
+				{
+					$this->rawNameValues[$placeholder] = $this->data[$placeholder];
+					unset($this->data[$placeholder]);
+				}
 			}
 		}
 
 		return $this->data;
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getSmartNameFields()
+	{
+		return [
+			'RQ_NAME', 'RQ_CEO_NAME', 'RQ_ACCOUNTANT', 'RQ_DIRECTOR', 'RQ_CONTACT'
+		];
 	}
 
 	protected function loadAddresses()
@@ -162,5 +201,56 @@ class Requisite extends BaseRequisite
 		}
 
 		return $this->documentTitles;
+	}
+
+	/**
+	 * @param $placeholder
+	 * @return Name
+	 */
+	public function getNameValue($placeholder)
+	{
+		if($placeholder == 'RQ_FIRST_NAME')
+		{
+			return new Name($this->nameData, ['format' => '#NAME#']);
+		}
+		elseif($placeholder == 'RQ_SECOND_NAME')
+		{
+			return new Name($this->nameData, ['format' => '#SECOND_NAME#']);
+		}
+		elseif($placeholder == 'RQ_LAST_NAME')
+		{
+			return new Name($this->nameData, ['format' => '#LAST_NAME#']);
+		}
+		elseif(in_array($placeholder, $this->getSmartNameFields()))
+		{
+			$data = $this->getNameDataFromString($this->rawNameValues[$placeholder]);
+			if($data)
+			{
+				return new Name($data, ['format' => Contact::getNameFormat()]);
+			}
+			else
+			{
+				return $this->rawNameValues[$placeholder];
+			}
+		}
+	}
+
+	/**
+	 * @param $name
+	 * @return array|false
+	 */
+	protected function getNameDataFromString($name)
+	{
+		list($lastName, $firstName, $secondName) = explode(' ', $name);
+		if(!empty($firstName) && !empty($secondName))
+		{
+			return [
+				'NAME' => $firstName,
+				'SECOND_NAME' => $secondName,
+				'LAST_NAME' => $lastName,
+			];
+		}
+
+		return false;
 	}
 }

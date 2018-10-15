@@ -69,6 +69,14 @@ class Factory
 				array(new UserFieldDataProvider($settings))
 			);
 		}
+		elseif($settings instanceof OrderSettings)
+		{
+			return new Filter(
+				$filterID,
+				new OrderDataProvider($settings),
+				array(new UserFieldDataProvider($settings))
+			);
+		}
 		else
 		{
 			$entityTypeName = \CCrmOwnerType::ResolveName($settings->getEntityTypeID());

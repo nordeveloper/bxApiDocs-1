@@ -22,9 +22,9 @@ class Menu
 		{
 			$manifest['attrs'] = array();
 		}
-		if (!isset($manifest['attrs']['#navBar']))
+		if (!isset($manifest['attrs']['.navbar-collapse']))
 		{
-			$manifest['attrs']['#navBar'] = array(
+			$manifest['attrs']['.navbar-collapse'] = array(
 				array(
 					'hidden' => true,
 					'attribute' => 'id',
@@ -99,20 +99,21 @@ class Menu
 
 				// to work TWO MENUS together
 				// todo: check in manifest
-				$navbarId = isset($params['navbarId']) ? $params['navbarId'] : 'navBar';
-				$navbarTogglerSelector = isset($params['navbarTogglerSelector']) ?
-					$params['navbarTogglerSelector'] :
+				$navbarCollapseSection =
+					isset($params['navbarCollapseSection']) ? $params['navbarCollapseSection'] : '.navbar-collapse';
+				$navbarTogglerButton = isset($params['navbarTogglerButton']) ?
+					$params['navbarTogglerButton'] :
 					'button.navbar-toggler';
 				
 				if (
-					isset($manifest['attrs']['#'.$navbarId])
-					&& isset($manifest['attrs'][$navbarTogglerSelector])
+					isset($manifest['attrs'][$navbarCollapseSection])
+					&& isset($manifest['attrs'][$navbarTogglerButton])
 				)
 				{
-					$newId = $navbarId . $block->getId();
+					$newId = "navBar" . $block->getId();
 					$block->setAttributes(array(
-						'#'.$navbarId => array('id' => $newId),
-						$navbarTogglerSelector => array(
+						$navbarCollapseSection => array('id' => $newId),
+						$navbarTogglerButton => array(
 							'aria-controls' => $newId,
 							'data-target' => "#".$newId,
 						),

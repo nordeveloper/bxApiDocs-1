@@ -84,7 +84,8 @@ $licensePrefix = CModule::IncludeModule("bitrix24") ? \CBitrix24::getLicensePref
 			$dbService = \Bitrix\Mail\MailServicesTable::getList(array(
 				'filter' => array(
 					'ACTIVE' => 'Y',
-					'=SITE_ID' => $SITE_ID
+					'=SITE_ID' => $SITE_ID,
+					'=SERVICE_TYPE' => 'imap',
 				),
 				'order' => array(
 					'SORT' => 'ASC',
@@ -893,12 +894,11 @@ $licensePrefix = CModule::IncludeModule("bitrix24") ? \CBitrix24::getLicensePref
 				<span class="popup-window-tab<?=(($strAction == "add") ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-add" data-action="add">
 					<?=GetMessage('BX24_INVITE_DIALOG_TAB_ADD_TITLE_NEW')?>
 				</span>
-				<!-- show after 1 October-->
-				<?/*if (IsModuleInstalled("bitrix24") && in_array($licensePrefix, array("ru", "by", "kz", "ua"))):?>
+				<?if (IsModuleInstalled("bitrix24") && in_array($licensePrefix, array("ru", "by", "kz", "ua"))):?>
 					<span class="popup-window-tab<?=(($strAction == "integrator")  ? " popup-window-tab-selected" : "")?>" id="intranet-dialog-tab-integrator" data-action="integrator">
 						<?=GetMessage('BX24_INVITE_DIALOG_TAB_INTEGRATOR_TITLE')?>
 					</span>
-				<?endif*/?>
+				<?endif?>
 			</div>
 			<div class="popup-window-tabs-content">
 			<?

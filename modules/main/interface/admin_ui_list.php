@@ -3,6 +3,7 @@ use Bitrix\Main\Text\HtmlFilter;
 use Bitrix\Main\Grid\Editor\Types;
 use Bitrix\Main\Grid\Panel;
 use Bitrix\Main\UI\Filter\Options;
+use Bitrix\Main\Grid\Context;
 
 class CAdminUiList extends CAdminList
 {
@@ -94,7 +95,7 @@ class CAdminUiList extends CAdminList
 	public function EditAction()
 	{
 		if($_SERVER["REQUEST_METHOD"] == "POST" &&
-		   !empty($_REQUEST["action_button_".$this->table_id]) && check_bitrix_sessid())
+			!empty($_REQUEST["action_button_".$this->table_id]) && check_bitrix_sessid())
 		{
 			$arrays = array(&$_POST, &$_REQUEST, &$GLOBALS);
 			foreach ($arrays as $i => &$array)
@@ -358,7 +359,10 @@ class CAdminUiList extends CAdminList
 			{
 				$pageParam = (!empty($_GET) ? http_build_query($_GET, "", "&") : "");
 				$pagePath = $this->contextSettings["pagePath"]."?".$pageParam;
-				$link = CHTTP::urlAddParams($pagePath, array("mode" => "excel"));
+				$pageParams = array("mode" => "excel");
+				if ($this->isPublicMode)
+					$pageParams["public"] = "y";
+				$link = CHTTP::urlAddParams($pagePath, $pageParams);
 			}
 			else
 			{
@@ -376,147 +380,12 @@ class CAdminUiList extends CAdminList
 			$this->context = new CAdminUiContextMenu($aContext, $aAdditionalMenu);
 	}
 
-	//TODO Finalize the function so that it can create a structure of any complexity.
 	private function GetGroupAction()
 	{
-		if (empty($this->arActions))
-		{
-			return array();
-		}
+		$actionPanelConstructor = new CAdminUiListActionPanel(
+			$this->table_id, $this->arActions, $this->arActionsParams);
 
-		$actionPanel = array();
-
-		$snippet = new Panel\Snippet();
-
-		$actionList = array(
-			array(
-				"NAME" => GetMessage("admin_lib_list_actions"),
-				"VALUE" => "default",
-				"ONCHANGE" => array(array("ACTION" => Panel\Actions::RESET_CONTROLS))
-			)
-		);
-		$skipKey = array("edit", "delete", "for_all");
-		foreach ($this->arActions as $actionKey => $action)
-		{
-			if (in_array($actionKey, $skipKey))
-				continue;
-
-			if (is_array($action))
-			{
-				if (!empty($action["type"]))
-				{
-					switch ($action["type"])
-					{
-						case "select":
-							$actionList[] = array(
-								"NAME" => $action["lable"],
-								"VALUE" => $actionKey,
-								"ONCHANGE" => array(
-									array("ACTION" => Panel\Actions::RESET_CONTROLS),
-									array(
-										"ACTION" => Panel\Actions::CREATE,
-										"DATA" => array(
-											array(
-												"TYPE" => Panel\Types::DROPDOWN,
-												"ID" => "selected_action_{$this->table_id}",
-												"NAME" => $action["name"],
-												"ITEMS" => $action["items"]
-											),
-											$snippet->getApplyButton(
-												array(
-													"ONCHANGE" => array(
-														array(
-															"ACTION" => Panel\Actions::CALLBACK,
-															"DATA" => array(
-																array(
-																	"JS" => "BX.adminList.SendSelected('{$this->table_id}')"
-																)
-															)
-														)
-													)
-												)
-											)
-										)
-									)
-								)
-							);
-							break;
-						case "customJs":
-							$actionList[] = array(
-								"NAME" => $action["lable"],
-								"VALUE" => $actionKey,
-								"ONCHANGE" => array(
-									array("ACTION" => Panel\Actions::RESET_CONTROLS),
-									$this->getActionApplyButton($action["js"])
-								)
-							);
-							break;
-					}
-				}
-			}
-			else
-			{
-				$actionList[] = array(
-					"NAME" => $action,
-					"VALUE" => $actionKey,
-					"ONCHANGE" => array(
-						array("ACTION" => Panel\Actions::RESET_CONTROLS),
-						$this->getActionApplyButton("BX.adminList.SendSelected('{$this->table_id}')")
-					)
-				);
-			}
-		}
-
-		$items = array();
-
-		/* Default actions */
-		if ($this->arActions["edit"])
-			$items[] = $snippet->getEditButton();
-		if ($this->arActions["delete"])
-			$items[] = $snippet->getRemoveButton();
-
-		/* Action list (select and apply button) */
-		if (count($actionList) > 1)
-		{
-			$items[] = array(
-				"TYPE" => Panel\Types::DROPDOWN,
-				"ID" => "base_action_select_{$this->table_id}",
-				"NAME" => "action_button_{$this->table_id}",
-				"ITEMS" => $actionList
-			);
-		}
-
-		if ($this->arActions["for_all"])
-			$items[] = $snippet->getForAllCheckbox();
-
-		$actionPanel["GROUPS"][] = array("ITEMS" => $items);
-
-		return $actionPanel;
-	}
-
-	private function getActionApplyButton($action)
-	{
-		$snippet = new Panel\Snippet();
-
-		return array(
-			"ACTION" => Panel\Actions::CREATE,
-			"DATA" => array(
-				$snippet->getApplyButton(
-					array(
-						"ONCHANGE" => array(
-							array(
-								"ACTION" => Panel\Actions::CALLBACK,
-								"DATA" => array(
-									array(
-										"JS" => $action
-									)
-								)
-							)
-						)
-					)
-				)
-			)
-		);
+		return $actionPanelConstructor->getActionPanel();
 	}
 
 	public function &AddRow($id = false, $arRes = Array(), $link = false, $title = false)
@@ -597,7 +466,7 @@ class CAdminUiList extends CAdminList
 		if ($this->currentPreset)
 		{
 			$options = new Options($this->table_id, $this->filterPresets);
-			$options->setFilterSettings($this->currentPreset["id"], $this->currentPreset, true);
+			$options->setFilterSettings($this->currentPreset["id"], $this->currentPreset, true, false);
 			$options->save();
 		}
 
@@ -747,6 +616,36 @@ class CAdminUiList extends CAdminList
 
 	public function DisplayList($arParams = array())
 	{
+		$errorMessage = "";
+		foreach ($this->arFilterErrors as $error)
+			$errorMessage .= " ".$error;
+		foreach ($this->arUpdateErrors as $arError)
+			$errorMessage .= " ".$arError[0];
+		foreach ($this->arGroupErrors as $arError)
+			$errorMessage .= " ".$arError[0];
+
+		if (Context::isValidateRequest())
+		{
+			global $adminAjaxHelper;
+			if (!is_object($adminAjaxHelper))
+			{
+				require_once($_SERVER["DOCUMENT_ROOT"].BX_ROOT."/modules/main/interface/admin_lib.php");
+				$adminAjaxHelper = new CAdminAjaxHelper();
+			}
+			global $APPLICATION;
+			$APPLICATION->RestartBuffer();
+			if ($errorMessage)
+			{
+				$adminAjaxHelper->sendJsonResponse(array("messages" => array(
+					array("TYPE" => Bitrix\Main\Grid\MessageType::ERROR, "TEXT" => $errorMessage)))
+				);
+			}
+			else
+			{
+				$adminAjaxHelper->sendJsonResponse(array("messages" => array()));
+			}
+		}
+
 		global $APPLICATION;
 		$APPLICATION->SetAdditionalCSS('/bitrix/css/main/grid/webform-button.css');
 
@@ -766,10 +665,11 @@ class CAdminUiList extends CAdminList
 			"AJAX_OPTION_HISTORY" => "N",
 			"SHOW_PAGESIZE" => true,
 			"AJAX_ID" => CAjax::getComponentID("bitrix:main.ui.grid", ".default", ""),
-			"ALLOW_PIN_HEADER" => true
+			"ALLOW_PIN_HEADER" => true,
+			"ALLOW_VALIDATE" => true
 		);
 
-		$actionPanel = $this->GetGroupAction();
+		$actionPanel = $arParams["ACTION_PANEL"] ? $arParams["ACTION_PANEL"] : $this->GetGroupAction();
 		if ($actionPanel)
 		{
 			$gridParameters["ACTION_PANEL"] = $actionPanel;
@@ -922,13 +822,6 @@ class CAdminUiList extends CAdminList
 			$gridParameters["COLUMNS"][] = $header;
 		}
 
-		$errorMessage = "";
-		foreach ($this->arFilterErrors as $error)
-			$errorMessage .= " ".$error;
-		foreach ($this->arUpdateErrors as $arError)
-			$errorMessage .= " ".$arError[0];
-		foreach ($this->arGroupErrors as $arError)
-			$errorMessage .= " ".$arError[0];
 		if ($errorMessage <> "")
 		{
 			$gridParameters["MESSAGES"] = array(
@@ -1008,6 +901,444 @@ class CAdminUiList extends CAdminList
 		}
 
 		$this->aHeaders[$headerId]["editable"] = $editable;
+	}
+}
+
+/**
+ * Class CAdminUiListActionPanel
+ * A class for working with group actions. Allows you to create your own group actions.
+	Example of use:
+
+	// The array for $lAdmin->AddGroupActionTable($arGroupActions, $arParamsGroupActions);
+	$arGroupActions['test_my_type'] = array('type' => 'my_type', 'name' => 'Check custom actions');
+
+	$actionPanelConstructor = new CAdminUiListActionPanel(
+	$this->table_id, $this->arActions, $this->arActionsParams);
+
+	//Set your own section
+	$actionPanelConstructor->setActionSections(["my_section" => []], ["default"]);
+	//Set your own action type
+	$actionPanelConstructor->setTypeToSectionMap(["my_type" => "my_section"]);
+	//Set handler for your type
+	$actionPanelConstructor->setHandlerToType(["my_type" => function ($actionKey, $action) {
+		$onChange = [
+			[
+				"ACTION" => Panel\Actions::CREATE,
+				"DATA" => [
+					[
+						'TYPE' => Panel\Types::CUSTOM,
+						'ID' => 'my_custom_html',
+						'VALUE' => '<b>Hello!</b>',
+					]
+				]
+			]
+		];
+		return [
+			"ID" => $actionKey,
+			"TYPE" => Bitrix\Main\Grid\Panel\Types::BUTTON,
+			"TEXT" => $action["name"],
+			"ONCHANGE" => $onChange
+		];
+	}]);
+
+	return $actionPanelConstructor->getActionPanel();
+ */
+class CAdminUiListActionPanel
+{
+	private $tableId;
+	private $inputActions;
+	private $inputActionsParams;
+
+	/**
+	 * @var Panel\Snippet
+	 */
+	private $gridSnippets;
+
+	private $actionSections = [];
+	private $mapTypesAndSections = [
+		"edit" => "default",
+		"delete" => "default",
+		"button" => "button",
+		"select" => "list",
+		"customjs" => "list",
+		"html" => "html",
+		"for_all" => "forAll"
+	];
+	private $mapTypesAndHandlers = [];
+
+	public function __construct($tableId, array $actions, array $actionsParams)
+	{
+		$this->tableId = $tableId;
+		$this->inputActions = $actions;
+		$this->inputActionsParams = $actionsParams;
+
+		$this->gridSnippets = new Panel\Snippet();
+
+		$this->actionSections = [
+			"default" => [],
+			"button" => [],
+			"list" => [
+				"TYPE" => Panel\Types::DROPDOWN,
+				"ID" => "base_action_select_{$this->tableId}",
+				"NAME" => "action_button_{$this->tableId}",
+				"ITEMS" => [
+					[
+						"NAME" => GetMessage("admin_lib_list_actions"),
+						"VALUE" => "default",
+						"ONCHANGE" => [["ACTION" => Panel\Actions::RESET_CONTROLS]]
+					]
+				]
+			],
+			"html" => [],
+			"forAll" => []
+		];
+	}
+
+	/**
+	 * The method returns an array of data of the desired format for the grid.
+	 * @return array
+	 */
+	public function getActionPanel()
+	{
+		$actionPanel = [];
+
+		$items = $this->getItems();
+
+		$actionPanel["GROUPS"][] = array("ITEMS" => $items);
+
+		return $actionPanel;
+	}
+
+	/**
+	 * The method writes a value into an array of sections.
+	 * This array is the structure of the blocks into which you place your actions.
+	 * @param array $actionSections Map sections.
+	 * @param array $listKeyForDelete List keys for delete default sections.
+		Example:
+		[
+			"default" => [
+				"TYPE" => Types::BUTTON,
+				"ID" => "button_id",
+				"CLASS" => "apply",
+				"TEXT" => "My button",
+				"ONCHANGE" => [
+					[
+						"ACTION" => Panel\Actions::CALLBACK,
+						"DATA" => [
+							[
+								"JS" => "alert('Click!');"
+							]
+						]
+					]
+				]
+			]
+	 	];
+	 */
+	public function setActionSections(array $actionSections, $listKeyForDelete = [])
+	{
+		foreach ($listKeyForDelete as $keyForDelete)
+		{
+			if (isset($this->actionSections[$keyForDelete]))
+			{
+				unset($this->actionSections[$keyForDelete]);
+			}
+		}
+
+		$this->actionSections = array_merge($this->actionSections, $actionSections);
+	}
+
+	/**
+	 * The method writes values to a map of types and partitions.
+	 * This makes it possible to place any type of action in a specific action section.
+	 * @param array $mapTypesAndSections Map of types and sections. Example ["html" => "default"].
+	 */
+	public function setTypeToSectionMap(array $mapTypesAndSections)
+	{
+		$this->mapTypesAndSections = array_merge($this->mapTypesAndSections, $mapTypesAndSections);
+	}
+
+	/**
+	 * The method writes a handler for a particular type of action. This allows you to create your own action.
+	 *
+	 * @param array $mapTypesAndHandlers Map of types and handlers.
+	 * Example:
+	 * [
+		"button" => function ($actionKey, $action) {
+			$onChange = [
+				[
+					"ACTION" => Panel\Actions::CALLBACK,
+					"DATA" => [
+						[
+							"JS" => $action["action"] ? $action["action"] :
+							"BX.adminUiList.SendSelected('{$this->tableId}')"
+						]
+					]
+				]
+			]
+			return [
+				"ID" => $actionKey,
+				"TYPE" => Bitrix\Main\Grid\Panel\Types::BUTTON,
+				"TEXT" => $action["name"],
+				"ONCHANGE" => $onChange
+			];
+		}]
+	 */
+	public function setHandlerToType(array $mapTypesAndHandlers)
+	{
+		$this->mapTypesAndHandlers = array_merge($this->mapTypesAndHandlers, $mapTypesAndHandlers);
+	}
+
+	private function getItems()
+	{
+		$items = [];
+
+		$actionSections = $this->getActionSections();
+
+		foreach ($actionSections as $actionSection)
+		{
+			if ($this->isAssociativeArray($actionSection))
+			{
+				$items[] = $actionSection;
+			}
+			else
+			{
+				foreach ($actionSection as $aSection)
+				{
+					$items[] = $aSection;
+				}
+			}
+		}
+
+		return $items;
+	}
+
+	private function getActionSections()
+	{
+		if (isset($this->inputActions["edit"]) && isset($this->actionSections[$this->mapTypesAndSections["edit"]]))
+		{
+			$this->actionSections[$this->mapTypesAndSections["edit"]][] = $this->gridSnippets->getEditButton();
+		}
+		if (isset($this->inputActions["delete"]) && isset($this->actionSections[$this->mapTypesAndSections["delete"]]))
+		{
+			$this->actionSections[$this->mapTypesAndSections["delete"]][] = $this->gridSnippets->getRemoveButton();
+		}
+
+		foreach ($this->inputActions as $actionKey => $action)
+		{
+			$this->setActionSection($this->actionSections, $actionKey, $action);
+		}
+
+		if (isset($this->inputActions["for_all"]) && isset($this->actionSections[$this->mapTypesAndSections["for_all"]]))
+		{
+			$this->actionSections[$this->mapTypesAndSections["for_all"]][] = $this->gridSnippets->getForAllCheckbox();
+		}
+
+		return $this->actionSections;
+	}
+
+	private function setActionSection(array &$actionSections, $actionKey, $action)
+	{
+		if (is_array($action))
+		{
+			if (!empty($action["type"]))
+			{
+				$type = strtolower($action["type"]);
+				$actionSection = isset($this->mapTypesAndSections[$type]) ?
+					$this->mapTypesAndSections[$type] : "list";
+
+				$method = "get".$action["type"]."ActionData";
+				if ($this->mapTypesAndHandlers[$type] && is_callable($this->mapTypesAndHandlers[$type]))
+				{
+					$actionSections[$actionSection][] = $this->mapTypesAndHandlers[$type]($actionKey, $action);
+				}
+				elseif (method_exists(__CLASS__, $method))
+				{
+					if ($actionSection == "list")
+					{
+						$actionSections["list"]["ITEMS"][] = $this->$method($actionKey, $action);
+					}
+					else
+					{
+						$actionSections[$actionSection][] = $this->$method($actionKey, $action);
+					}
+				}
+			}
+		}
+		else
+		{
+			if (!in_array($actionKey, ["edit", "delete", "for_all"]))
+			{
+				$actionSections["list"]["ITEMS"][] = [
+					"NAME" => $action,
+					"VALUE" => $actionKey,
+					"ONCHANGE" => [
+						[
+							"ACTION" => Panel\Actions::RESET_CONTROLS
+						],
+						$this->getApplyButtonCreationAction()
+					]
+				];
+			}
+		}
+	}
+
+	private function getButtonActionData($actionKey, $action)
+	{
+		$onChange = $action["action"] ? [
+			["ACTION" => Panel\Actions::CALLBACK, "DATA" => [["JS" => $action["action"]]]]] : [];
+
+		return [
+			"ID" => $actionKey,
+			"TYPE" => Bitrix\Main\Grid\Panel\Types::BUTTON,
+			"TEXT" => $action["name"],
+			"ONCHANGE" => $onChange
+		];
+	}
+
+	private function getSelectActionData($actionKey, $action)
+	{
+		$internalOnchange = [];
+		if (!empty($this->inputActionsParams["internal_select_onchange"]))
+		{
+			$internalOnchange[] = [
+				"ACTION" => Panel\Actions::CALLBACK,
+				"DATA" => [
+					["JS" => $this->inputActionsParams["internal_select_onchange"]]
+				]
+			];
+		}
+
+		/**
+			For each value of the list, you can pass a handler.
+			example client code:
+			$arGroupActions["test_section"] = array(
+				"lable" => "Test",
+				"type" => "select",
+				"name" => "test_section",
+				"items" => array(
+					array("NAME" => "One", "VALUE" => "one", "ONCHANGE" => "alert('one');"),
+					array("NAME" => "Two", "VALUE" => "two", "ONCHANGE" => "alert('two');")
+				)
+			);
+		 */
+		if (is_array($action["items"]))
+		{
+			foreach ($action["items"] as &$items)
+			{
+				if (empty($items["ONCHANGE"]))
+				{
+					$items["ONCHANGE"] = $internalOnchange;
+				}
+				else
+				{
+					$items["ONCHANGE"] = [
+						[
+							"ACTION" => Panel\Actions::CALLBACK,
+							"DATA" => [
+								["JS" => $items["ONCHANGE"]]
+							]
+						]
+					];
+				}
+			}
+		}
+
+		$onchange = [
+			[
+				"ACTION" => Panel\Actions::RESET_CONTROLS
+			],
+			[
+				"ACTION" => Panel\Actions::CREATE,
+				"DATA" => [
+					[
+						"TYPE" => Panel\Types::DROPDOWN,
+						"ID" => "selected_action_{$this->tableId}",
+						"NAME" => $action["name"],
+						"ITEMS" => $action["items"]
+					],
+					$this->gridSnippets->getApplyButton(
+						[
+							"ONCHANGE" => [
+								[
+									"ACTION" => Panel\Actions::CALLBACK,
+									"DATA" => [
+										["JS" => "BX.adminUiList.SendSelected('{$this->tableId}')"]
+									]
+								]
+							]
+						]
+					)
+				]
+			]
+		];
+
+		if (!empty($this->inputActionsParams["select_onchange"]))
+		{
+			$onchange[] = [
+				"ACTION" => Panel\Actions::CALLBACK,
+				"DATA" => [
+					["JS" => $this->inputActionsParams["select_onchange"]]
+				]
+			];
+		}
+
+		return [
+			"NAME" => $action["lable"],
+			"VALUE" => $actionKey,
+			"ONCHANGE" => $onchange
+		];
+	}
+
+	private function getCustomJsActionData($actionKey, $action)
+	{
+		return [
+			"NAME" => $action["lable"],
+			"VALUE" => $actionKey,
+			"ONCHANGE" => [
+				["ACTION" => Panel\Actions::RESET_CONTROLS],
+				$this->getApplyButtonCreationAction($action["js"])
+			]
+		];
+	}
+
+	private function getHtmlActionData($actionKey, $action)
+	{
+		return [
+			"ID" => $actionKey,
+			"TYPE" => Panel\Types::CUSTOM,
+			"VALUE" => $action["value"]
+		];
+	}
+
+	private function getApplyButtonCreationAction($jsCallback = "")
+	{
+		return [
+			"ACTION" => Panel\Actions::CREATE,
+			"DATA" => [
+				$this->gridSnippets->getApplyButton(
+					[
+						"ONCHANGE" => [
+							[
+								"ACTION" => Panel\Actions::CALLBACK,
+								"DATA" => [
+									[
+										"JS" => $jsCallback ? $jsCallback :
+											"BX.adminUiList.SendSelected('{$this->tableId}')"
+									]
+								]
+							]
+						]
+					]
+				)
+			]
+		];
+	}
+
+	private function isAssociativeArray($array)
+	{
+		if (!is_array($array) || empty($array))
+			return false;
+		return array_keys($array) !== range(0, count($array) - 1);
 	}
 }
 
@@ -1231,7 +1562,7 @@ class CAdminUiContextMenu extends CAdminContextMenu
 				<? endif; ?>
 			<? else:?>
 				<? if (!empty($firstItem["ONCLICK"])): ?>
-					<button class="ui-btn ui-btn-primary" href="<?=HtmlFilter::encode($firstItem["ONCLICK"])?>">
+					<button class="ui-btn ui-btn-primary" onclick="<?=HtmlFilter::encode($firstItem["ONCLICK"])?>">
 						<?=HtmlFilter::encode($firstItem["TEXT"])?>
 					</button>
 				<? else: ?>

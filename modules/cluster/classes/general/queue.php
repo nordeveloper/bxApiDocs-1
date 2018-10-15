@@ -70,6 +70,18 @@ class CClusterQueue
 				$ids[] = intval($ar["ID"]);
 			}
 
+			$uid = CMain::GetServerUniqID()."_cluster_queue_".BX_CLUSTER_GROUP;
+
+			if (!empty($ids))
+			{
+				$lock = $DB->Query("SELECT GET_LOCK('".$uid."', 0) as L")->Fetch();
+				if ($lock["L"] == "0")
+				{
+					$DB->StopUsingMasterOnly();
+					return false;
+				}
+			}
+
 			//clean cache
 			foreach ($queue as $ar)
 			{
@@ -89,6 +101,7 @@ class CClusterQueue
 			if ($ids)
 			{
 				$DB->Query("DELETE FROM b_cluster_queue WHERE ID in (".implode(",", $ids).")");
+				$DB->Query("SELECT RELEASE_LOCK('".$uid."')");
 			}
 		}
 		while ($queue);

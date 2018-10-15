@@ -1085,8 +1085,27 @@ class EntityBankDetail
 		return true;
 	}
 
-	public function prepareViewData($fields, $fieldsInView = array())
+	public function prepareViewData($fields, $fieldsInView = array(), $options = array())
 	{
+		$optionValueHtml = false;
+		$optionValueText = true;
+
+		if (is_array($options) && isset($options['VALUE_HTML'])
+			&& ($options['VALUE_HTML'] === 'Y' || $options['VALUE_HTML'] === true))
+		{
+			$optionValueHtml = true;
+		}
+
+		if (is_array($options) && isset($options['VALUE_TEXT']) &&
+			!($options['VALUE_TEXT'] === 'Y' || $options['VALUE_TEXT'] === true))
+		{
+			$optionValueText = false;
+		}
+		else if ($optionValueHtml)
+		{
+			$optionValueText = false;
+		}
+
 		if (!is_array($fieldsInView))
 			$fieldsInView = array();
 
@@ -1114,13 +1133,21 @@ class EntityBankDetail
 					$fieldInfo = $fieldsInfo[$fieldName];
 					$textValue = strval($fieldValue);
 
-					$result['fields'][] = array(
+					$resultItem = array(
 						'name' => $fieldName,
 						'title' => $fieldInfo['title'],
 						'type' => $fieldInfo['type'],
-						'formType' => $fieldInfo['formType'],
-						'textValue' => $textValue
+						'formType' => $fieldInfo['formType']
 					);
+					if ($optionValueText)
+					{
+						$resultItem['textValue'] = $textValue;
+					}
+					if ($optionValueHtml)
+					{
+						$resultItem['htmlValue'] = nl2br(htmlspecialcharsbx($textValue));
+					}
+					$result['fields'][] = $resultItem;
 				}
 			}
 		}
@@ -1411,7 +1438,7 @@ class EntityBankDetail
 	 */
 	public static function rebindBankDetail($entityTypeId, $targEntityId, $seedBankDetailId)
 	{
-		if (self::checkEntityType($entityTypeId))
+		if (!self::checkEntityType($entityTypeId))
 		{
 			throw new Main\ArgumentException(GetMessage('CRM_BANKDETAIL_ERR_INVALID_ENTITY_TYPE'), 'entityTypeId');
 		}

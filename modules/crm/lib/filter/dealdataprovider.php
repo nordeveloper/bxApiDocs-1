@@ -97,6 +97,14 @@ class DealDataProvider extends EntityDataProvider
 			'IS_RETURN_CUSTOMER' => $this->createField(
 				'IS_RETURN_CUSTOMER',
 				array('type' => 'checkbox')
+			),
+			'IS_REPEATED_APPROACH' => $this->createField(
+				'IS_REPEATED_APPROACH',
+				array('type' => 'checkbox')
+			),
+			'SOURCE_ID' => $this->createField(
+				'SOURCE_ID',
+				array('type' => 'list', 'default' => true, 'partial' => true)
 			)
 		);
 
@@ -402,6 +410,13 @@ class DealDataProvider extends EntityDataProvider
 			return array(
 				'params' => array('multiple' => 'Y'),
 				'items' => Crm\WebForm\Manager::getListNames()
+			);
+		}
+		elseif($fieldID === 'SOURCE_ID')
+		{
+			return array(
+				'params' => array('multiple' => 'Y'),
+				'items' => \CCrmStatus::GetStatusList('SOURCE')
 			);
 		}
 		return null;

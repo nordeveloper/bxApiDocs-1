@@ -540,12 +540,23 @@ class Manager
 
 		self::$handlers = array_keys($result);
 
-		foreach(self::$handlers as $handler)
+		/**
+		 * @var \Bitrix\Sale\Delivery\Services\Base $handler
+		 */
+		foreach(self::$handlers as $idx => $handler)
 		{
+			if(!$handler::isHandlerCompatible())
+			{
+				unset(self::$handlers[$idx]);
+				continue;
+			}
+
 			$profiles = $handler::getChildrenClassNames();
 
 			if(!empty($profiles))
+			{
 				self::$handlers = array_merge(self::$handlers, $profiles);
+			}
 		}
 
 		return true;

@@ -76,7 +76,7 @@ class IdentityMap
 				else
 				{
 					/** @var $normalizedClass EntityObject custom object class */
-					$entity = Entity::getInstance($normalizedClass::dataClass());
+					$entity = Entity::getInstance($normalizedClass::$dataClass);
 				}
 
 				$collection = $entity->createCollection();

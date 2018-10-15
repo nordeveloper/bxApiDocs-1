@@ -142,10 +142,12 @@ class CCrmUserCounter
 		if($this->typeID === self::CurrentActivies)
 		{
 			//Count of open user activities (start time: before tomorrow)
+			//Activities are filtered by RESPONSIBLE - we can switch off permission checking
 			$filter = array(
 				'RESPONSIBLE_ID' => $this->userID,
 				'COMPLETED' => 'N',
-				'<=START_TIME' => $currentDayEnd
+				'<=START_TIME' => $currentDayEnd,
+				'CHECK_PERMISSIONS' => 'N'
 			);
 
 			$count = CCrmActivity::GetCount($filter);

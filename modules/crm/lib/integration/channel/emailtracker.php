@@ -172,14 +172,16 @@ class EmailTracker extends ChannelTracker
 		$originID = isset($params['ORIGIN_ID']) ? $params['ORIGIN_ID'] : '';
 		$originData = $this->parseOriginID($originID);
 		$userID = $originData['USER_ID'];
-		if($userID === 0)
+		$mailboxId = $originData['MAILBOX_ID'];
+
+		if (\CCrmSecurityHelper::getCurrentUserId() == $userID)
 		{
-			return '/crm/configs/emailtracker/';
+			return $mailboxId > 0
+				? str_replace('#id#', $mailboxId, Option::get('intranet', 'path_mail_config', SITE_DIR . 'mail/'))
+				: Option::get('intranet', 'path_mail_client', SITE_DIR . 'mail/');
 		}
 
-		return $userID === \CCrmSecurityHelper::GetCurrentUserID()
-			? Option::get('socialnetwork', 'user_page', SITE_DIR.'company/personal/', SITE_ID).'mail/?page=home'
-			: '';
+		return '';
 	}
 	/**
 	 * Check if current user has permission to configure email.

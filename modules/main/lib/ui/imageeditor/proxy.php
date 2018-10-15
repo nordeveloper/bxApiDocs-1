@@ -6,6 +6,7 @@ use Bitrix\Main\IO\File;
 use Bitrix\Main\IO\Path;
 use Bitrix\Main\Application;
 use Bitrix\Main\Web\Uri;
+use Bitrix\Main\Web\HttpClient;
 
 /**
  * Class Proxy
@@ -27,13 +28,12 @@ class Proxy
 	 */
 	public function __construct($url, $allowedHosts = [])
 	{
-		global $USER;
+		$response = static::getResponse();
 
-		if (!$USER->isAuthorized() ||
-			!check_bitrix_sessid())
+		if (!static::isAuthorized())
 		{
-			header('HTTP/1.0 404 Not Found');
-			die('Not authorized');
+			$response->setStatus(401)->flush();
+			die('Unauthorized');
 		}
 
 		if (is_array($allowedHosts))
@@ -48,9 +48,44 @@ class Proxy
 
 		if (!!$host && !$this->isAllowedHost($host))
 		{
-			header('HTTP/1.0 404 Not Found');
-			die('Host not allowed '.$this->uri->getUri());
+			$response->setStatus(400)->flush();
+			die('Host not allowed');
 		}
+
+		$ext = Path::getExtension($this->uri->getPath());
+
+		if (!static::isAllowedExtension($ext))
+		{
+			$response->setStatus(400)->flush();
+			die('File extension not allowed');
+		}
+	}
+
+	/**
+	 * @return \Bitrix\Main\HttpResponse
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	protected static function getResponse()
+	{
+		return Application::getInstance()->getContext()->getResponse();
+	}
+
+	/**
+	 * @return null|string
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	protected static function getDocumentRoot()
+	{
+		return Application::getInstance()->getContext()->getServer()->getDocumentRoot();
+	}
+
+	/**
+	 * @return bool
+	 */
+	protected static function isAuthorized()
+	{
+		global $USER;
+		return ($USER->isAuthorized() && check_bitrix_sessid());
 	}
 
 	/**
@@ -91,38 +126,129 @@ class Proxy
 	 */
 	protected function isAllowedHost($host)
 	{
-		return in_array($host, $this->getAllowedHosts());
+		return (
+			in_array($host, $this->getAllowedHosts()) ||
+			in_array('*', $this->getAllowedHosts())
+		);
 	}
 
 
-	public function output()
+	/**
+	 * @param ?string $ext
+	 * @return bool
+	 */
+	protected static function isAllowedExtension($ext)
 	{
-		switch (Path::getExtension($this->uri->getUri()))
+		return (
+			$ext !== false && (
+				strpos($ext, 'gif') !== false ||
+				strpos($ext, 'png') !== false ||
+				strpos($ext, 'jpg') !== false ||
+				strpos($ext, 'jpeg') !== false
+			)
+		);
+	}
+
+	/**
+	 * @return bool
+	 */
+	protected function isLocalFile()
+	{
+		return !$this->uri->getHost();
+	}
+
+	/**
+	 * @return bool|string
+	 */
+	protected function getContentType()
+	{
+		$ext = Path::getExtension($this->uri->getPath());
+
+		if (strpos($ext, 'gif') !== false)
 		{
-			case 'gif':
-				header('Content-Type: image/gif');
-				break;
-			case 'png':
-				header('Content-Type: image/png');
-				break;
-			case 'jpg':
-				header('Content-Type: image/jpeg');
-				break;
-			default:
-				header('HTTP/1.0 404 Not Found');
-				die('File not exists '.$this->uri->getUri());
-				break;
+			return 'image/gif';
 		}
 
-		if (!$this->uri->getHost())
+		if (strpos($ext, 'png') !== false)
+		{
+			return 'image/png';
+		}
+
+		if (strpos($ext, 'jpg') !== false ||
+			strpos($ext, 'jpeg') !== false)
+		{
+			return 'image/jpeg';
+		}
+
+		return false;
+	}
+
+	/**
+	 * @param $path
+	 * @return bool
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	protected static function isAllowedPath($path)
+	{
+		$documentRoot = static::getDocumentRoot();
+		return stripos($path, $documentRoot) === 0;
+	}
+
+	/**
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\ArgumentTypeException
+	 * @throws \Bitrix\Main\IO\FileNotFoundException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public function output()
+	{
+		$response = static::getResponse();
+
+		if ($this->isLocalFile())
 		{
 			$path = Path::convertRelativeToAbsolute($this->uri->getPath());
-			$file = new File($path);
-			$file->readFile();
+
+			if (static::isAllowedPath($path))
+			{
+				$file = new File($path);
+
+				if ($file->isExists())
+				{
+					$response->addHeader('Content-Type', $file->getContentType());
+					$response->flush($file->getContents());
+					return;
+				}
+			}
+
+			$response->setStatus(404);
+			$response->flush('404 Not found');
+			return;
 		}
-		else
+
+		$client = new HttpClient();
+		$fileName = Path::getName($this->uri->getPath());
+
+		if ($fileName)
 		{
-			readfile($this->uri->getUri());
+			$filePath = \CFile::getTempName(false, $fileName);
+
+			if ($client->download($this->uri->getUri(), $filePath))
+			{
+				$file = new File($filePath);
+
+				if ($file->isExists())
+				{
+					$response->addHeader('Content-Type', $file->getContentType());
+					$response->flush($file->getContents());
+					$file->delete();
+					return;
+				}
+			}
 		}
+
+		$response->setStatus(404);
+		$response->flush('404 Not found');
+		return;
 	}
 }

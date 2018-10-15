@@ -2021,10 +2021,21 @@ class CTaskNotifications
 				}
 				else
 				{
-					// on a error the exception will be thrown here
-					if (self::addAnswer($tagData['TASK_ID'], $text))
+					try
 					{
-						return Loc::getMessage('TASKS_IM_ANSWER_SUCCESS');
+						if (self::addAnswer($tagData['TASK_ID'], $text))
+						{
+							return Loc::getMessage('TASKS_IM_ANSWER_SUCCESS');
+						}
+					}
+					catch(\TasksException $e)
+					{
+						$message = unserialize($e->getMessage());
+
+						return array(
+							'result' => false,
+							'text' => $message[0]
+						);
 					}
 				}
 			}
@@ -2034,9 +2045,64 @@ class CTaskNotifications
 	public static function addAnswer($taskId, $text)
 	{
 		$task = new CTaskItem($taskId, $GLOBALS['USER']->GetId());
-		return CTaskCommentItem::add($task, array(
+
+		$taskCommentItem = CTaskCommentItem::add($task, array(
 			'POST_MESSAGE' => $text
 		));
+
+		if (
+			($taskCommentItem instanceof CTaskCommentItem)
+			&& ($commentId = $taskCommentItem->getId())
+			&& \Bitrix\Main\Loader::includeModule('socialnetwork')
+		)
+		{
+			$res = \Bitrix\Socialnetwork\LogCommentTable::getList(array(
+				'filter' => array(
+					'EVENT_ID' => array('crm_activity_add_comment', 'tasks_comment'),
+					'SOURCE_ID' => $commentId
+				),
+				'select' => array('ID', 'LOG_ID')
+			));
+			if ($logCommentFields = $res->fetch())
+			{
+				$res = \Bitrix\Socialnetwork\LogTable::getList(array(
+					'filter' => array(
+						"=ID" => $logCommentFields['LOG_ID']
+					),
+					'select' => array("ID", "ENTITY_TYPE", "ENTITY_ID", "USER_ID", "EVENT_ID", "SOURCE_ID")
+				));
+				if ($logEntry = $res->fetch())
+				{
+					$logCommentFields = \Bitrix\Socialnetwork\Item\LogComment::getById($logCommentFields['ID'])->getFields();
+
+					$res = \CSite::getByID(SITE_ID);
+					$site = $res->fetch();
+
+					$userPage = \Bitrix\Main\Config\Option::get('socialnetwork', 'user_page', $site['DIR'].'company/personal/');
+					$userPath = $userPage.'user/'.$logEntry['USER_ID'].'/';
+
+					\Bitrix\Socialnetwork\ComponentHelper::addLiveComment(
+						$logCommentFields,
+						$logEntry,
+						\CSocNetLogTools::findLogCommentEventByLogEventID($logEntry["EVENT_ID"]),
+						array(
+							"ACTION" => 'ADD',
+							"SOURCE_ID" => $logCommentFields['SOURCE_ID'],
+							"TIME_FORMAT" => \CSite::getTimeFormat(),
+							"PATH_TO_USER" => $userPath,
+							"NAME_TEMPLATE" => \CSite::getNameFormat(null, SITE_ID),
+							"SHOW_LOGIN" => "N",
+							"AVATAR_SIZE" => 100,
+							"LANGUAGE_ID" => $site["LANGUAGE_ID"],
+							"SITE_ID" => SITE_ID,
+							"PULL" => "Y",
+						)
+					);
+				}
+			}
+		}
+
+		return $taskCommentItem;
 	}
 
 	########################
@@ -2449,7 +2515,7 @@ class CTaskNotifications
 				}
 				else
 				{
-					$userDataDb = \CUser::GetByID($arUser['ID']);
+					$userDataDb = \CUser::GetList($by, $order, ['ID' => $arUser['ID']], ['FIELDS' => ['ID', 'LID']]);
 					if ($userData = $userDataDb->Fetch())
 					{
 						$siteID = $userData['LID'];

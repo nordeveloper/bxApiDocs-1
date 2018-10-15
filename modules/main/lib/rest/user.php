@@ -6,24 +6,6 @@ use Bitrix\Rest;
 
 class User extends \IRestService
 {
-	const SCOPE_USER = 'user';
-	const SCOPE_USER_CONSENT = 'userconsent';
-
-	public static function onRestServiceBuildDescription()
-	{
-		return array(
-			static::SCOPE_USER => array(
-				'user.history.list' => array(__CLASS__, 'getHistoryList'),
-				'user.history.fields.list' => array(__CLASS__, 'getHistoryFieldsList'),
-			),
-			static::SCOPE_USER_CONSENT => array(
-				'userconsent.consent.add' => array(Main\UserConsent\Rest::class, 'addConsent'),
-				'userconsent.agreement.list' => array(Main\UserConsent\Rest::class, 'getAgreementList'),
-				'userconsent.agreement.text' => array(Main\UserConsent\Rest::class, 'getAgreementText'),
-			),
-		);
-	}
-
 	public static function getHistoryList($query, $nav = 0, \CRestServer $server)
 	{
 		global $USER;

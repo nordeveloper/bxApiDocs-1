@@ -83,9 +83,9 @@ abstract class UI
 		if(!intval($field['ENTITY_VALUE_ID']))
 		{
 			$useDefault = false;
-			$valueFilled = UserField::isValueEmpty($field['VALUE']);
+			$valueEmpty = UserField::isValueEmpty($field['VALUE']);
 
-			if(($parameters['PREFER_DEFAULT'] || $field['MANDATORY'] == 'Y') && !$valueFilled)
+			if(($parameters['PREFER_DEFAULT'] || $field['MANDATORY'] == 'Y') && $valueEmpty)
 			{
 				$useDefault = true;
 			}

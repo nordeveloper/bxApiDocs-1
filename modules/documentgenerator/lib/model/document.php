@@ -40,10 +40,6 @@ class DocumentTable extends FileModel
 				'primary' => true,
 				'autocomplete' => true,
 			]),
-			new Main\Entity\BooleanField('ACTIVE', [
-				'values' => array('Y', 'N'),
-				'default_value' => 'N',
-			]),
 			new Main\Entity\StringField('TITLE', [
 				'required' => true,
 			]),

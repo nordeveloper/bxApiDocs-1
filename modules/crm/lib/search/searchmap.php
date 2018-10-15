@@ -77,6 +77,10 @@ class SearchMap
 			$this->data[$value] = true;
 		}
 	}
+	public function addHtml($value, $length = null)
+	{
+		$this->addText(strip_tags(html_entity_decode($value)), $length);
+	}
 	public function addUserByID($userID)
 	{
 		if($userID <= 0)
@@ -117,6 +121,31 @@ class SearchMap
 			$this->data[$value] = true;
 		}
 	}
+
+	public function addTextFragments($str)
+	{
+		if($str === '')
+		{
+			return;
+		}
+
+		$length = strlen($str);
+
+		//Right bound. We will stop when 3 digits are left.
+		$bound = $length - 2;
+		if($bound > 0)
+		{
+			for($i = 0; $i < $bound; $i++)
+			{
+				$fragment = substr($str, $i);
+				if(!isset($this->data[$fragment]))
+				{
+					$this->addText($fragment);
+				}
+			}
+		}
+	}
+
 	public function addPhone($phone)
 	{
 		$phone = DuplicateCommunicationCriterion::normalizePhone($phone);
@@ -142,10 +171,10 @@ class SearchMap
 		{
 			for($i = 0; $i < $bound; $i++)
 			{
-				$key = substr($phone, $i);
-				if(!isset($this->data[$key]))
+				$fragment = substr($phone, $i);
+				if(!isset($this->data[$fragment]))
 				{
-					$this->data[$key] = true;
+					$this->data[$fragment] = true;
 				}
 			}
 		}
@@ -211,6 +240,42 @@ class SearchMap
 			}
 		}
 
+	}
+	public function addStatus($statusEntityID, $statusID)
+	{
+		$list = \CCrmStatus::GetStatusList($statusEntityID);
+		if(isset($list[$statusID]))
+		{
+			$value = SearchEnvironment::prepareToken($list[$statusID]);
+			if($value !== '' && !isset($this->data[$value]))
+			{
+				$this->data[$value] = true;
+			}
+		}
+	}
+	public function addUserField(array $userField)
+	{
+		global $USER_FIELD_MANAGER;
+
+		$userTypeID = isset($userField['USER_TYPE_ID']) ? $userField['USER_TYPE_ID'] : '';
+		if($userTypeID === 'boolean')
+		{
+			$values = array();
+			if(isset($userField['VALUE']) && (bool)$userField['VALUE'] && isset($userField['EDIT_FORM_LABEL']))
+			{
+				$values[] = $userField['EDIT_FORM_LABEL'];
+			}
+		}
+		else
+		{
+			$values = explode(',', $USER_FIELD_MANAGER->getPublicText($userField));
+		}
+		//$values = explode(',', $USER_FIELD_MANAGER->getPublicText($userField));
+
+		foreach($values as $value)
+		{
+			$this->addText(trim($value), 1024);
+		}
 	}
 	public function getString()
 	{

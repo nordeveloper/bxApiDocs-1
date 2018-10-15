@@ -132,6 +132,12 @@ class CUserTypeEmployee extends CIEmployeeProperty
 		}
 	}
 
+	public static function getPublicText($userField)
+	{
+		return CUserTypeEmployeeDisplay::getPublicText($userField);
+	}
+
+
 	// function PrepareSettings($arUserField)
 	// {
 		// return $arUserField['SETTINGS'];
@@ -494,6 +500,23 @@ class CUserTypeEmployeeDisplay extends \Bitrix\Main\UserField\TypeBase
 		static::initDisplay(array('intranet_userfield_employee'));
 
 		return static::getHelper()->wrapDisplayResult($html);
+	}
+
+	public static function getPublicText($arUserField)
+	{
+		$text = '';
+		$value = static::normalizeFieldValue($arUserField["VALUE"]);
+		if(count($value) > 0 && $value[0] !== null)
+		{
+			$results = array();
+			$dbRes = \Bitrix\Main\UserTable::getList(array('filter' => array('@ID' => $value)));
+			while($res = $dbRes->fetch())
+			{
+				$results[] = \CUser::FormatName(\CSite::GetNameFormat(), $res, true, false);
+			}
+			$text = implode(', ', $results);
+		}
+		return $text;
 	}
 }
 

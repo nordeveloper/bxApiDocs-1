@@ -28,6 +28,20 @@ abstract class Type
 		return false;
 	}
 
+	public static function convertBooleanUserFieldValue($value)
+	{
+		if (strtolower($value) == 'n')
+		{
+			return false;
+		}
+		elseif ($value)
+		{
+			return true;
+		}
+
+		return false;
+	}
+
 	/////////////////////////////////
 	// helper functions for checking elements of component parameters and other similar places
 

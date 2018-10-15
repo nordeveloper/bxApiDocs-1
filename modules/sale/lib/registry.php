@@ -40,7 +40,10 @@ final class Registry
 	const ENTITY_DELIVERY_STATUS = 'DELIVERY_STATUS';
 	const ENTITY_ENTITY_MARKER = 'ENTITY_MARKER';
 	const ENTITY_ORDER_HISTORY = 'ORDER_HISTORY';
+	const ENTITY_PROPERTY = 'PROPERTIES';
 	const ENTITY_NOTIFY = 'NOTIFY';
+	const ENTITY_TRADE_BINDING_COLLECTION = 'TRADE_BINDING_COLLECTION';
+	const ENTITY_TRADE_BINDING_ENTITY = 'TRADE_BINDING_ENTITY';
 
 	private static $registryMap = array();
 	private static $registryObjects = array();
@@ -65,6 +68,7 @@ final class Registry
 				Registry::ENTITY_SHIPMENT_ITEM_STORE_COLLECTION => '\Bitrix\Sale\ShipmentItemStoreCollection',
 				Registry::ENTITY_PROPERTY_VALUE_COLLECTION => '\Bitrix\Sale\PropertyValueCollection',
 				Registry::ENTITY_PROPERTY_VALUE => '\Bitrix\Sale\PropertyValue',
+				Registry::ENTITY_PROPERTY => 'Bitrix\Sale\Property',
 				Registry::ENTITY_TAX => '\Bitrix\Sale\Tax',
 				Registry::ENTITY_BASKET_PROPERTY_ITEM => '\Bitrix\Sale\BasketPropertyItem',
 				Registry::ENTITY_BUNDLE_COLLECTION => '\Bitrix\Sale\BundleCollection',
@@ -81,6 +85,9 @@ final class Registry
 				Registry::ENTITY_ENTITY_MARKER => '\Bitrix\Sale\EntityMarker',
 				Registry::ENTITY_ORDER_HISTORY => 'Bitrix\Sale\OrderHistory',
 				Registry::ENTITY_NOTIFY => 'Bitrix\Sale\Notify',
+				Registry::ENTITY_TRADE_BINDING_COLLECTION => 'Bitrix\Sale\TradeBindingCollection',
+				Registry::ENTITY_TRADE_BINDING_ENTITY => 'Bitrix\Sale\TradeBindingEntity',
+				Registry::ENTITY_NOTIFY => 'Bitrix\Sale\Notify',
 			),
 			static::REGISTRY_TYPE_ARCHIVE_ORDER => array(
 				Registry::ENTITY_ORDER => '\Bitrix\Sale\Archive\Order',
@@ -94,6 +101,7 @@ final class Registry
 				Registry::ENTITY_SHIPMENT_ITEM_STORE_COLLECTION => '\Bitrix\Sale\ShipmentItemStoreCollection',
 				Registry::ENTITY_PROPERTY_VALUE_COLLECTION => '\Bitrix\Sale\PropertyValueCollection',
 				Registry::ENTITY_PROPERTY_VALUE => '\Bitrix\Sale\PropertyValue',
+				Registry::ENTITY_PROPERTY => 'Bitrix\Sale\Property',
 				Registry::ENTITY_TAX => '\Bitrix\Sale\Tax',
 				Registry::ENTITY_BASKET_PROPERTY_ITEM => '\Bitrix\Sale\BasketPropertyItem',
 				Registry::ENTITY_BUNDLE_COLLECTION => '\Bitrix\Sale\BundleCollection',
@@ -109,6 +117,8 @@ final class Registry
 				Registry::ENTITY_DELIVERY_STATUS => 'Bitrix\Sale\DeliveryStatus',
 				Registry::ENTITY_ENTITY_MARKER => '\Bitrix\Sale\EntityMarker',
 				Registry::ENTITY_ORDER_HISTORY => 'Bitrix\Sale\OrderHistory',
+				Registry::ENTITY_TRADE_BINDING_COLLECTION => 'Bitrix\Sale\TradeBindingCollection',
+				Registry::ENTITY_TRADE_BINDING_ENTITY => 'Bitrix\Sale\TradeBindingEntity',
 				Registry::ENTITY_NOTIFY => 'Bitrix\Sale\Notify',
 			),
 		);
@@ -439,5 +449,13 @@ final class Registry
 	public function getNotifyClassName()
 	{
 		return $this->get(static::ENTITY_NOTIFY);
+	}
+	/**
+	 * @return mixed
+	 * @throws Main\ArgumentException
+	 */
+	public function getPropertyClassName()
+	{
+		return $this->get(static::ENTITY_PROPERTY);
 	}
 }

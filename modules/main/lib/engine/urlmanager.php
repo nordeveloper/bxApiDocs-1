@@ -41,13 +41,15 @@ final class UrlManager
 	 * @param string $action The fully qualified action name.
 	 * @param array $params Additional parameters for action.
 	 *
+	 * @param bool $absolute Generate absolute uri or not.
+	 *
 	 * @return Uri
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
-	public function create($action, $params = array())
+	public function create($action, $params = array(), $absolute = false)
 	{
-		$uri = $this->getEndPoint();
+		$uri = $this->getEndPoint($absolute);
 		$uri->addParams(array(
 			'action' => $action,
 		));
@@ -63,16 +65,43 @@ final class UrlManager
 	 * @param string $action Relative action name.
 	 * @param array $params Additional parameters for action.
 	 *
+	 * @param bool $absolute Generate absolute uri or not.
+	 *
 	 * @return Uri
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
-	public function createByController(Controller $controller, $action, $params = array())
+	public function createByController(Controller $controller, $action, $params = array(), $absolute = false)
 	{
+		$name = strtolower(Resolver::getNameByController($controller));
+
+		list($vendor) = $this->getVendorAndModule($controller->getModuleId());
+		if ($vendor === 'bitrix')
+		{
+			$name = substr($name, strlen('bitrix:'));
+		}
+
 		return $this->create(
-			$controller->getModuleId() . '.' . Resolver::getNameByController($controller) . '.' . $action,
-			$params
+			$name . '.' . $action,
+			$params,
+			$absolute
 		);
+	}
+
+	protected function getVendorAndModule($moduleId)
+	{
+		$parts = explode('.', $moduleId);
+		if (!isset($parts[1]))
+		{
+			return ['bitrix', $moduleId];
+		}
+
+		if ($parts[0] === 'bitrix')
+		{
+			return ['bitrix', $moduleId];
+		}
+
+		return [$parts[0], $moduleId];
 	}
 
 	/**
@@ -82,11 +111,14 @@ final class UrlManager
 	 * @param string $action Relative action name.
 	 * @param array $params Additional parameters for action.
 	 *
+	 * @param bool $absolute Generate absolute uri or not.
+	 *
 	 * @return Uri
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \ReflectionException
 	 */
-	public function createByComponentController(Controller $controller, $action, $params = array())
+	public function createByComponentController(Controller $controller, $action, $params = array(), $absolute = false)
 	{
 		$reflector = new \ReflectionClass($controller);
 		$path = dirname($reflector->getFileName());
@@ -107,7 +139,8 @@ final class UrlManager
 
 		return $this->create(
 			$action,
-			$params
+			$params,
+			$absolute
 		);
 	}
 
@@ -119,18 +152,21 @@ final class UrlManager
 	 * @param string $action Relative action name.
 	 * @param array $params Additional parameters for action.
 	 *
+	 * @param bool $absolute Generate absolute uri or not.
+	 *
 	 * @return Uri
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
-	public function createByBitrixComponent(\CBitrixComponent $component, $action, $params = array())
+	public function createByBitrixComponent(\CBitrixComponent $component, $action, $params = array(), $absolute = false)
 	{
 		$params['c'] = $component->getName();
 		$params['mode'] = Router::COMPONENT_MODE_CLASS;
 
 		return $this->create(
 			$action,
-			$params
+			$params,
+			$absolute
 		);
 	}
 

@@ -8,8 +8,6 @@
 
 namespace Bitrix\Main\Entity;
 
-use Bitrix\Main\ORM\Data\Result;
-use Bitrix\Main\ORM\Fields\Field;
 use Bitrix\Main\NotImplementedException;
 
 /**

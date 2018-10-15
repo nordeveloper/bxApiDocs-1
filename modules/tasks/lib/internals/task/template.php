@@ -193,6 +193,10 @@ class TemplateTable extends Main\Entity\DataManager
 				'data_type' => 'integer',
 				'default_value' => 0,
 			),
+			'ZOMBIE' => array(
+				'data_type' => 'text',
+				'default_value' => 'N'
+			),
 
 			// deprecated
 			'FILES' => array(

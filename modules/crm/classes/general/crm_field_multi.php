@@ -57,6 +57,11 @@ class CCrmFieldMulti
 		}
 		return self::$ENTITY_TYPE_INFOS;
 	}
+	public static function GetEntityTypeCaption($typeID)
+	{
+		$infos = self::GetEntityTypeInfos();
+		return isset($infos[$typeID]['NAME']) ? $infos[$typeID]['NAME'] : $typeID;
+	}
 	public static function GetEntityTypes()
 	{
 		if(self::$ENTITY_TYPES === null)

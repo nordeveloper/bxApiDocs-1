@@ -29,7 +29,7 @@ $tabControl = new CAdminTabControl("tabControl", $aTabs);
 $arSiteSettings = array(
 	'iblock_absence', 'iblock_vacancy', 'iblock_calendar', 'iblock_group_calendar',
 	'path_task_group', 'path_task_group_entry', 'path_task_user', 'path_task_user_entry', 'path_user',
-	'path_mail_config', 'path_mail_manage',
+	'path_mail_config', 'path_mail_client',
 	'BLOCK_NEW_USER_LF_SITE',
 );
 $arDefaultValues = array(
@@ -38,8 +38,8 @@ $arDefaultValues = array(
 	'path_task_user_entry' => '/company/personal/user/#USER_ID#/tasks/task/view/#TASK_ID#/',
 	'path_task_group' => '/workgroups/group/#GROUP_ID#/tasks/',
 	'path_task_group_entry' => '/workgroups/group/#GROUP_ID#/tasks/task/view/#TASK_ID#/',
-	'path_mail_config' => '/company/personal/mail/?config',
-	'path_mail_manage' => '/company/personal/mail/manage/',
+	'path_mail_config' => '/mail/config/edit?id=#id#',
+	'path_mail_client' => '/mail/',
 	'BLOCK_NEW_USER_LF_SITE' => 'N',
 );
 
@@ -941,15 +941,15 @@ $childTabControl_1->End();
 
 				<table width="100%" align="center">
 					<tr>
-						<td valign="top" width="45%"><?=getMessage('INTR_OPTION_PATHS_MAIL_CONFIG') ?>: </td>
+						<td valign="top" width="45%"><?=getMessage('INTR_OPTION_PATHS_MAIL_CLIENT') ?>: </td>
 						<td>
-							<input type="text" name="path_mail_config_<?=$SITE_ID?>" value="<?=$path_mail_config[$SITE_ID] ?>" size="50" />
+							<input type="text" name="path_mail_client_<?=$SITE_ID?>" value="<?=$path_mail_client[$SITE_ID] ?>" size="50" />
 						</td>
 					</tr>
 					<tr>
-						<td valign="top" width="45%"><?=getMessage('INTR_OPTION_PATHS_MAIL_MANAGE') ?>: </td>
+						<td valign="top" width="45%"><?=getMessage('INTR_OPTION_PATHS_MAIL_CONFIG') ?>: </td>
 						<td>
-							<input type="text" name="path_mail_manage_<?=$SITE_ID?>" value="<?=$path_mail_manage[$SITE_ID] ?>" size="50" />
+							<input type="text" name="path_mail_config_<?=$SITE_ID?>" value="<?=$path_mail_config[$SITE_ID] ?>" size="50" />
 						</td>
 					</tr>
 				</table>

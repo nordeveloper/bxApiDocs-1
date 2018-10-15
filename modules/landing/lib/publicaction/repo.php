@@ -1,6 +1,7 @@
 <?php
 namespace Bitrix\Landing\PublicAction;
 
+use Bitrix\Landing\Manager;
 use \Bitrix\Main\Localization\Loc;
 use \Bitrix\Rest\Marketplace\Client;
 use \Bitrix\Rest\PlacementTable;
@@ -14,77 +15,24 @@ Loc::loadMessages(__FILE__);
 class Repo
 {
 	/**
-	 * Sanitize bad script.
-	 * @param string $str Very bad html with script.
-	 * @param array $params Some params.
-	 * @return string
+	 * Check content for bad substring.
+	 * @param string $content
+	 * @param string $splitter
+	 * @return PublicActionResult
 	 */
-	public static function sanitize($str, $params = array())
+	public static function checkContent($content, $splitter = '#SANITIZE#')
 	{
-		static $sanitizer = null;
-		static $internal = true;
-
-		if ($sanitizer === null)
-		{
-			$sanitizer = new \CBXSanitizer;
-			$sanitizer->setLevel($sanitizer::SECURE_LEVEL_LOW);
-			$sanitizer->addTags(array(
-				'header' => array('class'),
-				'footer' => array('class'),
-				'nav' => array('class'),
-				'menu' => array('class'),
-				'main' => array('class'),
-				'section' => array('class'),
-				'article' => array('class'),
-				'summary' => array('class'),
-				'cite' => array('class'),
-				'datalist' => array('class'),
-				'details' => array('class'),
-				'figcaption' => array('class'),
-				'figure' => array('class'),
-				'hggroup' => array('class'),
-				'mark' => array('class'),
-				'meter' => array('class'),
-				'output' => array('class'),
-				'progress' => array('class'),
-				'rt' => array('class'),
-				'rp' => array('class'),
-				'ruby' => array('class'),
-				'time' => array('class'),
-				'wbr' => array('class')
-			));
-		}
-
-		// allow some additional attributes
-		if (
-			isset($params['allowAttributes']) &&
-			is_array($params['allowAttributes']) &&
-			method_exists($sanitizer, 'allowAttributes')
-		)
-		{
-			$allowAttributes = array();
-			foreach ($params['allowAttributes'] as $attr)
-			{
-				if (preg_match('/^data\-[a-z0-9-_]+$/i', $attr))
-				{
-					$allowAttributes[$attr] = array(
-						'tag' => function ($tag)
-						{
-							return true;
-						},
-						'content' => function ($value)
-						{
-							return !preg_match("#[^\\s\\w\\-\\#\\.;\\%]#i" . BX_UTF_PCRE_MODIFIER, $value);
-						}
-					);
-				}
-			}
-			$sanitizer->allowAttributes(
-				$allowAttributes
-			);
-		}
-
-		return $sanitizer->sanitizeHtml($str);
+		$result = new PublicActionResult();
+		$content = Manager::sanitize(
+			$content,
+			$bad,
+			$splitter
+		);
+		$result->setResult(array(
+			'is_bad' => $bad,
+			'content' => $content
+		));
+		return $result;
 	}
 
 	/**
@@ -100,7 +48,7 @@ class Repo
 		$error = new \Bitrix\Landing\Error;
 
 		// unset not allowed keys
-		$notAllowed = array('block', 'callbacks');
+		$notAllowed = array('callbacks');
 		foreach ($notAllowed as $key)
 		{
 			if (isset($manifest[$key]))
@@ -116,90 +64,65 @@ class Repo
 
 		$check = false;
 		$fields['XML_ID'] = trim($code);
-		$fields['MANIFEST'] = serialize((array)$manifest);
 
 		if (isset($fields['CONTENT']))
 		{
-			// fix module security
-			$fields['CONTENT'] = str_replace('st yle="', 'style="', $fields['CONTENT']);
-			// allow data-attrs (attrs, group attrs)
-			$allowAttributes = array();
-			if (
-				isset($manifest['attrs']) &&
-				is_array($manifest['attrs'])
-			)
+			// sanitize content
+			$fields['CONTENT'] = Manager::sanitize(
+				$fields['CONTENT'],
+				$bad
+			);
+			if ($bad)
 			{
-				foreach ($manifest['attrs'] as $attr)
-				{
-					if (isset($attr['attribute']))
-					{
-						$allowAttributes[] = $attr['attribute'];
-					}
-					elseif (is_array($attr))
-					{
-						foreach ($attr as $attrKey => $attrIn)
-						{
-							if (
-								isset($attrIn['attrs']) &&
-								is_array($attrIn['attrs'])
-							)
-							{
-								foreach ($attrIn['attrs'] as $attrIn2)
-								{
-									$attr[] = $attrIn2;
-								}
-								unset($attrKey[$attrKey]);
-							}
-						}
-						foreach ($attr as $attrIn)
-						{
-							if (isset($attrIn['attribute']))
-							{
-								$allowAttributes[] = $attrIn['attribute'];
-							}
-						}
-					}
-				}
+				$error->addError(
+					'CONTENT_IS_BAD',
+					Loc::getMessage('LANDING_APP_CONTENT_IS_BAD')
+				);
+				$result->setError($error);
+				return $result;
 			}
-			// allow data-attrs (style)
+			// sanitize card's content
 			if (
-				isset($manifest['style']) &&
-				is_array($manifest['style'])
+				isset($manifest['cards']) &&
+				is_array($manifest['cards'])
 			)
 			{
-				foreach ($manifest['style'] as $style)
+				foreach ($manifest['cards'] as $cardCode => &$card)
 				{
 					if (
-						isset($style['additional']) &&
-						is_array($style['additional'])
+						isset($card['presets']) &&
+						is_array($card['presets'])
 					)
 					{
-						foreach ($style['additional'] as $styleAdd)
+						foreach ($card['presets'] as $presetCode => &$preset)
 						{
-							if (
-								isset($styleAdd['attrs']) &&
-								is_array($styleAdd['attrs'])
-							)
+							$preset['html'] = Manager::sanitize(
+								$preset['html'],
+								$bad
+							);
+							if ($bad)
 							{
-								foreach ($styleAdd['attrs'] as $attrIn)
-								{
-									if (isset($attrIn['attribute']))
-									{
-										$allowAttributes[] = $attrIn['attribute'];
-									}
-								}
+								$error->addError(
+									'PRESET_CONTENT_IS_BAD',
+									Loc::getMessage(
+										'LANDING_APP_PRESET_CONTENT_IS_BAD',
+										array(
+											'#preset#' => $presetCode,
+											'#card#' => $cardCode
+										))
+								);
+								$result->setError($error);
+								return $result;
 							}
 						}
+						unset($preset);
 					}
 				}
+				unset($card);
 			}
-			$fields['CONTENT'] = self::sanitize(
-				$fields['CONTENT'],
-				array(
-					'allowAttributes' => $allowAttributes
-				)
-			);
 		}
+
+		$fields['MANIFEST'] = serialize((array)$manifest);
 
 		// set app code
 		if (($app = \Bitrix\Landing\PublicAction::restApplication()))
@@ -249,7 +172,7 @@ class Repo
 	}
 
 	/**
-	 * Unregister new block.
+	 * Unregister block.
 	 * @param string $code Code of block.
 	 * @return \Bitrix\Landing\PublicActionResult
 	 */
@@ -536,6 +459,48 @@ class Repo
 		}
 
 		$result->setError($error);
+
+		return $result;
+	}
+
+	/**
+	 * Get items of current app.
+	 * @param array $params Params ORM array.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function getList($params = array())
+	{
+		$result = new PublicActionResult();
+
+		if (!is_array($params))
+		{
+			$params = array();
+		}
+		if (
+			!isset($params['filter']) ||
+			!is_array($params['filter'])
+		)
+		{
+			$params['filter'] = array();
+		}
+		// set app code
+		if (($app = \Bitrix\Landing\PublicAction::restApplication()))
+		{
+			$params['filter']['APP_CODE'] = $app['CODE'];
+		}
+		else
+		{
+			$params['filter']['APP_CODE'] = false;
+		}
+
+		$data = array();
+		$res = RepoCore::getList($params);
+		while ($row = $res->fetch())
+		{
+			$row['MANIFEST'] = unserialize($row['MANIFEST']);
+			$data[] = $row;
+		}
+		$result->setResult($data);
 
 		return $result;
 	}

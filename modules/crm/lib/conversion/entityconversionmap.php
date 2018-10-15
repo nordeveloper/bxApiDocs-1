@@ -8,6 +8,8 @@ use Bitrix\Crm\UserField\UserFieldHistory;
 
 class EntityConversionMap
 {
+	/** @var EntityConversionMap[] $items */
+	protected static $items = array();
 	/** @var int $srcEntityTypeID */
 	protected $srcEntityTypeID = 0;
 	/** @var int $dstEntityTypeID */
@@ -181,7 +183,6 @@ class EntityConversionMap
 			? $this->dstIndex[$dstID]->getSourceField() : $default;
 	}
 
-
 	public function externalize()
 	{
 		$result = array(
@@ -232,6 +233,7 @@ class EntityConversionMap
 	/**
 	 * Save conversion map
 	 * @return void
+	 * @throws Main\NotSupportedException
 	 */
 	public function save()
 	{
@@ -242,6 +244,12 @@ class EntityConversionMap
 				'DATA' => serialize($this->externalize())
 			)
 		);
+
+		$key = "{$this->srcEntityTypeID}_{$this->dstEntityTypeID}";
+		if(self::$items[$key])
+		{
+			unset(self::$items[$key]);
+		}
 	}
 
 	/**
@@ -249,10 +257,29 @@ class EntityConversionMap
 	 * @static
 	 * @param int $srcEntityTypeID Source Entity Type ID
 	 * @param int $dstEntityTypeID Destination Entity Type ID
-	 * @return EntityConversionMap
+	 * @return EntityConversionMap|null
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public static function load($srcEntityTypeID, $dstEntityTypeID)
 	{
+		if(!is_int($srcEntityTypeID))
+		{
+			$srcEntityTypeID = (int)$srcEntityTypeID;
+		}
+
+		if(!is_int($dstEntityTypeID))
+		{
+			$dstEntityTypeID = (int)$dstEntityTypeID;
+		}
+
+		$key = "{$srcEntityTypeID}_{$dstEntityTypeID}";
+		if(self::$items[$key])
+		{
+			return self::$items[$key];
+		}
+
 		$query = new Query(EntityConversionMapTable::getEntity());
 		$query->addSelect('DATA');
 		$query->addFilter('=SRC_TYPE_ID', $srcEntityTypeID);
@@ -274,7 +301,7 @@ class EntityConversionMap
 		$item = new EntityConversionMap();
 		$item->internalize($params);
 
-		return $item;
+		return (self::$items[$key] = $item);
 	}
 
 	/**
@@ -282,10 +309,27 @@ class EntityConversionMap
 	 * @static
 	 * @param int $srcEntityTypeID Source Entity Type ID
 	 * @param int $dstEntityTypeID Destination Entity Type ID
-	 * @return EntityConversionMap
+	 * @return void
+	 * @throws \Exception
 	 */
 	public static function remove($srcEntityTypeID, $dstEntityTypeID)
 	{
+		if(!is_int($srcEntityTypeID))
+		{
+			$srcEntityTypeID = (int)$srcEntityTypeID;
+		}
+
+		if(!is_int($dstEntityTypeID))
+		{
+			$dstEntityTypeID = (int)$dstEntityTypeID;
+		}
+
 		EntityConversionMapTable::delete(array('SRC_TYPE_ID' => $srcEntityTypeID, 'DST_TYPE_ID' => $dstEntityTypeID));
+
+		$key = "{$srcEntityTypeID}_{$dstEntityTypeID}";
+		if(self::$items[$key])
+		{
+			unset(self::$items[$key]);
+		}
 	}
 }

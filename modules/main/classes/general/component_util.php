@@ -1438,6 +1438,21 @@ class CComponentUtil
 	{
 		global $DB;
 
+		if (is_array($timestamp))
+		{
+			$params = $timestamp;
+			$timestamp = (isset($params['TIMESTAMP']) ? $params['TIMESTAMP'] : false);
+			$dateTimeFormat = (isset($params['DATETIME_FORMAT']) ? $params['DATETIME_FORMAT'] : false);
+			$dateTimeFormatWOYear = (!empty($params['DATETIME_FORMAT_WITHOUT_YEAR']) ? $params['DATETIME_FORMAT_WITHOUT_YEAR'] : false);
+			$offset = (isset($params['TZ_OFFSET']) ? intval($params['TZ_OFFSET']) : 0);
+			$hideToday = (isset($params['HIDE_TODAY']) ? $params['HIDE_TODAY'] : false);
+		}
+
+		if (empty($timestamp))
+		{
+			return '';
+		}
+
 		static $arFormatWOYear = array();
 		static $arFormatTime = array();
 		static $defaultDateTimeFormat = false;
@@ -1455,17 +1470,21 @@ class CComponentUtil
 		}
 		$dateTimeFormat = preg_replace('/[\/.,\s:][s]/', '', $dateTimeFormat);
 
-		if (empty($arFormatWOYear[$dateTimeFormat]))
+		if (!$dateTimeFormatWOYear)
 		{
-			$arFormatWOYear[$dateTimeFormat] = preg_replace('/[\/.,\s-][Yyo]/', '', $dateTimeFormat);
+			if (empty($arFormatWOYear[$dateTimeFormat]))
+			{
+				$arFormatWOYear[$dateTimeFormat] = preg_replace('/[\/.,\s-][Yyo]/', '', $dateTimeFormat);
+			}
+			$dateTimeFormatWOYear = $arFormatWOYear[$dateTimeFormat];
 		}
-		$dateTimeFormatWOYear = $arFormatWOYear[$dateTimeFormat];
 
-		if (empty($arFormatTime[$dateTimeFormat]))
+		if (empty($arFormatTime[$dateTimeFormatWOYear]))
 		{
-			$arFormatTime[$dateTimeFormat] = preg_replace(array('/[dDjlFmMnYyo]/', '/^[\/.,\s\-]+/', '/[\/.,\s\-]+$/'), '', $dateTimeFormat);
+			$arFormatTime[$dateTimeFormatWOYear] = preg_replace(array('/[dDjlFmMnYyo]/', '/^[\/.,\s\-]+/', '/[\/.,\s\-]+$/'), '', $dateTimeFormatWOYear);
 		}
-		$timeFormat = $arFormatTime[$dateTimeFormat];
+
+		$timeFormat = $arFormatTime[$dateTimeFormatWOYear];
 
 		$arFormat = array(
 			"tomorrow" => "tomorrow, ".$timeFormat,

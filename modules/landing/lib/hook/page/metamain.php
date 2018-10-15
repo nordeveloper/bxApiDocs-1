@@ -22,12 +22,12 @@ class MetaMain extends \Bitrix\Landing\Hook\Page
 			'TITLE' => new Field\Text('TITLE', array(
 				'title' => Loc::getMessage('LANDING_HOOK_METAMAIN_TITLE'),
 				'placeholder' => Loc::getMessage('LANDING_HOOK_METAMAIN_TITLE_PLACEHOLDER'),
-				'maxlength' => 75
+				'maxlength' => 140
 			)),
 			'DESCRIPTION' => new Field\Textarea('DESCRIPTION', array(
 				'title' => Loc::getMessage('LANDING_HOOK_METAMAIN_DESCRIPTION_TITLE'),
 				'placeholder' => Loc::getMessage('LANDING_HOOK_METAMAIN_DESCRIPTION_PLACEHOLDER'),
-				'maxlength' => 200
+				'maxlength' => 300
 			)),
 			'KEYWORDS' => new Field\Text('KEYWORDS', array(
 				'title' => Loc::getMessage('LANDING_HOOK_METAMAIN_KEYWORDS_TITLE'),

@@ -20,8 +20,6 @@ abstract class ContactCompanyEntity extends Sale\Internals\CollectableEntity
 {
 	const REGISTRY_ENTITY_NAME = '';
 
-	protected $contactCompanyCollection = null;
-
 	/**
 	 * @return string
 	 */
@@ -214,12 +212,19 @@ abstract class ContactCompanyEntity extends Sale\Internals\CollectableEntity
 			$this->setFieldNoDemand('ORDER_ID', $fields['ORDER_ID']);
 
 			$r = $this->addInternal($fields);
+			if ($r->isSuccess())
+			{
+				$id = $r->getId();
+				$this->setFieldNoDemand('ID', $id);
+			}
 		}
 
 		if (!$r->isSuccess())
 		{
 			$result->addErrors($r->getErrors());
 		}
+
+		$result->setId($id);
 
 		return $result;
 	}

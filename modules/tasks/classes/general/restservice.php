@@ -36,6 +36,7 @@ final class CTaskRestService extends IRestService
 		'ctaskchecklistitem',
 		'ctaskplannermaintance',
 		'ctasklogitem',
+		//'\bitrix\tasks\integration\bizproc\automation\rest',
 
 		/*deprecated*/
 		'ctaskcomments',
@@ -366,7 +367,7 @@ final class CTaskRestService extends IRestService
 			if ( ! in_array($className, self::$arAllowedClasses, true) && ! isset(self::$allowedSpecialClasses[$className]))
 				throw new Exception('Unknown REST-method signature given');
 
-			$methodArgs = array();
+			$methodArgs = [];
 
 			foreach ($args[0] as $value)
 				$methodArgs[] = $value;
@@ -376,7 +377,8 @@ final class CTaskRestService extends IRestService
 				(int) \Bitrix\Tasks\Util\User::getId(),
 				$methodName,
 				$methodArgs,
-				(array)self::getNavData($args[1])
+				(array)self::getNavData($args[1]),
+				$args[2] //instance of CRestServer
 			);
 
 			$parsedReturnValue = self::_parseReturnValue($className, $methodName, $returnValue, array('SERVER' => $args[2]));

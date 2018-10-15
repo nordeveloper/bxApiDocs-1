@@ -56,6 +56,13 @@ function CrmCompareFieldsList($arFieldData, $fieldValue, $sEmptyString = null)
 	return isset($arFieldData[$fieldValue]) ? $arFieldData[$fieldValue] : (!empty($fieldValue) ? GetMessage('CRM_FIELD_COMPARE_DELETE') : $sEmptyString);
 }
 
+function CrmOnModuleUnInstallSale()
+{
+	global $APPLICATION;
+	$APPLICATION->ThrowException(GetMessage("CRM_UNINSTALL_SALE_ERROR"), "CRM_DEPENDS_SALE");
+	return false;
+}
+
 //function CrmCompareFieldCallback($callback, $fieldValue, $emptyString = null)
 //{
 //	$emptyString = !is_null($emptyString) ? $emptyString : GetMessage('CRM_FIELD_COMPARE_EMPTY');

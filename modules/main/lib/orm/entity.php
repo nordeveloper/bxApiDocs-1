@@ -1028,10 +1028,11 @@ class Entity
 
 		$namespace = trim($this->getNamespace(), '\\');
 		$baseObjectClass = '\\'.EntityObject::class;
+		$objectClassName = static::getDefaultObjectClassName($this->getName());
 
 		$eval = "namespace {$namespace} {";
-		$eval .= "class {$dataClass::getObjectClassName()} extends {$baseObjectClass} {";
-		$eval .= "public static function dataClass() {return '{$this->getDataClass()}';}";
+		$eval .= "class {$objectClassName} extends {$baseObjectClass} {";
+		$eval .= "static public \$dataClass = '{$dataClass}';";
 		$eval .= "}"; // end class
 		$eval .= "}"; // end namespace
 
@@ -1056,10 +1057,11 @@ class Entity
 
 		$namespace = trim($this->getNamespace(), '\\');
 		$baseCollectionClass = '\\'.Collection::class;
+		$collectionClassName = static::getDefaultCollectionClassName($this->getName());
 
 		$eval = "namespace {$namespace} {";
-		$eval .= "class {$dataClass::getCollectionClassName()} extends {$baseCollectionClass} {";
-		$eval .= "public static function dataClass() {return '{$this->getDataClass()}';}";
+		$eval .= "class {$collectionClassName} extends {$baseCollectionClass} {";
+		$eval .= "static public \$dataClass = '{$dataClass}';";
 		$eval .= "}"; // end class
 		$eval .= "}"; // end namespace
 

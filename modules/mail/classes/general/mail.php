@@ -1,4 +1,7 @@
 <?
+
+use Bitrix\Mail\Helper\MailContact;
+
 IncludeModuleLangFile(__FILE__);
 
 global $BX_MAIL_ERRORs, $B_MAIL_MAX_ALLOWED;
@@ -429,15 +432,6 @@ class CAllMailBox
 			$arMsg[] = array('id' => 'PASSWORD', 'text' => GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_PASSWORD').'"');
 		}
 
-		if (strtolower($arFields['SERVER_TYPE']) == 'imap' && is_set($arFields, 'USER_ID') && $arFields['USER_ID'] > 0)
-		{
-			if (is_set($arFields, 'LINK') && strlen($arFields['LINK']) < 1)
-			{
-				CMailError::SetError('B_MAIL_ERR_LINK', GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_LINK').'"');
-				$arMsg[] = array('id' => 'LINK', 'text' => GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_LINK').'"');
-			}
-		}
-
 		if (in_array(strtolower($arFields['SERVER_TYPE']), array('controller', 'domain', 'crdomain')) && is_set($arFields, 'USER_ID') && $arFields['USER_ID'] < 1)
 		{
 			CMailError::SetError('B_MAIL_ERR_USER_ID', GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_USER_ID').'"');
@@ -522,55 +516,42 @@ class CAllMailBox
 		global $DB;
 		CMailError::ResetErrors();
 
-		$imapSync = false;
+		if($arFields["ACTIVE"] != "Y")
+			$arFields["ACTIVE"] = "N";
 
-		if($arFields["ACTIVE"]!="Y")
-			$arFields["ACTIVE"]="N";
+		if($arFields["DELETE_MESSAGES"] != "Y")
+			$arFields["DELETE_MESSAGES"] = "N";
 
-		if($arFields["DELETE_MESSAGES"]!="Y")
-			$arFields["DELETE_MESSAGES"]="N";
-
-		if($arFields["USE_MD5"]!="Y")
-			$arFields["USE_MD5"]="N";
+		if($arFields["USE_MD5"] != "Y")
+			$arFields["USE_MD5"] = "N";
 
 		if ($arFields['USE_TLS'] != 'Y' && $arFields['USE_TLS'] != 'S')
-			$arFields["USE_TLS"]="N";
+			$arFields["USE_TLS"] = "N";
 
 		if (!in_array($arFields["SERVER_TYPE"], array("pop3", "smtp", "imap", "controller", "domain", "crdomain")))
 			$arFields["SERVER_TYPE"] = "pop3";
 
-		if(!CMailBox::CheckFields($arFields))
+		if (!CMailBox::CheckFields($arFields))
 			return false;
 
-		if(is_set($arFields, "PASSWORD"))
-			$arFields["PASSWORD"]=CMailUtil::Crypt($arFields["PASSWORD"]);
+		if (is_set($arFields, "PASSWORD"))
+			$arFields["PASSWORD"] = CMailUtil::Crypt($arFields["PASSWORD"]);
 
 		if (is_set($arFields, 'OPTIONS'))
 		{
-			if (!empty($arFields['OPTIONS']['flags']) && is_array($arFields['OPTIONS']['flags']))
-				$imapSync = in_array('crm_connect', $arFields['OPTIONS']['flags']);
 			$arFields['OPTIONS'] = serialize($arFields['OPTIONS']);
 		}
 
+		$ID = $DB->Add("b_mail_mailbox", $arFields);
 		if ($arFields['ACTIVE'] == 'Y' && $arFields['USER_ID'] != 0)
 		{
 			CUserCounter::Clear($arFields['USER_ID'], 'mail_unseen', $arFields['LID']);
-
-			if ($imapSync)
-				CUserOptions::setOption('global', 'last_mail_sync_'.$arFields['LID'], 0, false, $arFields['USER_ID']);
-
-			CUserOptions::SetOption('global', 'last_mail_check_'.$arFields['LID'], 0, false, $arFields['USER_ID']);
-			CUserOptions::DeleteOption('global', 'last_mail_check_success_'.$arFields['LID'], false, $arFields['USER_ID']);
+			$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($arFields['USER_ID']);
+			$mailboxSyncManager->setDefaultSyncData($ID);
 		}
-
-		$ID = $DB->Add("b_mail_mailbox", $arFields);
-
-		if (in_array($arFields['SERVER_TYPE'], array('imap', 'controller', 'domain', 'crdomain')) && $imapSync)
+		if (in_array($arFields['SERVER_TYPE'], array('imap', 'controller', 'domain', 'crdomain')))
 		{
-			if ($arFields['USER_ID'] > 0)
-				CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', 3600*24);
-			elseif ($arFields['SERVER_TYPE'] == 'imap' && $arFields['PERIOD_CHECK'] > 0)
-				CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', (int) $arFields['PERIOD_CHECK']*60);
+			\CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', (int) $arFields['PERIOD_CHECK'] * 60);
 		}
 		
 		if ($arFields['SERVER_TYPE'] == 'pop3' && (int) $arFields['PERIOD_CHECK'] > 0)
@@ -587,8 +568,6 @@ class CAllMailBox
 		$ID = IntVal($ID);
 
 		CMailError::ResetErrors();
-
-		$imapSync = false;
 
 		if(is_set($arFields, "ACTIVE") && $arFields["ACTIVE"]!="Y")
 			$arFields["ACTIVE"]="N";
@@ -618,9 +597,6 @@ class CAllMailBox
 		$periodCheck = is_set($arFields, 'PERIOD_CHECK') ? $arFields['PERIOD_CHECK'] : $mbox['PERIOD_CHECK'];
 		$options     = is_set($arFields, 'OPTIONS') ? $arFields['OPTIONS'] : $mbox['OPTIONS'];
 
-		if (!empty($options['flags']) && is_array($options['flags']))
-			$imapSync = in_array('crm_connect', $options['flags']);
-
 		if (is_set($arFields, 'OPTIONS'))
 			$arFields['OPTIONS'] = serialize($arFields['OPTIONS']);
 
@@ -635,15 +611,8 @@ class CAllMailBox
 				{
 					if ($mbox['USER_ID'] > 0)
 					{
-						\CUserOptions::deleteOption('global', 'last_mail_check_'.$mbox['LID'], false, $mbox['USER_ID']);
-						\CUserOptions::deleteOption('global', 'last_mail_sync_'.$mbox['LID'], false, $mbox['USER_ID']);
-						\CUserOptions::deleteOption('global', 'last_mail_check_success_'.$mbox['LID'], false, $mbox['USER_ID']);
-					}
-					else if ($siteChanged)
-					{
-						\Bitrix\Main\Config\Option::delete('mail', array('name' => 'last_mail_check', 'site_id' => $mbox['LID']));
-						\Bitrix\Main\Config\Option::delete('mail', array('name' => 'last_mail_sync', 'site_id' => $mbox['LID']));
-						\Bitrix\Main\Config\Option::delete('mail', array('name' => 'last_mail_check_success', 'site_id' => $mbox['LID']));
+						$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($mbox['USER_ID']);
+						$mailboxSyncManager->deleteSyncData($mbox['ID']);
 					}
 				}
 
@@ -655,15 +624,8 @@ class CAllMailBox
 
 					if ($newUserId > 0)
 					{
-						\CUserOptions::setOption('global', 'last_mail_sync_'.$newSiteId, 0, false, $newUserId);
-						\CUserOptions::setOption('global', 'last_mail_check_'.$newSiteId, 0, false, $newUserId);
-						\CUserOptions::deleteOption('global', 'last_mail_check_success_'.$newSiteId, false, $newUserId);
-					}
-					else if ($siteChanged)
-					{
-						\Bitrix\Main\Config\Option::set('mail', 'last_mail_check', false, $newSiteId);
-						\Bitrix\Main\Config\Option::set('mail', 'last_mail_sync', false, $newSiteId);
-						\Bitrix\Main\Config\Option::delete('mail', array('name' => 'last_mail_check_success', 'site_id' => $newSiteId));
+						$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($newUserId);
+						$mailboxSyncManager->setDefaultSyncData($mbox['ID']);
 					}
 				}
 			}
@@ -692,12 +654,9 @@ class CAllMailBox
 		);
 		$DB->query($strSql, false, 'File: '.__FILE__.'<br>Line: '.__LINE__);
 
-		if (in_array($serverType, array('imap', 'controller', 'domain', 'crdomain')) && $imapSync)
+		if (in_array($serverType, array('imap', 'controller', 'domain', 'crdomain')))
 		{
-			if ($userId > 0)
-				CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', 3600*24);
-			elseif ($serverType == 'imap' && $periodCheck > 0)
-				CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', (int) $periodCheck*60);
+			\CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', (int) $periodCheck*60);
 		}
 		
 		if ($serverType == 'pop3' && (int) $periodCheck > 0)
@@ -736,17 +695,8 @@ class CAllMailBox
 			if ($mbox['USER_ID'] > 0)
 			{
 				\CUserCounter::clear($mbox['USER_ID'], 'mail_unseen', $mbox['LID']);
-
-				\CUserOptions::deleteOption('global', 'last_mail_sync_'.$mbox['LID'], false, $mbox['USER_ID']);
-
-				\CUserOptions::deleteOption('global', 'last_mail_check_'.$mbox['LID'], false, $mbox['USER_ID']);
-				\CUserOptions::deleteOption('global', 'last_mail_check_success_'.$mbox['LID'], false, $mbox['USER_ID']);
-			}
-			else
-			{
-				\Bitrix\Main\Config\Option::delete('mail', array('name' => 'last_mail_check', 'site_id' => $mbox['LID']));
-				\Bitrix\Main\Config\Option::delete('mail', array('name' => 'last_mail_sync', 'site_id' => $mbox['LID']));
-				\Bitrix\Main\Config\Option::delete('mail', array('name' => 'last_mail_check_success', 'site_id' => $mbox['LID']));
+				$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($mbox['USER_ID']);
+				$mailboxSyncManager->deleteSyncData($ID);
 			}
 		}
 
@@ -1703,8 +1653,18 @@ class CAllMailMessage
 			$arFields["SPAM_LAST_RESULT"] = "Y";
 		}
 
+		// @TODO: MAX_ALLOWED_PACKET
+		$arFields['SEARCH_CONTENT'] = \Bitrix\Mail\Helper\Message::prepareSearchContent($arFields);
+
+		if(isset($params['trackable']) && $params['trackable'])
+		{
+			$arFields['OPTIONS']['trackable'] = true;
+		}
+
 		if ($message_id = \CMailMessage::add($arFields))
 		{
+			$arFields['ID'] = $message_id;
+
 			\CMailLog::addMessage(array(
 				'MAILBOX_ID'  => $mailbox_id,
 				'MESSAGE_ID'  => $message_id,
@@ -1716,6 +1676,31 @@ class CAllMailMessage
 						? sprintf(' [%.3f]', $arFields['SPAM_RATING']) : ''
 				),
 			));
+
+			try
+			{
+				$mailboxHelper = Bitrix\Mail\Helper\Mailbox::createInstance($mailbox_id);
+			}
+			catch (\Exception $e)
+			{
+			}
+
+			if (!empty($mailboxHelper))
+			{
+				$mailbox = $mailboxHelper->getMailbox();
+				if ($mailbox['USER_ID'] > 0)
+				{
+					$mailboxHelper->incrementTree($arFields);
+
+					\Bitrix\Mail\Internals\MailContactTable::addContactsBatch(array_merge(
+						MailContact::getContactsData($arFields['FIELD_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_TO),
+						MailContact::getContactsData($arFields['FIELD_FROM'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_FROM),
+						MailContact::getContactsData($arFields['FIELD_CC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_CC),
+						MailContact::getContactsData($arFields['FIELD_REPLY_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_REPLY_TO),
+						MailContact::getContactsData($arFields['FIELD_BCC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_BCC)
+					));
+				}
+			}
 
 			$atchCnt = 0;
 			if (\Bitrix\Main\Config\Option::get('mail', 'save_attachments', B_MAIL_SAVE_ATTACHMENTS) == 'Y')
@@ -1741,7 +1726,6 @@ class CAllMailMessage
 				}
 			}
 
-			$arFields['ID'] = $message_id;
 			$arFields['ATTACHMENTS'] = $atchCnt;
 			if (is_set($arFields, 'FIELD_DATE_ORIGINAL') && !is_set($arFields, 'FIELD_DATE'))
 			{
@@ -1789,6 +1773,8 @@ class CAllMailMessage
 						$arFields['BODY_HTML']
 					);
 				}
+
+				\CMailMessage::update($message_id, array('BODY_HTML' => $arFields['BODY_HTML']));
 			}
 
 			\CMailFilter::filter($arFields, 'R');
@@ -1822,6 +1808,11 @@ class CAllMailMessage
 		if (array_key_exists('SUBJECT', $arFields))
 		{
 			$arFields['SUBJECT'] = strval(substr($arFields['SUBJECT'], 0, 255));
+		}
+
+		if (array_key_exists('OPTIONS', $arFields))
+		{
+			$arFields['OPTIONS'] = serialize($arFields['OPTIONS']);
 		}
 
 		$ID = $DB->Add("b_mail_message", $arFields, Array("FULL_TEXT", "HEADER", "BODY", "FOR_SPAM_TEST"));
@@ -1990,6 +1981,12 @@ class CAllMailMessage
 		{
 			$strSql = 'UPDATE b_mail_message SET ATTACHMENTS = ' . $n . ' WHERE ID = ' . intval($arFields['MESSAGE_ID']);
 			$DB->query($strSql, false, 'File: '.__FILE__.'<br>Line: '.__LINE__);
+
+			\Bitrix\Mail\Helper\Attachment\Storage::registerAttachment(array(
+				'FILE_ID' => $arFields['FILE_ID'],
+				'FILE_NAME' => $arFields['FILE_NAME'],
+				'FILE_SIZE' => $arFields['FILE_SIZE'],
+			));
 		}
 
 		return $ID;

@@ -158,11 +158,13 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 
 			while ($months >= 0)
 			{
+				list($dateSplitPeriod, $dateSplitPeriodUnits) = $this->getDateSplitPeriod();
+
 				$period = $dateMin->format('Y.m');
-				$dateMin->add('3 months');
+				$dateMin->add("$dateSplitPeriod $dateSplitPeriodUnits");
 				$period .= '-';
 				$period .= $dateMin->format('Y.m');
-				$months -= 3;
+				$months -= $dateSplitPeriod;
 
 				$queueList[] = array(
 					'indicatorId' => $indicatorId,
@@ -422,9 +424,7 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 					from 
 						{$eventTable} e
 					where 
-						e.FILES is not null
-						and e.FILES <> ''
-						and e.FILES <> 'a:0:{}'
+						e.FILES IS NOT NULL
 				) src 
 				ON NS.n <= src.len
 			)";
@@ -621,17 +621,23 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 	{
 		$count = -1;
 
-		$query = $this->prepareQuery();
+		if (count($this->getFilter()) === 0)
+		{
+			$query = Crm\EventTable::query();
+			$countField = new Entity\ExpressionField('CNT', 'COUNT(%s)', 'ID');
+		}
+		else
+		{
+			$query = $this->prepareQuery();
+			$countField = new Entity\ExpressionField('CNT', 'COUNT(DISTINCT %s)', 'EVENT_BY.ID');
+		}
 
 		if ($this->prepareFilter($query))
 		{
 			$count = 0;
 
-			$countField = new Entity\ExpressionField('CNT', 'COUNT(DISTINCT %s)', 'EVENT_BY.ID');
-
-			$query
-				->registerRuntimeField('', $countField)
-				->addSelect('CNT');
+			$query->registerRuntimeField('', $countField);
+			$query->addSelect('CNT');
 
 			$res = $query->exec();
 			if ($row = $res->fetch())
@@ -653,21 +659,33 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 	{
 		$count = -1;
 
-		$query = $this->prepareQuery();
+		if (count($this->getFilter()) === 0)
+		{
+			$query = Crm\EventTable::query();
+			$countField = new Entity\ExpressionField('CNT', 'COUNT(%s)', 'ID');
+		}
+		else
+		{
+			$query = $this->prepareQuery();
+			$countField = new Entity\ExpressionField('CNT', 'COUNT(DISTINCT %s)', 'EVENT_BY.ID');
+		}
 
 		if ($this->prepareFilter($query))
 		{
 			$count = 0;
 
-			$countField = new Entity\ExpressionField('CNT', 'COUNT(DISTINCT %s)', 'EVENT_BY.ID');
 			$query
 				->registerRuntimeField('', $countField)
-				->addSelect('CNT');
+				->addSelect('CNT')
+				//->where('FILES', '>', 6); // length of serialized string 'a:0:{}'
+				->whereNotNull('FILES');
 
+			/*
 			$query
 				->whereNotNull('EVENT_BY.FILES')
 				->where('EVENT_BY.FILES', '!=', '')
 				->where('EVENT_BY.FILES', '!=', 'a:0:{}');
+			*/
 
 			$res = $query->exec();
 			if ($row = $res->fetch())
@@ -691,7 +709,14 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 			return false;
 		}
 
-		$query = $this->prepareQuery();
+		if (count($this->getFilter()) === 0)
+		{
+			$query = Crm\EventRelationsTable::query();
+		}
+		else
+		{
+			$query = $this->prepareQuery();
+		}
 
 		if ($this->prepareFilter($query))
 		{
@@ -745,7 +770,14 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 			return false;
 		}
 
-		$query = $this->prepareQuery();
+		if (count($this->getFilter()) === 0)
+		{
+			$query = Crm\EventRelationsTable::query();
+		}
+		else
+		{
+			$query = $this->prepareQuery();
+		}
 
 		if ($this->prepareFilter($query))
 		{
@@ -757,12 +789,15 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 				->addSelect('EVENT_BY.FILES', 'FILES')
 				->setLimit(self::MAX_FILE_PER_INTERACTION)
 				->setOrder(array('EVENT_BY.ID' => 'ASC'))
+				//->where('FILES', '>', 6)// length of serialized string 'a:0:{}'
+				->whereNotNull('EVENT_BY.FILES')
 			;
-
+			/*
 			$query
 				->whereNotNull('EVENT_BY.FILES')
 				->where('EVENT_BY.FILES', '!=', '')
 				->where('EVENT_BY.FILES', '!=', 'a:0:{}');
+			*/
 
 			if ($this->getProcessOffset() > 0)
 			{
@@ -797,7 +832,14 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 					}
 				}
 
-				$res = Crm\EventTable::update($event['EID'], array('FILES' => serialize($files)));
+				if (count($files) > 0)
+				{
+					$res = Crm\EventTable::update($event['EID'], array('FILES' => serialize($files)));
+				}
+				else
+				{
+					$res = Crm\EventTable::update($event['EID'], array('FILES' => null));
+				}
 				if ($res->isSuccess())
 				{
 					$this->incrementDroppedFileCount();

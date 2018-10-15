@@ -41,7 +41,7 @@ final class LogComment extends Provider
 					'=ID' => $commentId,
 					'@EVENT_ID' => $this->getEventId(),
 				),
-				'select' => array('LOG_ID', 'MESSAGE')
+				'select' => array('LOG_ID', 'MESSAGE', 'SHARE_DEST')
 			));
 			if ($logComentFields = $res->fetch())
 			{
@@ -83,6 +83,8 @@ final class LogComment extends Provider
 					$this->setSourceTitle(truncateText($title, 100));
 					$this->setSourceAttachedDiskObjects($this->getAttachedDiskObjects($commentId));
 					$this->setSourceDiskObjects($this->getDiskObjects($commentId, $this->cloneDiskObjects));
+					$this->setSourceOriginalText($logComentFields['MESSAGE']);
+					$this->setSourceAuxData($logComentFields);
 				}
 			}
 		}

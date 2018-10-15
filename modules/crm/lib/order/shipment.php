@@ -23,13 +23,40 @@ class Shipment extends Sale\Shipment
 	 */
 	protected function onAfterSave($isNew)
 	{
-		if ($isNew && !$this->isSystem())
+		if (!$this->isSystem())
 		{
-			$this->addTimelineEntryOnCreate();
+			if ($isNew)
+			{
+				$this->addTimelineEntryOnCreate();
+			}
+			else
+			{
+				if ($this->fields->isChanged('STATUS_ID'))
+				{
+					$this->addTimelineEntryOnStatusModify();
+				}
+
+				if ($this->fields->isChanged('PRICE_DELIVERY') || $this->fields->isChanged('CURRENCY') )
+				{
+					$this->updateTimelineCreationEntity();
+				}
+			}
 		}
-		elseif ($this->fields->isChanged('STATUS_ID'))
+
+		if ($this->fields->isChanged('ALLOW_DELIVERY') && $this->isAllowDelivery())
 		{
-			$this->addTimelineEntryOnStatusModify();
+			Crm\Automation\Trigger\AllowDeliveryTrigger::execute(
+				[['OWNER_TYPE_ID' => \CCrmOwnerType::Order, 'OWNER_ID' => $this->getField('ORDER_ID')]],
+				['SHIPMENT' => $this]
+			);
+		}
+
+		if ($this->fields->isChanged('DEDUCTED') && $this->getField('DEDUCTED') == "Y")
+		{
+			Crm\Automation\Trigger\DeductedTrigger::execute(
+				[['OWNER_TYPE_ID' => \CCrmOwnerType::Order, 'OWNER_ID' => $this->getField('ORDER_ID')]],
+				['SHIPMENT' => $this]
+			);
 		}
 	}
 
@@ -61,5 +88,25 @@ class Shipment extends Sale\Shipment
 		);
 
 		Crm\Timeline\OrderShipmentController::getInstance()->onModify($this->getId(), $modifyParams);
+	}
+
+	/**
+	 * @throws Main\ArgumentException
+	 * @return void;
+	 */
+	private function updateTimelineCreationEntity()
+	{
+		$fields = $this->getFields();
+		$selectedFields =[
+			'DATE_INSERT_TIMESTAMP' => $fields['DATE_INSERT']->getTimestamp(),
+			'PRICE_DELIVERY' => $fields['PRICE_DELIVERY'],
+			'CURRENCY' => $fields['CURRENCY']
+		];
+
+		Crm\Timeline\OrderShipmentController::getInstance()->updateSettingFields(
+			$this->getId(),
+			Crm\Timeline\TimelineType::CREATION,
+			$selectedFields
+		);
 	}
 }

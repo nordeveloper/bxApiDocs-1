@@ -1,11 +1,15 @@
 <?php
-
-if (!CModule::IncludeModule('sale'))
-	return;
-
+use Bitrix\Main;
+use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use \Bitrix\Crm\Invoice\Invoice;
 use \Bitrix\Crm\Invoice\Compatible;
+use Bitrix\Iblock;
+use Bitrix\Catalog;
+
+
+if (!Loader::includeModule('sale'))
+	return;
 
 Loc::loadMessages(__FILE__);
 
@@ -712,21 +716,25 @@ class CAllCrmInvoice
 		}
 
 		$locationPropertyId = null;
-		$dbOrderProps = CSaleOrderProps::GetList(
-			array("SORT" => "ASC"),
-			//array("PERSON_TYPE_ID" => $arOrder["PERSON_TYPE_ID"], "ACTIVE" => "Y", "UTIL" => "N"),
-			array("PERSON_TYPE_ID" => $personTypeId, "ACTIVE" => "Y", "TYPE" => "LOCATION", "IS_LOCATION" => "Y", "IS_LOCATION4TAX" => "Y"),
-			false,
-			false,
-			/*array("ID", "NAME", "TYPE", "IS_LOCATION", "IS_LOCATION4TAX", "IS_PROFILE_NAME", "IS_PAYER", "IS_EMAIL",
-				"REQUIED", "SORT", "IS_ZIP", "CODE", "DEFAULT_VALUE")*/
-			array("ID", "NAME", "TYPE", "IS_LOCATION", "IS_LOCATION4TAX", /*"IS_PROFILE_NAME", "IS_PAYER", "IS_EMAIL",*/
-				"REQUIED", "SORT", /*"IS_ZIP", */"CODE", "DEFAULT_VALUE")
-		);
-		if ($arOrderProp = $dbOrderProps->Fetch())
+		$dbRes = \Bitrix\Crm\Invoice\Property::getList([
+			'select' => ["ID"],
+			'filter' => [
+				"=PERSON_TYPE_ID" => $personTypeId,
+				"=ACTIVE" => "Y",
+				"=TYPE" => "LOCATION",
+				"=IS_LOCATION" => "Y",
+				"=IS_LOCATION4TAX" => "Y"
+			],
+			'order' => ["SORT" => "ASC"]
+		]);
+		if ($arOrderProp = $dbRes->fetch())
+		{
 			$locationPropertyId = $arOrderProp['ID'];
+		}
 		else
+		{
 			return false;
+		}
 		$locationPropertyId = intval($locationPropertyId);
 		if ($locationPropertyId <= 0)
 			return false;
@@ -837,6 +845,9 @@ class CAllCrmInvoice
 		);
 		$arErrors = array();
 		$arWarnings = array();
+
+		$invoiceCompatible = Compatible\Invoice::create($arFields);
+		$arOptions['ORDER'] = $invoiceCompatible->getOrder();
 
 		return CSaleOrder::DoCalculateOrder(
 			$siteId,
@@ -1442,6 +1453,9 @@ class CAllCrmInvoice
 			$arOptions = array('LOCATION_IN_CODES' => true, 'CART_FIX' => 'Y', 'CURRENCY' => $currencyId);
 
 			$arErrors = $arWarnings = array();
+
+			$invoiceCompatible = Compatible\Invoice::create($arFields);
+			$arOptions['ORDER'] = $invoiceCompatible->getOrder();
 
 			$arOrder = CSaleOrder::DoCalculateOrder(
 				$siteId, $saleUserId, $arShoppingCart, $personTypeId, $arOrderPropsValues,
@@ -2098,18 +2112,27 @@ class CAllCrmInvoice
 
 		$allowedProperties = self::_getAllowedPropertiesInfo();
 		$arFilter = array("ACTIVE" => "Y");
-		if ($personTypeId > 0) $arFilter["PERSON_TYPE_ID"] = $personTypeId;
-		$dbProperties = CSaleOrderProps::GetList(
-			array("GROUP_SORT" => "ASC", "PROPS_GROUP_ID" => "ASC", "SORT" => "ASC", "NAME" => "ASC"),
-			$arFilter,
-			false,
-			false,
-			array("*", 'GROUP_SORT')
-		);
+		if ($personTypeId > 0)
+		{
+			$arFilter["PERSON_TYPE_ID"] = $personTypeId;
+		}
+
+		$dbRes = \Bitrix\Crm\Invoice\Property::getList([
+			'select' => ["*", 'GROUP_SORT' => 'GROUP.SORT'],
+			'filter' => $arFilter,
+			'order' => [
+				"GROUP_SORT" => "ASC",
+				"PROPS_GROUP_ID" => "ASC",
+				"SORT" => "ASC",
+				"NAME" => "ASC"
+			]
+		]);
 
 		$arResult = array();
-		while ($arProperty = $dbProperties->Fetch())
+		while ($arProperty = $dbRes->Fetch())
 		{
+			$arProperty = CSaleOrderPropsAdapter::convertNewToOld($arProperty);
+
 			if (array_key_exists($arProperty["CODE"], $allowedProperties[$arProperty["PERSON_TYPE_ID"]]))
 			{
 				$arProperty["NAME"] = $allowedProperties[$arProperty["PERSON_TYPE_ID"]][$arProperty["CODE"]];
@@ -2179,19 +2202,29 @@ class CAllCrmInvoice
 		}
 
 		$arFilter = array("ACTIVE" => "Y");
-		if ($personTypeId > 0) $arFilter["PERSON_TYPE_ID"] = $personTypeId;
-		$dbProperties = CSaleOrderProps::GetList(
-			array("GROUP_SORT" => "ASC", "PROPS_GROUP_ID" => "ASC", "SORT" => "ASC", "NAME" => "ASC"),
-			$arFilter,
-			false,
-			false,
-			array("*", 'GROUP_SORT')
-		);
+		if ($personTypeId > 0)
+		{
+			$arFilter["PERSON_TYPE_ID"] = $personTypeId;
+		}
+
+		$dbRes = \Bitrix\Crm\Invoice\Property::getList([
+			'select' => ["*", 'GROUP_SORT' => 'GROUP.SORT'],
+			'filter' => $arFilter,
+			'order' => [
+				"GROUP_SORT" => "ASC",
+				"PROPS_GROUP_ID" => "ASC",
+				"SORT" => "ASC",
+				"NAME" => "ASC"
+			]
+		]);
+
 		$propertyGroupId = -1;
 
 		$arResult = array();
-		while ($arProperties = $dbProperties->Fetch())
+		while ($arProperties = $dbRes->fetch())
 		{
+			$arProperties = CSaleOrderPropsAdapter::convertNewToOld($arProperties);
+
 			if (intval($arProperties["PROPS_GROUP_ID"]) != $propertyGroupId)
 				$propertyGroupId = intval($arProperties["PROPS_GROUP_ID"]);
 
@@ -2251,7 +2284,7 @@ class CAllCrmInvoice
 
 		$propsIdList = array_unique($propsIdList);
 
-		$propsData = \Bitrix\Sale\Internals\OrderPropsTable::getList(
+		$propsData = \Bitrix\Crm\Invoice\Property::getList(
 			array(
 				"filter" => array(
 					"ID" => $propsIdList,
@@ -2729,10 +2762,55 @@ class CAllCrmInvoice
 		$errMsg = array();
 		$bError = false;
 
+		$catalogNormalizeOption = '~CRM_CATALOG_NORMALIZE_18_5_0';
+		$catalogNormalizeStep = (string)Main\Config\Option::get('crm', $catalogNormalizeOption, 'N');
+		if ($catalogNormalizeStep === 'Y')
+			return true;
+
+		// at first, check last update version
+		if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'N') === 'Y')
+		{
+			if ($catalogNormalizeStep !== 'Y')
+			{
+				if (self::setCatalogAdminRights() && self::createOfferIBlocks())
+					Main\Config\Option::set('crm', $catalogNormalizeOption, 'Y', '');
+			}
+			return true;
+		}
 
 		// at first, check last update version
 		if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_PROP_LOCATION_UA_17_0_9', 'N') === 'Y')
+		{
+			if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'N') !== 'Y')
+			{
+				try
+				{
+					require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/crm/install/modules/data.php");
+				}
+				catch (Exception $e)
+				{
+					$errMsg[] = $e->getMessage();
+					$bError = true;
+				}
+
+				if ($bError)
+				{
+					$errString = implode('<br>', $errMsg);
+					ShowError($errString);
+					return false;
+				}
+
+				COption::SetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'Y');
+
+				if ($catalogNormalizeStep !== 'Y')
+				{
+					if (self::setCatalogAdminRights() && self::createOfferIBlocks())
+						Main\Config\Option::set('crm', $catalogNormalizeOption, 'Y', '');
+				}
+			}
+
 			return true;
+		}
 
 		if (COption::GetOptionString('crm', '~CRM_INVOICE_DISABLE_SALE_EVENTS_16_5_10', 'N') === 'Y')
 		{
@@ -2741,6 +2819,34 @@ class CAllCrmInvoice
 				self::installOrderPropertyLocationUa();
 
 				COption::SetOptionString('crm', '~CRM_INVOICE_INST_PROP_LOCATION_UA_17_0_9', 'Y');
+
+				if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'N') !== 'Y')
+				{
+					try
+					{
+						require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/crm/install/modules/data.php");
+					}
+					catch (Exception $e)
+					{
+						$errMsg[] = $e->getMessage();
+						$bError = true;
+					}
+
+					if ($bError)
+					{
+						$errString = implode('<br>', $errMsg);
+						ShowError($errString);
+						return false;
+					}
+
+					COption::SetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'Y');
+
+					if ($catalogNormalizeStep !== 'Y')
+					{
+						if (self::setCatalogAdminRights() && self::createOfferIBlocks())
+							Main\Config\Option::set('crm', $catalogNormalizeOption, 'Y', '');
+					}
+				}
 			}
 
 			return true;
@@ -2760,6 +2866,34 @@ class CAllCrmInvoice
 					self::installOrderPropertyLocationUa();
 
 					COption::SetOptionString('crm', '~CRM_INVOICE_INST_PROP_LOCATION_UA_17_0_9', 'Y');
+
+					if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'N') !== 'Y')
+					{
+						try
+						{
+							require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/crm/install/modules/data.php");
+						}
+						catch (Exception $e)
+						{
+							$errMsg[] = $e->getMessage();
+							$bError = true;
+						}
+
+						if ($bError)
+						{
+							$errString = implode('<br>', $errMsg);
+							ShowError($errString);
+							return false;
+						}
+
+						COption::SetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'Y');
+
+						if ($catalogNormalizeStep !== 'Y')
+						{
+							if (self::setCatalogAdminRights() && self::createOfferIBlocks())
+								Main\Config\Option::set('crm', $catalogNormalizeOption, 'Y', '');
+						}
+					}
 				}
 			}
 
@@ -2792,6 +2926,34 @@ class CAllCrmInvoice
 						self::installOrderPropertyLocationUa();
 
 						COption::SetOptionString('crm', '~CRM_INVOICE_INST_PROP_LOCATION_UA_17_0_9', 'Y');
+
+						if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'N') !== 'Y')
+						{
+							try
+							{
+								require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/crm/install/modules/data.php");
+							}
+							catch (Exception $e)
+							{
+								$errMsg[] = $e->getMessage();
+								$bError = true;
+							}
+
+							if ($bError)
+							{
+								$errString = implode('<br>', $errMsg);
+								ShowError($errString);
+								return false;
+							}
+
+							COption::SetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'Y');
+
+							if ($catalogNormalizeStep !== 'Y')
+							{
+								if (self::setCatalogAdminRights() && self::createOfferIBlocks())
+									Main\Config\Option::set('crm', $catalogNormalizeOption, 'Y', '');
+							}
+						}
 					}
 				}
 			}
@@ -2849,6 +3011,34 @@ class CAllCrmInvoice
 								self::installOrderPropertyLocationUa();
 
 								COption::SetOptionString('crm', '~CRM_INVOICE_INST_PROP_LOCATION_UA_17_0_9', 'Y');
+
+								if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'N') !== 'Y')
+								{
+									try
+									{
+										require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/crm/install/modules/data.php");
+									}
+									catch (Exception $e)
+									{
+										$errMsg[] = $e->getMessage();
+										$bError = true;
+									}
+				
+									if ($bError)
+									{
+										$errString = implode('<br>', $errMsg);
+										ShowError($errString);
+										return false;
+									}
+
+									COption::SetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'Y');
+
+									if ($catalogNormalizeStep !== 'Y')
+									{
+										if (self::setCatalogAdminRights() && self::createOfferIBlocks())
+											Main\Config\Option::set('crm', $catalogNormalizeOption, 'Y', '');
+									}
+								}
 							}
 						}
 					}
@@ -3012,6 +3202,28 @@ class CAllCrmInvoice
 								self::installOrderPropertyLocationUa();
 
 								COption::SetOptionString('crm', '~CRM_INVOICE_INST_PROP_LOCATION_UA_17_0_9', 'Y');
+
+								if (COption::GetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'N') !== 'Y')
+								{
+									try
+									{
+										require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/crm/install/modules/data.php");
+									}
+									catch (Exception $e)
+									{
+										$errMsg[] = $e->getMessage();
+										$bError = true;
+									}
+				
+									if ($bError)
+									{
+										$errString = implode('<br>', $errMsg);
+										ShowError($errString);
+										return false;
+									}
+
+									COption::SetOptionString('crm', '~CRM_INVOICE_INST_ORDER_DATA_18_5_0', 'Y');
+								}
 							}
 						}
 					}
@@ -3194,36 +3406,32 @@ class CAllCrmInvoice
 
 						if ($DB->TableExists('b_sale_order_props') && class_exists('CSaleOrderProps'))
 						{
-							$arPropsFilter = array(
-								'TYPE' => 'LOCATION',
-								'REQUIED' => 'Y',
-								'USER_PROPS' => 'Y',
-								'IS_LOCATION' => 'Y',
-								'IS_EMAIL' => 'N',
-								'IS_PROFILE_NAME' => 'N',
-								'IS_PAYER' => 'N',
-								'CODE' => 'LOCATION'
-							);
+							$arPropsFilter = [
+								'=TYPE' => 'LOCATION',
+								'=REQUIRED' => 'Y',
+								'=USER_PROPS' => 'Y',
+								'=IS_LOCATION' => 'Y',
+								'=IS_EMAIL' => 'N',
+								'=IS_PROFILE_NAME' => 'N',
+								'=IS_PAYER' => 'N',
+								'=CODE' => 'LOCATION'
+							];
 
-							// update properties
-							$dbOrderProps = CSaleOrderProps::GetList(
-								array('SORT' => 'ASC', 'ID' => 'ASC'),
-								$arPropsFilter,
-								false,
-								false,
-								array('ID', 'IS_LOCATION4TAX', 'SORT')
-							);
-							if ($dbOrderProps !== false)
+							$dbRes = \Bitrix\Crm\Order\Property::getList([
+								'select' => ['ID', 'IS_LOCATION4TAX', 'SORT'],
+								'filter' => $arPropsFilter,
+								'order' => ['SORT' => 'ASC', 'ID' => 'ASC']
+							]);
+
+							while ($arOrderProp = $dbRes->fetch())
 							{
-								while ($arOrderProp = $dbOrderProps->Fetch())
+								if ($arOrderProp['IS_LOCATION4TAX'] !== 'Y')
 								{
-									if ($arOrderProp['IS_LOCATION4TAX'] !== 'Y')
-									{
-										CSaleOrderProps::Update($arOrderProp['ID'], array('IS_LOCATION4TAX' => 'Y'));
-									}
+									\Bitrix\Sale\Internals\OrderPropsTable::update($arOrderProp['ID'], ['IS_LOCATION4TAX' => 'Y']);
 								}
-								COption::SetOptionString('crm', '~CRM_INVOICE_UPDATE_12_5_14', 'Y');
 							}
+
+							COption::SetOptionString('crm', '~CRM_INVOICE_UPDATE_12_5_14', 'Y');
 						}
 					}
 				}
@@ -3384,14 +3592,12 @@ class CAllCrmInvoice
 			"PERSON_TYPE_ID" => $companyPTID,
 			"NAME" => Bitrix\Main\Localization\Loc::getMessage("CRM_ORD_PROP_2"),
 			"TYPE" => "LOCATION",
-			"REQUIED" => "Y",
+			"REQUIRED" => "Y",
 			"DEFAULT_VALUE" => "",
 			"SORT" => ($shopLocalization == "ua") ? 185 : 290,
 			"USER_PROPS" => "Y",
 			"IS_LOCATION" => "Y",
 			"PROPS_GROUP_ID" => $propGroupId,
-			"SIZE1" => 40,
-			"SIZE2" => 0,
 			"DESCRIPTION" => "",
 			"IS_EMAIL" => "N",
 			"IS_PROFILE_NAME" => "N",
@@ -3399,18 +3605,21 @@ class CAllCrmInvoice
 			"IS_LOCATION4TAX" => "Y",
 			"CODE" => "LOCATION",
 			"IS_FILTERED" => "N",
+			"ENTITY_REGISTRY_TYPE" => REGISTRY_TYPE_CRM_INVOICE
 		);
 		foreach($arProps as $prop)
 		{
-			$dbSaleOrderProps = CSaleOrderProps::GetList(
-				array(),
-				array(
+			$dbRes = \Bitrix\Crm\Invoice\Property::getList([
+				'select' => ['ID'],
+				'filter' => [
 					"PERSON_TYPE_ID" => $prop["PERSON_TYPE_ID"],
 					"CODE" =>  $prop["CODE"]
-				)
-			);
-			if (!$dbSaleOrderProps->GetNext())
-				CSaleOrderProps::Add($prop);
+				]
+			]);
+			if (!$dbRes->fetch())
+			{
+				\Bitrix\Sale\Internals\OrderPropsTable::add($prop);
+			}
 		}
 	}
 
@@ -3480,6 +3689,226 @@ class CAllCrmInvoice
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Update catalog rights for admin (fixed old catalogs without group 1 rights).
+	 *
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	private static function setCatalogAdminRights()
+	{
+		if (!Loader::includeModule('iblock'))
+			return false;
+		if (!Loader::includeModule('catalog'))
+			return true;
+
+		$groupId = 1; // admin group
+
+		$catalogs = [];
+		$iterator = Catalog\CatalogIblockTable::getList([
+			'select' => ['IBLOCK_ID', 'PRODUCT_IBLOCK_ID']
+		]);
+		while ($row = $iterator->fetch())
+		{
+			$row['IBLOCK_ID'] = (int)$row['IBLOCK_ID'];
+			$catalogs[$row['IBLOCK_ID']] = $row['IBLOCK_ID'];
+			$row['PRODUCT_IBLOCK_ID'] = (int)$row['PRODUCT_IBLOCK_ID'];
+			if ($row['PRODUCT_IBLOCK_ID'] > 0)
+				$catalogs[$row['PRODUCT_IBLOCK_ID']] = $row['PRODUCT_IBLOCK_ID'];
+		}
+		unset($row, $iterator);
+
+		if (!empty($catalogs))
+		{
+			$iblockObject = new \CIBlock();
+
+			$rightsId = null;
+			$row = Main\TaskTable::getList(array(
+				'select' => array('ID'),
+				'filter' => array('=LETTER' => 'X', '=MODULE_ID' => 'iblock', '=SYS' => 'Y')
+			))->fetch();
+			if (!empty($row))
+				$rightsId = $row['ID'];
+			unset($row);
+			$groupCode = 'G'.$groupId;
+
+			foreach ($catalogs as $id)
+			{
+				$rightsMode = \CIBlock::GetArrayByID($id, 'RIGHTS_MODE');
+				if ($rightsMode == Iblock\IblockTable::RIGHTS_SIMPLE)
+				{
+					$rights = \CIBlock::GetGroupPermissions($id);
+					$rights[$groupId] = 'X';
+					\CIBlock::SetPermission($id, $rights);
+				}
+				elseif ($rightsMode == Iblock\IblockTable::RIGHTS_EXTENDED && $rightsId !== null)
+				{
+					$rightsObject = new \CIBlockRights($id);
+					$rights = $rightsObject->GetRights();
+					$rights['n0'] = array(
+						'GROUP_CODE'  => $groupCode,
+						'DO_INHERIT' => 'Y',
+						'IS_INHERITED' => 'N',
+						'OVERWRITED' => 0,
+						'TASK_ID' => $rightsId,
+						'XML_ID' => null,
+						'ENTITY_TYPE' => 'iblock',
+						'ENTITY_ID' => $id
+					);
+					$rightsObject->SetRights($rights);
+				}
+			}
+			unset($rights, $id, $groupCode);
+			unset($iblockObject);
+		}
+		unset($catalogs);
+		unset($groupId);
+
+		return true;
+	}
+
+	/**
+	 * Create offers iblock for old crm catalogs.
+	 *
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	private static function createOfferIBlocks()
+	{
+		if (!Loader::includeModule('iblock'))
+			return false;
+		$quota = new \CDiskQuota();
+		if(!$quota->checkDiskQuota([]))
+			return false;
+		if (!Loader::includeModule('catalog'))
+			return true;
+
+		$simpleCatalogs = [];
+		$parentIblocks = [];
+		$iterator = Catalog\CatalogIblockTable::getList([
+			'select' => ['IBLOCK_ID', 'PRODUCT_IBLOCK_ID']
+		]);
+		while ($row = $iterator->fetch())
+		{
+			$row['IBLOCK_ID'] = (int)$row['IBLOCK_ID'];
+			$row['PRODUCT_IBLOCK_ID'] = (int)$row['PRODUCT_IBLOCK_ID'];
+			if ($row['PRODUCT_IBLOCK_ID'] > 0)
+			{
+				$parentIblocks[$row['PRODUCT_IBLOCK_ID']] = $row['PRODUCT_IBLOCK_ID'];
+				continue;
+			}
+			$simpleCatalogs[$row['IBLOCK_ID']] = $row['IBLOCK_ID'];
+		}
+		unset($row, $iterator);
+
+		foreach ($parentIblocks as $id)
+		{
+			if (isset($simpleCatalogs[$id]))
+				unset($simpleCatalogs[$id]);
+		}
+		unset($id, $parentIblocks);
+
+		if (empty($simpleCatalogs))
+			return true;
+
+		$iblockList = [];
+		$iterator = Iblock\IblockTable::getList([
+			'select' => ['ID', 'NAME', 'XML_ID', 'IBLOCK_TYPE_ID', 'SORT'],
+			'filter' => ['@ID' => $simpleCatalogs],
+			'order' => ['ID' => 'ASC']
+		]);
+		while ($row = $iterator->fetch())
+		{
+			$id = (int)$row['ID'];
+			$row['LID'] = [];
+			$iblockList[$id] = $row;
+		}
+		unset($row, $iterator);
+		unset($simpleCatalogs);
+
+		if (empty($iblockList))
+			return true;
+
+		$iterator = Iblock\IblockSiteTable::getList([
+			'select' => ['IBLOCK_ID', 'SITE_ID'],
+			'filter' => ['@IBLOCK_ID' => array_keys($iblockList)]
+		]);
+		while ($row = $iterator->fetch())
+		{
+			$id = (int)$row['IBLOCK_ID'];
+			$iblockList[$id]['LID'][] = $row['SITE_ID'];
+		}
+		unset($row, $iterator);
+
+		// get default vat
+		$iterator = Catalog\VatTable::getList([
+			'select' => ['ID', 'SORT'],
+			'order' => ['SORT' => 'ASC'],
+			'limit' => 1
+		]);
+		$vat = $iterator->fetch();
+		unset($iterator);
+
+		foreach ($iblockList as $id => $data)
+		{
+			$iblock = new \CIBlock();
+
+			$fields = [
+				'NAME' => Loc::getMessage('CRM_CATALOG_OFFERS_TITLE_FORMAT', ['#CATALOG#' => $data['NAME']]),
+				'ACTIVE' => 'Y',
+				'IBLOCK_TYPE_ID' => $data['IBLOCK_TYPE_ID'],
+				'LID' => $data['LID'],
+				'SORT' => $data['SORT'] + 10,
+				'INDEX_ELEMENT' => 'N',
+				'WORKFLOW' => 'N',
+				'BIZPROC' => 'N',
+				'VERSION' => 1,
+				'GROUP_ID' => array(1 => 'X', 2 => 'R'),
+				'LIST_MODE' => 'S'
+			];
+			$xmlId = $data['XML_ID'];
+			if (strncmp($xmlId, 'crm_external_', 13) == 0)
+				$xmlId = str_replace('crm_external_', 'crm_external_offers_', $xmlId);
+			elseif ($xmlId = 'FUTURE-1C-CATALOG')
+				$xmlId = 'FUTURE-1C-CATALOG-OFFERS';
+			else
+				$xmlId .= '_offers';
+			$fields['XML_ID'] = $xmlId;
+			unset($xmlId);
+
+			$offersId = $iblock->Add($fields);
+			if ($offersId === false)
+				return false;
+			$propertyId = \CIBlockPropertyTools::createProperty(
+				$offersId,
+				\CIBlockPropertyTools::CODE_SKU_LINK,
+				['LINK_IBLOCK_ID' => $id]
+			);
+			if (!$propertyId)
+				return false;
+			$offersFields = [
+				'IBLOCK_ID' => $offersId,
+				'PRODUCT_IBLOCK_ID' => $id,
+				'SKU_PROPERTY_ID' => $propertyId,
+			];
+			if (!empty($vat))
+				$offersFields['VAT_ID'] = (int)$vat['ID'];
+
+			if (!\CCatalog::Add($offersFields))
+				return false;
+		}
+		unset($id, $data);
+		unset($iblockList);
+
+		return true;
 	}
 
 	public static function installDisableSaleEvents()
@@ -4385,10 +4814,15 @@ class CAllCrmInvoice
 			$propertyValues[] = $row;
 			$propertyIds[] = $row['ORDER_PROPS_ID'];
 		}
-		$res = CSaleOrderProps::GetList([], ['@ID' => $propertyIds], false, false, ['ID', 'TYPE']);
+
+		$dbRes = \Bitrix\Crm\Invoice\Property::getList([
+			'select' => ['ID', 'TYPE'],
+			'filter' => ['ID' => $propertyIds],
+		]);
 		$propertyTypes = [];
-		while ($row = $res->Fetch())
+		while ($row = $dbRes->Fetch())
 		{
+			$row = CSaleOrderPropsAdapter::convertNewToOld($row);
 			$propertyTypes[$row['ID']] = $row['TYPE'];
 		}
 		$orderProps = new CSaleOrderProps();
@@ -5234,4 +5668,3 @@ class CAllCrmInvoice
 		return $result;
 	}
 }
-?>

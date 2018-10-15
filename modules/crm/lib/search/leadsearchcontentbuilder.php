@@ -1,11 +1,18 @@
 <?php
 namespace Bitrix\Crm\Search;
+
 use \Bitrix\Crm\LeadTable;
+use \Bitrix\Crm\Format;
+
 class LeadSearchContentBuilder extends SearchContentBuilder
 {
 	public function getEntityTypeID()
 	{
 		return \CCrmOwnerType::Lead;
+	}
+	protected function getUserFieldEntityID()
+	{
+		return \CCrmLead::GetUserFieldEntityID();
 	}
 	public function isFullTextSearchEnabled()
 	{
@@ -63,6 +70,16 @@ class LeadSearchContentBuilder extends SearchContentBuilder
 		$map->addField($fields, 'ID');
 		$map->addField($fields, 'TITLE');
 
+		$title = isset($fields['TITLE']) ? $fields['TITLE'] : '';
+		if($title !== '')
+		{
+			$delimiterIndex = strpos($title, '#');
+			if($delimiterIndex !== false)
+			{
+				$map->addTextFragments(substr($title, $delimiterIndex + 1));
+			}
+		}
+
 		$map->addField($fields, 'LAST_NAME');
 		$map->addField($fields, 'NAME');
 		$map->addField($fields, 'SECOND_NAME');
@@ -100,6 +117,55 @@ class LeadSearchContentBuilder extends SearchContentBuilder
 				}
 			}
 		}
+
+		//region Status
+		if(isset($fields['STATUS_ID']))
+		{
+			$map->addStatus('STATUS', $fields['STATUS_ID']);
+		}
+
+		if(isset($fields['STATUS_DESCRIPTION']))
+		{
+			$map->addText($fields['STATUS_DESCRIPTION'], 1024);
+		}
+		//endregion
+
+		//region Source
+		if(isset($fields['SOURCE_ID']))
+		{
+			$map->addStatus('SOURCE', $fields['SOURCE_ID']);
+		}
+
+		if(isset($fields['SOURCE_DESCRIPTION']))
+		{
+			$map->addText($fields['SOURCE_DESCRIPTION'], 1024);
+		}
+		//endregion
+
+		//region Address
+		$address = preg_replace('/[,.]/', '', Format\LeadAddressFormatter::format($fields));
+		if($address !== '')
+		{
+			$map->add($address);
+		}
+		//endregion
+
+		if(isset($fields['COMMENTS']))
+		{
+			$map->addHtml($fields['COMMENTS'], 1024);
+		}
+
+		if(isset($fields['IS_RETURN_CUSTOMER']) && $fields['IS_RETURN_CUSTOMER'] === 'Y')
+		{
+			$map->add(\CCrmLead::GetFieldCaption('IS_RETURN_CUSTOMER'));
+		}
+
+		//region UserFields
+		foreach($this->getUserFields($entityID) as $userField)
+		{
+			$map->addUserField($userField);
+		}
+		//endregion
 
 		return $map;
 	}

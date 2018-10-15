@@ -36,6 +36,11 @@ class CAllCrmCompany
 	// Service -->
 	public static function GetFieldCaption($fieldName)
 	{
+		if(\CCrmFieldMulti::IsSupportedType($fieldName))
+		{
+			return \CCrmFieldMulti::GetEntityTypeCaption($fieldName);
+		}
+
 		$result = GetMessage("CRM_COMPANY_FIELD_{$fieldName}");
 		return is_string($result) ? $result : '';
 	}
@@ -2546,6 +2551,11 @@ class CAllCrmCompany
 
 		$requisiteEntity = new Crm\EntityRequisite();
 		return $requisiteEntity->add($requisiteFields)->isSuccess();
+	}
+
+	public static function GetDefaultTitle()
+	{
+		return GetMessage('CRM_COMPANY_UNTITLED');
 	}
 
 	/**

@@ -84,6 +84,10 @@ final class Document
 	{
 		$fields = $template->getFields();
 		$body = $template->getBody();
+		if(!$body && $data['FILE_ID'] > 0)
+		{
+			$body = $body = new Docx(FileTable::getContent($data['FILE_ID']));
+		}
 
 		$document = new static($body, $fields, $data, $value);
 		$document->setTemplate($template);
@@ -268,6 +272,7 @@ final class Document
 				'number' => $this->getNumber(),
 				'id' => $this->ID,
 				'createTime' => $this->getCreateTime(),
+				'updateTime' => $this->getUpdateTime(),
 				'stampsEnabled' => $this->isStampsEnabled(),
 				'isTransformationError' => $isTransformationError,
 				'value' => $this->getValue(Template::MAIN_PROVIDER_PLACEHOLDER),

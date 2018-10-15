@@ -6,16 +6,25 @@ use Bitrix\Main\Localization\Loc;
 class Calendar
 {
 	private static
+		$isResourceBookingEnabled,
 		$fieldsMap = array();
 
 	public static function isResourceBookingEnabled()
 	{
-		return \Bitrix\Main\ModuleManager::isModuleInstalled('calendar') && class_exists('\Bitrix\Calendar\UserField\ResourceBooking');
+		if (is_null(self::$isResourceBookingEnabled))
+		{
+			self::$isResourceBookingEnabled = \Bitrix\Main\ModuleManager::isModuleInstalled('calendar') && class_exists('\Bitrix\Calendar\UserField\ResourceBooking');
+		}
+		return self::$isResourceBookingEnabled;
 	}
 
 	public static function isResourceBookingAvailableForEntity($entity)
 	{
-		return self::isResourceBookingEnabled() && in_array($entity, array('CRM_LEAD', 'CRM_DEAL'));
+		if (in_array($entity, array('CRM_LEAD', 'CRM_DEAL')))
+		{
+			return \Bitrix\Main\Loader::includeModule('calendar') && self::isResourceBookingEnabled();
+		}
+		return false;
 	}
 
 	public static function getCalendarViewFieldOption($type, $defaultValue = '')

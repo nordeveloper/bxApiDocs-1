@@ -6,6 +6,7 @@ use Bitrix\Main\UserGroupTable;
 class CCrmSaleHelper
 {
 	private static $listUserIdWithShopAccess = array();
+	private static $listUserIdWithSessionGroups = array();
 
 	public static function Calculate($productRows, $currencyID, $personTypeID, $enableSaleDiscount = false, $siteId = SITE_ID, $arOptions = array())
 	{
@@ -93,6 +94,11 @@ class CCrmSaleHelper
 		{
 			$options['CART_FIX'] = 'Y';
 		}
+
+		$arOrder = CSaleOrder::makeOrderArray($siteId, $saleUserId, $cartItems, $options);
+
+		$invoiceCompatible = \Bitrix\Crm\Invoice\Compatible\Invoice::create($arOrder);
+		$options['ORDER'] = $invoiceCompatible->getOrder();
 
 		$result = CSaleOrder::DoCalculateOrder(
 			$siteId,
@@ -279,23 +285,26 @@ class CCrmSaleHelper
 		}
 
 		$locationPropertyId = null;
-		$dbOrderProps = CSaleOrderProps::GetList(
-			array('SORT' => 'ASC'),
-			array(
+		$dbRes = \Bitrix\Crm\Invoice\Property::getList([
+			'select' => ['ID'],
+			'filter' => [
 				'PERSON_TYPE_ID' => $personTypeId,
 				'ACTIVE' => 'Y',
 				'TYPE' => 'LOCATION',
 				'IS_LOCATION' => 'Y',
 				'IS_LOCATION4TAX' => 'Y'
-			),
-			false,
-			false,
-			array('ID', 'NAME', 'TYPE', 'IS_LOCATION', 'IS_LOCATION4TAX', 'REQUIED', 'SORT', 'CODE', 'DEFAULT_VALUE')
-		);
-		if ($arOrderProp = $dbOrderProps->Fetch())
+			],
+			'order' => ['SORT' => 'ASC']
+		]);
+
+		if ($arOrderProp = $dbRes->fetch())
+		{
 			$locationPropertyId = $arOrderProp['ID'];
+		}
 		else
+		{
 			return false;
+		}
 		$locationPropertyId = intval($locationPropertyId);
 		if ($locationPropertyId <= 0)
 			return false;
@@ -331,6 +340,8 @@ class CCrmSaleHelper
 			return false;
 		}
 
+		CCrmInvoice::installExternalEntities();
+
 		global $USER;
 
 		if (!is_object($USER))
@@ -344,13 +355,22 @@ class CCrmSaleHelper
 		{
 			if (isset(self::$listUserIdWithShopAccess[$userId][$type]))
 			{
-				return !empty(self::$listUserIdWithShopAccess[$userId][$type]);
+				if (!empty(self::$listUserIdWithShopAccess[$userId][$type]))
+				{
+					self::setCurrentUserToGroup(self::getShopGroupIdByType($type));
+					return true;
+				}
+				else
+				{
+					return false;
+				}
 			}
 		}
 
 		if ($USER->isAdmin())
 		{
 			self::$listUserIdWithShopAccess[$userId] = array($type => true);
+			self::setCurrentUserToGroup(self::getShopGroupIdByType("admin"));
 			return true;
 		}
 
@@ -384,6 +404,11 @@ class CCrmSaleHelper
 			}
 
 			$isAccess = ($isAccess ? $isAccess : self::setUserToShopGroup($userId, $type));
+
+			if ($isAccess)
+			{
+				self::setCurrentUserToGroup(self::getShopGroupIdByType($type));
+			}
 
 			self::$listUserIdWithShopAccess[$userId] = array($type => $isAccess);
 			return $isAccess;
@@ -432,6 +457,44 @@ class CCrmSaleHelper
 		}
 
 		return $isAccess;
+	}
+
+	private static function setCurrentUserToGroup($groupId)
+	{
+		global $USER;
+		if (!is_object($USER))
+		{
+			return;
+		}
+
+		$userId = $USER->GetId();
+		if (in_array($userId, self::$listUserIdWithSessionGroups))
+		{
+			return;
+		}
+
+		$groupId = intval($groupId);
+
+		if (!$groupId)
+		{
+			$CrmPerms = new CCrmPerms($userId);
+			if ($CrmPerms->havePerm("CONFIG", BX_CRM_PERM_CONFIG, "WRITE"))
+			{
+				$groupId = self::getShopGroupIdByType("admin");
+			}
+			else
+			{
+				$groupId = self::getShopGroupIdByType("manager");
+			}
+		}
+
+		$groups = $USER->GetUserGroupArray();
+		if ($groupId && !in_array($groupId, $groups))
+		{
+			$groups[] = $groupId;
+			$USER->SetUserGroupArray($groups);
+			self::$listUserIdWithSessionGroups[] = $userId;
+		}
 	}
 
 	/**
@@ -513,7 +576,6 @@ class CCrmSaleHelper
 			{
 				foreach($groupData["BASE_RIGHTS"] as $moduleId => $letter)
 				{
-					$APPLICATION->delGroupRight($moduleId, array($groupId), false);
 					$APPLICATION->setGroupRight($moduleId, $groupId, $letter, false);
 				}
 				foreach($groupData["TASK_RIGHTS"] as $moduleId => $letter)
@@ -527,7 +589,6 @@ class CCrmSaleHelper
 							}
 							break;
 						default:
-							CGroup::SetModulePermission($groupId, $moduleId, CTask::GetIdByLetter($letter, $moduleId));
 							CGroup::SetModulePermission($groupId, $moduleId, CTask::GetIdByLetter($letter, $moduleId));
 					}
 				}

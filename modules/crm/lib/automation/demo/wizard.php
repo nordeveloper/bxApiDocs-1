@@ -4,6 +4,8 @@ namespace Bitrix\Crm\Automation\Demo;
 use Bitrix\Main;
 use Bitrix\Bizproc;
 use Bitrix\Crm\Automation\Factory;
+use Bitrix\Crm\Automation\Trigger\Entity\TriggerTable;
+
 class Wizard
 {
 	public static function addAgent()
@@ -44,6 +46,16 @@ class Wizard
 		return true;
 	}
 
+	public static function installOrderPresets()
+	{
+		if (static::isNeedleFor(\CCrmOwnerType::Order))
+		{
+			static::installAutomation(\CCrmOwnerType::Order, 1);
+		}
+
+		return true;
+	}
+
 	private static function installVersion($version)
 	{
 		$version = (int)$version;
@@ -71,6 +83,15 @@ class Wizard
 				static::addTemplate($entityTypeId, $status, $robots);
 			}
 		}
+
+		$triggersRelation = static::getTriggers($entityTypeId, $version);
+		if ($triggersRelation)
+		{
+			foreach ($triggersRelation as $status => $triggers)
+			{
+				static::addTriggers($entityTypeId, $status, $triggers);
+			}
+		}
 	}
 
 	private static function unInstallAutomation($entityTypeId, $version = 1)
@@ -92,24 +113,42 @@ class Wizard
 		return $template->save($robots, 1); // USER_ID = 1, there is no other way to identify system import
 	}
 
-	private static function getRobots($entityTypeId, $version = 1)
+	private static function addTriggers($entityTypeId, $entityStatus, $triggers)
 	{
-		if ($entityTypeId === \CCrmOwnerType::Lead)
-			return static::loadFromFile('lead_'.$version);
-		if ($entityTypeId === \CCrmOwnerType::Deal)
-			return static::loadFromFile('deal_'.$version);
-
-		return false;
+		foreach ($triggers as $trigger)
+		{
+			TriggerTable::add(array(
+				'NAME' => $trigger['NAME'],
+				'ENTITY_TYPE_ID' => $entityTypeId,
+				'ENTITY_STATUS' => $entityStatus,
+				'CODE' => $trigger['CODE'],
+				'APPLY_RULES' => is_array($trigger['APPLY_RULES']) ? $trigger['APPLY_RULES'] : null
+			));
+		}
 	}
 
-	private static function loadFromFile($filename)
+	private static function getRobots($entityTypeId, $version = 1)
+	{
+		$prefix = strtolower(\CCrmOwnerType::ResolveName($entityTypeId));
+		return static::loadFromFile('robots', $prefix.'_'.$version);
+	}
+
+	private static function getTriggers($entityTypeId, $version = 1)
+	{
+		$prefix = strtolower(\CCrmOwnerType::ResolveName($entityTypeId));
+		return static::loadFromFile('triggers', $prefix.'_'.$version);
+	}
+
+	private static function loadFromFile($dir, $filename)
 	{
 		$result = array();
 
-		$filePath = __DIR__ . DIRECTORY_SEPARATOR . 'robots' . DIRECTORY_SEPARATOR . $filename . '.php';
+		$filePath = __DIR__ . DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR . $filename . '.php';
 		$file = new Main\IO\File($filePath);
 		if ($file->isExists() && $file->isReadable())
+		{
 			$result = include($file->getPhysicalPath());
+		}
 
 		return is_array($result) ? $result : false;
 	}

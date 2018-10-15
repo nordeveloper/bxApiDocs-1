@@ -8,6 +8,7 @@ use Bitrix\Rest\RestException;
 use Bitrix\Crm\Integration\DiskManager;
 use Bitrix\Crm\Integration\StorageFileType;
 use Bitrix\Crm\Settings\RestSettings;
+use Bitrix\Crm\Requisite;
 
 class CCrmInvoiceRestUtil
 {
@@ -343,6 +344,14 @@ class CCrmInvoiceRestService extends IRestService
 		}
 		$fields['PERSON_TYPE_ID'] = $personTypeId;
 
+		if (!is_array($fields['INVOICE_PROPERTIES']))
+		{
+			$fields['INVOICE_PROPERTIES'] = array();
+		}
+		if (isset($fields['PR_LOCATION']))
+		{
+			$fields['INVOICE_PROPERTIES']['LOCATION'] = $fields['PR_LOCATION'];
+		}
 		$propsInfo = CCrmInvoice::GetPropertiesInfo($fields['PERSON_TYPE_ID']);
 		$propsInfo = is_array($propsInfo[$fields['PERSON_TYPE_ID']]) ? $propsInfo[$fields['PERSON_TYPE_ID']] : array();
 		$invoiceProperties = array();
@@ -359,6 +368,55 @@ class CCrmInvoiceRestService extends IRestService
 		}
 		$fields['INVOICE_PROPERTIES'] = $invoiceProperties;
 		unset($propsInfo, $invoiceProperties, $code, $value);
+
+		$defRqLinkParams = Requisite\EntityLink::determineRequisiteLinkBeforeSave(
+			CCrmOwnerType::Invoice, 0, Requisite\EntityLink::ENTITY_OPERATION_ADD, $fields
+		);
+
+		//region Autocomplete property values
+		$companyId = 0;
+		$contactId = 0;
+		$requisiteIdLinked = 0;
+
+		if (isset($defRqLinkParams['CLIENT_ENTITY_TYPE_ID']) && isset($defRqLinkParams['CLIENT_ENTITY_ID'])
+			&& $defRqLinkParams['CLIENT_ENTITY_ID'] > 0)
+		{
+			if ($defRqLinkParams['CLIENT_ENTITY_TYPE_ID'] === CCrmOwnerType::Company)
+			{
+				$companyId = (int)$defRqLinkParams['CLIENT_ENTITY_ID'];
+			}
+			else if ($defRqLinkParams['CLIENT_ENTITY_TYPE_ID'] === CCrmOwnerType::Contact)
+			{
+				$contactId = (int)$defRqLinkParams['CLIENT_ENTITY_ID'];
+			}
+		}
+		if ($contactId <= 0 && isset($fields['UF_CONTACT_ID']) && $fields['UF_CONTACT_ID'] > 0)
+		{
+			$contactId = (int)$fields['UF_CONTACT_ID'];
+		}
+		if (isset($defRqLinkParams['REQUISITE_ID']) && $defRqLinkParams['REQUISITE_ID'] > 0)
+		{
+			$requisiteIdLinked = $defRqLinkParams['REQUISITE_ID'];
+		}
+		$props = $invoice->GetProperties(0, $personTypeId);
+		CCrmInvoice::__RewritePayerInfo($companyId, $contactId, $props);
+		CCrmInvoice::rewritePropsFromRequisite($personTypeId, $requisiteIdLinked, $props);
+		$formProps = array();
+		$propsValues = $invoice->ParsePropertiesValuesFromPost($personTypeId, $formProps, $props);
+		if (isset($propsValues['PROPS_VALUES']) && is_array($propsValues['PROPS_VALUES']))
+		{
+			foreach($propsValues['PROPS_VALUES'] as $propertyId => $propertyValue)
+			{
+				if (!isset($fields['INVOICE_PROPERTIES'][$propertyId])
+					|| $fields['INVOICE_PROPERTIES'][$propertyId] === '')
+				{
+					$fields['INVOICE_PROPERTIES'][$propertyId] = $propertyValue;
+				}
+			}
+			unset($propertyId, $propertyValue);
+		}
+		unset($companyId, $contactId, $requisiteIdLinked, $props, $propsValues, $formProps);
+		//endregion Autocomplete property values
 
 		$DB->StartTransaction();
 		$recalculate = false;
@@ -385,7 +443,17 @@ class CCrmInvoiceRestService extends IRestService
 			throw new RestException((!empty($errMsg) ? $errMsg : 'Unknown error during invoice creation.')."<br />\n");
 		}
 		else
+		{
+			Requisite\EntityLink::register(
+				CCrmOwnerType::Invoice, $ID,
+				$defRqLinkParams['REQUISITE_ID'],
+				$defRqLinkParams['BANK_DETAIL_ID'],
+				$defRqLinkParams['MC_REQUISITE_ID'],
+				$defRqLinkParams['MC_BANK_DETAIL_ID']
+			);
+
 			$DB->Commit();
+		}
 
 		return $ID;
 	}
@@ -436,6 +504,8 @@ class CCrmInvoiceRestService extends IRestService
 		if (!is_array($fields) || count($fields) === 0)
 			throw new RestException('Invalid parameters.');
 
+		$updateProps = is_array($fields['INVOICE_PROPERTIES']) ? $fields['INVOICE_PROPERTIES'] : array();
+
 		$origFields = self::getInvoiceDataByID($ID);
 		$origFields = self::filterFields($origFields, 'update', false);
 		foreach ($origFields as $fName => $fValue)
@@ -476,9 +546,13 @@ class CCrmInvoiceRestService extends IRestService
 		}
 		$fields['PERSON_TYPE_ID'] = $personTypeId;
 
+		if (!is_array($fields['INVOICE_PROPERTIES']))
+		{
+			$fields['INVOICE_PROPERTIES'] = array();
+		}
 		if (isset($fields['PR_LOCATION']) && is_array($fields['INVOICE_PROPERTIES']))
 		{
-			$fields['INVOICE_PROPERTIES']['LOCATION'] = $fields['PR_LOCATION'];
+			$fields['INVOICE_PROPERTIES']['LOCATION'] = $updateProps['LOCATION'] = $fields['PR_LOCATION'];
 		}
 
 		$options = array();
@@ -514,14 +588,77 @@ class CCrmInvoiceRestService extends IRestService
 				{
 					$invoiceProperties[$arProp['ID']] = $origFields['INVOICE_PROPERTIES'][$propCode];
 				}
-				else if ($propCode === 'COMPANY_NAME' && array_key_exists('COMPANY', $fields['INVOICE_PROPERTIES']))    // ua company name hack
+				else if ($propCode === 'COMPANY_NAME'
+					&& array_key_exists('COMPANY', $fields['INVOICE_PROPERTIES']))    // ua company name hack
 				{
 					$invoiceProperties[$arProp['ID']] = $origFields['INVOICE_PROPERTIES']['COMPANY'];
 				}
 			}
 		}
 		$fields['INVOICE_PROPERTIES'] = $invoiceProperties;
-		unset($propsInfo, $invoiceProperties, $propCode, $arProp);
+		unset($propCode, $arProp);
+		$invoiceProperties = array();
+		foreach ($updateProps as $code => $value)
+		{
+			if (array_key_exists($code, $propsInfo))
+			{
+				$invoiceProperties[$propsInfo[$code]['ID']] = $value;
+			}
+			else if ($code === 'COMPANY' && array_key_exists('COMPANY_NAME', $propsInfo))    // ua company name hack
+			{
+				$invoiceProperties[$propsInfo['COMPANY_NAME']['ID']] = $value;
+			}
+		}
+		$updateProps = $invoiceProperties;
+		unset($propsInfo, $invoiceProperties, $code, $value);
+
+		$defRqLinkParams = Requisite\EntityLink::determineRequisiteLinkBeforeSave(
+			CCrmOwnerType::Invoice, $ID, Requisite\EntityLink::ENTITY_OPERATION_UPDATE, $fields
+		);
+
+		//region Autocomplete property values
+		$companyId = 0;
+		$contactId = 0;
+		$requisiteIdLinked = 0;
+
+		if (isset($defRqLinkParams['CLIENT_ENTITY_TYPE_ID']) && isset($defRqLinkParams['CLIENT_ENTITY_ID'])
+			&& $defRqLinkParams['CLIENT_ENTITY_ID'] > 0)
+		{
+			if ($defRqLinkParams['CLIENT_ENTITY_TYPE_ID'] === CCrmOwnerType::Company)
+			{
+				$companyId = (int)$defRqLinkParams['CLIENT_ENTITY_ID'];
+			}
+			else if ($defRqLinkParams['CLIENT_ENTITY_TYPE_ID'] === CCrmOwnerType::Contact)
+			{
+				$contactId = (int)$defRqLinkParams['CLIENT_ENTITY_ID'];
+			}
+		}
+		if ($contactId <= 0 && isset($fields['UF_CONTACT_ID']) && $fields['UF_CONTACT_ID'] > 0)
+		{
+			$contactId = (int)$fields['UF_CONTACT_ID'];
+		}
+		if (isset($defRqLinkParams['REQUISITE_ID']) && $defRqLinkParams['REQUISITE_ID'] > 0)
+		{
+			$requisiteIdLinked = $defRqLinkParams['REQUISITE_ID'];
+		}
+		$props = $invoice->GetProperties($ID, $personTypeId);
+		CCrmInvoice::__RewritePayerInfo($companyId, $contactId, $props);
+		CCrmInvoice::rewritePropsFromRequisite($personTypeId, $requisiteIdLinked, $props);
+		$formProps = array();
+		$propsValues = $invoice->ParsePropertiesValuesFromPost($personTypeId, $formProps, $props);
+		if (isset($propsValues['PROPS_VALUES']) && is_array($propsValues['PROPS_VALUES']))
+		{
+			foreach($propsValues['PROPS_VALUES'] as $propertyId => $propertyValue)
+			{
+				if (!isset($updateProps[$propertyId]) || $updateProps[$propertyId] === '')
+				{
+					$fields['INVOICE_PROPERTIES'][$propertyId] = $propertyValue;
+				}
+			}
+			unset($propertyId, $propertyValue);
+		}
+		unset($companyId, $contactId, $requisiteIdLinked, $props, $propsValues, $formProps);
+		//endregion Autocomplete property values
 
 		$DB->StartTransaction();
 		$ID = $invoice->Update($ID, $fields, array('UPDATE_SEARCH' => true));
@@ -547,7 +684,17 @@ class CCrmInvoiceRestService extends IRestService
 			throw new RestException((!empty($errMsg) ? $errMsg : 'Unknown error during invoice updating.')."<br />\n");
 		}
 		else
+		{
+			Requisite\EntityLink::register(
+				CCrmOwnerType::Invoice, $ID,
+				$defRqLinkParams['REQUISITE_ID'],
+				$defRqLinkParams['BANK_DETAIL_ID'],
+				$defRqLinkParams['MC_REQUISITE_ID'],
+				$defRqLinkParams['MC_BANK_DETAIL_ID']
+			);
+
 			$DB->Commit();
+		}
 
 		return $ID;
 	}

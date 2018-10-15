@@ -11,6 +11,7 @@ class Invoice extends ProductsDataProvider implements Nameable
 	protected $order;
 	protected $payment;
 	protected $basket;
+	protected $locationId = false;
 
 	/**
 	 * @return int|string
@@ -163,6 +164,28 @@ class Invoice extends ProductsDataProvider implements Nameable
 		}
 
 		return null;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	protected function getLocationId()
+	{
+		if($this->locationId === false)
+		{
+			$this->locationId = null;
+
+			$properties = \CCrmInvoice::GetProperties($this->source, $this->getPersonTypeID());
+			if($properties !== false)
+			{
+				if(isset($properties['PR_LOCATION']))
+				{
+					$this->locationId = $properties['PR_LOCATION']['VALUE'];
+				}
+			}
+		}
+
+		return $this->locationId;
 	}
 
 	/**

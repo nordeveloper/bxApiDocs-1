@@ -2412,13 +2412,6 @@ class CAllSaleOrder
 			return false;
 		}
 
-		if ($isOrderConverted == 'N')
-		{
-			foreach(GetModuleEvents("sale", "OnSaleBeforeStatusOrder", true) as $arEvent)
-				if (ExecuteModuleEventEx($arEvent, Array($ID, $val))===false)
-					return false;
-		}
-
 		$arFields = array(
 			"STATUS_ID" => $val,
 			"=DATE_STATUS" => $DB->GetNowFunction(),
@@ -2427,9 +2420,6 @@ class CAllSaleOrder
 		$res = CSaleOrder::Update($ID, $arFields);
 
 		unset($GLOBALS["SALE_ORDER"]["SALE_ORDER_CACHE_".$ID]);
-
-		foreach(GetModuleEvents("sale", "OnSaleStatusOrder", true) as $arEvent)
-			ExecuteModuleEventEx($arEvent, Array($ID, $val));
 
 		CTimeZone::Disable();
 		$arOrder = CSaleOrder::GetByID($ID);
@@ -2464,37 +2454,8 @@ class CAllSaleOrder
 			);
 
 			foreach(GetModuleEvents("sale", "OnSaleStatusEMail", true) as $arEvent)
-				$arFields["TEXT"] = ExecuteModuleEventEx($arEvent, Array($ID, $arStatus["ID"]));
-
-			if ($isOrderConverted == 'N')
 			{
-				$eventName = "SALE_STATUS_CHANGED_".$arOrder["STATUS_ID"];
-
-				$bSend = true;
-				foreach(GetModuleEvents("sale", "OnOrderStatusSendEmail", true) as $arEvent)
-					if (ExecuteModuleEventEx($arEvent, Array($ID, &$eventName, &$arFields, $arOrder["STATUS_ID"]))===false)
-						$bSend = false;
-
-				if($bSend)
-				{
-					$b = '';
-					$o = '';
-					$eventMessage = new CEventMessage;
-					$dbEventMessage = $eventMessage->GetList(
-							$b,
-							$o,
-							array(
-									"EVENT_NAME" => $eventName,
-									"SITE_ID" => $arOrder["LID"],
-									'ACTIVE' => 'Y'
-							)
-					);
-					if (!($arEventMessage = $dbEventMessage->Fetch()))
-						$eventName = "SALE_STATUS_CHANGED";
-					unset($o, $b);
-					$event = new CEvent;
-					$event->Send($eventName, $arOrder["LID"], $arFields, "N");
-				}
+				$arFields["TEXT"] = ExecuteModuleEventEx($arEvent, Array($ID, $arStatus["ID"]));
 			}
 		}
 

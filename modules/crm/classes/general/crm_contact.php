@@ -37,6 +37,11 @@ class CAllCrmContact
 	// Service -->
 	public static function GetFieldCaption($fieldName)
 	{
+		if(\CCrmFieldMulti::IsSupportedType($fieldName))
+		{
+			return \CCrmFieldMulti::GetEntityTypeCaption($fieldName);
+		}
+
 		$result = GetMessage("CRM_CONTACT_FIELD_{$fieldName}");
 		return is_string($result) ? $result : '';
 	}
@@ -3039,6 +3044,11 @@ class CAllCrmContact
 
 		$requisiteEntity = new Crm\EntityRequisite();
 		return $requisiteEntity->add($requisiteFields)->isSuccess();
+	}
+
+	public static function GetDefaultName()
+	{
+		return GetMessage('CRM_CONTACT_UNNAMED');
 	}
 }
 ?>

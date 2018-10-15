@@ -55,6 +55,7 @@ class OrmAnnotateCommand extends Command
 	protected $excludedFiles = [
 		'main/lib/text/string.php',
 		'main/lib/composite/compatibility/aliases.php',
+		'sale/lib/delivery/extra_services/string.php',
 	];
 
 	const ANNOTATION_MARKER = 'ORMENTITYANNOTATION';
@@ -281,7 +282,7 @@ class OrmAnnotateCommand extends Command
 		{
 			$debugMsg = $class;
 
-			if (is_subclass_of($class, DataManager::class))
+			if (is_subclass_of($class, DataManager::class) && substr($class, -5) == 'Table')
 			{
 				$debugMsg .= ' found!';
 				$this->entitiesFound[] = $class;
@@ -298,6 +299,7 @@ class OrmAnnotateCommand extends Command
 
 		$objectClass = $entity->getObjectClass();
 		$objectClassName = $entity->getObjectClassName();
+		$objectDefaultClassName = Entity::getDefaultObjectClassName($entity->getName());
 		$objectNamespace =  trim(
 			substr($objectClass, 0, strrpos($objectClass, '\\')),
 			'\\'
@@ -305,6 +307,7 @@ class OrmAnnotateCommand extends Command
 
 		$collectionClass = $entity->getCollectionClass();
 		$collectionClassName = $entity->getCollectionClassName();
+		$collectionDefaultClassName = Entity::getDefaultCollectionClassName($entity->getName());
 		$collectionNamespace =  trim(
 			substr($collectionClass, 0, strrpos($collectionClass, '\\')),
 			'\\'
@@ -363,36 +366,38 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * Common methods:";
 		$code[] = "\t * ---------------";
 		$code[] = "\t *";
-		$code[] = "\t * @method \\".DataManager::class." dataClass()";
-		$code[] = "\t * @method \\".Entity::class." entity()";
-		$code[] = "\t * @method array primary()";
+		$code[] = "\t * @property-read \\".Entity::class." \$entity";
+		$code[] = "\t * @property-read array \$primary";
 		$code[] = "\t * @method mixed get(\$fieldName)";
-		$code[] = "\t * @method mixed actual(\$fieldName)";
+		$code[] = "\t * @method mixed remindActual(\$fieldName)";
 		$code[] = "\t * @method mixed require(\$fieldName)";
-		$code[] = "\t * @method mixed runtime(\$fieldName)";
-		$code[] = "\t * @method {$objectClassName} set(\$fieldName, \$value)";
-		$code[] = "\t * @method {$objectClassName} reset(\$fieldName)";
-		$code[] = "\t * @method {$objectClassName} unset(\$fieldName)";
+		$code[] = "\t * @method {$objectClass} set(\$fieldName, \$value)";
+		$code[] = "\t * @method {$objectClass} reset(\$fieldName)";
+		$code[] = "\t * @method {$objectClass} unset(\$fieldName)";
 		$code[] = "\t * @method void addTo(\$fieldName, \$value)";
 		$code[] = "\t * @method void removeFrom(\$fieldName, \$value)";
 		$code[] = "\t * @method void removeAll(\$fieldName)";
 		$code[] = "\t * @method void delete()";
 		$code[] = "\t * @method void fill(\$fields = \\".FieldTypeMask::class."::ALL) flag or array of field names";
-		$code[] = "\t * @method mixed[] values()";
+		$code[] = "\t * @method mixed[] collectValues(\$valuesType = \Bitrix\Main\ORM\Objectify\Values::ALL, \$fieldsMask = \Bitrix\Main\ORM\Fields\FieldTypeMask::ALL)";
 		$code[] = "\t * @method \\".AddResult::class."|\\".UpdateResult::class."|bool save()";
-		$code[] = "\t * @method static {$objectClassName} wakeUp(\$data)";
-		$code[] = "\t *";
-
-		$code[] = "\t * for parent class, @see \\".EntityObject::class;
-		// TODO we can put path to the original file here
+		$code[] = "\t * @method static {$objectClass} wakeUp(\$data)";
+		//$code[] = "\t *";
+		//$code[] = "\t * for parent class, @see \\".EntityObject::class;
+		// xTODO we can put path to the original file here
 		$code[] = "\t */"; // end class annotations
-		$code[] = "\tclass {$objectClassName} {}";
+		$code[] = "\tclass {$objectDefaultClassName} {";
+		$code[] = "\t\t/* @var {$dataClass} */";
+		$code[] = "\t\tstatic public \$dataClass = '{$dataClass}';";
+		$code[] = "\t}"; // end class
 
 		// compatibility with default classes
 		if (strpos($objectClassName, Entity::DEFAULT_OBJECT_PREFIX) !== 0) // better to compare full classes definitions
 		{
 			$defaultObjectClassName = Entity::getDefaultObjectClassName($entity->getName());
-			$code[] = "\tclass_alias('{$objectClass}', '{$entityNamespace}\\{$defaultObjectClassName}');";
+
+			// no need anymore as far as custom class inherits EO_
+			//$code[] = "\tclass_alias('{$objectClass}', '{$entityNamespace}\\{$defaultObjectClassName}');";
 		}
 
 		$code[] = "}"; // end namespace
@@ -412,6 +417,7 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * Common methods:";
 		$code[] = "\t * ---------------";
 		$code[] = "\t *";
+		$code[] = "\t * @property-read \\".Entity::class." \$entity";
 		$code[] = "\t * @method void add({$objectClass} \$object)";
 		$code[] = "\t * @method bool has({$objectClass} \$object)";
 		$code[] = "\t * @method bool hasByPrimary(\$primary)";
@@ -419,7 +425,7 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * @method {$objectClass}[] getAll()";
 		$code[] = "\t * @method bool remove({$objectClass} \$object)";
 		$code[] = "\t * @method void fill(\$fields = \\".FieldTypeMask::class."::ALL) flag or array of field names";
-		$code[] = "\t * @method static {$collectionClassName} wakeUp(\$data)";
+		$code[] = "\t * @method static {$collectionClass} wakeUp(\$data)";
 		$code[] = "\t * @method void offsetSet() ArrayAccess";
 		$code[] = "\t * @method void offsetExists() ArrayAccess";
 		$code[] = "\t * @method void offsetUnset() ArrayAccess";
@@ -429,15 +435,21 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * @method mixed key() Iterator";
 		$code[] = "\t * @method void next() Iterator";
 		$code[] = "\t * @method bool valid() Iterator";
-		// TODO we can put path to the original file here
+		$code[] = "\t * @method int count() Countable";
+		// xTODO we can put path to the original file here
 		$code[] = "\t */";
-		$code[] = "\tclass {$collectionClassName} implements \ArrayAccess, \Iterator {}";
+		$code[] = "\tclass {$collectionDefaultClassName} implements \ArrayAccess, \Iterator, \Countable {";
+		$code[] = "\t\t/* @var {$dataClass} */";
+		$code[] = "\t\tstatic public \$dataClass = '{$dataClass}';";
+		$code[] = "\t}"; // end class
 
 		// compatibility with default classes
-		if (strpos($objectClassName, Entity::DEFAULT_OBJECT_PREFIX) !== 0) // better to compare full classes definitions
+		if (strpos($collectionClassName, Entity::DEFAULT_OBJECT_PREFIX) !== 0) // better to compare full classes definitions
 		{
 			$defaultCollectionClassName = Entity::getDefaultCollectionClassName($entity->getName());
-			$code[] = "\tclass_alias('{$entityNamespace}\\{$collectionClassName}', '{$entityNamespace}\\{$defaultCollectionClassName}');";
+
+			// no need anymore as far as custom class inherits EO_
+			//$code[] = "\tclass_alias('{$entityNamespace}\\{$collectionClassName}', '{$entityNamespace}\\{$defaultCollectionClassName}');";
 		}
 
 		$code[] = "}"; // end namespace
@@ -451,16 +463,20 @@ class OrmAnnotateCommand extends Command
 
 		$code[] = "namespace {$entityNamespace} {"; // start namespace
 		$code[] = "\t/**";
-		$code[] = "\t * @method $queryClassName query()";
-		$code[] = "\t * @method $resultClassName getByPrimary()";
-		$code[] = "\t * @method $resultClassName getById()";
-		$code[] = "\t * @method $resultClassName getList()";
-		$code[] = "\t * @method $entityClassName getEntity()";
+		$code[] = "\t * @method static {$queryClassName} query()";
+		$code[] = "\t * @method static {$resultClassName} getByPrimary()";
+		$code[] = "\t * @method static {$resultClassName} getById()";
+		$code[] = "\t * @method static {$resultClassName} getList()";
+		$code[] = "\t * @method static {$entityClassName} getEntity()";
+		$code[] = "\t * @method static {$objectClass} createObject(\$setDefaultValues = true)";
+		$code[] = "\t * @method static {$collectionClass} createCollection()";
+		$code[] = "\t * @method static {$objectClass} wakeUpObject()";
+		$code[] = "\t * @method static {$collectionClass} wakeUpCollection()";
 		$code[] = "\t */";
 		$code[] = "\tclass {$dataClassName} {}";
 
 		$code[] = "\t/**";
-		$code[] = "\t * @method $resultClassName exec()";
+		$code[] = "\t * @method {$resultClassName} exec()";
 		$code[] = "\t * @method {$objectClass} fetchObject()";
 		$code[] = "\t * @method {$collectionClass} fetchCollection()";
 		$code[] = "\t */";
@@ -489,7 +505,7 @@ class OrmAnnotateCommand extends Command
 	{
 		// TODO no setter if it is reference-elemental (could expressions become elemental?)
 
-		$objectClassName = $field->getEntity()->getObjectClassName();
+		$objectClass = $field->getEntity()->getObjectClass();
 		$dataType = static::scalarFieldToTypeHint($field);
 		list($lName, $uName) = static::getFieldNameCamelCase($field->getName());
 
@@ -497,17 +513,17 @@ class OrmAnnotateCommand extends Command
 		$collectionCode = [];
 
 		$objectCode[] = "\t * @method {$dataType} get{$uName}()";
-		$objectCode[] = "\t * @method {$objectClassName} set{$uName}({$dataType} \${$lName})";
+		$objectCode[] = "\t * @method {$objectClass} set{$uName}({$dataType} \${$lName})";
 
 		$collectionCode[] = "\t * @method {$dataType}[] get{$uName}List()";
 
 		if (!$field->isPrimary())
 		{
-			$objectCode[] = "\t * @method {$dataType} actual{$uName}()";
+			$objectCode[] = "\t * @method {$dataType} remindActual{$uName}()";
 			$objectCode[] = "\t * @method {$dataType} require{$uName}()";
 
-			$objectCode[] = "\t * @method {$objectClassName} reset{$uName}()";
-			$objectCode[] = "\t * @method {$objectClassName} unset{$uName}()";
+			$objectCode[] = "\t * @method {$objectClass} reset{$uName}()";
+			$objectCode[] = "\t * @method {$objectClass} unset{$uName}()";
 
 			$objectCode[] = "\t * @method {$dataType} fill{$uName}()";
 			$collectionCode[] = "\t * @method fill{$uName}()";
@@ -519,7 +535,7 @@ class OrmAnnotateCommand extends Command
 	public static function annotateUserType(UserTypeField $field)
 	{
 		// no setter
-		$objectClassName = $field->getEntity()->getObjectClassName();
+		$objectClass = $field->getEntity()->getObjectClass();
 		$dataType = static::scalarFieldToTypeHint($field->getValueType());
 		$dataType = $field->isMultiple() ? $dataType.'[]' : $dataType;
 		list($lName, $uName) = static::getFieldNameCamelCase($field->getName());
@@ -527,7 +543,7 @@ class OrmAnnotateCommand extends Command
 		list($objectCode, $collectionCode) = static::annotateExpression($field);
 
 		// add setter
-		$objectCode[] = "\t * @method {$objectClassName} set{$uName}({$dataType} \${$lName})";
+		$objectCode[] = "\t * @method {$objectClass} set{$uName}({$dataType} \${$lName})";
 
 		return [$objectCode, $collectionCode];
 	}
@@ -535,7 +551,7 @@ class OrmAnnotateCommand extends Command
 	public static function annotateExpression(ExpressionField $field)
 	{
 		// no setter
-		$objectClassName = $field->getEntity()->getObjectClassName();
+		$objectClass = $field->getEntity()->getObjectClass();
 		$dataType = static::scalarFieldToTypeHint($field->getValueType());
 		list($lName, $uName) = static::getFieldNameCamelCase($field->getName());
 
@@ -543,12 +559,12 @@ class OrmAnnotateCommand extends Command
 		$collectionCode = [];
 
 		$objectCode[] = "\t * @method {$dataType} get{$uName}()";
-		$objectCode[] = "\t * @method {$dataType} actual{$uName}()";
+		$objectCode[] = "\t * @method {$dataType} remindActual{$uName}()";
 		$objectCode[] = "\t * @method {$dataType} require{$uName}()";
 
 		$collectionCode[] = "\t * @method {$dataType}[] get{$uName}List()";
 
-		$objectCode[] = "\t * @method {$objectClassName} unset{$uName}()";
+		$objectCode[] = "\t * @method {$objectClass} unset{$uName}()";
 
 		$objectCode[] = "\t * @method {$dataType} fill{$uName}()";
 		$collectionCode[] = "\t * @method fill{$uName}()";
@@ -558,7 +574,7 @@ class OrmAnnotateCommand extends Command
 
 	public static function annotateReference(Reference $field)
 	{
-		$objectClassName = $field->getEntity()->getObjectClassName();
+		$objectClass = $field->getEntity()->getObjectClass();
 		$dataType = $field->getRefEntity()->getObjectClass();
 
 		list($lName, $uName) = static::getFieldNameCamelCase($field->getName());
@@ -567,12 +583,12 @@ class OrmAnnotateCommand extends Command
 		$collectionCode = [];
 
 		$objectCode[] = "\t * @method {$dataType} get{$uName}()";
-		$objectCode[] = "\t * @method {$dataType} actual{$uName}()";
+		$objectCode[] = "\t * @method {$dataType} remindActual{$uName}()";
 		$objectCode[] = "\t * @method {$dataType} require{$uName}()";
 
-		$objectCode[] = "\t * @method {$objectClassName} set{$uName}({$dataType} \$object)";
-		$objectCode[] = "\t * @method {$objectClassName} reset{$uName}()";
-		$objectCode[] = "\t * @method {$objectClassName} unset{$uName}()";
+		$objectCode[] = "\t * @method {$objectClass} set{$uName}({$dataType} \$object)";
+		$objectCode[] = "\t * @method {$objectClass} reset{$uName}()";
+		$objectCode[] = "\t * @method {$objectClass} unset{$uName}()";
 
 		$collectionCode[] = "\t * @method {$dataType}[] get{$uName}List()";
 
@@ -584,7 +600,7 @@ class OrmAnnotateCommand extends Command
 
 	public static function annotateOneToMany(OneToMany $field)
 	{
-		$objectClassName = $field->getEntity()->getObjectClassName();
+		$objectClass = $field->getEntity()->getObjectClass();
 		$collectionDataType = $field->getRefEntity()->getCollectionClass();
 		$objectDataType = $field->getRefEntity()->getObjectClass();
 		$objectVarName = lcfirst($field->getRefEntity()->getName());
@@ -602,8 +618,8 @@ class OrmAnnotateCommand extends Command
 		$objectCode[] = "\t * @method void removeFrom{$uName}({$objectDataType} \${$objectVarName})";
 		$objectCode[] = "\t * @method void removeAll{$uName}()";
 
-		$objectCode[] = "\t * @method {$objectClassName} reset{$uName}()";
-		$objectCode[] = "\t * @method {$objectClassName} unset{$uName}()";
+		$objectCode[] = "\t * @method {$objectClass} reset{$uName}()";
+		$objectCode[] = "\t * @method {$objectClass} unset{$uName}()";
 
 		$collectionCode[] = "\t * @method {$collectionDataType}[] get{$uName}List()";
 		$collectionCode[] = "\t * @method void fill{$uName}()";
@@ -613,7 +629,7 @@ class OrmAnnotateCommand extends Command
 
 	public static function annotateManyToMany(ManyToMany $field)
 	{
-		$objectClassName = $field->getEntity()->getObjectClassName();
+		$objectClass = $field->getEntity()->getObjectClass();
 		$collectionDataType = $field->getRefEntity()->getCollectionClass();
 		$objectDataType = $field->getRefEntity()->getObjectClass();
 		$objectVarName = lcfirst($field->getRefEntity()->getName());
@@ -631,8 +647,8 @@ class OrmAnnotateCommand extends Command
 		$objectCode[] = "\t * @method void removeFrom{$uName}({$objectDataType} \${$objectVarName})";
 		$objectCode[] = "\t * @method void removeAll{$uName}()";
 
-		$objectCode[] = "\t * @method {$objectClassName} reset{$uName}()";
-		$objectCode[] = "\t * @method {$objectClassName} unset{$uName}()";
+		$objectCode[] = "\t * @method {$objectClass} reset{$uName}()";
+		$objectCode[] = "\t * @method {$objectClass} unset{$uName}()";
 
 		$collectionCode[] = "\t * @method {$collectionDataType}[] get{$uName}List()";
 		$collectionCode[] = "\t * @method fill{$uName}()";

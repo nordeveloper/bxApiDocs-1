@@ -668,7 +668,7 @@ class Invoice extends Base
 	public function isAllowedExpose()
 	{
 		if (Main\Loader::includeModule('bitrix24'))
-			return !in_array(\CBitrix24::getLicenseType(), array('project', 'tf'));
+			return !in_array(\CBitrix24::getLicenseType(), array('project', 'tf', 'retail'));
 
 		return true;
 	}

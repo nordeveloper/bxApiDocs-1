@@ -7,6 +7,10 @@ class ContactSearchContentBuilder extends SearchContentBuilder
 	{
 		return \CCrmOwnerType::Contact;
 	}
+	protected function getUserFieldEntityID()
+	{
+		return \CCrmContact::GetUserFieldEntityID();
+	}
 	public function isFullTextSearchEnabled()
 	{
 		return ContactTable::getEntity()->fullTextIndexEnabled('SEARCH_CONTENT');
@@ -91,6 +95,35 @@ class ContactSearchContentBuilder extends SearchContentBuilder
 				}
 			}
 		}
+
+		if(isset($fields['TYPE_ID']))
+		{
+			$map->addStatus('CONTACT_TYPE', $fields['TYPE_ID']);
+		}
+
+		if(isset($fields['COMMENTS']))
+		{
+			$map->addHtml($fields['COMMENTS'], 1024);
+		}
+
+		//region Source
+		if(isset($fields['SOURCE_ID']))
+		{
+			$map->addStatus('SOURCE', $fields['SOURCE_ID']);
+		}
+
+		if(isset($fields['SOURCE_DESCRIPTION']))
+		{
+			$map->addText($fields['SOURCE_DESCRIPTION'], 1024);
+		}
+		//endregion
+
+		//region UserFields
+		foreach($this->getUserFields($entityID) as $userField)
+		{
+			$map->addUserField($userField);
+		}
+		//endregion
 
 		return $map;
 	}

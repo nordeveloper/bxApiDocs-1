@@ -9,7 +9,7 @@ use Bitrix\Main\Text\BinaryString;
 
 abstract class Body
 {
-	protected static $valuesPattern = '#\{(([a-zA-Z0-9._-]*?)\~?([^\~\r\t\n]*))\}#U';
+	protected static $valuesPattern = '#\{(([a-zA-Z0-9._-]*?)\~?([^\~\r\t\n\<]*))\}#Uu';
 	protected $content;
 	protected $values = [];
 	protected $fields = [];

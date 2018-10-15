@@ -1625,36 +1625,6 @@ class OrderCompatibility extends Internals\EntityCompatibility
 	 */
 	public static function add(array $fields)
 	{
-		if (!empty($fields['ORDER_PROP']) && is_array($fields['ORDER_PROP']))
-		{
-			$fields['PROPERTIES'] = $fields['ORDER_PROP'];
-			unset($fields['ORDER_PROP']);
-		}
-
-		if (!isset($fields['PROPERTIES']) || !is_array($fields['PROPERTIES']))
-		{
-			$fields['PROPERTIES'] = array();
-		}
-
-		/** @var Sale\Compatible\OrderCompatibility $orderCompatibility */
-		$orderCompatibility = static::create($fields);
-
-		/** @var Sale\PropertyValueCollection $propCollection */
-		$propCollection = $orderCompatibility->getOrder()->getPropertyCollection();
-
-		// compatibility to prevent setting default values for empty properties
-		/** @var Sale\PropertyValue $property */
-		foreach ($propCollection as $property)
-		{
-			$propertyFields = $property->getProperty();
-			$key = isset($propertyFields['ID']) ? $propertyFields['ID'] : 'n'.$property->getId();
-
-			if (!array_key_exists($key, $fields['PROPERTIES']))
-			{
-				$fields['PROPERTIES'][$key] = null;
-			}
-		}
-
 		return static::modifyOrder(static::ORDER_COMPAT_ACTION_ADD, $fields);
 	}
 
@@ -1722,6 +1692,21 @@ class OrderCompatibility extends Internals\EntityCompatibility
 			if (!isset($fields['PROPERTIES']) || !is_array($fields['PROPERTIES']))
 			{
 				$fields['PROPERTIES'] = array();
+			}
+
+			// compatibility to prevent setting default values for empty properties
+			/** @var Sale\PropertyValue $propertyValue */
+			foreach ($propCollection as $propertyValue)
+			{
+				$propertyFields = $propertyValue->getProperty();
+				$key = isset($propertyFields['ID']) ? $propertyFields['ID'] : 'n'.$propertyValue->getId();
+
+				if ($propertyValue->getId() <=0
+					&& !array_key_exists($key, $fields['PROPERTIES'])
+				)
+				{
+					$propertyValue->delete();
+				}
 			}
 
 			/** @var Sale\Result $r */
@@ -2625,30 +2610,11 @@ class OrderCompatibility extends Internals\EntityCompatibility
 				if ($valueItem->getValue() != '')
 				{
 					$setValue = $valueItem->getValue();
-					if ($valueItem->getValueId() == 0)
-					{
-						$setValue = \CSaleOrderPropsValue::translateLocationIDToCode($setValue, $valueItem->getField('ORDER_PROPS_ID'));
-					}
-					else
-					{
-						if(strval($valueItem->getField('ORDER_PROPS_ID')) != '')
-							$propId = intval($valueItem->getField('ORDER_PROPS_ID'));
-						else
-						{
-							$registry = Sale\Registry::getInstance(static::getRegistryType());
-							/** @var Sale\PropertyValueCollection $propsValueClassName */
-							$propsValueClassName = $registry->getPropertyValueCollectionClassName();
 
-							$dbRes = $propsValueClassName::getList(
-								array(
-									'select' => array('ORDER_PROPS_ID'),
-									'filter' => array('=ID' => $valueItem->getValueId()),
-								)
-							);
-							$data = $dbRes->fetch();
-							$propId = $data['ORDER_PROPS_ID'];
-						}
-						$setValue = \CSaleOrderPropsValue::translateLocationIDToCode($setValue, $propId);
+					$prop = $valueItem->getPropertyObject();
+					if ($prop->getType() == 'LOCATION')
+					{
+						$setValue = \CSaleLocation::tryTranslateIDToCode($setValue);
 					}
 
 					$valueItem->setField('VALUE', $setValue);

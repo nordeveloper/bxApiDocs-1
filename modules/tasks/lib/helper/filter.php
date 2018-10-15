@@ -130,6 +130,10 @@ class Filter extends Common
 				'name' => Loc::getMessage('TASKS_PRESET_EXPIRED'),
 				'default' => false,
 				'fields' => array(
+					'STATUS' => array(
+						\CTasks::STATE_PENDING,
+						\CTasks::STATE_IN_PROGRESS
+					),
 					'PROBLEM' => \CTaskListState::VIEW_TASK_CATEGORY_EXPIRED
 				)
 			),
@@ -137,6 +141,10 @@ class Filter extends Common
 				'name' => Loc::getMessage('TASKS_PRESET_EXPIRED_CAND'),
 				'default' => false,
 				'fields' => array(
+					'STATUS' => array(
+						\CTasks::STATE_PENDING,
+						\CTasks::STATE_IN_PROGRESS
+					),
 					'PROBLEM' => \CTaskListState::VIEW_TASK_CATEGORY_EXPIRED_CANDIDATES
 				)
 			)
@@ -1013,7 +1021,7 @@ class Filter extends Common
 		$uf = \Bitrix\Tasks\Item\Task::getUserFieldControllerClass();
 
 		$scheme = $uf::getScheme();
-		unset($scheme['UF_TASK_WEBDAV_FILES']);
+		unset($scheme['UF_TASK_WEBDAV_FILES'], $scheme['UF_MAIL_MESSAGE']);
 
 		return $scheme;
 	}

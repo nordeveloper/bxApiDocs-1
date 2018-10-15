@@ -347,7 +347,7 @@ class CSocNetLogDestination
 					if (!empty($arFilter['ID']))
 					{
 						$arExtParams = Array(
-							"FIELDS" => Array("ID", "LAST_NAME", "NAME", "SECOND_NAME", "LOGIN", "PERSONAL_PHOTO", "WORK_POSITION", "PERSONAL_PROFESSION", "IS_ONLINE")
+							"FIELDS" => Array("ID", "LAST_NAME", "NAME", "SECOND_NAME", "LOGIN", "EMAIL", "PERSONAL_PHOTO", "WORK_POSITION", "PERSONAL_PROFESSION", "IS_ONLINE")
 						);
 
 						$dbUsers = CUser::GetList(($sort_by = Array('last_name'=>'asc', 'IS_ONLINE'=>'desc')), ($dummy=''), $arFilter, $arExtParams);
@@ -373,6 +373,7 @@ class CSocNetLogDestination
 							$arUsers['U'.$arUser["ID"]] = Array(
 								'id' => 'U'.$arUser["ID"],
 								'entityId' => $arUser["ID"],
+								'email' => $arUser["EMAIL"],
 								'name' => $sName,
 								'avatar' => empty($arFileTmp['src'])? '': $arFileTmp['src'],
 								'desc' => $arUser['WORK_POSITION'] ? $arUser['WORK_POSITION'] : ($arUser['PERSONAL_PROFESSION']?$arUser['PERSONAL_PROFESSION']:'&nbsp;'),
@@ -585,6 +586,7 @@ class CSocNetLogDestination
 					$arUsers['U'.$arUserTmp["ID"]] = Array(
 						'id' => 'U'.$arUserTmp["ID"],
 						'entityId' => $arUserTmp["ID"],
+						'email' => $arUserTmp["EMAIL"],
 						'name' => $sName,
 						'avatar' => empty($arFileTmp['src'])? '': $arFileTmp['src'],
 						'desc' => $arUserTmp['WORK_POSITION'] ? $arUserTmp['WORK_POSITION'] : ($arUserTmp['PERSONAL_PROFESSION'] ? $arUserTmp['PERSONAL_PROFESSION'] : '&nbsp;'),
@@ -668,6 +670,7 @@ class CSocNetLogDestination
 					$arUsers['U'.$arUser["ID"]] = Array(
 						'id' => 'U'.$arUser["ID"],
 						'entityId' => $arUser["ID"],
+						'email' => $arUser["EMAIL"],
 						'name' => $sName,
 						'avatar' => empty($arFileTmp['src'])? '': $arFileTmp['src'],
 						'desc' => $arUser['WORK_POSITION'] ? $arUser['WORK_POSITION'] : ($arUser['PERSONAL_PROFESSION'] ? $arUser['PERSONAL_PROFESSION'] : '&nbsp;'),
@@ -734,7 +737,7 @@ class CSocNetLogDestination
 			);
 
 			$arExtParams = Array(
-				"FIELDS" => Array("ID", "LAST_NAME", "NAME", "SECOND_NAME", "LOGIN", "PERSONAL_PHOTO", "WORK_POSITION", "PERSONAL_PROFESSION", "IS_ONLINE"),
+				"FIELDS" => Array("ID", "LAST_NAME", "NAME", "SECOND_NAME", "LOGIN", "EMAIL", "PERSONAL_PHOTO", "WORK_POSITION", "PERSONAL_PROFESSION", "IS_ONLINE"),
 				"SELECT" => Array("UF_DEPARTMENT")
 			);
 
@@ -778,6 +781,7 @@ class CSocNetLogDestination
 				$arGratUsers['U'.$arUser["ID"]] = Array(
 					"id" => "U".$arUser["ID"],
 					"entityId" => $arUser["ID"],
+					"email" => $arUser["EMAIL"],
 					"name" => $sName,
 					"avatar" => empty($arFileTmp["src"]) ? '' : $arFileTmp["src"],
 					"desc" => $arUser["WORK_POSITION"] ? $arUser["WORK_POSITION"] : ($arUser["PERSONAL_PROFESSION"] ? $arUser["PERSONAL_PROFESSION"] : "&nbsp;"),
@@ -821,6 +825,7 @@ class CSocNetLogDestination
 			$bCrmEmailUsers = (isset($arParams["CRMEMAIL_USERS"]) && ModuleManager::isModuleInstalled('crm') ? $arParams["CRMEMAIL_USERS"] : false);
 			$bActiveOnly = (isset($arParams["CHECK_ACTIVITY"]) && $arParams["CHECK_ACTIVITY"] === false ? false : true);
 			$bNetworkSearch = (isset($arParams["NETWORK_SEARCH"]) ? $arParams["NETWORK_SEARCH"] : false);
+			$bSearchOnlyWithEmail = (isset($arParams["ONLY_WITH_EMAIL"]) ? $arParams["ONLY_WITH_EMAIL"] : false);
 		}
 		else
 		{
@@ -829,6 +834,7 @@ class CSocNetLogDestination
 			$bCrmEmailUsers = false;
 			$bActiveOnly = true;
 			$bNetworkSearch = false;
+			$bSearchOnlyWithEmail = false;
 		}
 
 		$arUsers = array();
@@ -1032,6 +1038,11 @@ class CSocNetLogDestination
 				'!=EXTERNAL_AUTH_ID' => 'email',
 				'ID' => $arMyUserId,
 			);
+		}
+
+		if ($bSearchOnlyWithEmail)
+		{
+			$arFilter["!EMAIL"] = false;
 		}
 
 		$arSelect = array(
@@ -2829,6 +2840,7 @@ class CSocNetLogDestination
 			"ID" => Array("FIELD" => "U.ID", "TYPE" => "int"),
 			"ACTIVE" => Array("FIELD" => "U.ACTIVE", "TYPE" => "string"),
 			"NAME" => Array("FIELD" => "U.NAME", "TYPE" => "string"),
+			"EMAIL" => Array("FIELD" => "U.EMAIL", "TYPE" => "string"),
 			"LAST_NAME" => Array("FIELD" => "U.LAST_NAME", "TYPE" => "string"),
 			"SECOND_NAME" => Array("FIELD" => "U.SECOND_NAME", "TYPE" => "string"),
 			"LOGIN" => Array("FIELD" => "U.LOGIN", "TYPE" => "string"),
@@ -3033,6 +3045,7 @@ class CSocNetLogDestination
 			$arUsers['U'.$arUser["ID"]] = Array(
 				'id' => 'U'.$arUser["ID"],
 				'entityId' => $arUser["ID"],
+				'email' => $arUser["EMAIL"],
 				'name' => $sName,
 				'avatar' => empty($arFileTmp['src'])? '': $arFileTmp['src'],
 				'desc' => $arUser['WORK_POSITION'] ? $arUser['WORK_POSITION'] : ($arUser['PERSONAL_PROFESSION'] ? $arUser['PERSONAL_PROFESSION'] : '&nbsp;'),
@@ -3143,6 +3156,7 @@ class CSocNetLogDestination
 			$arRes['active'] = $arUser["ACTIVE"];
 		}
 
+		$arRes["email"] = $arUser['EMAIL'];
 		if (
 			(
 				isset($arParams['USE_EMAIL'])
@@ -3151,7 +3165,6 @@ class CSocNetLogDestination
 			|| $arRes['isEmail'] == 'Y'
 		)
 		{
-			$arRes["email"] = $arUser['EMAIL'];
 			if (
 				strlen($arUser["NAME"]) > 0
 				|| strlen($arUser["NAME"]) > 0

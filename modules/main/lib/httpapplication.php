@@ -130,7 +130,10 @@ class HttpApplication extends Application
 			'\\Bitrix\\Main\\UI\\PageNavigation',
 			function() {
 				$pageNavigation = new PageNavigation('nav');
-				$pageNavigation->initFromUri();
+				$pageNavigation
+					->setPageSizes(range(1, 50))
+					->initFromUri()
+				;
 
 				return $pageNavigation;
 			}

@@ -58,6 +58,10 @@ class LandingTable extends Entity\DataManager
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_LANDING_ACTIVE'),
 				'default_value' => 'Y'
 			)),
+			'DELETED' => new Entity\StringField('DELETED', array(
+				'title' => Loc::getMessage('LANDING_TABLE_FIELD_SITE_DELETED'),
+				'default_value' => 'N'
+			)),
 			'PUBLIC' => new Entity\StringField('PUBLIC', array(
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_LANDING_PUBLIC'),
 				'default_value' => 'Y'
@@ -74,6 +78,9 @@ class LandingTable extends Entity\DataManager
 			)),
 			'TPL_ID' => new Entity\IntegerField('TPL_ID', array(
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_TPL_ID')
+			)),
+			'TPL_CODE' => new Entity\IntegerField('TPL_CODE', array(
+				'title' => Loc::getMessage('LANDING_TABLE_FIELD_TPL_CODE')
 			)),
 			'SITE_ID' => new Entity\IntegerField('SITE_ID', array(
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_SITE_ID'),
@@ -159,6 +166,13 @@ class LandingTable extends Entity\DataManager
 		$result = new Entity\EventResult();
 		$primary = $event->getParameter('primary');
 		$fields = $event->getParameter('fields');
+		$modifyFields = array();
+
+		// if delete, set unpublic always
+		if (isset($fields['DELETED']))
+		{
+			$modifyFields['ACTIVE'] = 'N';
+		}
 
 		// additional fields save after
 		if (array_key_exists('ADDITIONAL_FIELDS', $fields))
@@ -211,9 +225,7 @@ class LandingTable extends Entity\DataManager
 					'replace_space' => '',
 					'replace_other' => ''
 				));
-			$result->modifyFields(array(
-				'CODE' => $fields['CODE']
-			));
+			$modifyFields['CODE'] = $fields['CODE'];
 		}
 
 		// check rights for landing site
@@ -249,6 +261,8 @@ class LandingTable extends Entity\DataManager
 				$fields['SITE_ID'] = $site['SITE_ID'];
 			}
 
+			Landing::disableCheckDeleted();
+
 			$i = 0;
 			do
 			{
@@ -265,11 +279,13 @@ class LandingTable extends Entity\DataManager
 				));
 			} while ($res->fetch());
 
+			Landing::enableCheckDeleted();
+
 			$fields['CODE'] = $newCode;
-			$result->modifyFields(array(
-				'CODE' => $fields['CODE']
-			));
+			$modifyFields['CODE'] = $fields['CODE'];
 		}
+
+		$result->modifyFields($modifyFields);
 
 		// all code blocks below promptly return result !
 
@@ -335,6 +351,41 @@ class LandingTable extends Entity\DataManager
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Get entity rows.
+	 * @param array $params Params array.
+	 * @return \Bitrix\Main\ORM\Query\Result
+	 */
+	public static function getList(array $params = array())
+	{
+		if (Landing::checkDeleted())
+		{
+			if (
+				!isset($params['filter']) ||
+				!is_array($params['filter'])
+			)
+			{
+				$params['filter'] = array();
+			}
+			if (
+				!isset($params['filter']['DELETED']) &&
+				!isset($params['filter']['=DELETED'])
+			)
+			{
+				$params['filter']['=DELETED'] = 'N';
+			}
+			if (
+				!isset($params['filter']['SITE.DELETED']) &&
+				!isset($params['filter']['=SITE.DELETED'])
+			)
+			{
+				$params['filter']['=SITE.DELETED'] = 'N';
+			}
+		}
+
+		return parent::getList($params);
 	}
 
 	/**

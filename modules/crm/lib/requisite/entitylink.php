@@ -4,6 +4,10 @@ namespace Bitrix\Crm\Requisite;
 use Bitrix\Main;
 use Bitrix\Crm;
 
+/**
+ * Class EntityLink
+ * @package Bitrix\Crm\Requisite
+ */
 class EntityLink
 {
 	const ERR_INVALID_ENTITY_TYPE                           = 201;
@@ -25,8 +29,15 @@ class EntityLink
 	const ERR_MC_BANK_DETAIL_NOT_ASSIGNED_WO_MC_REQUISITE   = 217;
 	const ERR_MC_BANK_DETAIL_NOT_FOUND                      = 218;
 	const ERR_MC_BANK_DETAIL_NOT_ASSIGNED                   = 219;
+	const ERR_ENTITY_CHECK_N_BUT_CLIENT_NOT_SPECIFIED       = 220;
+
+	const ENTITY_OPERATION_FIRST = 1;
+	const ENTITY_OPERATION_ADD = 1;
+	const ENTITY_OPERATION_UPDATE = 2;
+	const ENTITY_OPERATION_LAST = 2;
 
 	private static $FIELD_INFOS = null;
+	private static $parentEntityFieldMap = null;
 
 	/**
 	 * @param $entityTypeId
@@ -86,23 +97,58 @@ class EntityLink
 		return self::$FIELD_INFOS;
 	}
 
-	public function getEntityClientSellerInfo($entityTypeId, $entityId)
+	public static function getParentEntityFieldMap()
 	{
+		if (self::$parentEntityFieldMap === null)
+		{
+			self::$parentEntityFieldMap = [
+				\CCrmOwnerType::Deal => [
+					\CCrmOwnerType::Quote => 'QUOTE_ID'
+				],
+				\CCrmOwnerType::Quote => [
+					\CCrmOwnerType::Deal => 'DEAL_ID'
+				],
+				\CCrmOwnerType::Invoice => [
+					\CCrmOwnerType::Quote => 'UF_QUOTE_ID',
+					\CCrmOwnerType::Deal => 'UF_DEAL_ID'
+				],
+			];
+		}
+
+		return self::$parentEntityFieldMap;
+	}
+
+	public static function getEntityClientSellerInfo($entityTypeId, $entityId, $options = [])
+	{
+		$getParentEntityFields = (
+			is_array($options) && isset($options['GET_PARENT_ENTITY_FILEDS'])
+			&& ($options['GET_PARENT_ENTITY_FILEDS'] === 'Y' || $options['GET_PARENT_ENTITY_FILEDS'] === true)
+		);
+
 		$entityNotFound = false;
 		$result = array(
 			'CLIENT_ENTITY_TYPE_ID' => \CCrmOwnerType::Undefined,
 			'CLIENT_ENTITY_ID' => 0,
 			'MYCOMPANY_ID' => 0
 		);
+		$parentFieldMap = self::getParentEntityFieldMap();
+		$parentFileds = [];
+		if ($getParentEntityFields && is_array($parentFieldMap[$entityTypeId]))
+		{
+			$parentFileds = array_values($parentFieldMap[$entityTypeId]);
+		}
+		unset($parentFieldMap);
+		$row = null;
 		switch ($entityTypeId)
 		{
 			case \CCrmOwnerType::Deal:
+				$select = array('ID', 'COMPANY_ID', 'CONTACT_ID', 'MYCOMPANY_ID');
 				$res = \CCrmDeal::GetListEx(
 					array(),
 					array('ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'),
 					false,
 					false,
-					array('ID', 'COMPANY_ID', 'CONTACT_ID', 'MYCOMPANY_ID')
+					array_merge($select, $parentFileds)
 				);
 				$row = $res->Fetch();
 				if (is_array($row))
@@ -128,12 +174,13 @@ class EntityLink
 				break;
 
 			case \CCrmOwnerType::Quote:
+				$select = array('ID', 'COMPANY_ID', 'CONTACT_ID', 'MYCOMPANY_ID');
 				$res = \CCrmQuote::GetList(
 					array(),
 					array('=ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'),
 					false,
 					false,
-					array('ID', 'COMPANY_ID', 'CONTACT_ID', 'MYCOMPANY_ID')
+					array_merge($select, $parentFileds)
 				);
 				$row = $res->Fetch();
 				if (is_array($row))
@@ -159,12 +206,13 @@ class EntityLink
 				break;
 
 			case \CCrmOwnerType::Invoice:
+				$select = array('ID', 'UF_COMPANY_ID', 'UF_CONTACT_ID', 'UF_MYCOMPANY_ID');
 				$res = \CCrmInvoice::GetList(
 					array(),
 					array('ID' => $entityId, 'CHECK_PERMISSIONS' => 'N'),
 					false,
 					false,
-					array('ID', 'UF_COMPANY_ID', 'UF_CONTACT_ID', 'UF_MYCOMPANY_ID')
+					array_merge($select, $parentFileds)
 				);
 				$row = $res->Fetch();
 				if (is_array($row))
@@ -190,6 +238,17 @@ class EntityLink
 				break;
 		}
 
+		if ($getParentEntityFields && is_array($row))
+		{
+			foreach ($parentFileds as $fieldName)
+			{
+				if (array_key_exists($fieldName, $row))
+				{
+					$result[$fieldName] = (int)$row[$fieldName];
+				}
+			}
+		}
+
 		if ($entityNotFound)
 			throw new Main\SystemException('Entity is not found', self::ERR_ENTITY_NOT_FOUND);
 
@@ -197,13 +256,34 @@ class EntityLink
 	}
 
 	public static function checkConsistence($entityTypeId, $entityId,
-											$requisiteId, $bankDetailId,
-											$mcRequisiteId, $mcBankDetailId)
+		$requisiteId, $bankDetailId, $mcRequisiteId, $mcBankDetailId, $options = null)
 	{
-		if(!is_int($entityTypeId) || $entityTypeId <= 0
-			|| !($entityTypeId === \CCrmOwnerType::Deal
+		$enableEntityCheck = (!is_array($options) || !isset($options['ENTITY_CHECK'])
+			|| $options['ENTITY_CHECK'] === 'Y' || $options['ENTITY_CHECK'] === true);
+		$skipIsMyCompanyCheck = is_array($options) && isset($options['IS_MY_COMPANY_CHECK'])
+			&& $options['IS_MY_COMPANY_CHECK'] !== 'Y' && $options['IS_MY_COMPANY_CHECK'] !== true;
+
+		if (!$enableEntityCheck
+			&& (!is_array($options)
+				|| !is_array($options['CLIENT_SELLER_INFO'])
+				|| !isset($options['CLIENT_SELLER_INFO']['CLIENT_ENTITY_TYPE_ID'])
+				|| !isset($options['CLIENT_SELLER_INFO']['CLIENT_ENTITY_ID'])
+				|| !(\CCrmOwnerType::IsDefined($options['CLIENT_SELLER_INFO']['CLIENT_ENTITY_TYPE_ID'])
+					|| $options['CLIENT_SELLER_INFO']['CLIENT_ENTITY_TYPE_ID'] === \CCrmOwnerType::Undefined)
+				|| $options['CLIENT_ENTITY_ID'] < 0))
+		{
+			throw new Main\SystemException(
+				'The entity check is disabled, but client type and id are not specified.',
+				self::ERR_ENTITY_CHECK_N_BUT_CLIENT_NOT_SPECIFIED
+			);
+		}
+
+		if($enableEntityCheck
+			&& (!is_int($entityTypeId)
+				|| $entityTypeId <= 0
+				|| !($entityTypeId === \CCrmOwnerType::Deal
 				|| $entityTypeId === \CCrmOwnerType::Quote
-				|| $entityTypeId === \CCrmOwnerType::Invoice))
+				|| $entityTypeId === \CCrmOwnerType::Invoice)))
 		{
 			throw new Main\SystemException(
 				'Entity type is not defined or invalid.',
@@ -211,7 +291,7 @@ class EntityLink
 			);
 		}
 
-		if(!is_int($entityId) || $entityId <= 0)
+		if($enableEntityCheck && !(is_int($entityId) && $entityId > 0))
 		{
 			throw new Main\SystemException(
 				'Entity identifier is not defined or invalid.',
@@ -251,17 +331,28 @@ class EntityLink
 			);
 		}
 
-		$clientSellerInfo = self::getEntityClientSellerInfo($entityTypeId, $entityId);
+		if (is_array($options) && is_array($options['CLIENT_SELLER_INFO']))
+		{
+			$clientSellerInfo = $options['CLIENT_SELLER_INFO'];
+		}
+		else
+		{
+			$clientSellerInfo = self::getEntityClientSellerInfo($entityTypeId, $entityId);
+		}
 
 		$requisite = new Crm\EntityRequisite();
 		$bankDetail = new Crm\EntityBankDetail();
+		$entityTypeName = null;
 
 		if ($requisiteId > 0)
 		{
-			$entityTypeName = ucfirst(strtolower(\CCrmOwnerType::ResolveName($entityTypeId)));
 			if ($clientSellerInfo['CLIENT_ENTITY_TYPE_ID'] === \CCrmOwnerType::Undefined
 				|| $clientSellerInfo['CLIENT_ENTITY_ID'] <= 0)
 			{
+				if ($entityTypeName === null)
+				{
+					$entityTypeName = ucfirst(strtolower(\CCrmOwnerType::ResolveName($entityTypeId)));
+				}
 				throw new Main\SystemException(
 					"Requisite with ID '$requisiteId' can not be tied to the $entityTypeName ".
 						"in which the client is not selected.",
@@ -337,9 +428,14 @@ class EntityLink
 
 		if ($mcRequisiteId > 0)
 		{
-			$entityTypeName = ucfirst(strtolower(\CCrmOwnerType::ResolveName($entityTypeId)));
-			if ($clientSellerInfo['MYCOMPANY_ID'] <= 0)
+			if ($clientSellerInfo['MYCOMPANY_ID'] <= 0
+				|| (!$skipIsMyCompanyCheck && $clientSellerInfo['MYCOMPANY_ID'] > 0
+					&& !self::isMyCompany($clientSellerInfo['MYCOMPANY_ID'])))
 			{
+				if ($entityTypeName === null)
+				{
+					$entityTypeName = ucfirst(strtolower(\CCrmOwnerType::ResolveName($entityTypeId)));
+				}
 				throw new Main\SystemException(
 					"Requisite of your company with ID '$requisiteId' can not be tied to the $entityTypeName ".
 					"in which your company is not selected.",
@@ -555,7 +651,6 @@ class EntityLink
 	 */
 	public static function getDefaultMyCompanyRequisiteLink()
 	{
-		$myCompanyId = 0;
 		$mcRequisiteId = 0;
 		$mcBankDetailId = 0;
 
@@ -604,6 +699,910 @@ class EntityLink
 			'MC_REQUISITE_ID' => $mcRequisiteId,
 			'MC_BANK_DETAIL_ID' => $mcBankDetailId
 		);
+	}
+
+	public static function isMyCompany($companyId)
+	{
+		$result = false;
+
+		if ($companyId <= 0)
+		{
+			return $result;
+		}
+
+		$companyId = (int)$companyId;
+
+		$res = \CCrmCompany::GetListEx(
+			[],
+			[
+				'=ID' => $companyId,
+				'=IS_MY_COMPANY' => 'Y',
+				'CHECK_PERMISSIONS' => 'N'
+			],
+			false,
+			false,
+			['ID']
+		);
+		if (is_object($res) && $res->Fetch())
+		{
+			$result = true;
+		}
+
+		return $result;
+	}
+
+	public static function getDefaultEntityRequisiteLink($parentEntityList, $entityTypeId, $entityId, $requisiteId = 0, $isMyCompany = false)
+	{
+		$result = [
+			'REQUISITE_ID' => 0,
+			'BANK_DETAIL_ID' => 0
+		];
+
+		if ($requisiteId > 0)
+		{
+			$result['REQUISITE_ID'] = (int)$requisiteId;
+		}
+
+		$requisite = null;
+		$bankDetail = null;
+
+		if (!is_array($parentEntityList))
+		{
+			$parentEntityList = [];
+		}
+
+		$parentEntityList[] = ['ENTITY_TYPE_ID' => $entityTypeId, 'ENTITY_ID' => $entityId];
+		foreach ($parentEntityList as $entityInfo)
+		{
+			$parentEntityTypeId = isset($entityInfo['ENTITY_TYPE_ID']) ? (int)$entityInfo['ENTITY_TYPE_ID'] : 0;
+			if ($parentEntityTypeId < 0)
+				$parentEntityTypeId = 0;
+			$parentEntityId = isset($entityInfo['ENTITY_ID']) ? (int)$entityInfo['ENTITY_ID'] : 0;
+			if ($parentEntityId < 0)
+				$parentEntityId = 0;
+
+			if ($parentEntityTypeId > 0 && $parentEntityId > 0)
+			{
+				if ($parentEntityTypeId === \CCrmOwnerType::Deal
+					|| $parentEntityTypeId === \CCrmOwnerType::Quote
+					|| $parentEntityTypeId === \CCrmOwnerType::Invoice)
+				{
+					$fieldMap = [
+						0 => [
+							'REQUISITE_ID' => 'REQUISITE_ID',
+							'BANK_DETAIL_ID' => 'BANK_DETAIL_ID'
+						],
+						1 => [
+							'REQUISITE_ID' => 'MC_REQUISITE_ID',
+							'BANK_DETAIL_ID' => 'MC_BANK_DETAIL_ID'
+						]
+					];
+					$fieldIndex = $isMyCompany ? 1 : 0;
+					if ($row = self::getList(
+						array(
+							'filter' => array(
+								'=ENTITY_TYPE_ID' => $parentEntityTypeId,
+								'=ENTITY_ID' => $parentEntityId
+							),
+							'select' => [
+								$fieldMap[$fieldIndex]['REQUISITE_ID'],
+								$fieldMap[$fieldIndex]['BANK_DETAIL_ID']
+							],
+							'limit' => 1
+						)
+					)->fetch())
+					{
+						if (isset($row[$fieldMap[$fieldIndex]['REQUISITE_ID']])
+							&& $row[$fieldMap[$fieldIndex]['REQUISITE_ID']] > 0
+							&& $requisiteId <= 0)
+						{
+							$result['REQUISITE_ID'] = (int)$row[$fieldMap[$fieldIndex]['REQUISITE_ID']];
+						}
+						if ($result['REQUISITE_ID'] > 0
+							&& isset($row[$fieldMap[$fieldIndex]['BANK_DETAIL_ID']])
+							&& $row[$fieldMap[$fieldIndex]['BANK_DETAIL_ID']] > 0
+							&& ($requisiteId <= 0 || $requisiteId === $result['REQUISITE_ID']))
+						{
+							$result['BANK_DETAIL_ID'] = (int)$row[$fieldMap[$fieldIndex]['BANK_DETAIL_ID']];
+						}
+					}
+					unset($row);
+
+					if ($result['REQUISITE_ID'] > 0)
+					{
+						try
+						{
+							if ($isMyCompany)
+							{
+								self::checkConsistence(
+									\CCrmOwnerType::Undefined, 0,
+									0, 0,
+									$result['REQUISITE_ID'], $result['BANK_DETAIL_ID'],
+									[
+										'ENTITY_CHECK' => false,
+										'CLIENT_SELLER_INFO' => [
+											'CLIENT_ENTITY_TYPE_ID' => \CCrmOwnerType::Undefined,
+											'CLIENT_ENTITY_ID' => 0,
+											'MYCOMPANY_ID' => $entityId
+										]
+									]
+								);
+							}
+							else
+							{
+								self::checkConsistence(
+									\CCrmOwnerType::Undefined, 0,
+									$result['REQUISITE_ID'], $result['BANK_DETAIL_ID'],
+									0, 0,
+									[
+										'ENTITY_CHECK' => false,
+										'CLIENT_SELLER_INFO' => [
+											'CLIENT_ENTITY_TYPE_ID' => $entityTypeId,
+											'CLIENT_ENTITY_ID' => $entityId,
+											'MYCOMPANY_ID' => 0
+										]
+									]
+								);
+							}
+						}
+						catch (Main\SystemException $e)
+						{
+							$resetBankDetail = false;
+							switch ($e->getCode())
+							{
+								case self::ERR_INVALID_BANK_DETAIL_ID:
+								case self::ERR_BANK_DETAIL_NOT_ASSIGNED_WO_REQUISITE:
+								case self::ERR_BANK_DETAIL_NOT_FOUND:
+								case self::ERR_BANK_DETAIL_NOT_ASSIGNED:
+								case self::ERR_INVALID_MC_BANK_DETAIL_ID:
+								case self::ERR_MC_BANK_DETAIL_NOT_ASSIGNED_WO_MC_REQUISITE:
+								case self::ERR_MC_BANK_DETAIL_NOT_FOUND:
+								case self::ERR_MC_BANK_DETAIL_NOT_ASSIGNED:
+									$resetBankDetail = true;
+							}
+							if ($resetBankDetail)
+							{
+								$result['BANK_DETAIL_ID'] = 0;
+								if ($bankDetail === null)
+									$bankDetail = Crm\EntityBankDetail::getSingleInstance();
+								$res = $bankDetail->getList(
+									array(
+										'order' => array('SORT' => 'ASC', 'ID' => 'ASC'),
+										'filter' => array(
+											'=ENTITY_TYPE_ID' => \CCrmOwnerType::Requisite,
+											'=ENTITY_ID' => $result['REQUISITE_ID']
+										),
+										'select' => array('ID'),
+										'limit' => 1
+									)
+								);
+								if ($row = $res->fetch())
+									$result['BANK_DETAIL_ID'] = (int)$row['ID'];
+								unset($resetBankDetail, $res, $row);
+
+								break;
+							}
+
+							$result['REQUISITE_ID'] = 0;
+							$result['BANK_DETAIL_ID'] = 0;
+
+							continue;
+						}
+
+						if ($result['REQUISITE_ID'] === 0
+							|| ($requisiteId > 0
+								&& $requisiteId === $result['REQUISITE_ID']
+								&& $result['BANK_DETAIL_ID'] === 0))
+						{
+							continue;
+						}
+
+						break;
+					}
+				}
+				else if ($entityTypeId === \CCrmOwnerType::Company
+					|| $entityTypeId === \CCrmOwnerType::Contact)
+				{
+					if ($requisite === null)
+					{
+						$requisite = Crm\EntityRequisite::getSingleInstance();
+					}
+
+					if ($result['REQUISITE_ID'] <= 0 || $result['BANK_DETAIL_ID'] <= 0)
+					{
+						$requisiteId = $result['REQUISITE_ID'];
+						$bankDetailId = $result['BANK_DETAIL_ID'];
+						$settings = $requisite->loadSettings($entityTypeId, $entityId);
+						if (is_array($settings))
+						{
+							if ($result['REQUISITE_ID'] <= 0 && isset($settings['REQUISITE_ID_SELECTED']))
+							{
+								$requisiteId = (int)$settings['REQUISITE_ID_SELECTED'];
+								if ($requisiteId < 0)
+									$requisiteId = 0;
+							}
+							if (isset($settings['BANK_DETAIL_ID_SELECTED'])
+								&& ($result['REQUISITE_ID'] <= 0
+									|| (isset($settings['REQUISITE_ID_SELECTED'])
+										&& $result['REQUISITE_ID'] === (int)$settings['REQUISITE_ID_SELECTED'])))
+							{
+								$bankDetailId = (int)$settings['BANK_DETAIL_ID_SELECTED'];
+								if ($bankDetailId < 0)
+									$bankDetailId = 0;
+							}
+						}
+						$result['REQUISITE_ID'] = $requisiteId;
+						$result['BANK_DETAIL_ID'] = $bankDetailId;
+						unset($requisiteId, $bankDetailId, $settings);
+					}
+
+					try
+					{
+						if ($isMyCompany)
+						{
+							self::checkConsistence(
+								\CCrmOwnerType::Undefined, 0,
+								0, 0,
+								$result['REQUISITE_ID'], $result['BANK_DETAIL_ID'],
+								[
+									'ENTITY_CHECK' => false,
+									'CLIENT_SELLER_INFO' => [
+										'CLIENT_ENTITY_TYPE_ID' => \CCrmOwnerType::Undefined,
+										'CLIENT_ENTITY_ID' => 0,
+										'MYCOMPANY_ID' => $entityId
+									]
+								]
+							);
+						}
+						else
+						{
+							self::checkConsistence(
+								\CCrmOwnerType::Undefined, 0,
+								$result['REQUISITE_ID'], $result['BANK_DETAIL_ID'],
+								0, 0,
+								[
+									'ENTITY_CHECK' => false,
+									'CLIENT_SELLER_INFO' => [
+										'CLIENT_ENTITY_TYPE_ID' => $entityTypeId,
+										'CLIENT_ENTITY_ID' => $entityId,
+										'MYCOMPANY_ID' => 0
+									]
+								]
+							);
+						}
+					}
+					catch (Main\SystemException $e)
+					{
+						$resetBankDetail = false;
+						switch ($e->getCode())
+						{
+							case self::ERR_INVALID_BANK_DETAIL_ID:
+							case self::ERR_BANK_DETAIL_NOT_ASSIGNED_WO_REQUISITE:
+							case self::ERR_BANK_DETAIL_NOT_FOUND:
+							case self::ERR_BANK_DETAIL_NOT_ASSIGNED:
+							case self::ERR_INVALID_MC_BANK_DETAIL_ID:
+							case self::ERR_MC_BANK_DETAIL_NOT_ASSIGNED_WO_MC_REQUISITE:
+							case self::ERR_MC_BANK_DETAIL_NOT_FOUND:
+							case self::ERR_MC_BANK_DETAIL_NOT_ASSIGNED:
+								$resetBankDetail = true;
+						}
+						if ($resetBankDetail)
+						{
+							$result['BANK_DETAIL_ID'] = 0;
+							if ($bankDetail === null)
+								$bankDetail = Crm\EntityBankDetail::getSingleInstance();
+							$res = $bankDetail->getList(
+								array(
+									'order' => array('SORT' => 'ASC', 'ID' => 'ASC'),
+									'filter' => array(
+										'=ENTITY_TYPE_ID' => \CCrmOwnerType::Requisite,
+										'=ENTITY_ID' => $result['REQUISITE_ID']
+									),
+									'select' => array('ID'),
+									'limit' => 1
+								)
+							);
+							if ($row = $res->fetch())
+								$result['BANK_DETAIL_ID'] = (int)$row['ID'];
+							unset($resetBankDetail, $res, $row);
+						}
+						else
+						{
+							$result['REQUISITE_ID'] = 0;
+							$result['BANK_DETAIL_ID'] = 0;
+						}
+					}
+
+					if ($result['REQUISITE_ID'] === 0)
+					{
+						if ($requisite === null)
+						{
+							$requisite = Crm\EntityRequisite::getSingleInstance();
+						}
+						$res = $requisite->getList(
+							array(
+								'order' => array('SORT' => 'ASC', 'ID' => 'ASC'),
+								'filter' => array(
+									'=ENTITY_TYPE_ID' => $entityTypeId,
+									'=ENTITY_ID' => $entityId
+								),
+								'select' => array('ID'),
+								'limit' => 1
+							)
+						);
+						if ($row = $res->fetch())
+							$result['REQUISITE_ID'] = (int)$row['ID'];
+						unset($res, $row);
+					}
+
+					if ($result['REQUISITE_ID'] > 0)
+					{
+						if ($result['BANK_DETAIL_ID'] === 0)
+						{
+							if ($bankDetail === null)
+								$bankDetail = Crm\EntityBankDetail::getSingleInstance();
+							$res = $bankDetail->getList(
+								array(
+									'order' => array('SORT' => 'ASC', 'ID' => 'ASC'),
+									'filter' => array(
+										'=ENTITY_TYPE_ID' => \CCrmOwnerType::Requisite,
+										'=ENTITY_ID' => $result['REQUISITE_ID']
+									),
+									'select' => array('ID'),
+									'limit' => 1
+								)
+							);
+							if ($row = $res->fetch())
+								$result['BANK_DETAIL_ID'] = (int)$row['ID'];
+							unset($res, $row);
+						}
+
+						break;
+					}
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	public static function prepareParrentEntityMap($entityTypeId, $entityFields)
+	{
+		$result = [];
+
+		$parentEntityFieldMap = self::getParentEntityFieldMap();
+		if (is_array($parentEntityFieldMap[$entityTypeId]))
+		{
+			foreach ($parentEntityFieldMap[$entityTypeId] as $parentEntityTypeId => $fieldName)
+			{
+				if (isset($entityFields[$fieldName])
+					&& $entityFields[$fieldName] !== ''
+					&& $entityFields[$fieldName] > 0)
+				{
+					$result[$parentEntityTypeId] = (int)$entityFields[$fieldName];
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	public static function prepareClientSellerParamsByEntityFields ($entityTypeId, $entityFields)
+	{
+		$result = [
+			'CLIENT_ENTITY_TYPE_ID' => null,
+			'CLIENT_ENTITY_ID' => null,
+			'SELLER_ENTITY_TYPE_ID' => null,
+			'SELLER_ENTITY_ID' => null,
+		];
+
+		if (is_array($entityFields))
+		{
+			switch ($entityTypeId)
+			{
+				case \CCrmOwnerType::Deal:
+				case \CCrmOwnerType::Quote:
+					if (isset($entityFields['COMPANY_ID']) && $entityFields['COMPANY_ID'] >= 0)
+					{
+						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
+						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['COMPANY_ID'];
+					}
+					else if (isset($entityFields['CONTACT_ID']) && $entityFields['CONTACT_ID'] >= 0)
+					{
+						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Contact;
+						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['CONTACT_ID'];
+					}
+					if (isset($entityFields['MYCOMPANY_ID']) && $entityFields['MYCOMPANY_ID'] >= 0)
+					{
+						$result['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
+						$result['SELLER_ENTITY_ID'] = (int)$entityFields['MYCOMPANY_ID'];
+					}
+					break;
+				case \CCrmOwnerType::Invoice:
+					if (isset($entityFields['UF_COMPANY_ID']) && $entityFields['UF_COMPANY_ID'] >= 0)
+					{
+						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
+						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['UF_COMPANY_ID'];
+					}
+					else if (isset($entityFields['UF_CONTACT_ID']) && $entityFields['UF_CONTACT_ID'] >= 0)
+					{
+						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Contact;
+						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['UF_CONTACT_ID'];
+					}
+					if (isset($entityFields['UF_MYCOMPANY_ID']) && $entityFields['UF_MYCOMPANY_ID'] >= 0)
+					{
+						$result['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
+						$result['SELLER_ENTITY_ID'] = (int)$entityFields['UF_MYCOMPANY_ID'];
+					}
+					break;
+			}
+		}
+
+		return $result;
+	}
+
+	public static function determineRequisiteLinkBeforeSave($entityTypeId, $entityId, $operation, &$entityFields,
+		$modifyFields = true, $requisiteId = null, $bankDetailId = null, $mcRequisiteId = null, $mcBankDetailId = null)
+	{
+		$modifyFields = (bool)$modifyFields;
+		$resultLink = [
+			'CLIENT_ENTITY_TYPE_ID' => \CCrmOwnerType::Undefined,
+			'CLIENT_ENTITY_ID' => 0,
+			'REQUISITE_ID' => 0,
+			'BANK_DETAIL_ID' => 0,
+			'SELLER_ENTITY_TYPE_ID' => \CCrmOwnerType::Undefined,
+			'SELLER_ENTITY_ID' => 0,
+			'MC_REQUISITE_ID' => 0,
+			'MC_BANK_DETAIL_ID' => 0
+		];
+
+		if ($entityTypeId !== \CCrmOwnerType::Deal
+			&& $entityTypeId !== \CCrmOwnerType::Quote
+			&& $entityTypeId !== \CCrmOwnerType::Invoice
+			/*&& $entityTypeId !== \CCrmOwnerType::Order*/)
+		{
+			return $resultLink;
+		}
+
+		$skipSeller = ($entityTypeId === \CCrmOwnerType::Deal/* || $entityTypeId === \CCrmOwnerType::Order*/);
+
+		$entityId = (int)$entityId;
+
+		$operation = (int)$operation;
+		if ($operation !== self::ENTITY_OPERATION_ADD && $operation !== self::ENTITY_OPERATION_UPDATE)
+		{
+			return $resultLink;
+		}
+
+		$params = self::prepareClientSellerParamsByEntityFields($entityTypeId, $entityFields);
+		$clientEntityTypeId = $params['CLIENT_ENTITY_TYPE_ID'] === null ? null : (int)$params['CLIENT_ENTITY_TYPE_ID'];
+		$clientEntityId = $params['CLIENT_ENTITY_ID'] === null ? null : (int)$params['CLIENT_ENTITY_ID'];
+		$requisiteId = $requisiteId === null ? null : (int)$requisiteId;
+		$bankDetailId = $bankDetailId === null ? null : (int)$bankDetailId;
+		$sellerEntityTypeId = $params['SELLER_ENTITY_TYPE_ID'] === null ? null : (int)$params['SELLER_ENTITY_TYPE_ID'];
+		$sellerEntityId = $params['SELLER_ENTITY_ID'] === null ? null : (int)$params['SELLER_ENTITY_ID'];
+		$mcRequisiteId = $mcRequisiteId === null ? null : (int)$mcRequisiteId;
+		$mcBankDetailId = $mcBankDetailId === null ? null : (int)$mcBankDetailId;
+		unset($params);
+
+		$resetClientRequisite = false;
+		$resetClientBankDetail = false;
+		$resetSellerRequisite = false;
+		$resetSellerBankDetail = false;
+
+		$parentEntityMap = self::prepareParrentEntityMap($entityTypeId, $entityFields);
+
+		$currentLink = $resultLink;
+		$entityExists = ($operation === self::ENTITY_OPERATION_UPDATE && $entityId > 0);
+		if ($entityExists)
+		{
+			$csInfo = self::getEntityClientSellerInfo($entityTypeId, $entityId, ['GET_PARENT_ENTITY_FILEDS' => true]);
+
+			$currentParrentEntityMap = self::prepareParrentEntityMap($entityTypeId, $csInfo);
+			foreach (array_keys($parentEntityMap) as $parentEntityTypeId)
+			{
+				$currentParrentEntityMap[$parentEntityTypeId] = $parentEntityMap[$parentEntityTypeId];
+			}
+			$parentEntityMap = $currentParrentEntityMap;
+			unset($currentParrentEntityMap, $parentEntityTypeId);
+
+			$currentLink['CLIENT_ENTITY_TYPE_ID'] = (int)$csInfo['CLIENT_ENTITY_TYPE_ID'];
+			$currentLink['CLIENT_ENTITY_ID'] = (int)$csInfo['CLIENT_ENTITY_ID'];
+			$currentLink['SELLER_ENTITY_TYPE_ID'] = $csInfo['MYCOMPANY_ID'] > 0 ?
+				\CCrmOwnerType::Company : \CCrmOwnerType::Undefined;
+			$currentLink['SELLER_ENTITY_ID'] = (int)$csInfo['MYCOMPANY_ID'];
+
+			$isClientDefined = ($currentLink['CLIENT_ENTITY_TYPE_ID'] !== \CCrmOwnerType::Undefined
+				&& $currentLink['CLIENT_ENTITY_ID'] > 0);
+			$isSellerDefined = ($currentLink['SELLER_ENTITY_TYPE_ID'] === \CCrmOwnerType::Company
+				&& $currentLink['SELLER_ENTITY_ID'] > 0);
+
+			if ($isClientDefined || $isSellerDefined)
+			{
+				if ($row = self::getList(
+					array(
+						'filter' => array(
+							'=ENTITY_TYPE_ID' => $entityTypeId,
+							'=ENTITY_ID' => $entityId
+						),
+						'select' => array('REQUISITE_ID', 'BANK_DETAIL_ID', 'MC_REQUISITE_ID', 'MC_BANK_DETAIL_ID'),
+						'limit' => 1
+					)
+				)->fetch())
+				{
+					if ($isClientDefined && isset($row['REQUISITE_ID']) && $row['REQUISITE_ID'] > 0)
+					{
+						$currentLink['REQUISITE_ID'] = (int)$row['REQUISITE_ID'];
+
+						if (isset($row['BANK_DETAIL_ID']) && $row['BANK_DETAIL_ID'] > 0)
+						{
+							$currentLink['BANK_DETAIL_ID'] = (int)$row['BANK_DETAIL_ID'];
+						}
+					}
+					if ($isSellerDefined && isset($row['MC_REQUISITE_ID']) && $row['MC_REQUISITE_ID'] > 0)
+					{
+						$currentLink['MC_REQUISITE_ID'] = (int)$row['MC_REQUISITE_ID'];
+
+						if (isset($row['MC_BANK_DETAIL_ID']) && $row['MC_BANK_DETAIL_ID'] > 0)
+						{
+							$currentLink['MC_BANK_DETAIL_ID'] = (int)$row['MC_BANK_DETAIL_ID'];
+						}
+					}
+				}
+				unset($row);
+			}
+			unset($isClientDefined, $isSellerDefined);
+
+			$resultLink = $currentLink;
+		}
+
+		$parentEntityList = [];
+		foreach ($parentEntityMap as $parentEntityTypeId => $parentEntityId)
+		{
+			$parentEntityList[] = [
+				'ENTITY_TYPE_ID' => $parentEntityTypeId,
+				'ENTITY_ID' => $parentEntityId
+			];
+		}
+		unset($parentEntityMap, $parentEntityTypeId, $parentEntityId);
+
+		if (($clientEntityTypeId === \CCrmOwnerType::Company || $clientEntityTypeId === \CCrmOwnerType::Contact)
+			&& $clientEntityId !== null && $clientEntityId >= 0)
+		{
+			$resultLink['CLIENT_ENTITY_TYPE_ID'] = $clientEntityTypeId;
+			$resultLink['CLIENT_ENTITY_ID'] = $clientEntityId;
+			
+			if ($clientEntityTypeId !== $currentLink['CLIENT_ENTITY_TYPE_ID']
+				|| $clientEntityId !== $currentLink['CLIENT_ENTITY_ID'])
+			{
+				$resultLink['REQUISITE_ID'] = 0;
+				$resultLink['BANK_DETAIL_ID'] = 0;
+			}
+		}
+
+		if ($resultLink['CLIENT_ENTITY_TYPE_ID'] === \CCrmOwnerType::Company && $resultLink['CLIENT_ENTITY_ID'] > 0)
+		{
+			if (self::isMyCompany($resultLink['CLIENT_ENTITY_ID']))
+			{
+				$resultLink['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+				$resultLink['CLIENT_ENTITY_ID'] = 0;
+				$resultLink['REQUISITE_ID'] = 0;
+				$resultLink['BANK_DETAIL_ID'] = 0;
+				$resetClientRequisite = true;
+				$resetClientBankDetail = true;
+			}
+		}
+
+		if ($skipSeller)
+		{
+			$resultLink['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+			$resultLink['SELLER_ENTITY_ID'] = 0;
+			$resultLink['MC_REQUISITE_ID'] = 0;
+			$resultLink['MC_BANK_DETAIL_ID'] = 0;
+		}
+		else
+		{
+			if ($sellerEntityTypeId === \CCrmOwnerType::Company && $sellerEntityId !== null && $sellerEntityId >= 0)
+			{
+				$resultLink['SELLER_ENTITY_TYPE_ID'] = $sellerEntityTypeId;
+				$resultLink['SELLER_ENTITY_ID'] = $sellerEntityId;
+
+				if ($sellerEntityTypeId !== $currentLink['SELLER_ENTITY_TYPE_ID']
+					|| $sellerEntityId !== $currentLink['SELLER_ENTITY_ID'])
+				{
+					$resultLink['MC_REQUISITE_ID'] = 0;
+					$resultLink['MC_BANK_DETAIL_ID'] = 0;
+				}
+			}
+		}
+
+		if ($resultLink['SELLER_ENTITY_TYPE_ID'] === \CCrmOwnerType::Company && $resultLink['SELLER_ENTITY_ID'] > 0)
+		{
+			if (!self::isMyCompany($resultLink['SELLER_ENTITY_ID']))
+			{
+				$resultLink['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+				$resultLink['SELLER_ENTITY_ID'] = 0;
+				$resultLink['MC_REQUISITE_ID'] = 0;
+				$resultLink['MC_BANK_DETAIL_ID'] = 0;
+				$resetSellerRequisite = true;
+				$resetSellerBankDetail = true;
+			}
+		}
+
+		$defaultMyCompanyId = null;
+
+		$needBankDetailId = true;
+		if ($resetClientRequisite || $requisiteId === null)
+		{
+			if ($resultLink['REQUISITE_ID'] <= 0)
+			{
+				$link = self::getDefaultEntityRequisiteLink(
+					$parentEntityList,
+					$resultLink['CLIENT_ENTITY_TYPE_ID'],
+					$resultLink['CLIENT_ENTITY_ID']
+				);
+				$resultLink['REQUISITE_ID'] = $link['REQUISITE_ID'];
+				if ($resetClientBankDetail || $bankDetailId === null)
+				{
+					$resultLink['BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+					$needBankDetailId = false;
+				}
+			}
+		}
+		else
+		{
+			$resultLink['REQUISITE_ID'] = $requisiteId;
+		}
+		if ($resetClientBankDetail || $bankDetailId === null)
+		{
+			if ($needBankDetailId && $resultLink['REQUISITE_ID'] > 0 && $resultLink['BANK_DETAIL_ID'] <= 0)
+			{
+				$link = self::getDefaultEntityRequisiteLink(
+					$parentEntityList,
+					$resultLink['CLIENT_ENTITY_TYPE_ID'],
+					$resultLink['CLIENT_ENTITY_ID'],
+					$resultLink['REQUISITE_ID']
+				);
+				$resultLink['REQUISITE_ID'] = $link['REQUISITE_ID'];
+				$resultLink['BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+			}
+		}
+		else
+		{
+			$resultLink['BANK_DETAIL_ID'] = $bankDetailId;
+		}
+		if (!$skipSeller)
+		{
+
+			if (($resultLink['SELLER_ENTITY_TYPE_ID'] !== \CCrmOwnerType::Company
+					|| $resultLink['SELLER_ENTITY_ID'] <= 0)
+				&& $sellerEntityId !== 0)
+			{
+				if ($defaultMyCompanyId === null)
+				{
+					$defaultMyCompanyId = self::getDefaultMyCompanyId();
+				}
+				if ($defaultMyCompanyId > 0)
+				{
+					$resultLink['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
+					$resultLink['SELLER_ENTITY_ID'] = $defaultMyCompanyId;
+					$resultLink['MC_REQUISITE_ID'] = 0;
+					$resultLink['MC_BANK_DETAIL_ID'] = 0;
+					$resetSellerRequisite = true;
+					$resetSellerBankDetail = true;
+				}
+				else
+				{
+					$resultLink['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+					$resultLink['SELLER_ENTITY_ID'] = 0;
+					$resultLink['MC_REQUISITE_ID'] = 0;
+					$resultLink['MC_BANK_DETAIL_ID'] = 0;
+				}
+			}
+
+			$needBankDetailId = true;
+			if ($resetSellerRequisite || $mcRequisiteId === null)
+			{
+				if ($resultLink['MC_REQUISITE_ID'] <= 0)
+				{
+					$link = self::getDefaultEntityRequisiteLink(
+						$parentEntityList,
+						$resultLink['SELLER_ENTITY_TYPE_ID'],
+						$resultLink['SELLER_ENTITY_ID'],
+						0,
+						true
+					);
+					$resultLink['MC_REQUISITE_ID'] = $link['REQUISITE_ID'];
+					if ($resetSellerBankDetail || $mcBankDetailId === null)
+					{
+						$resultLink['MC_BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+						$needBankDetailId = false;
+					}
+				}
+			}
+			else
+			{
+				$resultLink['MC_REQUISITE_ID'] = $mcRequisiteId;
+			}
+			if ($resetSellerBankDetail || $mcBankDetailId === null)
+			{
+				if ($needBankDetailId && $resultLink['MC_REQUISITE_ID'] > 0 && $resultLink['MC_BANK_DETAIL_ID'] <= 0)
+				{
+					$link = self::getDefaultEntityRequisiteLink(
+						$parentEntityList,
+						$resultLink['SELLER_ENTITY_TYPE_ID'],
+						$resultLink['SELLER_ENTITY_ID'],
+						$resultLink['MC_REQUISITE_ID'],
+						true
+					);
+					$resultLink['MC_REQUISITE_ID'] = $link['REQUISITE_ID'];
+					$resultLink['MC_BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+				}
+			}
+			else
+			{
+				$resultLink['MC_BANK_DETAIL_ID'] = $mcBankDetailId;
+			}
+		}
+
+		$continueCheck = true;
+		while ($continueCheck)
+		{
+			$continueCheck = false;
+			try
+			{
+				self::checkConsistence(
+					$entityTypeId, $entityId,
+					$resultLink['REQUISITE_ID'], $resultLink['BANK_DETAIL_ID'],
+					$resultLink['MC_REQUISITE_ID'], $resultLink['MC_BANK_DETAIL_ID'],
+					[
+						'ENTITY_CHECK' => $entityExists,
+						'IS_MY_COMPANY_CHECK' => false,
+						'CLIENT_SELLER_INFO' => [
+							'CLIENT_ENTITY_TYPE_ID' => $resultLink['CLIENT_ENTITY_TYPE_ID'],
+							'CLIENT_ENTITY_ID' => $resultLink['CLIENT_ENTITY_ID'],
+							'MYCOMPANY_ID' => $resultLink['SELLER_ENTITY_ID']
+						]
+					]
+				);
+			}
+			catch (Main\SystemException $e)
+			{
+				$continueCheck = true;
+				switch ($e->getCode())
+				{
+					case self::ERR_INVALID_ENTITY_TYPE:
+					case self::ERR_INVALID_ENTITY_ID:
+						$resultLink['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+						$resultLink['CLIENT_ENTITY_ID'] = 0;
+						$resultLink['REQUISITE_ID'] = 0;
+						$resultLink['BANK_DETAIL_ID'] = 0;
+						$resultLink['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+						$resultLink['SELLER_ENTITY_ID'] = 0;
+						$resultLink['MC_REQUISITE_ID'] = 0;
+						$resultLink['MC_BANK_DETAIL_ID'] = 0;
+						$continueCheck = false;
+						break;
+					case self::ERR_REQUISITE_TIED_TO_ENTITY_WITHOUT_CLIENT:
+						$resultLink['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+						$resultLink['CLIENT_ENTITY_ID'] = 0;
+						$resultLink['REQUISITE_ID'] = 0;
+						$resultLink['BANK_DETAIL_ID'] = 0;
+						break;
+					case self::ERR_INVALID_REQUSIITE_ID:
+					case self::ERR_REQUISITE_NOT_FOUND:
+					case self::ERR_REQUISITE_NOT_ASSIGNED:
+						$link = self::getDefaultEntityRequisiteLink(
+							$parentEntityList,
+							$resultLink['CLIENT_ENTITY_TYPE_ID'],
+							$resultLink['CLIENT_ENTITY_ID']
+						);
+						$resultLink['REQUISITE_ID'] = $link['REQUISITE_ID'];
+						$resultLink['BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+						unset($link);
+						break;
+					case self::ERR_INVALID_BANK_DETAIL_ID:
+					case self::ERR_BANK_DETAIL_NOT_ASSIGNED_WO_REQUISITE:
+					case self::ERR_BANK_DETAIL_NOT_FOUND:
+					case self::ERR_BANK_DETAIL_NOT_ASSIGNED:
+						if ($requisiteId === 0)
+						{
+							$resultLink['BANK_DETAIL_ID'] = 0;
+						}
+						else
+						{
+							$link = self::getDefaultEntityRequisiteLink(
+								$parentEntityList,
+								$resultLink['CLIENT_ENTITY_TYPE_ID'],
+								$resultLink['CLIENT_ENTITY_ID'],
+								$resultLink['REQUISITE_ID']
+							);
+							$resultLink['REQUISITE_ID'] = $link['REQUISITE_ID'];
+							$resultLink['BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+						}
+						break;
+					case self::ERR_MC_REQUISITE_TIED_TO_ENTITY_WITHOUT_MYCOMPANY:
+						if ($defaultMyCompanyId === null)
+						{
+							$defaultMyCompanyId = self::getDefaultMyCompanyId();
+						}
+						if ($defaultMyCompanyId > 0)
+						{
+							$resultLink['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
+							$resultLink['SELLER_ENTITY_ID'] = $defaultMyCompanyId;
+
+							if ($resultLink['SELLER_ENTITY_TYPE_ID'] !== $currentLink['SELLER_ENTITY_TYPE_ID']
+								|| $resultLink['SELLER_ENTITY_ID'] !== $currentLink['SELLER_ENTITY_ID'])
+							{
+								$resultLink['MC_REQUISITE_ID'] = 0;
+								$resultLink['MC_BANK_DETAIL_ID'] = 0;
+							}
+						}
+						else
+						{
+							$resultLink['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;
+							$resultLink['SELLER_ENTITY_ID'] = 0;
+							$resultLink['MC_REQUISITE_ID'] = 0;
+							$resultLink['MC_BANK_DETAIL_ID'] = 0;
+						}
+						unset($defaultMyCompanyId);
+						break;
+					case self::ERR_INVALID_MC_REQUSIITE_ID:
+					case self::ERR_MC_REQUISITE_NOT_FOUND:
+					case self::ERR_MC_REQUISITE_NOT_ASSIGNED:
+						$link = self::getDefaultEntityRequisiteLink(
+							$parentEntityList,
+							$resultLink['SELLER_ENTITY_TYPE_ID'],
+							$resultLink['SELLER_ENTITY_ID'],
+							0,
+							true
+						);
+						$resultLink['MC_REQUISITE_ID'] = $link['REQUISITE_ID'];
+						$resultLink['MC_BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+						unset($link);
+						break;
+					case self::ERR_INVALID_MC_BANK_DETAIL_ID:
+					case self::ERR_MC_BANK_DETAIL_NOT_ASSIGNED_WO_MC_REQUISITE:
+					case self::ERR_MC_BANK_DETAIL_NOT_FOUND:
+					case self::ERR_MC_BANK_DETAIL_NOT_ASSIGNED:
+						if ($mcRequisiteId === 0)
+						{
+							$resultLink['MC_BANK_DETAIL_ID'] = 0;
+						}
+						else
+						{
+							$link = self::getDefaultEntityRequisiteLink(
+								$parentEntityList,
+								$resultLink['SELLER_ENTITY_TYPE_ID'],
+								$resultLink['SELLER_ENTITY_ID'],
+								$resultLink['MC_REQUISITE_ID'],
+								true
+							);
+							$resultLink['MC_REQUISITE_ID'] = $link['REQUISITE_ID'];
+							$resultLink['MC_BANK_DETAIL_ID'] = $link['BANK_DETAIL_ID'];
+							unset($link);
+						}
+						break;
+					default:
+						throw $e;
+				}
+			}
+		}
+
+		if ($modifyFields && is_array($entityFields))
+		{
+			switch ($entityTypeId)
+			{
+				case \CCrmOwnerType::Quote:
+					$entityFields['MYCOMPANY_ID'] = $resultLink['SELLER_ENTITY_ID'];
+					break;
+				case \CCrmOwnerType::Invoice:
+					$entityFields['UF_MYCOMPANY_ID'] = $resultLink['SELLER_ENTITY_ID'];
+					break;
+			}
+		}
+
+		return $resultLink;
 	}
 
 	/**

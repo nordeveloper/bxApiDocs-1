@@ -1,17 +1,8 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: Alexey
- * Date: 09.01.2015
- * Time: 17:41
- */
 
 namespace Bitrix\Sale;
 
-use Bitrix\Sale\Internals\OrderPropsRelationTable;
-use Bitrix\Sale\Internals\OrderPropsTable;
 use Bitrix\Sale\Internals\OrderPropsValueTable;
-use Bitrix\Sale\Internals\OrderPropsVariantTable;
 use Bitrix\Main;
 
 /**
@@ -197,9 +188,10 @@ class PropertyValue extends PropertyValueBase
 
 	/**
 	 * @param array $parameters
-	 *
-	 * @return Main\DB\Result
+	 * @return Main\DB\Result|Main\ORM\Query\Result
 	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public static function getList(array $parameters = array())
 	{

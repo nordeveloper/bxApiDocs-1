@@ -21,7 +21,7 @@ class Landing
 	 */
 	protected static function clearDisallowFields($fields)
 	{
-		$disallow = array('RULE');
+		$disallow = array('RULE', 'TPL_CODE', 'ACTIVE');
 
 		if (is_array($fields))
 		{
@@ -131,6 +131,28 @@ class Landing
 	}
 
 	/**
+	 * Cancel publication of landing.
+	 * @param int $lid Id of landing.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function unpublic($lid)
+	{
+		$result = new PublicActionResult();
+		$landing = LandingCore::createInstance($lid);
+
+		if ($landing->exist())
+		{
+			$result->setResult(
+				$landing->unpublic()
+			);
+		}
+
+		$result->setError($landing->getError());
+
+		return $result;
+	}
+
+	/**
 	 * Add new block to the landing.
 	 * @param int $lid Id of landing.
 	 * @param array $fields Data array of block.
@@ -153,7 +175,10 @@ class Landing
 			}
 			if (isset($fields['CONTENT']))
 			{
-				$data['CONTENT'] = Repo::sanitize($fields['CONTENT']);
+				$data['CONTENT'] = Manager::sanitize(
+					$fields['CONTENT'],
+					$bad
+				);
 			}
 			// sort
 			if (isset($fields['AFTER_ID']))
@@ -379,7 +404,7 @@ class Landing
 			{
 				$result->setResult(array(
 					'result' => $res > 0,
-					'content' => BlockCore::getBlockContent($res)
+					'content' => BlockCore::getBlockContent($res, true)
 				));
 			}
 			else
@@ -549,6 +574,7 @@ class Landing
 		$error = new \Bitrix\Landing\Error;
 
 		$fields = self::clearDisallowFields($fields);
+		$fields['ACTIVE'] = 'N';
 
 		$res = LandingCore::add($fields);
 
@@ -629,6 +655,8 @@ class Landing
 		$result = new PublicActionResult();
 		$error = new \Bitrix\Landing\Error;
 
+		LandingCore::disableCheckDeleted();
+
 		$landingRow = LandingCore::getList(array(
 			'filter' => array(
 				'ID' => $lid
@@ -686,7 +714,51 @@ class Landing
 
 		$result->setError($landing->getError());
 
+		LandingCore::enableCheckDeleted();
+
 		return $result;
+	}
+
+	/**
+	 * Mark entity as deleted.
+	 * @param int $lid Entity id.
+	 * @param boolean $mark Mark.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function markDelete($lid, $mark = true)
+	{
+		$result = new PublicActionResult();
+		$error = new \Bitrix\Landing\Error;
+
+		if ($mark)
+		{
+			$res = LandingCore::markDelete($lid);
+		}
+		else
+		{
+			$res = LandingCore::markUnDelete($lid);
+		}
+		if ($res->isSuccess())
+		{
+			$result->setResult($res->getId());
+		}
+		else
+		{
+			$error->addFromResult($res);
+			$result->setError($error);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Mark entity as undeleted.
+	 * @param int $lid Entity id.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function markUnDelete($lid)
+	{
+		return self::markDelete($lid, false);
 	}
 
 	/**

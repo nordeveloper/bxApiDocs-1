@@ -29,11 +29,29 @@ class Stepper
 		$updatersToShow = array();
 
 //		find active updaters
-		foreach (self::getUpdaterClasses() as $classId)
+		foreach (self::getUpdaterClasses() as $className)
 		{
-			if (Option::get('main.stepper.' . $moduleId, $classId, '') !== '')
+			if (Option::get('main.stepper.' . $moduleId, $className, '') !== '')
 			{
-				$updatersToShow[] = $classId;
+				if (self::checkAgentActivity($className))
+				{
+					$updatersToShow[] = $className;
+				}
+//				if not exist agent - something went wrong, need rollback
+				else
+				{
+					Option::delete('main.stepper.' . $moduleId, $className);
+					
+//					journal
+					$eventLog = new \CEventLog;
+					$eventLog->Add(array(
+						"SEVERITY" => $eventLog::SEVERITY_WARNING,
+						"AUDIT_TYPE_ID" => 'LANDING_STEPPER',
+						"MODULE_ID" => "landing",
+						"ITEM_ID" => $className,
+						"DESCRIPTION" => 'Stepper is running, but agent not exist. Stepper was deleted.',
+					));
+				}
 			}
 		}
 
@@ -44,5 +62,27 @@ class Stepper
 			echo \Bitrix\Main\Update\Stepper::getHtml(array($moduleId => $updatersToShow));
 			echo '</div>';
 		}
+	}
+	
+	
+	public static function checkAgentActivity($className)
+	{
+		global $DB;
+		
+		$className = trim($className, '\\');
+		$name = $DB->ForSql($className . "::execAgent();");
+		
+		$res = $DB->Query("
+			SELECT ID
+			FROM b_agent
+			WHERE NAME = '" . $name . "' OR NAME = '\\" . $name . "'
+			AND USER_ID IS NULL"
+		);
+		if (!($agent = $res->Fetch()))
+		{
+			return false;
+		}
+		
+		return true;
 	}
 }

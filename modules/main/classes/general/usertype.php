@@ -2375,25 +2375,29 @@ class CUserTypeManager
 	}
 
 	/**
-	 * @param      $entity_id
-	 * @param      $ID
-	 * @param      $arFields
-	 * @param bool $user_id False means current user id.
-	 * @param bool $checkRequired Whether to check required fields.
+	 * @param       $entity_id
+	 * @param       $ID
+	 * @param       $arFields
+	 * @param bool  $user_id False means current user id.
+	 * @param bool  $checkRequired Whether to check required fields.
+	 * @param array $requiredFields Conditionally required fields.
 	 * @return bool
 	 */
-	function CheckFields($entity_id, $ID, &$arFields, $user_id = false, $checkRequired = true)
+	function CheckFields($entity_id, $ID, &$arFields, $user_id = false, $checkRequired = true, array $requiredFields = null)
 	{
 		global $APPLICATION;
-
+		$requiredFieldMap = is_array($requiredFields) ? array_fill_keys($requiredFields, true) : null;
 		$aMsg = array();
 		//1 Get user typed fields list for entity
 		$arUserFields = $this->GetUserFields($entity_id, $ID, LANGUAGE_ID);
 		//2 For each field
 		foreach($arUserFields as $FIELD_NAME=>$arUserField)
 		{
+			$enableRequiredFieldCheck = $arUserField["MANDATORY"] === "Y"
+				? $checkRequired : ($requiredFieldMap && isset($requiredFieldMap[$FIELD_NAME]));
+
 			//common Check for all fields
-			if($checkRequired && $arUserField["MANDATORY"]=="Y" && ((isset($ID) && $ID <= 0) || isset($arFields[$FIELD_NAME])))
+			if($enableRequiredFieldCheck && ((isset($ID) && $ID <= 0) || array_key_exists($FIELD_NAME, $arFields)))
 			{
 				$EDIT_FORM_LABEL = strlen($arUserField["EDIT_FORM_LABEL"]) > 0 ? $arUserField["EDIT_FORM_LABEL"] : $arUserField["FIELD_NAME"];
 

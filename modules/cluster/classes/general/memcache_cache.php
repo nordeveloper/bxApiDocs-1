@@ -280,7 +280,7 @@ class CPHPCacheMemcacheCluster
 
 			if ($cachedData["datecreate"] < (time() - $TTL)) //has expired
 			{
-				if ($this->lock($baseDir, $initDir, $key."~", $TTL))
+				if ($this->lock($basedir, $initdir, $key."~", $TTL))
 				{
 					return false;
 				}

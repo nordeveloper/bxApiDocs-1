@@ -57,6 +57,20 @@ abstract class OrderBuilder
 		$this->registry = Registry::getInstance(Registry::REGISTRY_TYPE_ORDER);
 	}
 
+	public function build($data)
+	{
+		$this->createOrder($data)
+			->setDiscounts() //?
+			->setFields()
+			->setProperties()
+			->setUser()
+			->buildBasket()
+			->buildPayments()
+			->buildShipments()
+			->setDiscounts() //?
+			->finalActions();
+	}
+
 	public function setBasketBuilder(BasketBuilder $basketBuilder)
 	{
 		$this->basketBuilder = $basketBuilder;

@@ -242,8 +242,10 @@ final class CTaskTimerManager
 		$arTimer = CTaskTimerCore::stop($this->userId, $taskId);
 		$dateFormat = \Bitrix\Main\Type\Date::convertFormatToPhp(\CSite::GetDateFormat());
 
-		$dateStart = date($dateFormat, $arTimer['TIMER_STARTED_AT']);
-		$dateStop = date($dateFormat, $arTimer['TIMER_STARTED_AT'] + $arTimer['TIMER_ACCUMULATOR']);
+		$userOffset = \Bitrix\Tasks\Util\User::getTimeZoneOffset($this->userId);
+
+		$dateStart = date($dateFormat, $arTimer['TIMER_STARTED_AT'] + $userOffset);
+		$dateStop = date($dateFormat, $arTimer['TIMER_STARTED_AT'] + $arTimer['TIMER_ACCUMULATOR'] + $userOffset);
 
 		$this->cachedLastTimer = null;
 

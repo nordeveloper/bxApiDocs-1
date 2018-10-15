@@ -23,6 +23,11 @@ class Lead extends EntityBase
 		return self::$instance;
 	}
 
+	public function getEntityTypeID()
+	{
+		return \CCrmOwnerType::Lead;
+	}
+
 	//region Db
 	protected function getDbEntity()
 	{

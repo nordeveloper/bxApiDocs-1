@@ -715,7 +715,7 @@ class LeadConverter extends EntityConverter
 				//endregion
 
 				//Region automation
-				\Bitrix\Crm\Automation\Factory::runOnAdd(\CCrmOwnerType::Deal, $entityID);
+				Crm\Automation\Factory::runOnAdd(\CCrmOwnerType::Deal, $entityID);
 				//end region
 
 				self::setDestinationEntityID(
@@ -748,6 +748,11 @@ class LeadConverter extends EntityConverter
 				{
 					$fields['STATUS_ID'] = 'CONVERTED';
 					$entityUpdateOptions['ENABLE_ACTIVITY_COMPLETION'] = $this->isActivityCompletionEnabled();
+				}
+
+				if(!$this->isUserFieldCheckEnabled())
+				{
+					$entityUpdateOptions['DISABLE_USER_FIELD_CHECK'] = true;
 				}
 
 				$contactID = self::getDestinationEntityID(\CCrmOwnerType::ContactName, $this->resultData);

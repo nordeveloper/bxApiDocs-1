@@ -412,12 +412,6 @@ class CCrmEMail
 		if (!\CModule::includeModule('crm'))
 			return false;
 
-		$typeIds = array(
-			\CCrmOwnerType::Contact,
-			\CCrmOwnerType::Company,
-			\CCrmOwnerType::Lead
-		);
-
 		$messageId = isset($msgFields['ID']) ? intval($msgFields['ID']) : 0;
 		$mailboxId = isset($msgFields['MAILBOX_ID']) ? intval($msgFields['MAILBOX_ID']) : 0;
 
@@ -429,29 +423,42 @@ class CCrmEMail
 		if (empty($mailbox))
 			return false;
 
+		$isForced = !empty($msgFields['__forced']);
+
+		if (!$isForced && !empty($mailbox['OPTIONS']['crm_sync_from']))
+		{
+			$timestamp = makeTimestamp($msgFields['FIELD_DATE'], FORMAT_DATETIME) - \CTimeZone::getOffset();
+			if ($timestamp < (int) $mailbox['OPTIONS']['crm_sync_from'])
+			{
+				return false;
+			}
+		}
+
 		$mailbox['__email'] = '';
 		if (check_email($mailbox['NAME'], true))
 			$mailbox['__email'] = $mailbox['NAME'];
 		else if (check_email($mailbox['LOGIN'], true))
 			$mailbox['__email'] = $mailbox['LOGIN'];
 
-		$denyNewEntityIn  = false;
+		$publicBindings = false;
+		$denyNewEntityIn = false;
 		$denyNewEntityOut = false;
-		$denyNewContact   = false;
+		$denyNewContact = false;
 
 		if (!empty($mailbox['OPTIONS']['flags']) && is_array($mailbox['OPTIONS']['flags']))
 		{
-			$denyNewEntityIn  = in_array('crm_deny_new_lead', $mailbox['OPTIONS']['flags']);
-			$denyNewEntityIn  = $denyNewEntityIn || in_array('crm_deny_entity_in', $mailbox['OPTIONS']['flags']);
+			$publicBindings = in_array('crm_public_bind', $mailbox['OPTIONS']['flags']);
+			$denyNewEntityIn = in_array('crm_deny_new_lead', $mailbox['OPTIONS']['flags']);
+			$denyNewEntityIn = $denyNewEntityIn || in_array('crm_deny_entity_in', $mailbox['OPTIONS']['flags']);
 			$denyNewEntityOut = in_array('crm_deny_new_lead', $mailbox['OPTIONS']['flags']);
 			$denyNewEntityOut = $denyNewEntityOut || in_array('crm_deny_entity_out', $mailbox['OPTIONS']['flags']);
-			$denyNewContact  = in_array('crm_deny_new_contact', $mailbox['OPTIONS']['flags']);
+			$denyNewContact = in_array('crm_deny_new_contact', $mailbox['OPTIONS']['flags']);
 		}
 
 		$isIncome = empty($msgFields['IS_OUTCOME']);
 		$isUnseen = empty($msgFields['IS_SEEN']);
 
-		$userId = empty($mailbox['USER_ID']) ? 0 : $mailbox['USER_ID'];
+		$userId = 0;
 
 		$ownerTypeId = 0;
 		$ownerId     = 0;
@@ -521,9 +528,32 @@ class CCrmEMail
 		{
 			if (!$isIncome && preg_match('/<crm\.activity\.((\d+)-[0-9a-z]+)@[^>]+>/i', sprintf('<%s>', $msgId), $matches))
 			{
-				$matchActivity = \CCrmActivity::getById($matches[2], false);
+				$matchActivity = \CCrmActivity::getList(
+					array(),
+					array(
+						'ID' => $matches[2],
+						'CHECK_PERMISSIONS' => 'N',
+					),
+					false,
+					false,
+					array('ID', 'URN', 'UF_MAIL_MESSAGE')
+				)->fetch();
 				if ($matchActivity && strtolower($matchActivity['URN']) == strtolower($matches[1]))
+				{
+					if ($matchActivity['UF_MAIL_MESSAGE'] != $messageId)
+					{
+						\CCrmActivity::update(
+							$matchActivity['ID'],
+							array(
+								'UF_MAIL_MESSAGE' => $messageId,
+							),
+							false,
+							false
+						);
+					}
+
 					return false;
+				}
 			}
 		}
 
@@ -556,7 +586,6 @@ class CCrmEMail
 					$employee = \Bitrix\Mail\MailboxTable::getList(array(
 						'select' => array('NAME', 'LOGIN'),
 						'filter' => array(
-							//'!USER_ID' => null,
 							'=ACTIVE'  => 'Y',
 							array(
 								'LOGIC' => 'OR',
@@ -591,7 +620,6 @@ class CCrmEMail
 					$res = \Bitrix\Mail\MailboxTable::getList(array(
 						'select' => array('NAME', 'LOGIN'),
 						'filter' => array(
-							//'!USER_ID' => null,
 							'=ACTIVE'  => 'Y',
 							array(
 								'LOGIC' => 'OR',
@@ -612,20 +640,129 @@ class CCrmEMail
 			}
 		}
 
+		// initialize responsible queue
+		$respQueue = array();
+		{
+			$respOption = array_values(array_unique((array) $mailbox['OPTIONS']['crm_lead_resp']));
+			if (empty($respOption) && $mailbox['USER_ID'] > 0)
+			{
+				$respOption = array($mailbox['USER_ID']);
+			}
+
+			if (!empty($respOption))
+			{
+				$res = \Bitrix\Main\UserTable::getList(array(
+					'select' => array('ID', 'ACTIVE'),
+					'filter' => array(
+						'@ID' => $respOption,
+						'=ACTIVE' => 'Y',
+					),
+				));
+
+				$respActive = array();
+
+				while ($resp = $res->fetch())
+				{
+					$respQueue[] = $resp['ID'];
+
+					if ($resp['ACTIVE'] == 'Y')
+					{
+						$respActive[] = $resp['ID'];
+					}
+				}
+
+				if (!empty($respActive))
+				{
+					$respQueue = $respActive;
+				}
+
+				$respOrder = array_flip($respOption);
+				usort(
+					$respQueue,
+					function ($a, $b) use (&$respOrder)
+					{
+						return isset($respOrder[$a], $respOrder[$b]) ? $respOrder[$a]-$respOrder[$b] : 0;
+					}
+				);
+
+				if (count($respOption) > 0 && count($respActive) == count($respOption))
+				{
+					\Bitrix\Main\Config\Option::set('crm', 'email_resp_queue_ok_'.$mailboxId, 'Y');
+				}
+				else
+				{
+					$shouldNotify = \Bitrix\Main\Config\Option::get('crm', 'email_resp_queue_ok_' . $mailboxId, 'Y') == 'Y';
+					if ($shouldNotify && \CModule::includeModule('im'))
+					{
+						\Bitrix\Main\Config\Option::set('crm', 'email_resp_queue_ok_' . $mailboxId, 'N');
+
+						$configUrl = str_replace(
+							'#id#',
+							$mailboxId,
+							\Bitrix\Main\Config\Option::get('intranet', 'path_mail_config', '/mail/', $mailbox['LID'])
+						);
+
+						$internalMessage = getMessage('CRM_EMAIL_BAD_RESP_QUEUE', array(
+							'#EMAIL#'      => htmlspecialcharsbx($mailbox['NAME']),
+							'#CONFIG_URL#' => htmlspecialcharsbx($configUrl),
+						));
+						$externalMessage = getMessage('CRM_EMAIL_BAD_RESP_QUEUE', array(
+							'#EMAIL#'      => htmlspecialcharsbx($mailbox['NAME']),
+							'#CONFIG_URL#' => htmlspecialcharsbx(\CCrmUrlUtil::toAbsoluteUrl($configUrl)),
+						));
+
+						\CCrmNotifier::notify(
+							$mailbox['USER_ID'],
+							$internalMessage,
+							$externalMessage,
+							0,
+							'email_resp_queue_ok_' . $mailboxId
+						);
+					}
+				}
+			}
+
+			if (empty($respQueue))
+			{
+				$respQueue = array_column(self::getAdminsList(), 'ID') ?: array(1);
+			}
+		}
+
 		$targetActivity = Bitrix\Crm\Activity\Provider\Email::getParentByEmail($msgFields);
 		if (!empty($targetActivity))
 		{
-			if (empty($mailbox['USER_ID']))
+			$parentId = $targetActivity['ID'];
+
+			$isForced = true;
+
+			switch ($targetActivity['OWNER_TYPE_ID'])
 			{
-				$userId = $targetActivity['RESPONSIBLE_ID'];
+				case \CCrmOwnerType::Deal:
+					$owner = \Bitrix\Crm\DealTable::getList(array(
+						'select' => array('ID', 'ASSIGNED_BY_ID'),
+						'filter' => array(
+							'=ID' => $targetActivity['OWNER_ID'],
+							'@ASSIGNED_BY_ID' => $respQueue,
+							'=STAGE_SEMANTIC_ID' => \Bitrix\Crm\PhaseSemantics::PROCESS,
+						),
+					))->fetch();
+					break;
+				case \CCrmOwnerType::Lead:
+					$owner = \Bitrix\Crm\LeadTable::getList(array(
+						'select' => array('ID', 'ASSIGNED_BY_ID'),
+						'filter' => array(
+							'=ID' => $targetActivity['OWNER_ID'],
+							'@ASSIGNED_BY_ID' => $respQueue,
+							'=STATUS_SEMANTIC_ID' => \Bitrix\Crm\PhaseSemantics::PROCESS,
+						),
+					))->fetch();
+					break;
 			}
 
-			if ($userId == $targetActivity['RESPONSIBLE_ID'])
+			if (!empty($owner))
 			{
-				$parentId = $targetActivity['ID'];
-
 				$ownerTypeId = $targetActivity['OWNER_TYPE_ID'];
-				$ownerId     = $targetActivity['OWNER_ID'];
+				$ownerId = $targetActivity['OWNER_ID'];
 			}
 		}
 
@@ -641,22 +778,39 @@ class CCrmEMail
 			}
 		}
 
-		if (!empty($mailbox['USER_ID']))
+		$rankingModifier = function ($ranking) use (&$respQueue)
 		{
-			$permissions = \CCrmPerms::getUserPermissions($mailbox['USER_ID']);
-			$rankingModifier = function ($ranking) use (&$permissions)
-			{
-				$typeId = $ranking->getEntityTypeId();
+			$knownTypes = array(
+				\CCrmOwnerType::Contact => 'CCrmContact',
+				\CCrmOwnerType::Company => 'CCrmCompany',
+				\CCrmOwnerType::Lead => 'CCrmLead',
+			);
 
-				$ranking->setRankedList(array_values(array_filter(
-					(array) $ranking->getRankedList(),
-					function ($id) use ($typeId, &$permissions)
-					{
-						return \CCrmAuthorizationHelper::checkReadPermission($typeId, $id, $permissions);
-					}
-				)));
-			};
-		}
+			$typeId = $ranking->getEntityTypeId();
+			$list = array();
+
+			if (array_key_exists($typeId, $knownTypes) && !empty($ranking->getRankedList()))
+			{
+				$res = $knownTypes[$typeId]::getListEx(
+					array(),
+					array(
+						'ID' => (array) $ranking->getRankedList(),
+						'ASSIGNED_BY_ID' => $respQueue,
+						'CHECK_PERMISSIONS' => 'N',
+					),
+					false,
+					false,
+					array('ID')
+				);
+
+				while ($item = $res->fetch())
+				{
+					$list[] = $item['ID'];
+				}
+			}
+
+			$ranking->setRankedList($list);
+		};
 
 		$newEntityTypeId = \CCrmOwnerType::Lead;
 
@@ -673,6 +827,11 @@ class CCrmEMail
 			$commAddress = $filteredAddress;
 
 			$facility = new \Bitrix\Crm\EntityManageFacility();
+
+			if ($isForced)
+			{
+				$facility->getSelector()->disableExclusionChecking();
+			}
 		}
 		else
 		{
@@ -682,12 +841,38 @@ class CCrmEMail
 				$itemFacility = new \Bitrix\Crm\EntityManageFacility();
 				$itemFacility->getSelector()->appendEmailCriterion($item->getEmail());
 
-				if (!empty($mailbox['USER_ID']))
+				if (!$publicBindings)
 				{
 					$itemFacility->getSelector()->getRanking()->addModifier($rankingModifier);
 				}
 
+				if ($isForced)
+				{
+					$itemFacility->getSelector()->disableExclusionChecking();
+				}
+
 				$itemFacility->getSelector()->search();
+
+				// @TODO: fix ActualEntitySelector
+				if (!$publicBindings && $itemFacility->getSelector()->getLeadId() > 0)
+				{
+					$checkedLead = \CCrmLead::getListEx(
+						array(),
+						array(
+							'ID' => $itemFacility->getSelector()->getLeadId(),
+							'ASSIGNED_BY_ID' => $respQueue,
+							'CHECK_PERMISSIONS' => 'N',
+						),
+						false,
+						false,
+						array('ID')
+					)->fetch();
+
+					if (empty($checkedLead))
+					{
+						$itemFacility->getSelector()->set('leadId', null);
+					}
+				}
 
 				if ($itemFacility->getSelector()->hasExclusions())
 				{
@@ -741,31 +926,6 @@ class CCrmEMail
 
 			if ($parentId > 0 && ($ownerTypeId > 0 && $ownerId > 0))
 			{
-				switch ($ownerTypeId)
-				{
-					case \CCrmOwnerType::Deal:
-						$owner = \Bitrix\Crm\DealTable::getList(array(
-							'select' => array('ID'),
-							'filter' => array(
-								'=ID' => $ownerId,
-								'=STAGE_SEMANTIC_ID' => \Bitrix\Crm\PhaseSemantics::PROCESS,
-							),
-						))->fetch();
-						break;
-					case \CCrmOwnerType::Lead:
-						$owner = \Bitrix\Crm\LeadTable::getList(array(
-							'select' => array('ID'),
-							'filter' => array(
-								'=ID' => $ownerId,
-								'=STATUS_SEMANTIC_ID' => \Bitrix\Crm\PhaseSemantics::PROCESS,
-							),
-						))->fetch();
-						break;
-				}
-			}
-
-			if (!empty($owner))
-			{
 				$cantCreate = true;
 
 				$emailFacility->setOwner($ownerTypeId, $ownerId);
@@ -796,110 +956,25 @@ class CCrmEMail
 			}
 		}
 
-		if (empty($emailFacility->getBindings()) && !$facility->canAddEntity($newEntityTypeId))
+		if ($facility->canAddEntity($newEntityTypeId))
+		{
+			$luckyOne = \Bitrix\Main\Config\Option::get('crm', 'last_resp_' . $mailboxId, -1) + 1;
+			if ($luckyOne > count($respQueue) - 1)
+			{
+				$luckyOne = 0;
+			}
+
+			\Bitrix\Main\Config\Option::set('crm', 'last_resp_' . $mailboxId, $luckyOne);
+
+			$userId = $respQueue[$luckyOne];
+		}
+		else if (!empty($emailFacility->getBindings()))
+		{
+			$userId = $emailFacility->getOwnerResponsibleId();
+		}
+		else
 		{
 			return false;
-		}
-
-		if (empty($mailbox['USER_ID']))
-		{
-			if (!empty($emailFacility->getBindings()))
-			{
-				$canRead = false;
-				if ($userId > 0)
-				{
-					$canRead = \CCrmAuthorizationHelper::checkReadPermission(
-						$emailFacility->getOwnerTypeId(),
-						$emailFacility->getOwnerId(),
-						\CCrmPerms::getUserPermissions($userId)
-					);
-				}
-
-				if (!$canRead)
-				{
-					$userId = $emailFacility->getOwnerResponsibleId();
-				}
-			}
-
-			if ($facility->canAddEntity($newEntityTypeId) && !($userId > 0))
-			{
-				$respOption = array_values(array_unique((array) $mailbox['OPTIONS']['crm_lead_resp']));
-				$respQueue  = array();
-
-				$res = \Bitrix\Main\UserTable::getList(array(
-					'select' => array('ID', 'ACTIVE'),
-					'filter' => array(
-						'ID' => $respOption,
-					),
-				));
-
-				while ($resp = $res->fetch())
-				{
-					if ($resp['ACTIVE'] == 'Y')
-					{
-						$respQueue[] = $resp['ID'];
-					}
-				}
-
-				/* @TODO
-				$respOrder = array_flip($respOption);
-				$orderCompare = function ($a, $b) use (&$respOrder)
-				{
-					return isset($respOrder[$a], $respOrder[$b]) ? $respOrder[$a]-$respOrder[$b] : 0;
-				};
-				usort($respQueue, $orderCompare);
-				*/
-
-				if (count($respOption) > 0 && count($respQueue) == count($respOption))
-				{
-					\Bitrix\Main\Config\Option::set('crm', 'email_resp_queue_ok_'.$mailboxId, 'Y');
-				}
-				else
-				{
-					$shouldNotify = \Bitrix\Main\Config\Option::get('crm', 'email_resp_queue_ok_'.$mailboxId, 'Y') == 'Y';
-					if ($shouldNotify && \CModule::includeModule('im'))
-					{
-						\Bitrix\Main\Config\Option::set('crm', 'email_resp_queue_ok_'.$mailboxId, 'N');
-
-						$configUrl = \Bitrix\Main\Config\Option::get('crm', 'path_to_emailtracker');
-
-						$internalMessage = getMessage('CRM_EMAIL_BAD_RESP_QUEUE', array(
-							'#EMAIL#'      => htmlspecialcharsbx($mailbox['NAME']),
-							'#CONFIG_URL#' => htmlspecialcharsbx($configUrl),
-						));
-						$externalMessage = getMessage('CRM_EMAIL_BAD_RESP_QUEUE', array(
-							'#EMAIL#'      => htmlspecialcharsbx($mailbox['NAME']),
-							'#CONFIG_URL#' => htmlspecialcharsbx(\CCrmUrlUtil::toAbsoluteUrl($configUrl)),
-						));
-
-						foreach (self::getAdminsList() as $admin)
-						{
-							\CCrmNotifier::notify(
-								$admin['ID'],
-								$internalMessage,
-								$externalMessage,
-								0,
-								'email_resp_queue_ok_'.$mailboxId
-							);
-						}
-					}
-				}
-
-				if (count($respQueue) > 0)
-				{
-					$luckyOne = \Bitrix\Main\Config\Option::get('crm', 'last_resp_'.$mailboxId, -1) + 1;
-					if ($luckyOne > count($respQueue)-1)
-						$luckyOne = 0;
-					\Bitrix\Main\Config\Option::set('crm', 'last_resp_'.$mailboxId, $luckyOne);
-
-					$userId = $respQueue[$luckyOne];
-				}
-			}
-
-			if (!($userId > 0))
-			{
-				$userId = reset(self::getAdminsList())['ID'];
-			}
 		}
 
 		if (\CCrmOwnerType::Contact == $newEntityTypeId)
@@ -1003,7 +1078,7 @@ class CCrmEMail
 		$ownerTypeId = $emailFacility->getOwnerTypeId();
 		$ownerId     = $emailFacility->getOwnerId();
 
-		$attachmentMaxSizeMb = (int) \COption::getOptionString('crm', 'email_attachment_max_size', 16);
+		$attachmentMaxSizeMb = (int) \COption::getOptionString('crm', 'email_attachment_max_size', 24);
 		$attachmentMaxSize = $attachmentMaxSizeMb > 0 ? $attachmentMaxSizeMb*1024*1024 : 0;
 
 		$filesData = array();
@@ -1186,7 +1261,7 @@ class CCrmEMail
 			'START_TIME'           => (string) $datetime,
 			'END_TIME'             => (string) $deadline,
 			'COMPLETED'            => $completed,
-			'AUTHOR_ID'            => $userId,
+			'AUTHOR_ID'            => $mailbox['USER_ID'],
 			'RESPONSIBLE_ID'       => $userId,
 			'PRIORITY'             => \CCrmActivityPriority::Medium,
 			'DESCRIPTION'          => $descr,
@@ -1206,6 +1281,7 @@ class CCrmEMail
 					'bcc'     => $bcc,
 				),
 			),
+			'UF_MAIL_MESSAGE' => $messageId,
 		);
 
 		if (!empty($isIncome ? $sender : $rcpt))
@@ -2005,7 +2081,7 @@ class CCrmEMail
 		}
 
 		// Precessing of attachments -->
-		$attachmentMaxSizeMb = intval(COption::GetOptionString('crm', 'email_attachment_max_size', 16));
+		$attachmentMaxSizeMb = intval(COption::GetOptionString('crm', 'email_attachment_max_size', 24));
 		$attachmentMaxSize = $attachmentMaxSizeMb > 0 ? ($attachmentMaxSizeMb * 1048576) : 0;
 
 		$arFilesData = array();
@@ -2221,6 +2297,304 @@ class CCrmEMail
 		// <-- Creating new activity
 		return true;
 	}
+
+	/**
+	 * Creates email activity.
+	 *
+	 * @param array $messageFields Email params.
+	 * @param array $activityFields Activity params.
+	 *
+	 * @return bool
+	 *
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function createOutgoingMessageActivity(&$messageFields, &$activityFields)
+	{
+		if(!CModule::IncludeModule('crm'))
+		{
+			return false;
+		}
+
+		$userId = isset($activityFields['RESPONSIBLE_ID']) ? (int)$activityFields['RESPONSIBLE_ID'] : \CCrmSecurityHelper::GetCurrentUserID();
+
+		$now = convertTimeStamp(time() + \CTimeZone::getOffset(), 'FULL', SITE_ID);
+
+		$from    = isset($messageFields['FROM']) ? $messageFields['FROM'] : '';
+		$replyTo = isset($messageFields['REPLY_TO']) ? $messageFields['REPLY_TO'] : '';
+
+		$to  = isset($messageFields['TO']) ? $messageFields['TO'] : array();
+		$cc  = isset($messageFields['CC']) ? $messageFields['CC'] : array();
+		$bcc = isset($messageFields['BCC']) ? $messageFields['BCC'] : array();
+
+		$subject   = trim($messageFields['SUBJECT']) ?: getMessage('CRM_EMAIL_DEFAULT_SUBJECT');
+		$body = isset($messageFields['BODY']) ? $messageFields['BODY'] : '';
+
+		// Bindings & Communications
+		$arCommunications = isset($activityFields['COMMUNICATIONS']) ? $activityFields['COMMUNICATIONS'] : array();
+
+		$arBindings = array();
+		$arComms = array();
+
+		$socNetLogDestTypes = array(
+			\CCrmOwnerType::LeadName => 'leads',
+			\CCrmOwnerType::DealName => 'deals',
+			\CCrmOwnerType::ContactName => 'contacts',
+			\CCrmOwnerType::CompanyName => 'companies',
+		);
+
+		foreach ($arCommunications as &$commDatum)
+		{
+			$commID = isset($commDatum['id']) ? intval($commDatum['id']) : 0;
+			$commEntityType = isset($commDatum['entityType']) ? strtolower(strval($commDatum['entityType'])) : '';
+			$commEntityType = array_search($commEntityType, $socNetLogDestTypes);
+			$commEntityID = isset($commDatum['entityId']) ? intval($commDatum['entityId']) : 0;
+
+			$commType = isset($commDatum['type']) ? strtoupper(strval($commDatum['type'])) : '';
+			if($commType === '')
+			{
+				$commType = 'EMAIL';
+			}
+			$commValue = isset($commDatum['value']) ? strval($commDatum['value']) : '';
+
+			if($commType === 'EMAIL' && $commValue !== '')
+			{
+				if(!check_email($commValue))
+				{
+					// ignoring
+					continue;
+				}
+
+				$rcptFieldName = 'to';
+				if (isset($commDatum['__field']))
+				{
+					$commDatum['__field'] = strtolower($commDatum['__field']);
+					if (in_array($commDatum['__field'], array('to', 'cc', 'bcc')))
+					{
+						$rcptFieldName = $commDatum['__field'];
+					}
+				}
+
+				${$rcptFieldName}[] = strtolower(trim($commValue));
+			}
+
+			$key = md5(sprintf(
+				'%s_%u_%s_%s',
+				$commEntityType,
+				$commEntityID,
+				$commType,
+				strtolower(trim($commValue))
+			));
+			$arComms[$key] = array(
+				'ID' => $commID,
+				'TYPE' => $commType,
+				'VALUE' => $commValue,
+				'ENTITY_ID' => $commEntityID,
+				'ENTITY_TYPE_ID' => \CCrmOwnerType::ResolveID($commEntityType)
+			);
+
+			if($commEntityType !== '')
+			{
+				$bindingKey = $commEntityID > 0 ? "{$commEntityType}_{$commEntityID}" : uniqid("{$commEntityType}_");
+				if(!isset($arBindings[$bindingKey]))
+				{
+					$arBindings[$bindingKey] = array(
+						'OWNER_TYPE_ID' => \CCrmOwnerType::ResolveID($commEntityType),
+						'OWNER_ID' => $commEntityID
+					);
+				}
+			}
+		}
+		unset($commDatum);
+
+		$to  = array_unique($to);
+		$cc  = array_unique($cc);
+		$bcc = array_unique($bcc);
+
+		// owner entity
+		$ownerBounded = false;
+
+		$ownerTypeId = 0;
+		$ownerId     = 0;
+
+		$typesPriority = array(
+			\CCrmOwnerType::Contact => 2,
+			\CCrmOwnerType::Company => 3,
+			\CCrmOwnerType::Lead    => 4,
+		);
+
+		foreach ($arBindings as $item)
+		{
+			if ($ownerTypeId <= 0 || $typesPriority[$item['OWNER_TYPE_ID']] < $typesPriority[$ownerTypeId])
+			{
+				if (\CCrmActivity::checkUpdatePermission($item['OWNER_TYPE_ID'], $item['OWNER_ID']))
+				{
+					$ownerTypeId = $item['OWNER_TYPE_ID'];
+					$ownerId     = $item['OWNER_ID'];
+
+					$ownerBounded = true;
+				}
+			}
+		}
+
+		if (!$ownerBounded)
+		{
+			if (empty($arComms))
+			{
+				$activityFields['ERROR_CODE'] = 'ACTIVITY_COMMUNICATIONS_EMPTY_ERROR';
+			}
+			else
+			{
+				$activityFields['ERROR_CODE'] = 'ACTIVITY_PERMISSION_DENIED_ERROR';
+			}
+
+			return false;
+		}
+
+
+		\CCrmActivity::addEmailSignature($body, \CCrmContentType::Html);
+
+		$activityFields = array(
+			'OWNER_ID' => $ownerId,
+			'OWNER_TYPE_ID' => $ownerTypeId,
+			'TYPE_ID' => \CCrmActivityType::Email,
+			'SUBJECT' => $subject,
+			'START_TIME' => $now,
+			'END_TIME' => $now,
+			'COMPLETED' => 'Y',
+			'RESPONSIBLE_ID' => $userId,
+			'PRIORITY' => !empty($messageFields['IMPORTANT']) && $messageFields['IMPORTANT'] ? \CCrmActivityPriority::High : \CCrmActivityPriority::Medium,
+			'DESCRIPTION' => $body,
+			'DESCRIPTION_TYPE' => \CCrmContentType::Html,
+			'DIRECTION' => \CCrmActivityDirection::Outgoing,
+			'LOCATION' => '',
+			'NOTIFY_TYPE' => \CCrmActivityNotifyType::None,
+			'BINDINGS' => array_values($arBindings),
+			'COMMUNICATIONS' => $arComms,
+		);
+
+
+		$storageTypeID = isset($messageFields['STORAGE_TYPE_ID']) ? $messageFields['STORAGE_TYPE_ID'] : \CCrmActivity::GetDefaultStorageTypeID();
+		$activityFields['STORAGE_TYPE_ID'] = $storageTypeID;
+
+		if ($storageTypeID === \Bitrix\Crm\Integration\StorageType::Disk)
+		{
+			if (isset($messageFields['STORAGE_ELEMENT_IDS']) && is_array($messageFields['STORAGE_ELEMENT_IDS']))
+			{
+				$activityFields['STORAGE_ELEMENT_IDS'] =
+					\Bitrix\Crm\Integration\StorageManager::filterFiles($messageFields['STORAGE_ELEMENT_IDS'], $storageTypeID, $userId);
+			}
+		}
+
+		if (!($activityId = \CCrmActivity::Add($activityFields, false, false, array('REGISTER_SONET_EVENT' => true))))
+		{
+			$activityFields['ERROR_CODE'] = 'ACTIVITY_CREATE_ERROR';
+			$activityFields['ERROR_TEXT'] = \CCrmActivity::GetLastErrorMessage();
+
+			return false;
+		}
+
+
+
+		$activityFields['ID'] = $activityId;
+		$urn = \CCrmActivity::prepareUrn($activityFields);
+
+		$hostname = \COption::getOptionString('main', 'server_name', 'localhost');
+		if (defined('BX24_HOST_NAME') && BX24_HOST_NAME != '')
+		{
+			$hostname = BX24_HOST_NAME;
+		}
+		elseif (defined('SITE_SERVER_NAME') && SITE_SERVER_NAME != '')
+		{
+			$hostname = SITE_SERVER_NAME;
+		}
+
+		$messageId = sprintf('<crm.activity.%s@%s>', $urn, $hostname);
+		$messageFields['MSG_ID'] = $messageId;
+
+
+		$arRawFiles = array();
+		if (isset($activityFields['STORAGE_ELEMENT_IDS']) && !empty($activityFields['STORAGE_ELEMENT_IDS']))
+		{
+			foreach ((array)$activityFields['STORAGE_ELEMENT_IDS'] as $item)
+			{
+				$arRawFiles[$item] = \Bitrix\Crm\Integration\StorageManager::makeFileArray($item, $storageTypeID);
+
+				$fileInfo = \Bitrix\Crm\Integration\StorageManager::getFileInfo(
+					$item,
+					$storageTypeID,
+					false,
+					array('OWNER_TYPE_ID' => \CCrmOwnerType::Activity, 'OWNER_ID' => $activityId)
+				);
+
+				$body = preg_replace(
+					sprintf('/(https?:\/\/)?bxacid:n?%u/i', $item),
+					htmlspecialcharsbx($fileInfo['VIEW_URL']),
+					$body
+				);
+			}
+		}
+
+		\CCrmActivity::update($activityId, array(
+			'DESCRIPTION' => $body,
+			'URN' => $urn,
+			'SETTINGS' => array(
+				'MESSAGE_HEADERS' => array(
+					'Message-Id' => $messageId,
+					'Reply-To' => $replyTo,
+				),
+				'EMAIL_META' => array(
+					'__email' => $from,
+					'from' => $from,
+					'replyTo' => $replyTo,
+					'to' => implode(', ', $to),
+					'cc' => implode(', ', $cc),
+					'bcc' => implode(', ', $bcc),
+				),
+			),
+		), false, false, array('REGISTER_SONET_EVENT' => true));
+
+
+		//----------
+		// Try add event to entity
+		$crmEvent = new \CCrmEvent();
+
+		$eventText = '';
+		$eventText .= getMessage('CRM_EMAIL_SUBJECT').': '.$subject."\n\r";
+		$eventText .= getMessage('CRM_EMAIL_FROM').': '.$from."\n\r";
+		if (!empty($to))
+		{
+			$eventText .= getMessage('CRM_EMAIL_TO').': '.implode(',', $to)."\n\r";
+		}
+		if (!empty($cc))
+		{
+			$eventText .= 'Cc: '.implode(',', $cc)."\n\r";
+		}
+		if (!empty($bcc))
+		{
+			$eventText .= 'Bcc: '.implode(',', $bcc)."\n\r";
+		}
+		$eventText .= "\n\r";
+		$eventText .= $body;
+
+		// Register event only for owner
+		$crmEvent->Add(
+			array(
+				'ENTITY' => array(
+					$ownerId => array(
+						'ENTITY_TYPE' => \CCrmOwnerType::resolveName($ownerTypeId),
+						'ENTITY_ID' => $ownerId
+					)
+				),
+				'EVENT_ID' => 'MESSAGE',
+				'EVENT_NAME' => $subject,
+				'EVENT_TEXT_1' => $eventText,
+				'FILES' => array_values($arRawFiles),
+			)
+		);
+
+		return ($activityId > 0);
+	}
+
 	public static function EmailMessageCheck($arFields, $ACTION_VARS)
 	{
 		$arACTION_VARS = explode('&', $ACTION_VARS);

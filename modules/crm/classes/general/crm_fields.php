@@ -148,6 +148,11 @@ class CCrmFields
 				'ID' =>'CRM_INVOICE',
 				'NAME' => GetMessage('CRM_FIELDS_INVOICE'),
 				'DESC' => GetMessage('CRM_FIELDS_INVOICE_DESC')
+			),
+			'ORDER' => array(
+				'ID' => \Bitrix\Crm\Order\Manager::getUfId(),
+				'NAME' => GetMessage('CRM_FIELDS_ORDER'),
+				'DESC' => GetMessage('CRM_FIELDS_ORDER_DESC')
 			)
 		);
 		//DEFERRED: CustomType

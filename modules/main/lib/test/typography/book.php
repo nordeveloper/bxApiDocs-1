@@ -8,16 +8,10 @@
 
 namespace Bitrix\Main\Test\Typography;
 
-use Bitrix\Main\ORM\Objectify\EntityObject;
-
 /**
  * @package    bitrix
  * @subpackage main
  */
-class Book extends EntityObject
+class Book extends EO_Book
 {
-	public static function dataClass()
-	{
-		return BookTable::class;
-	}
 }

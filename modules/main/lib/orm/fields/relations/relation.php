@@ -40,7 +40,7 @@ abstract class Relation extends Field
 			{
 				/** @var EntityObject $refObjectClass */
 				$refObjectClass = $this->refEntityName;
-				$this->refEntityName = $refObjectClass::dataClass();
+				$this->refEntityName = $refObjectClass::$dataClass;
 			}
 
 			$this->refEntity = Entity::getInstance($this->refEntityName);

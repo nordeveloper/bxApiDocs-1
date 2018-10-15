@@ -23,17 +23,11 @@ Loc::loadMessages(__FILE__);
 class PropertyValueCollection extends PropertyValueCollectionBase
 {
 	/**
-	 * @return void
+	 * @return string
 	 */
-	public static function initJs()
+	public static function getRegistryType()
 	{
-		Input\Manager::initJs();
-		\CJSCore::RegisterExt('SaleOrderProperties', array(
-			'js'   => '/bitrix/js/sale/orderproperties.js',
-			'lang' => '/bitrix/modules/sale/lang/'.LANGUAGE_ID.'/lib/propertyvaluecollection.php',
-			'rel'  => array('input'),
-		));
-		\CJSCore::Init(array('SaleOrderProperties'));
+		return Registry::REGISTRY_TYPE_ORDER;
 	}
 
 	/**
@@ -115,14 +109,6 @@ class PropertyValueCollection extends PropertyValueCollectionBase
 	}
 
 	/**
-	 * @return string
-	 */
-	public static function getRegistryType()
-	{
-		return Registry::REGISTRY_TYPE_ORDER;
-	}
-
-	/**
 	 * @param $primary
 	 * @return Entity\DeleteResult
 	 */
@@ -138,6 +124,19 @@ class PropertyValueCollection extends PropertyValueCollectionBase
 	public static function getList(array $parameters = array())
 	{
 		return OrderPropsValueTable::getList($parameters);
+	}
+	/**
+	 * @return void
+	 */
+	public static function initJs()
+	{
+		Input\Manager::initJs();
+		\CJSCore::RegisterExt('SaleOrderProperties', array(
+			'js'   => '/bitrix/js/sale/orderproperties.js',
+			'lang' => '/bitrix/modules/sale/lang/'.LANGUAGE_ID.'/lib/propertyvaluecollection.php',
+			'rel'  => array('input'),
+		));
+		\CJSCore::Init(array('SaleOrderProperties'));
 	}
 
 }

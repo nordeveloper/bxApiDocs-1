@@ -25,7 +25,7 @@ class CClusterGroup
 		if($rsWebNodes->Fetch())
 			$aMsg[] = array("text" => GetMessage("CLU_GROUP_HAS_WEBNODE"));
 
-		$rsDBNodes = CClusterDBNode::GetList(array() ,array("=GROUP_ID"=>$group_id));
+		$rsDBNodes = CClusterDBNode::GetList(array() ,array("=GROUP_ID"=>$ID));
 		if($rsWebNodes->Fetch())
 			$aMsg[] = array("text" => GetMessage("CLU_GROUP_HAS_DBNODE"));
 

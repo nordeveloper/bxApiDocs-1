@@ -269,7 +269,10 @@ class YandexCheckoutHandler
 	 */
 	private function getYandexPaymentQueryParams(Payment $payment, Request $request)
 	{
+		$description = Localization\Loc::getMessage('SALE_HPS_YANDEX_CHECKOUT_PAYMENT_DESC', ['#PAYMENT_ID#' => $payment->getId()]);
+
 		$query = array(
+			'description' => $description,
 			'amount' => array(
 				'value' => (string)PriceMaths::roundPrecision($payment->getSum()),
 				'currency' => $payment->getField('CURRENCY')

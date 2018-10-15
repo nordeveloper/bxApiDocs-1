@@ -56,6 +56,10 @@ class CTasksReportHelper extends CReportHelper
 							$field['EDIT_FORM_LABEL'] = $field['LIST_COLUMN_LABEL'] = $field['LIST_FILTER_LABEL'] =
 								GetMessage('TASKS_REPORT_UF_TASK_WEBDAV_FILES');
 						}
+						if (substr(trim($field['FIELD_NAME']), 0, 8) == 'UF_AUTO_')
+						{
+							$field['LIST_COLUMN_LABEL'] = $field['LIST_FILTER_LABEL'] = $field['EDIT_FORM_LABEL'];
+						}
 
 						self::$ufInfo[$ufId][$field['FIELD_NAME']] = $field;
 
@@ -64,17 +68,40 @@ class CTasksReportHelper extends CReportHelper
 
 						if (($dbType === 'ORACLE' || $dbType === 'MSSQL') && $field['MULTIPLE'] === 'Y')
 							self::$ufInfo[$ufId][$field['FIELD_NAME'] . self::UF_TEXT_TRIM_POSTFIX] = $field;
+					}
+				}
+			}
+		}
+	}
 
-						if ($field['USER_TYPE_ID'] === 'enumeration'
-							&& isset($field['USER_TYPE']) && is_array($field['USER_TYPE'])
-							&& isset($field['USER_TYPE']['CLASS_NAME']) && !empty($field['USER_TYPE']['CLASS_NAME'])
-							&& is_callable(array($field['USER_TYPE']['CLASS_NAME'], 'GetList')))
+	protected static function prepareUFEnumerations($usedUFMap = null)
+	{
+		$ufInfo = static::getUFInfo();
+
+		if ($usedUFMap !== null && !is_array($usedUFMap))
+		{
+			$usedUFMap = array();
+		}
+
+		if (is_array($ufInfo))
+		{
+			foreach ($ufInfo as $entityId => $fieldList)
+			{
+				foreach ($fieldList as $field)
+				{
+					if (is_array($field) && isset($field['USER_TYPE_ID']) && $field['USER_TYPE_ID'] === 'enumeration'
+						&& isset($field['ENTITY_ID']) && strlen(strval($field['ENTITY_ID'])) > 0
+						&& !isset(self::$ufEnumerations[$field['ENTITY_ID']][$field['FIELD_NAME']])
+						&& ($usedUFMap === null || isset($usedUFMap[$field['ENTITY_ID']][$field['FIELD_NAME']]))
+						&& is_array($field['USER_TYPE']) && isset($field['USER_TYPE']['CLASS_NAME'])
+						&& !empty($field['USER_TYPE']['CLASS_NAME'])
+						&& is_callable(array($field['USER_TYPE']['CLASS_NAME'], 'GetList')))
+					{
+						self::$ufEnumerations[$field['ENTITY_ID']][$field['FIELD_NAME']] = array();
+						$rsEnum = call_user_func_array(array($field['USER_TYPE']['CLASS_NAME'], 'GetList'), array($field));
+						while($ar = $rsEnum->Fetch())
 						{
-							self::$ufEnumerations[$ufId][$field['FIELD_NAME']] = array();
-							$rsEnum = call_user_func_array(array($field['USER_TYPE']['CLASS_NAME'], 'GetList'), array($field));
-							while($ar = $rsEnum->GetNext())
-								self::$ufEnumerations[$ufId][$field['FIELD_NAME']][$ar['ID']] = $ar;
-							unset($rsEnum, $ar);
+							self::$ufEnumerations[$field['ENTITY_ID']][$field['FIELD_NAME']][$ar['ID']] = $ar;
 						}
 					}
 				}

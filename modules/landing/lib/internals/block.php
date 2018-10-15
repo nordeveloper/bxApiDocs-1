@@ -45,6 +45,9 @@ class BlockTable extends Entity\DataManager
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_CODE'),
 				'required' => true
 			)),
+			'ANCHOR' => new Entity\StringField('ANCHOR', array(
+				'title' => Loc::getMessage('LANDING_TABLE_FIELD_ANCHOR')
+			)),
 			'MANIFEST_DB' => new Entity\ReferenceField(
 				'MANIFEST_DB',
 				'\Bitrix\Landing\Internals\ManifestTable',

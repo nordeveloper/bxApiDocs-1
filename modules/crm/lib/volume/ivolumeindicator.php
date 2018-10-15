@@ -227,4 +227,10 @@ interface IVolumeIndicator
 	 * @return array
 	 */
 	public function getActionList($componentCommandAlias);
+
+	/**
+	 * Tells that is is participated in the total volume.
+	 * @return boolean
+	 */
+	public function isParticipatedTotal();
 }

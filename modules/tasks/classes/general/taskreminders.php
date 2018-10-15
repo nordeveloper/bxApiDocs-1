@@ -12,6 +12,7 @@
 IncludeModuleLangFile(__FILE__); // todo: relocate translations from here
 
 use \Bitrix\Main\Localization\Loc;
+use \Bitrix\Tasks\Integration\Mail;
 
 Loc::loadMessages(__FILE__);
 
@@ -319,7 +320,15 @@ class CTaskReminders
 						$rsUser = CUser::GetByID($userTo);
 						if ($arUser = $rsUser->Fetch())
 						{
-							$arTask["PATH_TO_TASK"] = CTaskNotifications::GetNotificationPath($arUser, $arTask["ID"]);
+							if (Mail\User::isEmail($arUser))
+							{
+								// public link
+								$arTask['PATH_TO_TASK'] = tasksServerName() . Mail\Task::getDefaultPublicPath($arTask['ID']);
+							}
+							else
+							{
+								$arTask["PATH_TO_TASK"] = CTaskNotifications::GetNotificationPath($arUser, $arTask["ID"]);
+							}
 
 							$arFilterForSendedRemind = array_merge(
 								$arFilter,

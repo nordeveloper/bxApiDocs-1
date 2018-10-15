@@ -49,7 +49,7 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 			// force https
 			if (Manager::isHttps())
 			{
-				$row['DOMAIN_PROTOCOL'] = 'https';
+				$row['DOMAIN_PROTOCOL'] = \Bitrix\Landing\Internals\DomainTable::PROTOCOL_HTTPS;
 			}
 
 			return $row['DOMAIN_PROTOCOL'] . '://' .
@@ -145,6 +145,30 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 	}
 
 	/**
+	 * Mark entity as deleted.
+	 * @param int $id Entity id.
+	 * @return \Bitrix\Main\Result
+	 */
+	public static function markDelete($id)
+	{
+		return parent::update($id, array(
+			'DELETED' => 'Y'
+		));
+	}
+
+	/**
+	 * Mark entity as restored.
+	 * @param int $id Entity id.
+	 * @return \Bitrix\Main\Result
+	 */
+	public static function markUnDelete($id)
+	{
+		return parent::update($id, array(
+			'DELETED' => 'N'
+		));
+	}
+
+	/**
 	 * Get full data for site with pages.
 	 * @param int $siteForExport Site id.
 	 * @param array $params Some params.
@@ -152,18 +176,33 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 	 */
 	public static function fullExport($siteForExport, $params = array())
 	{
+		$version = 3;//used in demo/class.php
 		$tplsXml = array();
 		$export = array();
-		Landing::setEditMode(true);
+		Landing::setEditMode(
+			isset($params['edit_mode']) && $params['edit_mode'] === 'Y'
+		);
 
+		// check params
 		if (
-			!isset($params['hooks']) ||
-			!is_array($params['hooks'])
+			!isset($params['hooks_disable']) ||
+			!is_array($params['hooks_disable'])
 		)
 		{
-			$params['hooks'] = array();
+			$params['hooks_disable'] = array();
 		}
-
+		if (
+			isset($params['code']) &&
+			preg_match('/[^a-z0-9]/i', $params['code'])
+		)
+		{
+			throw new \Bitrix\Main\Config\ConfigurationException(
+				Loc::getMessage('LANDING_EXPORT_ERROR')
+			);
+		}
+		// additional hooks for disable
+		$params['hooks_disable'][] = 'B24BUTTON_CODE';
+		$params['hooks_disable'][] = 'SETTINGS_SECTION_ID';
 		// get all templates
 		$res = Template::getList(array(
 			'select' => array(
@@ -173,6 +212,28 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 		while ($row = $res->fetch())
 		{
 			$tplsXml[$row['ID']] = $row['XML_ID'];
+		}
+		// gets pages count
+		$res = Landing::getList(array(
+			'select' => array(
+				'CNT'
+			),
+			'filter' => array(
+				'SITE_ID' => $siteForExport
+			),
+			'runtime' => array(
+				new \Bitrix\Main\Entity\ExpressionField(
+					'CNT', 'COUNT(*)'
+				)
+			)
+		));
+		if ($pagesCount = $res->fetch())
+		{
+			$pagesCount = $pagesCount['CNT'];
+		}
+		else
+		{
+			return array();
 		}
 		// get all pages from the site
 		$res = Landing::getList(array(
@@ -190,28 +251,60 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 				'SITE_TYPE' => 'SITE.TYPE',
 				'SITE_TPL_ID' => 'SITE.TPL_ID',
 				'SITE_TITLE' => 'SITE.TITLE',
-				'SITE_DESCRIPTION' => 'SITE.DESCRIPTION'
+				'SITE_DESCRIPTION' => 'SITE.DESCRIPTION',
+				'LANDING_ID_INDEX' => 'SITE.LANDING_ID_INDEX',
+				'LANDING_ID_404' => 'SITE.LANDING_ID_404'
 			),
 			'filter' => array(
-				'SITE_ID' => $siteForExport
+				'SITE_ID' => $siteForExport,
+				//'=ACTIVE' => 'Y',
+				//'=SITE.ACTIVE' => 'Y'
 			),
 			'order' => array(
 				'ID' => 'asc'
 			)
 		));
-		while ($row = $res->fetch())
+		if (!($row = $res->fetch()))
+		{
+			return array();
+		}
+		do
 		{
 			if (empty($export))
 			{
 				$export = array(
-					'code' => trim($row['SITE_CODE'], '/'),
-					'name' => $row['SITE_TITLE'],
-					'description' => $row['SITE_DESCRIPTION'],
+					'code' => isset($params['code'])
+								? $params['code']
+								: trim($row['SITE_CODE'], '/'),
+					'code_mainpage' => '',
+					'name' => isset($params['name'])
+								? $params['name']
+								: $row['SITE_TITLE'],
+					'description' => isset($params['description'])
+								? $params['description']
+								: $row['SITE_DESCRIPTION'],
+					'preview' => isset($params['preview'])
+								? $params['preview']
+								: '',
+					'preview2x' => isset($params['preview2x'])
+								? $params['preview2x']
+								: '',
+					'preview3x' => isset($params['preview3x'])
+								? $params['preview3x']
+								: '',
+					'preview_url' => isset($params['preview_url'])
+								? $params['preview_url']
+								: '',
+					'show_in_list' => 'Y',
 					'type' => strtolower($row['SITE_TYPE']),
+					'version' => $version,
 					'fields' => array(
-						'ADDITIONAL_FIELDS' => array(
-							'B24BUTTON_CODE' => '#B24BUTTON_CODE#'
-						),
+						'ADDITIONAL_FIELDS' => array(),
+						'TITLE' => isset($params['name'])
+								? $params['name']
+								: $row['SITE_TITLE'],
+						'LANDING_ID_INDEX' => $row['LANDING_ID_INDEX'],
+						'LANDING_ID_404' => $row['LANDING_ID_404']
 					),
 					'layout' => array(),
 					'folders' => array(),
@@ -232,34 +325,56 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 					$export['syspages'][$syspage['TYPE']] = $syspage['LANDING_ID'];
 				}
 				// site hooks
-				if (!empty($params['hooks']))
+				$hookFields = &$export['fields']['ADDITIONAL_FIELDS'];
+				foreach (Hook::getForSite($row['SITE_ID']) as $hCode => $hook)
 				{
-					$hookFields = &$export['fields']['ADDITIONAL_FIELDS'];
-					foreach (Hook::getForSite($row['SITE_ID']) as $hCode => $hook)
+
+					foreach ($hook->getFields() as $fCode => $field)
 					{
-						if (in_array($hCode, $params['hooks']))
+						$hCodeFull = $hCode . '_' . $fCode;
+						if (!in_array($hCodeFull, $params['hooks_disable']))
 						{
-							foreach ($hook->getFields() as $fCode => $field)
+							$hookFields[$hCodeFull] = $field->getValue();
+							if (!$hookFields[$hCodeFull])
 							{
-								$hookFields[$hCode . '_' . $fCode] = $field->getValue();
-								if (!$hookFields[$hCode . '_' . $fCode])
-								{
-									unset($hookFields[$hCode . '_' . $fCode]);
-								}
+								unset($hookFields[$hCodeFull]);
 							}
 						}
 					}
-					unset($hookFields);
 				}
+				unset($hookFields);
 			}
 			// fill one page
 			$export['items'][$row['ID']] = array(
-				'code' => $export['code'] . '/' . $row['CODE'],
-				'name' => $row['TITLE'],
-				'description' => $row['DESCRIPTION'],
+				'old_id' => $row['ID'],
+				'code' => $pagesCount > 1
+							? $export['code'] . '/' . $row['CODE']
+							: $export['code'],
+				'name' => (isset($params['name']) && $pagesCount == 1)
+							? $params['name']
+							: $row['TITLE'],
+				'description' => (isset($params['description']) && $pagesCount == 1)
+							? $params['description']
+							: $row['DESCRIPTION'],
+				'preview' => (isset($params['preview']) && $pagesCount == 1)
+							? $params['preview']
+							: '',
+				'preview2x' => (isset($params['preview2x']) && $pagesCount == 1)
+							? $params['preview2x']
+							: '',
+				'preview3x' => (isset($params['preview3x']) && $pagesCount == 1)
+							? $params['preview3x']
+							: '',
+				'preview_url' => (isset($params['preview_url']) && $pagesCount == 1)
+							? $params['preview_url']
+							: '',
+				'show_in_list' => ($pagesCount == 1) ? 'Y' : 'N',
 				'type' => strtolower($row['SITE_TYPE']),
-				'version' => 2,
+				'version' => $version,
 				'fields' => array(
+					'TITLE' => (isset($params['name']) && $pagesCount == 1)
+							? $params['name']
+							: $row['TITLE'],
 					'RULE' => $row['RULE'],
 					'ADDITIONAL_FIELDS' => array(),
 				),
@@ -271,26 +386,41 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 					: array(),
 				'items' => array()
 			);
-			// page hooks
-			if (!empty($params['hooks']))
+			// special code for index page
+			if (
+				$pagesCount > 1 &&
+				$row['LANDING_ID_INDEX'] == $row['ID']
+			)
 			{
-				$hookFields = &$export['items'][$row['ID']]['fields']['ADDITIONAL_FIELDS'];
-				foreach (Hook::getForLanding($row['ID']) as $hCode => $hook)
+				$export['code_mainpage'] = $row['CODE'];
+			}
+			// special pages
+			if ($row['LANDING_ID_INDEX'] == $row['ID'])
+			{
+				$export['fields']['LANDING_ID_INDEX'] = $export['items'][$row['ID']]['code'];
+			}
+			if ($row['LANDING_ID_404'] == $row['ID'])
+			{
+				$export['fields']['LANDING_ID_404'] = $export['items'][$row['ID']]['code'];
+			}
+			// page hooks
+			$hookFields = &$export['items'][$row['ID']]['fields']['ADDITIONAL_FIELDS'];
+			foreach (Hook::getForLanding($row['ID']) as $hCode => $hook)
+			{
+				foreach ($hook->getFields() as $fCode => $field)
 				{
-					if (in_array($hCode, $params['hooks']))
+					$hCodeFull = $hCode . '_' . $fCode;
+					if (!in_array($hCodeFull, $params['hooks_disable']))
 					{
-						foreach ($hook->getFields() as $fCode => $field)
+						$hookFields[$hCodeFull] = $field->getValue();
+						if (!$hookFields[$hCodeFull])
 						{
-							$hookFields[$hCode . '_' . $fCode] = $field->getValue();
-							if (!$hookFields[$hCode . '_' . $fCode])
-							{
-								unset($hookFields[$hCode . '_' . $fCode]);
-							}
+							unset($hookFields[$hCodeFull]);
 						}
 					}
 				}
-				unset($hookFields);
 			}
+			unset($hookFields);
 			// folders
 			if ($row['FOLDER'] == 'Y')
 			{
@@ -320,15 +450,57 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 					$cards = array();
 					$nodes = array();
 					$styles = array();
-					$attrs = array();
+					$allAttrs = array();
 					$doc = $block->getDom();
 					$manifest = $block->getManifest();
-					// get actual cards count
+					// get actual cards content
 					if (isset($manifest['cards']))
 					{
 						foreach ($manifest['cards'] as $selector => $node)
 						{
-							$cards[$selector] = count($doc->querySelectorAll($selector));
+							$cards[$selector] = [
+								'source' => []
+							];
+							$resultList = $doc->querySelectorAll($selector);
+							$resultListCnt = count($resultList);
+							foreach ($resultList as $pos => $result)
+							{
+								$cards[$selector]['source'][$pos] = array(
+									'value' => $result->getAttribute('data-card-preset'),
+									'type' => Block::PRESET_SYM_CODE
+								);
+								if (!$cards[$selector]['source'][$pos]['value'])
+								{
+									//@tmp for menu first item
+									if (strpos($block->getCode(), 'menu') !== false)
+									{
+										$cards[$selector]['source'][$pos]['value'] = $resultListCnt > 0 ? 1 : 0;
+									}
+									else
+									{
+										$cards[$selector]['source'][$pos]['value'] = 0;
+									}
+									$cards[$selector]['source'][$pos]['type'] = Block::CARD_SYM_CODE;
+								}
+							}
+							// attrs
+							if (
+								isset($node['additional']['attrs']) &&
+								is_array($node['additional']['attrs'])
+							)
+							{
+								foreach ($node['additional']['attrs'] as $attr)
+								{
+									if (isset($attr['attribute']))
+									{
+										if (!isset($allAttrs[$selector]))
+										{
+											$allAttrs[$selector] = [];
+										}
+										$allAttrs[$selector][] = $attr['attribute'];
+									}
+								}
+							}
 						}
 					}
 					// get actual data from nodes
@@ -336,11 +508,8 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 					{
 						foreach ($manifest['nodes'] as $selector => $node)
 						{
-							if (in_array($node['type'], array('text', 'link', 'icon', 'img')))
-							{
-								$class = '\\Bitrix\\Landing\\Node\\' . $node['type'];
-								$nodes[$selector] = $class::getNode($block, $selector);
-							}
+							$class = '\\Bitrix\\Landing\\Node\\' . $node['type'];
+							$nodes[$selector] = $class::getNode($block, $selector);
 						}
 					}
 					// get actual css from nodes
@@ -357,10 +526,27 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 									$styles[$selector][$pos] = $result->getClassName();
 								}
 							}
-							$styles[$selector] = array_unique($styles[$selector]);
 							if (empty($styles[$selector]))
 							{
 								unset($styles[$selector]);
+							}
+							// attrs
+							if (
+								isset($node['additional']['attrs']) &&
+								is_array($node['additional']['attrs'])
+							)
+							{
+								foreach ($node['additional']['attrs'] as $attr)
+								{
+									if (isset($attr['attribute']))
+									{
+										if (!isset($allAttrs[$selector]))
+										{
+											$allAttrs[$selector] = [];
+										}
+										$allAttrs[$selector][] = $attr['attribute'];
+									}
+								}
 							}
 						}
 					}
@@ -378,41 +564,145 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 							}
 						}
 					}
-					// get actual attrs from code
+					// attrs
+					if (
+						isset($manifest['style']['block']['additional']['attrs']) &&
+						is_array($manifest['style']['block']['additional']['attrs'])
+					)
+					{
+						$selector = '#wrapper';
+						foreach ($manifest['style']['block']['additional']['attrs'] as $attr)
+						{
+							if (isset($attr['attribute']))
+							{
+								if (!isset($allAttrs[$selector]))
+								{
+									$allAttrs[$selector] = [];
+								}
+								$allAttrs[$selector][] = $attr['attribute'];
+							}
+						}
+					}
+					// get actual attrs from nodes
 					if (isset($manifest['attrs']))
 					{
 						foreach ($manifest['attrs'] as $selector => $item)
 						{
-							if (!isset($attrs[$selector]))
+							if (isset($item['attribute']))
 							{
-								$attrs[$selector] = array();
-							}
-							$resultList = $doc->querySelectorAll($selector);
-							foreach ($resultList as $pos => $result)
-							{
-								//$attrs[$selector][$pos] = array();@todo
-								$attrs[$selector] = array();
-								foreach ($item as $attr)
+								if (!isset($allAttrs[$selector]))
 								{
-									if (isset($attr['attribute']))
+									$allAttrs[$selector] = [];
+								}
+								$allAttrs[$selector][] = $item['attribute'];
+							}
+							else if (is_array($item))
+							{
+								foreach ($item as $itemAttr)
+								{
+									if (isset($itemAttr['attribute']))
 									{
-										$attr['attribute'] = (string)$attr['attribute'];
-										$attrs[$selector][$attr['attribute']] = $result->getAttribute($attr['attribute']);
+										if (!isset($allAttrs[$selector]))
+										{
+											$allAttrs[$selector] = [];
+										}
+										$allAttrs[$selector][] = $itemAttr['attribute'];
 									}
 								}
 							}
 						}
 					}
-					$export['items'][$row['ID']]['items'][] = array(
+					// remove some system attrs
+					if (isset($allAttrs['.bitrix24forms']))
+					{
+						unset($allAttrs['.bitrix24forms']);
+					}
+					// collect attrs
+					$allAttrsNew = [];
+					if (isset($allAttrs['#wrapper']))
+					{
+						$allAttrsNew['#wrapper'] = [];
+						$resultList = array(
+							array_pop($doc->getChildNodesArray())
+						);
+						foreach ($resultList as $pos => $result)
+						{
+							foreach ($allAttrs['#wrapper'] as $attrKey)
+							{
+								if (!isset($allAttrsNew['#wrapper'][$pos]))
+								{
+									$allAttrsNew['#wrapper'][$pos] = [];
+								}
+								$allAttrsNew['#wrapper'][$pos][$attrKey] = $result->getAttribute($attrKey);
+							}
+						}
+						unset($allAttrs['#wrapper']);
+					}
+					foreach ($allAttrs as $selector => $attr)
+					{
+						$resultList = $doc->querySelectorAll($selector);
+						foreach ($resultList as $pos => $result)
+						{
+							if (!isset($allAttrsNew[$selector]))
+							{
+								$allAttrsNew[$selector] = [];
+							}
+							if (!isset($allAttrsNew[$selector][$pos]))
+							{
+								$allAttrsNew[$selector][$pos] = [];
+							}
+							foreach ($attr as $attrKey)
+							{
+								$allAttrsNew[$selector][$pos][$attrKey] = $result->getAttribute($attrKey);
+							}
+							unset($attrVal);
+						}
+					}
+					$allAttrs = $allAttrsNew;
+					unset($allAttrsNew);
+					// repo blocks
+					$repoBlock = array();
+					if ($block->getRepoId())
+					{
+						$repoBlock = Repo::getBlock(
+							$block->getRepoId()
+						);
+						if ($repoBlock)
+						{
+							$repoBlock = array(
+								'app_code' => $repoBlock['block']['app_code'],
+								'xml_id' => $repoBlock['block']['xml_id']
+							);
+						}
+					}
+					$exportItem = array(
+						'old_id' => $block->getId(),
 						'code' => $block->getCode(),
+						'anchor' => $block->getLocalAnchor(),
+						'repo_block' => $repoBlock,
 						'cards' => $cards,
 						'nodes' => $nodes,
 						'style' => $styles,
-						'attrs' => $attrs
+						'attrs' => $allAttrs
 					);
+					foreach ($exportItem as $key => $item)
+					{
+						if (!$item)
+						{
+							unset($exportItem[$key]);
+						}
+					}
+					$export['items'][$row['ID']]['items']['#block' . $block->getId()] = $exportItem;
 				}
 			}
 		}
+		while ($row = $res->fetch());
+
+		if ($export['code_mainpage'])
+		{
+			$export['code'] = $export['code'] . '/' . $export['code_mainpage'];
+		}
+		unset($export['code_mainpage']);
 
 		$pages = $export['items'];
 		$export['items'] = array();
@@ -478,11 +768,13 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 	/**
 	 * Get md5 hash for site, using http host.
 	 * @param int $id Site id.
+	 * @param string Domain name for this site.
 	 * @return string
 	 */
-	public static function getPublicHash($id)
+	public static function getPublicHash($id, $domain = null)
 	{
 		static $hashes = [];
+		static $domains = [];
 
 		if (isset($hashes[$id]))
 		{
@@ -490,7 +782,37 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 		}
 
 		$hash = [];
-		$hash[] = Manager::getHttpHost();
+
+		if (Manager::isB24())
+		{
+			$hash[] = Manager::getHttpHost();
+		}
+		else
+		{
+			// detect domain
+			if ($domain === null)
+			{
+				if (!isset($domains[$id]))
+				{
+					$domains[$id] = '';
+					$res = self::getList(array(
+						'select' => array(
+							'SITE_DOMAIN' => 'DOMAIN.DOMAIN'
+						),
+						'filter' => array(
+							'ID' => $id
+						)
+					));
+					if ($row = $res->fetch())
+					{
+						$domains[$id] = $row['SITE_DOMAIN'];
+					}
+				}
+				$domain = $domains[$id];
+			}
+			$hash[] = $domain;
+		}
+
 		$hash[] = rtrim(Manager::getPublicationPath($id), '/');
 		if (!Manager::isB24())
 		{

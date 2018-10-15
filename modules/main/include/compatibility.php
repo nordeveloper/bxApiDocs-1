@@ -7,12 +7,6 @@
  * UPDATE: Loader idea doesn't work because of type hints and instanceof - alias should be loaded before these constructions.
  */
 
-\Bitrix\Main\Loader::registerAutoLoadClasses(
-	"main", ["Bitrix\\Main\\Entity\\UField" => "include/deprecated/ufield.php"]
-);
-
-class_alias('Bitrix\Main\Entity\UField', 'Bitrix\Main\ORM\UField');
-
 class_alias('Bitrix\Main\ORM\Fields\IReadable', 'Bitrix\Main\Entity\Field\IReadable');
 class_alias('Bitrix\Main\ORM\Fields\IStorable', 'Bitrix\Main\Entity\Field\IStorable');
 class_alias('Bitrix\Main\ORM\Fields\BooleanField', 'Bitrix\Main\Entity\BooleanField');
@@ -70,3 +64,9 @@ class_alias('Bitrix\Main\ORM\Entity', 'Bitrix\Main\Entity\Base');
 class_alias('Bitrix\Main\ORM\EntityError', 'Bitrix\Main\Entity\EntityError');
 class_alias('Bitrix\Main\ORM\Event', 'Bitrix\Main\Entity\Event');
 class_alias('Bitrix\Main\ORM\EventResult', 'Bitrix\Main\Entity\EventResult');
+
+\Bitrix\Main\Loader::registerAutoLoadClasses(
+	"main", ["Bitrix\\Main\\Entity\\UField" => "include/deprecated/ufield.php"]
+);
+
+class_alias('Bitrix\Main\Entity\UField', 'Bitrix\Main\ORM\UField');

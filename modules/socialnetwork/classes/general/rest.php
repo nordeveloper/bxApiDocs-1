@@ -27,6 +27,7 @@ class CSocNetLogRestService extends IRestService
 				"log.blogpost.share" => array("CSocNetLogRestService", "shareBlogPost"),
 				"log.blogpost.delete" => array("CSocNetLogRestService", "deleteBlogPost"),
 				"log.blogpost.getusers.important" => array("CSocNetLogRestService", "getBlogPostUsersImprtnt"),
+				"log.blogcomment.add" => array("CSocNetLogRestService", "addBlogComment"),
 				'log.blogcomment.user.get' =>  array('callback' => array(__CLASS__, 'getUserBlogComment'), 'options' => array('private' => true)),
 				"log.blogcomment.delete" => array("CSocNetLogRestService", "deleteBlogComment"),
 				'log.comment.user.get' =>  array('callback' => array(__CLASS__, 'getUserLogComment'), 'options' => array('private' => true)),
@@ -659,7 +660,7 @@ class CSocNetLogRestService extends IRestService
 
 		if (!$result)
 		{
-			throw new Exception('Blog haven\'t been added');
+			throw new Exception('Blog post haven\'t been added');
 		}
 
 		if (
@@ -1543,6 +1544,170 @@ class CSocNetLogRestService extends IRestService
 
 		$result['COMMENTS'] = array_values($result['COMMENTS']);
 		$result['FILES'] = self::convertFileData($result['FILES']);
+
+		return $result;
+	}
+
+	public static function addBlogComment($arFields)
+	{
+		global $USER;
+
+		$authorId = (
+			isset($arFields["USER_ID"])
+			&& intval($arFields["USER_ID"]) > 0
+			&& self::isAdmin()
+				? $arFields["USER_ID"]
+				: $USER->getId()
+		);
+
+		if (!Loader::includeModule('blog'))
+		{
+			throw new Exception('No blog module installed');
+		}
+
+		$postId = intval($arFields['POST_ID']);
+		if ($postId <= 0)
+		{
+			throw new Exception('No post found');
+		}
+
+		$res = \CBlogPost::getList(
+			array(),
+			array(
+				"ID" => $postId
+			),
+			false,
+			false,
+			array("ID", "BLOG_ID", "AUTHOR_ID", "BLOG_OWNER_ID", "TITLE")
+		);
+
+		$post = $res->fetch();
+		if (!$post)
+		{
+			throw new Exception('No post found');
+		}
+
+		$blog = CBlog::getById($post["BLOG_ID"]);
+		if (!$blog)
+		{
+			throw new Exception('No blog found');
+		}
+
+		if (
+			empty($arFields["FILES"])
+			&& !\Bitrix\Blog\Item\Comment::checkDuplicate(array(
+				'MESSAGE' => $arFields["TEXT"],
+				'BLOG_ID' => $post['BLOG_ID'],
+				'POST_ID' => $post['ID'],
+				'AUTHOR_ID' => $authorId,
+		))
+		)
+		{
+			throw new Exception('Duplicate comment');
+		}
+
+		$userIP = \CBlogUser::getUserIP();
+
+		$commentFields = array(
+			"POST_ID" => $post['ID'],
+			"BLOG_ID" => $post['BLOG_ID'],
+			"TITLE" => '',
+			"POST_TEXT" => $arFields["TEXT"],
+			"DATE_CREATE" => convertTimeStamp(time() + CTimeZone::getOffset(), "FULL"),
+			"AUTHOR_IP" => $userIP[0],
+			"AUTHOR_IP1" => $userIP[1],
+			"URL" => $blog["URL"],
+			"PARENT_ID" => false,
+			"SEARCH_GROUP_ID" => $blog['GROUP_ID'],
+			"AUTHOR_ID" => $authorId
+		);
+
+		$perm = \Bitrix\Blog\Item\Permissions::DENY;
+		if($post["AUTHOR_ID"] == $authorId)
+		{
+			$perm = \Bitrix\Blog\Item\Permissions::FULL;
+		}
+		else
+		{
+			$postPerm = \CBlogPost::getSocNetPostPerms($post["ID"]);
+			if ($postPerm > \Bitrix\Blog\Item\Permissions::DENY)
+			{
+				$perm = \CBlogComment::getSocNetUserPerms($post["ID"], $post["AUTHOR_ID"]);
+			}
+		}
+
+		if ($perm == \Bitrix\Blog\Item\Permissions::DENY)
+		{
+			throw new Exception('No permissions');
+		}
+
+		if ($perm == \Bitrix\Blog\Item\Permissions::PREMODERATE)
+		{
+			$commentFields["PUBLISH_STATUS"] = BLOG_PUBLISH_STATUS_READY;
+		}
+
+		$result = \CBlogComment::add($commentFields);
+		if (!$result)
+		{
+			throw new Exception('Blog comment haven\'t been added');
+		}
+
+		if (
+			isset($arFields["FILES"])
+			&& Option::get('disk', 'successfully_converted', false)
+			&& Loader::includeModule('disk')
+			&& ($storage = \Bitrix\Disk\Driver::getInstance()->getStorageByUserId($authorId))
+			&& ($folder = $storage->getFolderForUploadedFiles())
+		)
+		{
+			// upload to storage
+			$filesList = array();
+
+			foreach($arFields["FILES"] as $tmp)
+			{
+				$fileFields = \CRestUtil::saveFile($tmp);
+
+				if(is_array($fileFields))
+				{
+					$file = $folder->uploadFile(
+						$fileFields, // file array
+						array(
+							'NAME' => $fileFields["name"],
+							'CREATED_BY' => $authorId
+						),
+						array(),
+						true
+					);
+
+					if ($file)
+					{
+						$filesList[] = \Bitrix\Disk\Uf\FileUserType::NEW_FILE_PREFIX.$file->getId();
+					}
+				}
+			}
+
+			if (!empty($filesList)) // update post
+			{
+				\CBlogComment::update(
+					$result,
+					array(
+						"HAS_PROPS" => "Y",
+						"UF_BLOG_COMMENT_FILE" => $filesList
+					)
+				);
+			}
+		}
+
+		\Bitrix\Blog\Item\Comment::actionsAfter(array(
+			'MESSAGE' => $commentFields["POST_TEXT"],
+			'BLOG_ID' => $post["BLOG_ID"],
+			'BLOG_OWNER_ID' => $post["BLOG_OWNER_ID"],
+			'POST_ID' => $post["ID"],
+			'POST_TITLE' => $post["TITLE"],
+			'POST_AUTHOR_ID' => $post["AUTHOR_ID"],
+			'COMMENT_ID' => $result,
+			'AUTHOR_ID' => $authorId,
+		));
 
 		return $result;
 	}

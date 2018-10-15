@@ -2706,4 +2706,21 @@ class CCrmDocument
 
 		return in_array($feature, $supported);
 	}
+
+	protected static function sanitizeCommentsValue($comments)
+	{
+		if ($comments !== '')
+		{
+			if(preg_match('/<[^>]+[\/]?>/i', $comments) === 1)
+			{
+				$comments = \Bitrix\Crm\Format\TextHelper::sanitizeHtml($comments);
+				$comments = preg_replace("/([^>\r\n]{1})[\r\n]+/", '$1<br>', $comments);
+			}
+			else
+			{
+				$comments = str_replace(array("\r\n", "\r", "\n"), "<br>", $comments);
+			}
+		}
+		return $comments;
+	}
 }

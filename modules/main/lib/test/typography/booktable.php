@@ -69,7 +69,7 @@ class BookTable extends DataManager
 			(new StringField('ISBN')),
 
 			(new BooleanField('IS_ARCHIVED'))
-				->configureStorageValues('N', 'Y'),
+				->configureValues('N', 'Y'),
 
 			(new ManyToMany('AUTHORS', AuthorTable::class))
 				->configureMediatorTableName('(

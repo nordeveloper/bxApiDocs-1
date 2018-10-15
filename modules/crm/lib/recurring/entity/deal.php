@@ -627,7 +627,7 @@ class Deal extends Base
 	public function isAllowedExpose()
 	{
 		if (Main\Loader::includeModule('bitrix24'))
-			return !in_array(\CBitrix24::getLicenseType(), array('project', 'tf')) || Main\Config\Option::get('crm', 'recurring_deal_enabled', 'N') === 'Y';
+			return !in_array(\CBitrix24::getLicenseType(), array('project', 'tf', 'retail')) || Main\Config\Option::get('crm', 'recurring_deal_enabled', 'N') === 'Y';
 
 		return true;
 	}

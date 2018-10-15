@@ -10,6 +10,8 @@ use Bitrix\DocumentGenerator\Nameable;
 
 class Order extends ProductsDataProvider implements Nameable
 {
+	protected $order;
+
 	public function getFields()
 	{
 		if($this->fields === null)
@@ -151,6 +153,20 @@ class Order extends ProductsDataProvider implements Nameable
 	}
 
 	/**
+	 * @return null|string
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 */
+	protected function getLocationId()
+	{
+		$order = $this->getOrder();
+
+		if($order)
+		{
+			return $order->getTaxLocation();
+		}
+	}
+
+	/**
 	 * @return array
 	 */
 	protected function loadProductsData()
@@ -189,6 +205,19 @@ class Order extends ProductsDataProvider implements Nameable
 		return $result;
 	}
 
+	/**
+	 * @return null|\Bitrix\Crm\Order\Order
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 */
+	protected function getOrder()
+	{
+		if($this->order === null)
+		{
+			$this->order = \Bitrix\Crm\Order\Order::load($this->source);
+		}
+
+		return $this->order;
+	}
 
 	/**
 	 * @return mixed

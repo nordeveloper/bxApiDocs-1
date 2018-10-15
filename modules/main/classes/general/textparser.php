@@ -35,6 +35,7 @@ class CTextParser
 		"FONT" => "Y",
 		"LIST" => "Y",
 		"SMILES" => "Y",
+		"CLEAR_SMILES" => "N",
 		"NL2BR" => "N",
 		"VIDEO" => "Y",
 		"TABLE" => "Y",
@@ -404,7 +405,10 @@ class CTextParser
 		foreach(GetModuleEvents("main", "TextParserBeforeTags", true) as $arEvent)
 			ExecuteModuleEventEx($arEvent, array(&$text, &$this));
 
-		if ($this->allow["SMILES"]=="Y")
+		if (
+			$this->allow["SMILES"] == "Y"
+			|| $this->allow["CLEAR_SMILES"] == "Y"
+		)
 		{
 			if (strpos($text, "<nosmile>") !== false)
 			{
@@ -1040,15 +1044,25 @@ class CTextParser
 		$replacement = reset(array_intersect_key($this->smileReplaces, $matches));
 		if (!empty($replacement))
 		{
-			return $this->convert_emoticon(
-				$replacement["code"],
-				$replacement["image"],
-				$replacement["description"],
-				$replacement["width"],
-				$replacement["height"],
-				$replacement["descriptionDecode"],
-				$replacement["imageDefinition"]
-			);
+			if ($this->allow['CLEAR_SMILES'] == 'Y')
+			{
+				return $this->convert_emoticon(
+					$replacement["code"],
+					''
+				);
+			}
+			else
+			{
+				return $this->convert_emoticon(
+					$replacement["code"],
+					$replacement["image"],
+					$replacement["description"],
+					$replacement["width"],
+					$replacement["height"],
+					$replacement["descriptionDecode"],
+					$replacement["imageDefinition"]
+				);
+			}
 		}
 		return $matches[0];
 	}

@@ -73,7 +73,7 @@ class QuoteUserQuotesNumberGenerator extends NumberGenerator implements DynamicC
 
 				if ($count)
 				{
-					$numID = (intval($count["QUOTES_COUNT"]) > 0) ? $count["QUOTES_COUNT"] : 1;
+					$numID = ((int)$count["QUOTES_COUNT"] > 0) ? (int)$count["QUOTES_COUNT"] : 1;
 					$value = $userId . "_" . $numID;
 				}
 				else

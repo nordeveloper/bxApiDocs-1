@@ -233,6 +233,8 @@ class BindingSelector
 					'OWNER_TYPE_ID' => \CCrmOwnerType::Lead,
 					'OWNER_ID' => $selector->getContactReturnCustomerLeadId()
 				);
+
+				$isReturnCustomerLeadAdded = true;
 			}
 
 			if (!empty($selector->getContactOrders()) && !$isOrdersAdded)
@@ -258,20 +260,21 @@ class BindingSelector
 		 */
 		if (empty($list))
 		{
-			if ($selector->getReturnCustomerLeadId())
-			{
-				$list[] = array(
-					'OWNER_TYPE_ID' => \CCrmOwnerType::Lead,
-					'OWNER_ID' => $selector->getReturnCustomerLeadId()
-				);
-			}
-			elseif ($selector->getLeadId())
+			if ($selector->getLeadId())
 			{
 				$list[] = array(
 					'OWNER_TYPE_ID' => \CCrmOwnerType::Lead,
 					'OWNER_ID' => $selector->getLeadId()
 				);
 			}
+		}
+
+		if (!$isReturnCustomerLeadAdded && !$isDealAdded && $selector->getReturnCustomerLeadId())
+		{
+			$list[] = array(
+				'OWNER_TYPE_ID' => \CCrmOwnerType::Lead,
+				'OWNER_ID' => $selector->getReturnCustomerLeadId()
+			);
 		}
 
 		return self::sortBindings($list);

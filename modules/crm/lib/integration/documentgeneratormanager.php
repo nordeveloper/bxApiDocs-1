@@ -86,16 +86,33 @@ class DocumentGeneratorManager
 					foreach($templates as &$template)
 					{
 						$uri = new Uri($componentPath);
-						$template['text'] = $template['NAME'];
+						$template['text'] = htmlspecialcharsbx($template['NAME']);
 						$params = ['templateId' => $template['ID'], 'providerClassName' => $className, 'value' => $value, 'analyticsLabel' => 'generateDocument', 'templateCode' => $template['CODE']];
 						$href = $uri->addParams($params)->getLocator();
-						$template['onclick'] = 'BX.DocumentGenerator.Document.onBeforeCreate(\''.\CUtil::JSEscape($href).'\', '.\CUtil::PhpToJSObject($params).', \''.\CUtil::JSEscape($loaderPath).'\');';
+						$template['onclick'] = 'BX.DocumentGenerator.Document.onBeforeCreate(\''.\CUtil::JSEscape($href).'\', '.\CUtil::PhpToJSObject(['checkNumber' => true]).', \''.\CUtil::JSEscape($loaderPath).'\');';
 					}
+				}
+				$isDelimiterAdded = false;
+				$documentListUrl = $this->getDocumentListUrl($className, $value, $componentPath, $loaderPath);
+				if($documentListUrl)
+				{
+					if(!$isDelimiterAdded)
+					{
+						$templates[] = ['delimiter' => true];
+						$isDelimiterAdded = true;
+					}
+					$templates[] = [
+						'text' => Loc::getMessage('CRM_DOCUMENTGENERATOR_DOCUMENTS_LIST'),
+						'onclick' => 'BX.SidePanel.Instance.open("'.$documentListUrl.'", {width: 930}); BX.PopupMenu.getCurrentMenu().popupWindow.close();',
+					];
 				}
 				$addTemplateUrl = $this->getAddTemplateUrl($className);
 				if($addTemplateUrl)
 				{
-					$templates[] = ['delimiter' => true];
+					if(!$isDelimiterAdded)
+					{
+						$templates[] = ['delimiter' => true];
+					}
 					$templates[] = [
 						'text' => Loc::getMessage('CRM_DOCUMENTGENERATOR_ADD_NEW_TEMPLATE'),
 						'onclick' => 'BX.SidePanel.Instance.open("'.$addTemplateUrl.'", {width: 930}); BX.PopupMenu.getCurrentMenu().popupWindow.close();',
@@ -108,23 +125,44 @@ class DocumentGeneratorManager
 	}
 
 	/**
-	 * @param string $className
+	 * @param $provider
 	 * @return bool|string
 	 */
-	protected function getAddTemplateUrl($className = '')
+	protected function getAddTemplateUrl($provider)
 	{
 		$componentPath = \CComponentEngine::makeComponentPath('bitrix:documentgenerator.templates');
+		$componentPath = getLocalPath('components'.$componentPath.'/slider.php');
 		if(!empty($componentPath))
 		{
-			$componentPath = getLocalPath('components'.$componentPath.'/slider.php');
 			$uri = new Uri($componentPath);
-			if($className)
-			{
-				$uri->addParams([
-					'PROVIDER' => $className,
-				]);
-			}
-			$uri->addParams(['MODULE' => 'crm',]);
+			$uri->addParams(['MODULE' => 'crm', 'PROVIDER' => $provider]);
+			return $uri->getLocator();
+		}
+
+		return false;
+	}
+
+	/**
+	 * @param string $className
+	 * @param mixed $value
+	 * @param string $viewUrl
+	 * @param string $loaderPath
+	 * @return bool|string
+	 */
+	protected function getDocumentListUrl($className, $value, $viewUrl = '', $loaderPath = '')
+	{
+		$componentPath = \CComponentEngine::makeComponentPath('bitrix:documentgenerator.documents');
+		$componentPath = getLocalPath('components'.$componentPath.'/slider.php');
+		if(!empty($componentPath))
+		{
+			$uri = new Uri($componentPath);
+			$uri->addParams([
+				'provider' => $className,
+				'module' => 'crm',
+				'value' => $value,
+				'viewUrl' => $viewUrl,
+				'loaderPath' => $loaderPath,
+			]);
 			return $uri->getLocator();
 		}
 

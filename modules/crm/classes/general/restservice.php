@@ -23,6 +23,7 @@ use Bitrix\Crm\Settings\RestSettings;
 use Bitrix\Crm\EntityPreset;
 use Bitrix\Crm\EntityRequisite;
 use Bitrix\Crm\EntityBankDetail;
+use Bitrix\Crm\Requisite;
 use Bitrix\Crm\EntityAddress;
 use Bitrix\Crm\EntityAddressType;
 use Bitrix\Crm\Binding\EntityBinding;
@@ -5131,6 +5132,10 @@ class CCrmDealRestProxy extends CCrmRestProxyBase
 			$fields['COMMENTS'] = $this->sanitizeHtml($fields['COMMENTS']);
 		}
 
+		$defaultRequisiteLinkParams = Requisite\EntityLink::determineRequisiteLinkBeforeSave(
+			CCrmOwnerType::Deal, 0, Requisite\EntityLink::ENTITY_OPERATION_ADD, $fields
+		);
+
 		$entity = self::getEntity(false);
 		$options = array();
 		if(!$this->isRequiredUserFieldCheckEnabled())
@@ -5146,14 +5151,23 @@ class CCrmDealRestProxy extends CCrmRestProxyBase
 		{
 			$errors[] = $entity->LAST_ERROR;
 		}
-		elseif(self::isBizProcEnabled())
+		else
 		{
-			CCrmBizProcHelper::AutoStartWorkflows(
-				CCrmOwnerType::Deal,
-				$result,
-				CCrmBizProcEventType::Create,
-				$errors
+			Requisite\EntityLink::register(
+				CCrmOwnerType::Deal, (int)$result,
+				$defaultRequisiteLinkParams['REQUISITE_ID'],
+				$defaultRequisiteLinkParams['BANK_DETAIL_ID']
 			);
+
+			if(self::isBizProcEnabled())
+			{
+				CCrmBizProcHelper::AutoStartWorkflows(
+					CCrmOwnerType::Deal,
+					$result,
+					CCrmBizProcEventType::Create,
+					$errors
+				);
+			}
 		}
 
 		//Region automation
@@ -5280,19 +5294,32 @@ class CCrmDealRestProxy extends CCrmRestProxyBase
 				$stageChanged = true;
 		}
 
+		$defaultRequisiteLinkParams = Requisite\EntityLink::determineRequisiteLinkBeforeSave(
+			CCrmOwnerType::Deal, $ID, Requisite\EntityLink::ENTITY_OPERATION_UPDATE, $fields
+		);
+
 		$result = $entity->Update($ID, $fields, $compare, true, $options);
 		if($result !== true)
 		{
 			$errors[] = $entity->LAST_ERROR;
 		}
-		elseif(self::isBizProcEnabled())
+		else
 		{
-			CCrmBizProcHelper::AutoStartWorkflows(
-				CCrmOwnerType::Deal,
-				$ID,
-				CCrmBizProcEventType::Edit,
-				$errors
+			Requisite\EntityLink::register(
+				CCrmOwnerType::Deal, (int)$ID,
+				$defaultRequisiteLinkParams['REQUISITE_ID'],
+				$defaultRequisiteLinkParams['BANK_DETAIL_ID']
 			);
+
+			if(self::isBizProcEnabled())
+			{
+				CCrmBizProcHelper::AutoStartWorkflows(
+					CCrmOwnerType::Deal,
+					$ID,
+					CCrmBizProcEventType::Edit,
+					$errors
+				);
+			}
 		}
 
 		//Region automation
@@ -5656,6 +5683,7 @@ class CCrmCompanyRestProxy extends CCrmRestProxyBase
 {
 	private $FIELDS_INFO = null;
 	private static $ENTITY = null;
+	protected static $isMyCompany = false;
 	public  function getOwnerTypeID()
 	{
 		return CCrmOwnerType::Company;
@@ -5672,6 +5700,11 @@ class CCrmCompanyRestProxy extends CCrmRestProxyBase
 			self::prepareUserFieldsInfo($this->FIELDS_INFO, CCrmCompany::$sUFEntityID);
 		}
 		return $this->FIELDS_INFO;
+	}
+	protected static function prepareUserFieldsInfo(&$fieldsInfo, $entityTypeID)
+	{
+		$userType = new CCrmUserType($GLOBALS['USER_FIELD_MANAGER'], $entityTypeID, ['isMyCompany' => static::$isMyCompany]);
+		$userType->PrepareFieldsInfo($fieldsInfo);
 	}
 	private static function getEntity()
 	{
@@ -5743,6 +5776,11 @@ class CCrmCompanyRestProxy extends CCrmRestProxyBase
 		{
 			$errors[] = 'Not found';
 			return false;
+		}
+
+		if($result['IS_MY_COMPANY'] === 'Y')
+		{
+			static::$isMyCompany = true;
 		}
 
 		$result['FM'] = array();
@@ -9100,6 +9138,10 @@ class CCrmQuoteRestProxy extends CCrmRestProxyBase
 			$fields['TERMS'] = $this->sanitizeHtml($fields['TERMS']);
 		}
 
+		$defaultRequisiteLinkParams = Requisite\EntityLink::determineRequisiteLinkBeforeSave(
+			CCrmOwnerType::Quote, 0, Requisite\EntityLink::ENTITY_OPERATION_ADD, $fields
+		);
+
 		$entity = self::getEntity();
 		$options = array();
 		if(!$this->isRequiredUserFieldCheckEnabled())
@@ -9110,6 +9152,17 @@ class CCrmQuoteRestProxy extends CCrmRestProxyBase
 		if($result <= 0)
 		{
 			$errors[] = $entity->LAST_ERROR;
+		}
+
+		if ($result > 0)
+		{
+			Requisite\EntityLink::register(
+				CCrmOwnerType::Quote, (int)$result,
+				$defaultRequisiteLinkParams['REQUISITE_ID'],
+				$defaultRequisiteLinkParams['BANK_DETAIL_ID'],
+				$defaultRequisiteLinkParams['MC_REQUISITE_ID'],
+				$defaultRequisiteLinkParams['MC_BANK_DETAIL_ID']
+			);
 		}
 
 		return $result;
@@ -9213,11 +9266,27 @@ class CCrmQuoteRestProxy extends CCrmRestProxyBase
 			}
 		}
 
+		$defaultRequisiteLinkParams = Requisite\EntityLink::determineRequisiteLinkBeforeSave(
+			CCrmOwnerType::Quote, $ID, Requisite\EntityLink::ENTITY_OPERATION_UPDATE, $fields
+		);
+
 		$result = $entity->Update($ID, $fields, $compare, true, $options);
 		if($result !== true)
 		{
 			$errors[] = $entity->LAST_ERROR;
 		}
+
+		if ($result === true)
+		{
+			Requisite\EntityLink::register(
+				CCrmOwnerType::Quote, (int)$ID,
+				$defaultRequisiteLinkParams['REQUISITE_ID'],
+				$defaultRequisiteLinkParams['BANK_DETAIL_ID'],
+				$defaultRequisiteLinkParams['MC_REQUISITE_ID'],
+				$defaultRequisiteLinkParams['MC_BANK_DETAIL_ID']
+			);
+		}
+
 		return $result;
 	}
 	protected function innerDelete($ID, &$errors, array $params = null)
@@ -10749,7 +10818,7 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 	{
 		if(!$this->FIELDS_INFO)
 		{
-			$this->FIELDS_INFO = Bitrix\Crm\Requisite\EntityLink::getFieldsInfo();
+			$this->FIELDS_INFO = Requisite\EntityLink::getFieldsInfo();
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -10782,7 +10851,7 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 
 	protected function innerGetList($order, $filter, $select, $navigation, &$errors)
 	{
-		if (!Bitrix\Crm\Requisite\EntityLink::checkReadPermissionOwnerEntity())
+		if (!Requisite\EntityLink::checkReadPermissionOwnerEntity())
 		{
 			$errors[] = 'Access denied.';
 			return false;
@@ -10795,7 +10864,7 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 		if(empty($select))
 			$select = array_keys($this->getFieldsInfo());
 
-		$result = Bitrix\Crm\Requisite\EntityLink::getList(
+		$result = Requisite\EntityLink::getList(
 			array(
 				'order' => $order,
 				'filter' => $filter,
@@ -10832,7 +10901,7 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 		$mcRequisiteId = (int)$mcRequisiteId;
 		$mcBankDetailId = (int)$mcBankDetailId;
 
-		if (!Bitrix\Crm\Requisite\EntityLink::checkUpdatePermissionOwnerEntity($entityTypeId, $entityId))
+		if (!Requisite\EntityLink::checkUpdatePermissionOwnerEntity($entityTypeId, $entityId))
 		{
 			$errors[] = 'Access denied.';
 			return false;
@@ -10840,13 +10909,13 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 
 		try
 		{
-			Bitrix\Crm\Requisite\EntityLink::checkConsistence(
+			Requisite\EntityLink::checkConsistence(
 				$entityTypeId, $entityId,
 				$requisiteId, $bankDetailId,
 				$mcRequisiteId, $mcBankDetailId
 			);
 
-			Bitrix\Crm\Requisite\EntityLink::register(
+			Requisite\EntityLink::register(
 				$entityTypeId, $entityId,
 				$requisiteId, $bankDetailId,
 				$mcRequisiteId, $mcBankDetailId
@@ -10862,7 +10931,7 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 	}
 	protected function innerUnregister($entityTypeId, $entityId, &$errors)
 	{
-		if(!Bitrix\Crm\Requisite\EntityLink::checkUpdatePermissionOwnerEntity($entityTypeId, $entityId))
+		if(!Requisite\EntityLink::checkUpdatePermissionOwnerEntity($entityTypeId, $entityId))
 		{
 			$errors[] = 'Access denied.';
 			return false;
@@ -10870,7 +10939,7 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 
 		try
 		{
-			Bitrix\Crm\Requisite\EntityLink::unregister($entityTypeId, $entityId);
+			Requisite\EntityLink::unregister($entityTypeId, $entityId);
 		}
 		catch (Main\SystemException $e)
 		{
@@ -10883,13 +10952,13 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 
 	protected function getEntityRequisite($entityTypeId, $entityId, &$errors)
 	{
-		if(!Bitrix\Crm\Requisite\EntityLink::checkReadPermissionOwnerEntity($entityTypeId, $entityId))
+		if(!Requisite\EntityLink::checkReadPermissionOwnerEntity($entityTypeId, $entityId))
 		{
 			$errors[] = 'Access denied.';
 			return false;
 		}
 
-		$linkInfo = Bitrix\Crm\Requisite\EntityLink::getByEntity($entityTypeId, $entityId);
+		$linkInfo = Requisite\EntityLink::getByEntity($entityTypeId, $entityId);
 		if (is_array($linkInfo))
 		{
 			$result = array_merge(array('ENTITY_TYPE_ID' => $entityTypeId, 'ENTITY_ID' => $entityId), $linkInfo);

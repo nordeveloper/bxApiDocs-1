@@ -21,7 +21,7 @@ final class Tag
 
 			foreach ($tags as $tag)
 			{
-				if(Type::isIterable($tags) && count($tag['NAME']))
+				if(Type::isIterable($tag) && $tag['NAME'])
 				{
 					$formatted[] = (string) $tag['NAME'];
 				}

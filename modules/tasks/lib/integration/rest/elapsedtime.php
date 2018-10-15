@@ -15,6 +15,7 @@ use Bitrix\Main\Localization\Loc;
 
 use Bitrix\Tasks\TaskTable;
 use Bitrix\Tasks\Util\Assert;
+use Bitrix\Main\ORM\Query\Result as QueryResult;
 
 Loc::loadMessages(__FILE__);
 
@@ -29,7 +30,7 @@ final class ElapsedTimeTable extends \Bitrix\Tasks\ElapsedTimeTable
 	 * 	<li> USER_ID integer Current user id, mandatory.
 	 * 	<li> ROW_LIMIT integer Row limit on each rest query, optional
 	 * 
-	 * @return mixed[]
+	 * @return QueryResult
 	 */
 	public static function getList(array $parameters = array(), $behaviour = array())
 	{

@@ -64,7 +64,8 @@ abstract class SocialNetwork extends \Bitrix\Tasks\Integration
 		}
 
 		$destinationParams = array(
-			'useProjects' => (isset($parameters['USE_PROJECTS']) && $parameters['USE_PROJECTS'] == 'Y' ? 'Y' : 'N')
+			'useProjects' => (isset($parameters['USE_PROJECTS']) && $parameters['USE_PROJECTS'] == 'Y'? 'Y' : 'N'),
+			'CRM_ENTITY' => 'Y'
 		);
 		if(intval($parameters['AVATAR_HEIGHT']) && intval($parameters['AVATAR_WIDTH']))
 		{

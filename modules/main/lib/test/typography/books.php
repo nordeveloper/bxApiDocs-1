@@ -8,16 +8,10 @@
 
 namespace Bitrix\Main\Test\Typography;
 
-use Bitrix\Main\ORM\Objectify\Collection;
-
 /**
  * @package    bitrix
  * @subpackage main
  */
-class Books extends Collection
+class Books extends EO_Book_Collection
 {
-	public static function dataClass()
-	{
-		return BookTable::class;
-	}
 }

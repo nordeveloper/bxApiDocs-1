@@ -21,40 +21,15 @@ class OrderHistory extends Sale\OrderHistory
 	 * @param $orderId
 	 * @param $type
 	 * @param null $id
-	 * @param null|Entity $entity
+	 * @param null $entity
 	 * @param array $data
+	 * @throws Main\ArgumentNullException
 	 */
 	protected static function addRecord($entityName, $orderId, $type, $id = null, $entity = null, array $data = array())
 	{
-		global $USER;
+		parent::addRecord($entityName, $orderId, $type, $id, $entity, $data);
 
-		if ($entity !== null
-			&& ($operationType = static::getOperationType($entityName, $type))
-			&& (!empty($operationType["DATA_FIELDS"]) && is_array($operationType["DATA_FIELDS"])))
-		{
-			foreach ($operationType["DATA_FIELDS"] as $fieldName)
-			{
-				if (!array_key_exists($fieldName, $data) && ($value = $entity->getField($fieldName)))
-				{
-					$data[$fieldName] = TruncateText($value, 128);
-				}
-
-			}
-		}
-
-		$userId = (is_object($USER)) ? intval($USER->GetID()) : 0;
-
-		$fields = array(
-			"ORDER_ID" => intval($orderId),
-			"TYPE" => $type,
-			"DATA" => (is_array($data) ? serialize($data) : $data),
-			"USER_ID" => $userId,
-			"ENTITY" => $entityName,
-			"ENTITY_ID" => $id,
-		);
-
-		static::addInternal($fields);
-
+		$operationType = static::getOperationType($entityName, $type);
 		if (empty($operationType))
 		{
 			return;
@@ -94,17 +69,19 @@ class OrderHistory extends Sale\OrderHistory
 		$orderChange = new \CSaleOrderChange();
 		$operationResult = $orderChange->GetRecordDescription($type, serialize($data));
 
-		$event = new \CCrmEvent();
+		global $USER;
+
 		$crmEventData = [
 			'ENTITY_TYPE' => $entityType,
 			'ENTITY_ID' => $entityId,
 			'EVENT_TYPE' => \CCrmEvent::TYPE_CHANGE,
-			'USER_ID' => $userId,
+			'USER_ID' => (is_object($USER)) ? intval($USER->GetID()) : 0,
 			'ENTITY_FIELD' => is_array($operationType['TRIGGER_FIELDS']) ? current($operationType['TRIGGER_FIELDS']) : "",
 			'EVENT_NAME' => $operationResult['NAME'],
 			'EVENT_TEXT_1' => $operationResult['INFO']
 		];
 
+		$event = new \CCrmEvent();
 		$event->Add($crmEventData, false);
 	}
 }

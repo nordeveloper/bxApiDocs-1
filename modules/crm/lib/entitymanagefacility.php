@@ -298,7 +298,11 @@ class EntityManageFacility
 			$this->updateClientFields($fields);
 		}
 
-		$this->runAutomation();
+		if ($this->isAutomationRun)
+		{
+			$this->runAutomation();
+		}
+
 		return $this->registeredId;
 	}
 
@@ -334,7 +338,11 @@ class EntityManageFacility
 			$this->updateClientFields($fields);
 		}
 
-		$this->runAutomation();
+		if ($this->isAutomationRun)
+		{
+			$this->runAutomation();
+		}
+
 		return $this->registeredId;
 	}
 
@@ -365,7 +373,11 @@ class EntityManageFacility
 			$this->updateClientFields($fields);
 		}
 
-		$this->runAutomation();
+		if ($this->isAutomationRun)
+		{
+			$this->runAutomation();
+		}
+
 		return $this->registeredId;
 	}
 
@@ -387,7 +399,11 @@ class EntityManageFacility
 			$this->registeredId = $this->addDeal($fields, $updateSearch, $options);
 		}
 
-		$this->runAutomation();
+		if ($this->isAutomationRun)
+		{
+			$this->runAutomation();
+		}
+
 		return $this->registeredId;
 	}
 
@@ -686,13 +702,13 @@ class EntityManageFacility
 		return $dealId;
 	}
 
-	protected function runAutomation()
+	/**
+	 * Run automation. Setting `disableAutomationRun` is ignored.
+	 *
+	 * @return $this
+	 */
+	public function runAutomation()
 	{
-		if (!$this->isAutomationRun)
-		{
-			return;
-		}
-
 		// run on add
 		if ($this->canAdd() && $this->registeredId && $this->registeredTypeId)
 		{
@@ -724,6 +740,8 @@ class EntityManageFacility
 
 			// TODO: call Automation\Factory::runOnStatusChanged if status changed.
 		}
+
+		return $this;
 	}
 
 	protected function clearErrors()
@@ -821,6 +839,16 @@ class EntityManageFacility
 	{
 		$this->isAutomationRun = false;
 		return $this;
+	}
+
+	/**
+	 * Returns whether automation is enabled.
+	 *
+	 * @return bool
+	 */
+	public function isAutomationRun()
+	{
+		return $this->isAutomationRun;
 	}
 
 	/**

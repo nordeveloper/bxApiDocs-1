@@ -279,10 +279,14 @@ class CCrmProductPropsHelper
 					$arFilter[$i] = array(
 						"id" => $propID,
 						"name" => htmlspecialcharsex($arProp["NAME"]),
-						"type" => "E",
-						"value" => $arProp,
+						"type" => "propertyE",
+						"value" => ""
 					);
 					$arFilterable[$propID] = "";
+					$arCustomFilter[$propID] = array(
+						'type' => 'propertyE',
+						'filter' => &$arFilter[$i],
+					);
 				}
 				else if ($arProp["PROPERTY_TYPE"] === "L")
 				{

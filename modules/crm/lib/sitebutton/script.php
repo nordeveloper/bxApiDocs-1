@@ -366,11 +366,17 @@ class Script
 				continue;
 			}
 
+			$content = self::getFileContents($resource['path']);
+			if ($resource['pathToIcons'])
+			{
+				$content = str_replace('images/service/', ResourceManager::getServerAddress() . $resource['pathToIcons'] . 'images/service/', $content);
+			}
+
 			$resources[$resource['path']] = array(
 				'name' => $resource['name'],
 				'type' => $resource['type'],
 				'loadMode' => isset($resource['loadMode']) ? $resource['loadMode'] : null,
-				'content' => self::getFileContents($resource['path']),
+				'content' => $content,
 			);
 		}
 		$resources = array_values($resources);

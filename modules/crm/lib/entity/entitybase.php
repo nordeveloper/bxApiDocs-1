@@ -6,6 +6,8 @@ use Bitrix\Crm\Security\EntityAuthorization;
 
 abstract class EntityBase
 {
+	abstract public function getEntityTypeID();
+
 	abstract protected function getDbEntity();
 	abstract protected function buildPermissionSql(array $params);
 
@@ -112,5 +114,53 @@ abstract class EntityBase
 			$results[] = $ID;
 		}
 		return $results;
+	}
+
+	public function getEntityMultifields($entityID, array $options = null)
+	{
+		if($entityID <= 0)
+		{
+			return array();
+		}
+
+		$dbResult = \CCrmFieldMulti::GetListEx(
+			array('ID' => 'asc'),
+			array(
+				'=ENTITY_ID' => \CCrmOwnerType::ResolveName($this->getEntityTypeID()),
+				'=ELEMENT_ID' => $entityID
+			)
+		);
+
+		if($options === null)
+		{
+			$options = array();
+		}
+
+		$skipEmpty = isset($options['skipEmpty']) && $options['skipEmpty'];
+
+		$entityMultiFields = array();
+		while($fields = $dbResult->Fetch())
+		{
+			$value = isset($fields['VALUE']) ? $fields['VALUE'] : '';
+			if ($skipEmpty && $value === '')
+			{
+				continue;
+			}
+
+			$typeID = $fields['TYPE_ID'];
+			if(!isset($this->entityMutliFields[$typeID]))
+			{
+				$entityMultiFields[$typeID] = array();
+			}
+
+			$entityMultiFields[$typeID][] = array(
+				'ID' => $fields['ID'],
+				'VALUE' => $value,
+				'VALUE_TYPE' => isset($fields['VALUE_TYPE']) ? $fields['VALUE_TYPE'] : '',
+				'COMPLEX_ID' => isset($fields['COMPLEX_ID']) ? $fields['COMPLEX_ID'] : ''
+			);
+		}
+
+		return $entityMultiFields;
 	}
 }

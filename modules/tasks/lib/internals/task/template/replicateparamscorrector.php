@@ -1,15 +1,10 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: varchak
- * Date: 23.03.2018
- * Time: 17:44
- */
 
 namespace Bitrix\Tasks\Internals\Task\Template;
 
 use \Bitrix\Tasks\UI;
 use \Bitrix\Tasks\Util\User;
+use \Bitrix\Tasks\Util\Replicator\Task\FromTemplate;
 
 /**
  * Corrects replicate parameters
@@ -39,6 +34,11 @@ final class ReplicateParamsCorrector
 			$replicateParams['TIME'] = static::correctTime($userTime, $userOffset);
 			$replicateParams['START_DATE'] = static::correctStartDate($userTime, $userStartDate, $userOffset);
 			$replicateParams['END_DATE'] = static::correctEndDate($userTime, $userEndDate, $userOffset);
+
+			$replicateParams['NEXT_EXECUTION_TIME'] = static::getNextExecutionTime(array(
+				'CREATED_BY' => $templateData['CREATED_BY'],
+				'REPLICATE_PARAMS' => $replicateParams
+			));
 		}
 
 		return $replicateParams;
@@ -176,7 +176,7 @@ final class ReplicateParamsCorrector
 	{
 		$userTime = UI::parseTimeAmount($userTime, 'HH:MI');
 		$serverStartDateTime = $userStartDate + $userTime - $userOffset;
-		$serverStartDate = date('d.m.Y 00:00:00', $serverStartDateTime);
+		$serverStartDate = UI::formatDateTime(static::stripTime($serverStartDateTime));
 
 		return ($serverStartDate? $serverStartDate : '');
 	}
@@ -193,7 +193,7 @@ final class ReplicateParamsCorrector
 	{
 		$serverTime = UI::parseTimeAmount($serverTime, 'HH:MI');
 		$userStartDateTime = $serverStartDate + $serverTime + $currentTimeZoneOffset;
-		$userStartDate = date('d.m.Y 00:00:00', $userStartDateTime);
+		$userStartDate = UI::formatDateTime(static::stripTime($userStartDateTime));
 
 		return ($userStartDate? $userStartDate : '');
 	}
@@ -210,7 +210,7 @@ final class ReplicateParamsCorrector
 	{
 		$userTime = UI::parseTimeAmount($userTime, 'HH:MI');
 		$serverEndDateTime = $userEndDate + $userTime - $userOffset;
-		$serverEndDate = date('d.m.Y 00:00:00', $serverEndDateTime);
+		$serverEndDate = UI::formatDateTime(static::stripTime($serverEndDateTime));
 
 		return ($serverEndDate? $serverEndDate : '');
 	}
@@ -227,8 +227,46 @@ final class ReplicateParamsCorrector
 	{
 		$serverTime = UI::parseTimeAmount($serverTime, 'HH:MI');
 		$userEndDateTime = $serverEndDate + $serverTime + $currentTimeZoneOffset;
-		$userEndDate = date('d.m.Y 00:00:00', $userEndDateTime);
+		$userEndDate = UI::formatDateTime(static::stripTime($userEndDateTime));
 
 		return ($userEndDate? $userEndDate : '');
+	}
+
+	/**
+	 * Returns next execution time in server timezone
+	 *
+	 * @param $templateData
+	 * @return int
+	 */
+	private static function getNextExecutionTime($templateData)
+	{
+		$nextExecutionTimeResult = FromTemplate::getNextTime($templateData);
+		$nextExecutionTimeData = $nextExecutionTimeResult->getData();
+		$nextExecutionTime = $nextExecutionTimeData['TIME'];
+
+		if (!$nextExecutionTime)
+		{
+			return '';
+		}
+
+		$currentUserTimezoneOffset = User::getTimeZoneOffsetCurrentUser();
+		$nextExecutionTime = MakeTimeStamp($nextExecutionTime) - $currentUserTimezoneOffset;
+
+		return UI::formatDateTime($nextExecutionTime);
+	}
+
+	/**
+	 * Strips time (hours, minutes, seconds)
+	 *
+	 * @param $date
+	 * @return false|int
+	 */
+	private static function stripTime($date)
+	{
+		$m = (int)date("n", $date);
+		$d = (int)date("j", $date);
+		$y = (int)date("Y", $date);
+
+		return mktime(0, 0, 0, $m, $d, $y);
 	}
 }

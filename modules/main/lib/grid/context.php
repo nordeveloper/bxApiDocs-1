@@ -31,4 +31,14 @@ class Context
 			($request->getPost("internal") == true && $request->getPost("grid_id"))
 		);
 	}
+
+	/**
+	 * Checks that this is validate action request
+	 * @return bool
+	 */
+	public static function isValidateRequest()
+	{
+		return static::isInternalRequest() &&
+			self::getRequest()->get("grid_action") === "validate";
+	}
 }

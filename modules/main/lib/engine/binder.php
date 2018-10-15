@@ -7,6 +7,7 @@ use Bitrix\Main\ArgumentException;
 use Bitrix\Main\ArgumentNullException;
 use Bitrix\Main\ArgumentTypeException;
 use Bitrix\Main\Event;
+use Bitrix\Main\ObjectNotFoundException;
 
 class Binder
 {
@@ -210,13 +211,56 @@ class Binder
 	 */
 	final public function invoke()
 	{
-		if($this->reflectionFunctionAbstract instanceof \ReflectionMethod)
+		try
 		{
-			return $this->reflectionFunctionAbstract->invokeArgs($this->instance, $this->getArgs());
+			if($this->reflectionFunctionAbstract instanceof \ReflectionMethod)
+			{
+				return $this->reflectionFunctionAbstract->invokeArgs($this->instance, $this->getArgs());
+			}
+			elseif ($this->reflectionFunctionAbstract instanceof \ReflectionFunction)
+			{
+				return $this->reflectionFunctionAbstract->invokeArgs($this->getArgs());
+			}
 		}
-		elseif ($this->reflectionFunctionAbstract instanceof \ReflectionFunction)
+		catch (\TypeError $exception)
 		{
-			return $this->reflectionFunctionAbstract->invokeArgs($this->getArgs());
+			$this->processException($exception);
+		}
+		catch (\ErrorException $exception)
+		{
+			$this->processException($exception);
+		}
+
+		return null;
+	}
+
+	private function processException($exception)
+	{
+		if (!($exception instanceof \TypeError) && !($exception instanceof \ErrorException))
+		{
+			return;
+		}
+
+		if (
+			stripos($exception->getMessage(), 'must be an instance of') === false &&
+			stripos($exception->getMessage(), 'null given') === false
+		)
+		{
+			throw $exception;
+		}
+
+		$message = $this->extractParameterClassName($exception->getMessage());
+
+		throw new ObjectNotFoundException(
+			"Could not find value for class {{$message}} to build auto wired argument"
+		);
+	}
+
+	private function extractParameterClassName($message)
+	{
+		if (preg_match('%must be an instance of ([a-zA-Z0-9_\\\\]+), null given%', $message, $m))
+		{
+			return $m[1];
 		}
 
 		return null;

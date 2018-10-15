@@ -60,15 +60,18 @@ class Utils
 	 * @param null $query Query string.
 	 * @param string $type Search type.
 	 * @param int $iblock Iblock id optional.
+	 * @param int $siteId Site id optional.
 	 * @return PublicActionResult|\CIBlockResult|int
 	 */
-	public static function catalogSearch($query = null, $type = self::TYPE_CATALOG_ALL, $iblock = null)
+	public static function catalogSearch($query = null, $type = self::TYPE_CATALOG_ALL, $iblock = null, $siteId = null)
 	{
 		$publicResult = new PublicActionResult();
 
 		if (!$iblock)
 		{
-			$settings = \Bitrix\Landing\Hook\Page\Settings::getDataForSite();
+			$settings = \Bitrix\Landing\Hook\Page\Settings::getDataForSite(
+				$siteId
+			);
 			$iblockId = $settings['IBLOCK_ID'];
 		}
 		else

@@ -7,6 +7,10 @@ class CompanySearchContentBuilder extends SearchContentBuilder
 	{
 		return \CCrmOwnerType::Company;
 	}
+	protected function getUserFieldEntityID()
+	{
+		return \CCrmCompany::GetUserFieldEntityID();
+	}
 	public function isFullTextSearchEnabled()
 	{
 		return CompanyTable::getEntity()->fullTextIndexEnabled('SEARCH_CONTENT');
@@ -89,6 +93,23 @@ class CompanySearchContentBuilder extends SearchContentBuilder
 				}
 			}
 		}
+
+		if(isset($fields['INDUSTRY']))
+		{
+			$map->addStatus('INDUSTRY', $fields['INDUSTRY']);
+		}
+
+		if(isset($fields['COMMENTS']))
+		{
+			$map->addHtml($fields['COMMENTS'], 1024);
+		}
+
+		//region UserFields
+		foreach($this->getUserFields($entityID) as $userField)
+		{
+			$map->addUserField($userField);
+		}
+		//endregion
 
 		return $map;
 	}

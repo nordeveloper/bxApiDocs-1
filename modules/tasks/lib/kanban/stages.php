@@ -500,39 +500,33 @@ class StagesTable extends Entity\DataManager
 		// if personal - search in another table
 		if (self::getWorkMode() == self::WORK_MODE_USER)
 		{
-			$sql = 'SELECT STG.STAGE_ID, COUNT(STG.STAGE_ID) AS CNT '.
-				   'FROM '.
-				   TaskStageTable::getTableName().
-				   ' STG '
-				   .$userFieldsSql->GetJoin("T.ID"). " ".
-				   'LEFT JOIN '.
-				   Task::getTableName().
-				   ' T ON '
-
-					. 'T.ID = STG.TASK_ID'
-					. (in_array('FAVORITE', $filterKeys)
-						?	' LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON ' .
-							' FVT.TASK_ID = T.ID AND FVT.USER_ID = ' . $userId . ' '
-						: '')
-					.	' LEFT JOIN ' . ViewedTable::getTableName() . ' TV ON ' .
-						' TV.TASK_ID = T.ID AND TV.USER_ID = ' . $userId . ' '
-					. 'WHERE ' . implode(' AND ', $sqlSearch) . ' '
-					. 'GROUP BY STG.STAGE_ID;';
+			$sql = 'SELECT STG.STAGE_ID, COUNT(STG.STAGE_ID) AS CNT ' .
+				   'FROM ' . TaskStageTable::getTableName() . ' STG ' .
+				   'LEFT JOIN '. Task::getTableName() . ' T ON T.ID = STG.TASK_ID ' .
+				   $userFieldsSql->GetJoin("T.ID") . ' ' .
+				   (
+				   		in_array('FAVORITE', $filterKeys)
+						? 'LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON FVT.TASK_ID = T.ID AND FVT.USER_ID = ' . $userId . ' '
+						: ''
+				   ) .
+				   'LEFT JOIN ' . ViewedTable::getTableName() . ' TV ON TV.TASK_ID = T.ID AND TV.USER_ID = ' . $userId . ' ' .
+				   'WHERE ' . implode(' AND ', $sqlSearch) . ' ' .
+				   'GROUP BY STG.STAGE_ID;';
 		}
 		// else tasks table
 		else
 		{
-			$sql = 'SELECT T.STAGE_ID, COUNT(T.STAGE_ID) AS CNT '
-					. 'FROM ' . Task::getTableName() . ' T '
-				   .$userFieldsSql->GetJoin("T.ID")." "
-					. (in_array('FAVORITE', $filterKeys)
-						?	' LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON ' .
-							' FVT.TASK_ID = T.ID AND FVT.USER_ID = ' . $userId . ' '
-						: '')
-					.	' LEFT JOIN ' . ViewedTable::getTableName() . ' TV ON ' .
-						' TV.TASK_ID = T.ID AND TV.USER_ID = ' . $userId . ' '
-					. 'WHERE ' . implode(' AND ', $sqlSearch) . ' '
-					. 'GROUP BY T.STAGE_ID;';
+			$sql = 'SELECT T.STAGE_ID, COUNT(T.STAGE_ID) AS CNT ' .
+				   'FROM ' . Task::getTableName() . ' T ' .
+				   $userFieldsSql->GetJoin("T.ID") . ' ' .
+				   (
+				   		in_array('FAVORITE', $filterKeys)
+						? 'LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON FVT.TASK_ID = T.ID AND FVT.USER_ID = ' . $userId . ' '
+						: ''
+				   ) .
+				   'LEFT JOIN ' . ViewedTable::getTableName() . ' TV ON TV.TASK_ID = T.ID AND TV.USER_ID = ' . $userId . ' ' .
+				   'WHERE ' . implode(' AND ', $sqlSearch) . ' ' .
+				   'GROUP BY T.STAGE_ID;';
 		}
 		return $connection->query($sql);
 	}
@@ -685,10 +679,17 @@ class StagesTable extends Entity\DataManager
 					));
 					if (!$resStg->fetch())
 					{
-						TaskStageTable::add(array(
+						$fields = array(
 							'TASK_ID' => $taskId,
 							'STAGE_ID' => self::getDefaultStageId($userId)
-						));
+						);
+						if (!TaskStageTable::getList(array(
+								'filter' => $fields
+							)
+						)->fetch())
+						{
+							TaskStageTable::add($fields);
+						}
 					}
 				}
 			}
@@ -713,15 +714,6 @@ class StagesTable extends Entity\DataManager
 		// one sort for project
 		if ($task['GROUP_ID'] > 0 && !empty($checkStages) && ($newTask || $refreshGroup))
 		{
-			// if task without stage id
-			if (!$task['STAGE_ID'])
-			{
-				$task['STAGE_ID'] = self::getDefaultStageId($task['GROUP_ID']);
-			}
-			$filter['STAGE_ID'] = self::getStageIdByCode(
-				$task['STAGE_ID'],
-				$task['GROUP_ID']
-			);
 			// get order
 			if (($project = ProjectsTable::getById($task['GROUP_ID'])->fetch()))
 			{
@@ -798,17 +790,11 @@ class StagesTable extends Entity\DataManager
 						'ID' => 'ASC'
 					);
 				}
+
 				// set sorting
-				if (isset($filter['STAGE_ID']))
-				{
-					unset($filter['STAGE_ID']);
-				}
-				if (isset($filter['GROUP_ID']))
-				{
-					unset($filter['GROUP_ID']);
-				}
+				unset($filter['GROUP_ID']);
 				$filter['MEMBER'] = $userId;
-				$filter['STAGES_ID'] = $personaleDefStages[$userId];
+
 				$res = \CTasks::getList(
 					$sort,
 					$filter,
@@ -890,15 +876,10 @@ class StagesTable extends Entity\DataManager
 			if ($stage['ENTITY_TYPE'] == self::WORK_MODE_GROUP)
 			{
 				$filter['GROUP_ID'] = $stage['ENTITY_ID'];
-				$filter['STAGE_ID'] = self::getStageIdByCode(
-					$stageId,
-					$stage['ENTITY_ID']
-				);
 			}
 			else
 			{
 				$filter['MEMBER'] = $stage['ENTITY_ID'];
-				$filter['STAGES_ID'] = $stageId;
 			}
 			// set params
 			$params = array(

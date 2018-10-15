@@ -126,6 +126,7 @@ class WorkTime
 				{
 					$holidays = explode(',', $holidays);
 					trimArr($holidays);
+					$holidays = array_values($holidays);
 				}
 
 				$dayOff = $calendarSettings['week_holidays'];

@@ -16,6 +16,9 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 
 	abstract protected function getCrmProductOwnerType();
 
+	/**
+	 * @return array
+	 */
 	public function getFields()
 	{
 		if($this->fields === null)
@@ -65,6 +68,9 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		}
 	}
 
+	/**
+	 * @return Product[]
+	 */
 	public function loadProducts()
 	{
 		if($this->products === null)
@@ -123,6 +129,9 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		return $result;
 	}
 
+	/**
+	 * @param array $products
+	 */
 	protected function loadIblockProductsData(array &$products)
 	{
 		$ids = [];
@@ -130,7 +139,7 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		{
 			if($product['PRODUCT_ID'] > 0)
 			{
-				$ids[$product['PRODUCT_ID']] = $key;
+				$ids[$product['PRODUCT_ID']][] = $key;
 			}
 		}
 		if(!empty($ids))
@@ -138,18 +147,23 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 			$query = ElementTable::getList(['select' => ['ID', 'DETAIL_TEXT', 'PREVIEW_PICTURE', 'DETAIL_PICTURE', 'IBLOCK_SECTION.NAME'], 'filter' => ['@ID' => array_keys($ids)]]);
 			while($data = $query->fetch())
 			{
+				$dataToMerge = [];
 				if(isset($ids[$data['ID']]))
 				{
-					$products[$ids[$data['ID']]]['DESCRIPTION'] = $data['DETAIL_TEXT'];
+					$dataToMerge['DESCRIPTION'] = $data['DETAIL_TEXT'];
 					if($data['PREVIEW_PICTURE'] > 0)
 					{
-						$products[$ids[$data['ID']]]['PREVIEW_PICTURE'] = \CFile::GetPath($data['PREVIEW_PICTURE']);
+						$dataToMerge['PREVIEW_PICTURE'] = \CFile::GetPath($data['PREVIEW_PICTURE']);
 					}
 					if($data['DETAIL_PICTURE'] > 0)
 					{
-						$products[$ids[$data['ID']]]['DETAIL_PICTURE'] = \CFile::GetPath($data['DETAIL_PICTURE']);
+						$dataToMerge['DETAIL_PICTURE'] = \CFile::GetPath($data['DETAIL_PICTURE']);
 					}
-					$products[$ids[$data['ID']]]['SECTION'] = $data['IBLOCK_ELEMENT_IBLOCK_SECTION_NAME'];
+					$dataToMerge['SECTION'] = $data['IBLOCK_ELEMENT_IBLOCK_SECTION_NAME'];
+					foreach($ids[$data['ID']] as $key)
+					{
+						$products[$key] = array_merge($products[$key], $dataToMerge);
+					}
 				}
 			}
 		}
@@ -179,7 +193,31 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 			$this->data['TOTAL_RAW'] += $product->getRawValue('PRICE_RAW_SUM');
 			$crmProducts[] = DataProviderManager::getInstance()->getArray($product, ['rawValue' => true]);
 		}
-		$calculate = \CCrmSaleHelper::Calculate($crmProducts, $currencyID, $this->getPersonTypeID(), false, 's1');
+		$calcOptions = [];
+		if(\CCrmTax::isTaxMode())
+		{
+			$calcOptions = [
+				'LOCATION_ID' => $this->getLocationId(),
+				'ALLOW_LD_TAX' => 'Y',
+			];
+		}
+		$calculate = \CCrmSaleHelper::Calculate($crmProducts, $currencyID, $this->getPersonTypeID(), false, 's1', $calcOptions);
+		if(is_array($calculate['TAX_LIST']) && \CCrmTax::isTaxMode())
+		{
+			foreach($calculate['TAX_LIST'] as $taxInfo)
+			{
+				$tax = new Tax([
+					'NAME' => $taxInfo['NAME'],
+					'VALUE' => new Money($taxInfo['TAX_VAL'], ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true]),
+					'NETTO' => 0,
+					'BRUTTO' => 0,
+					'RATE' => (float)$taxInfo['VALUE'],
+					'TAX_INCLUDED' => $taxInfo['IS_IN_PRICE'],
+				]);
+				$tax->setParentProvider($this);
+				$this->taxes[] = $tax;
+			}
+		}
 		$this->data['TOTAL_SUM'] = $calculate['PRICE'];
 		$this->data['TOTAL_TAX'] = $calculate['TAX_VALUE'];
 		$this->data['TOTAL_BEFORE_TAX'] = $this->data['TOTAL_SUM'] - $this->data['TOTAL_TAX'];
@@ -243,8 +281,6 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 			],
 			'TOTAL_QUANTITY' => [
 				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_QUANTITY_TITLE'),
-				'TYPE' => Money::class,
-				'FORMAT' => ['CURRENCY_ID' => $currencyID, 'NO_SIGN' => true],
 			],
 			'TOTAL_QUANTITY_WORDS' => [
 				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TOTAL_QUANTITY_WORDS_TITLE'),
@@ -298,6 +334,9 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		return $this->data['CURRENCY_ID'];
 	}
 
+	/**
+	 * @return string
+	 */
 	public function getCurrencyName()
 	{
 		return \CCrmCurrency::GetCurrencyName($this->getCurrencyId());
@@ -311,6 +350,10 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 			if($this->taxes === null)
 			{
 				$this->taxes = $taxes = [];
+				if(\CCrmTax::isTaxMode())
+				{
+					return $this->taxes;
+				}
 				foreach($this->products as $product)
 				{
 					if($product->getRawValue('TAX_RATE') > 0)
@@ -318,18 +361,25 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 						if(!isset($taxes[$product->getRawValue('TAX_RATE')]))
 						{
 							$taxes[$product->getRawValue('TAX_RATE')] = [
+								'NAME' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAX_VAT_NAME'),
 								'VALUE' => 0,
+								'NETTO' => 0,
+								'BRUTTO' => 0,
 								'RATE' => $product->getRawValue('TAX_RATE'),
 								'TAX_INCLUDED' => $product->getRawValue('TAX_INCLUDED'),
 							];
 						}
 						$taxes[$product->getRawValue('TAX_RATE')]['VALUE'] += $product->getRawValue('TAX_VALUE_SUM');
+						$taxes[$product->getRawValue('TAX_RATE')]['NETTO'] += $product->getRawValue('PRICE_EXCLUSIVE_SUM');
+						$taxes[$product->getRawValue('TAX_RATE')]['BRUTTO'] += $product->getRawValue('PRICE_SUM');
 					}
 				}
 				$currencyID = $this->getCurrencyId();
 				foreach($taxes as $tax)
 				{
 					$tax['VALUE'] = new Money($tax['VALUE'], ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true]);
+					$tax['NETTO'] = new Money($tax['NETTO'], ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true]);
+					$tax['BRUTTO'] = new Money($tax['BRUTTO'], ['CURRENCY_ID' => $currencyID, 'WITH_ZEROS' => true]);
 					$tax = new Tax($tax);
 					$tax->setParentProvider($this);
 					$this->taxes[] = $tax;
@@ -340,10 +390,24 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		return $this->taxes;
 	}
 
+	/**
+	 * @return mixed
+	 */
+	protected function getLocationId()
+	{
+		if($this->isLoaded())
+		{
+			return $this->data['LOCATION_ID'];
+		}
+
+		return null;
+	}
+
 	protected function getHiddenFields()
 	{
 		return array_merge(parent::getHiddenFields(), [
 			'CURRENCY_ID',
+			'LOCATION_ID',
 		]);
 	}
 

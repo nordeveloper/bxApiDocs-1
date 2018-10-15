@@ -69,25 +69,31 @@ trait StatusTrait
 	 */
 	protected static function getStatusSort($statusId)
 	{
+		static $results = [];
+
+		if(isset($results[$statusId]))
+		{
+			return $results[$statusId];
+		}
+
+		$results[$statusId] = -1;
 		$statusID = strval($statusId);
 
-		if($statusID === '')
+		if($statusID !== '')
 		{
-			return -1;
+			/** @var Main\DB\Result $dbRes */
+			$dbRes = static::getList(array(
+				'select' => ['SORT'],
+				'filter' => ['=ID' => $statusId, '=TYPE' => static::TYPE],
+			));
+
+			if ($data = $dbRes->fetch())
+			{
+				$results[$statusId] = $data['SORT'];
+			}
 		}
 
-		/** @var Main\DB\Result $dbRes */
-		$dbRes = static::getList(array(
-			'select' => ['SORT'],
-			'filter' => ['=ID' => $statusId, '=TYPE' => static::TYPE],
-		));
-
-		if ($data = $dbRes->fetch())
-		{
-			return $data['SORT'];
-		}
-
-		return -1;
+		return $results[$statusId];
 	}
 
 	/**
@@ -149,6 +155,13 @@ trait StatusTrait
 	 */
 	public static function getListInCrmFormat()
 	{
+		static $result = null;
+
+		if($result !== null)
+		{
+			return $result;
+		}
+
 		$result = [];
 
 		$defaultList = static::getDefaultStatuses();

@@ -108,6 +108,18 @@ class ManyToMany extends Relation
 	}
 
 	/**
+	 * Short alias for configureMediatorTableName()
+	 *
+	 * @param $name
+	 *
+	 * @return $this
+	 */
+	public function configureTableName($name)
+	{
+		return $this->configureMediatorTableName($name);
+	}
+
+	/**
 	 * In case of auto-generated mediator, sets the custom ID field name that stores owner entity ID.
 	 *
 	 * @param $fieldName

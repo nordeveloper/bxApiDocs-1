@@ -1053,7 +1053,10 @@ class CCrmInstantEditorHelper
 		$results = array();
 		if(isset($options['NOT_SELECTED']) && is_string($options['NOT_SELECTED']))
 		{
-			$results[] = array('NAME' => $options['NOT_SELECTED'], 'VALUE' => '0');
+			$results[] = array(
+				'NAME' => $options['NOT_SELECTED'],
+				'VALUE' => isset($options['NOT_SELECTED_VALUE']) ? $options['NOT_SELECTED_VALUE'] : '0'
+			);
 		}
 
 		foreach($list as $k => $v)

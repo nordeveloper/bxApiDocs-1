@@ -18,6 +18,7 @@ use \Bitrix\Tasks\Kanban\StagesTable;
 use \Bitrix\Tasks\Kanban\TaskStageTable;
 use \Bitrix\Tasks\Internals\Task\SortingTable;
 use \Bitrix\Tasks\Integration\SocialNetwork;
+use \Bitrix\Tasks\Integration\Bizproc;
 
 Loc::loadMessages(__FILE__);
 
@@ -534,6 +535,15 @@ final class Stages extends \Bitrix\Tasks\Dispatcher\RestrictedAction
 					TaskStageTable::update($rowStg['ID'], array(
 						'STAGE_ID' => $stageId
 					));
+
+					if ($stageId !== (int)$rowStg['STAGE_ID'])
+					{
+						Bizproc\Listener::onPlanTaskStageUpdate(
+							$stage['ENTITY_ID'],
+							$rowStg['TASK_ID'],
+							$stageId
+						);
+					}
 				}
 			}
 			$success = true;

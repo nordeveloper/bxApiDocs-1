@@ -136,5 +136,30 @@ class CUserTypeCrmStatus extends CUserTypeString
 		else
 			return $arUserField['VALUE'];
 	}
+
+	public static function getPublicText($userField)
+	{
+		$settings = isset($userField['SETTINGS']) && is_array($userField['SETTINGS']) ? $userField['SETTINGS'] : array();
+		$entityType = isset($settings['ENTITY_TYPE']) ? $settings['ENTITY_TYPE'] : '';
+		$statusList = $entityType !== '' ? CCrmStatus::GetStatus($entityType) : array();
+		if(empty($statusList))
+		{
+			return '';
+		}
+
+		$results = array();
+		$value = static::normalizeFieldValue($userField['VALUE']);
+		if(count($value) > 0 && $value[0] !== null)
+		{
+			foreach($value as $statusID)
+			{
+				if(isset($statusList[$statusID]))
+				{
+					$results[] = isset($statusList[$statusID]['NAME']) ? $statusList[$statusID]['NAME'] : "[{$statusID}]";
+				}
+			}
+		}
+		return implode(', ', $results);
+	}
 }
 ?>

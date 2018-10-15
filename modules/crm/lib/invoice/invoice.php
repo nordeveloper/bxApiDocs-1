@@ -100,6 +100,7 @@ class Invoice extends Sale\Order
 				Sale\Registry::ENTITY_ORDER => '\Bitrix\Crm\Invoice\Invoice',
 				Sale\Registry::ENTITY_TAX => '\Bitrix\Crm\Invoice\Tax',
 				Sale\Registry::ENTITY_DISCOUNT => '\Bitrix\Crm\Invoice\Discount',
+				Sale\Registry::ENTITY_PROPERTY => 'Bitrix\Crm\Invoice\Property',
 				Sale\Registry::ENTITY_PROPERTY_VALUE => '\Bitrix\Crm\Invoice\PropertyValue',
 				Sale\Registry::ENTITY_PROPERTY_VALUE_COLLECTION => '\Bitrix\Crm\Invoice\PropertyValueCollection',
 				Sale\Registry::ENTITY_BASKET => '\Bitrix\Crm\Invoice\Basket',
@@ -122,6 +123,8 @@ class Invoice extends Sale\Order
 				Sale\Registry::ENTITY_ORDER_DISCOUNT => '\Bitrix\Crm\Invoice\InvoiceDiscount',
 				Sale\Registry::ENTITY_DISCOUNT_COUPON => '\Bitrix\Crm\Invoice\DiscountCouponsManager',
 				Sale\Registry::ENTITY_NOTIFY => 'Bitrix\Crm\Invoice\Notify',
+				Sale\Registry::ENTITY_TRADE_BINDING_COLLECTION => 'Bitrix\Crm\Invoice\TradeBindingCollection',
+				Sale\Registry::ENTITY_TRADE_BINDING_ENTITY => 'Bitrix\Crm\Invoice\TradeBindingEntity',
 			)
 		);
 

@@ -721,6 +721,14 @@ abstract class Base implements Crm\Volume\IVolumeIndicator
 		return $eventVolume->countEntity();
 	}
 
+	/**
+	 * Tells that is is participated in the total volume.
+	 * @return boolean
+	 */
+	public function isParticipatedTotal()
+	{
+		return true;
+	}
 
 	/**
 	 * Returns query.

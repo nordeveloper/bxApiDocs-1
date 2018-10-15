@@ -18,6 +18,11 @@ class Manager
 	const PUBLICATION_PATH = '/pub/site/';
 
 	/**
+	 * Path of master for create / edit a landings.
+	 */
+	const PATH_ADMIN_PANEL = '/bitrix/tools/landing/admin_panel.php';
+
+	/**
 	 * Feature name for create new site.
 	 */
 	const FEATURE_CREATE_SITE = 'create_site';
@@ -36,6 +41,16 @@ class Manager
 	 * Feature name for enable all hooks.
 	 */
 	const FEATURE_ENABLE_ALL_HOOKS = 'enable_all_hooks';
+
+	/**
+	 * Feature name for publication site.
+	 */
+	const FEATURE_PUBLICATION_SITE = 'publication_site';
+
+	/**
+	 * Feature name for publication page.
+	 */
+	const FEATURE_PUBLICATION_PAGE = 'publication_page';
 
 	/**
 	 * Selected template theme id.
@@ -117,7 +132,7 @@ class Manager
 	 * Get option from module settings.
 	 * @param string $code Option code.
 	 * @param mixed $default Default value.
-	 * @return type
+	 * @return mixed
 	 */
 	public static function getOption($code, $default = null)
 	{
@@ -566,7 +581,15 @@ class Manager
 			isset($file[1])
 		)
 		{
-			$tempPath = \CFile::getTempName('', $file[0]);
+			$fileParts = explode('.', $file[0]);
+			$ext = array_pop($fileParts);
+			$tempPath = \CFile::getTempName(
+				'',
+				\CUtil::translit(
+					implode('', $fileParts),
+					'ru'
+				) . '.' . $ext
+			);
 			$fileIO = new \Bitrix\Main\IO\File(
 				$tempPath
 			);
@@ -591,7 +614,7 @@ class Manager
 					$file,
 					$params,
 					isset($params['resize_type'])
-					? $params['resize_type']
+					? intval($params['resize_type'])
 					: BX_RESIZE_IMAGE_PROPORTIONAL);
 			}
 			// save
@@ -619,27 +642,47 @@ class Manager
 	 */
 	public static function checkFeature($feature, array $params = array())
 	{
-		if ($feature == self::FEATURE_CREATE_SITE)
+		if (
+			$feature == self::FEATURE_CREATE_SITE ||
+			$feature == self::FEATURE_PUBLICATION_SITE
+		)
 		{
+			$optSuff = ($feature == self::FEATURE_PUBLICATION_SITE)
+						? '_publication'
+						: '';
 			if (
-				isset($params['TYPE']) &&
-				$params['TYPE'] == 'STORE'
+				isset($params['type']) &&
+				$params['type'] == 'STORE'
 			)
 			{
-				$limit = self::getOption('shops_limit_count');
+				$limit = self::getOption('shops_limit_count' . $optSuff);
 			}
 			else
 			{
-				$limit = self::getOption('site_limit_count');
+				$limit = self::getOption('site_limit_count' . $optSuff);
 			}
 			if ($limit)
 			{
 				$filter = array(
-					'CHECK_PERMISSIONS' => 'N'
+					'CHECK_PERMISSIONS' => 'N',
 				);
-				if (isset($params['TYPE']))
+				if ($feature == self::FEATURE_PUBLICATION_SITE)
 				{
-					$filter['=TYPE'] = $params['TYPE'];
+					$filter['=ACTIVE'] = 'Y';
+				}
+				if (isset($params['type']))
+				{
+					$filter['=TYPE'] = $params['type'];
+				}
+				if (
+					isset($params['filter']) &&
+					is_array($params['filter'])
+				)
+				{
+					$filter = array_merge(
+						$filter,
+						$params['filter']
+					);
 				}
 				$check = Site::getList(array(
 					'select' => array(
@@ -655,18 +698,43 @@ class Manager
 			}
 			return true;
 		}
-		elseif ($feature == self::FEATURE_CREATE_PAGE)
+		elseif (
+			$feature == self::FEATURE_CREATE_PAGE ||
+			$feature == self::FEATURE_PUBLICATION_PAGE
+		)
 		{
-			$limit = self::getOption('pages_limit_count');
+			if ($feature == self::FEATURE_PUBLICATION_PAGE)
+			{
+				$limit = self::getOption('pages_limit_count_publication');
+			}
+			else
+			{
+				$limit = self::getOption('pages_limit_count');
+			}
 			if ($limit)
 			{
+				$filter = array(
+					'CHECK_PERMISSIONS' => 'N'
+				);
+				if ($feature == self::FEATURE_PUBLICATION_PAGE)
+				{
+					$filter['=ACTIVE'] = 'Y';
+				}
+				if (
+					isset($params['filter']) &&
+					is_array($params['filter'])
+				)
+				{
+					$filter = array_merge(
+						$filter,
+						$params['filter']
+					);
+				}
 				$check = Landing::getList(array(
 					'select' => array(
-						'CNT' => new Entity\ExpressionField('CNT', 'COUNT(ID)')
+						'CNT' => new Entity\ExpressionField('CNT', 'COUNT(*)')
 					),
-					'filter' => array(
-						'CHECK_PERMISSIONS' => 'N'
-					),
+					'filter' => $filter,
 					'group' => array()
 				))->fetch();
 				if ($check && $check['CNT'] >= $limit)
@@ -676,10 +744,6 @@ class Manager
 			}
 			return true;
 		}
-		elseif ($feature == self::FEATURE_CUSTOM_DOMAIN)
-		{
-			return true;
-		}
 		elseif ($feature == self::FEATURE_ENABLE_ALL_HOOKS)
 		{
 			if (!Loader::includeModule('bitrix24'))
@@ -687,6 +751,11 @@ class Manager
 				return true;
 			}
 			return \CBitrix24::isLicensePaid();
+		}
+		// old feature for compatibility
+		elseif ($feature == self::FEATURE_CUSTOM_DOMAIN)
+		{
+			return true;
 		}
 
 		return false;
@@ -762,9 +831,16 @@ class Manager
 	 */
 	public static function getUrlFromFile($file)
 	{
-		return (self::isHttps() ? 'https://' : 'http://') .
-				self::getHttpHost() .
-				$file;
+		if (substr($file, 0, 1) == '/')
+		{
+			return (self::isHttps() ? 'https://' : 'http://') .
+				   self::getHttpHost() .
+				   $file;
+		}
+		else
+		{
+			return $file;
+		}
 	}
 
 	/**
@@ -845,5 +921,97 @@ class Manager
 			return false;
 		}
 		return true;
+	}
+
+	/**
+	 * Sanitize bad value.
+	 * @param string $value Bad value.
+	 * @param bool $bad Return true, if value is bad.
+	 * @param string $splitter Splitter for bad content.
+	 * @return string Good value.
+	 */
+	public static function sanitize($value, &$bad = false, $splitter = ' ')
+	{
+		static $sanitizer = null;
+
+		if (!is_bool($bad))
+		{
+			$bad = false;
+		}
+
+		if ($sanitizer === null)
+		{
+			$sanitizer = false;
+			if (Loader::includeModule('security'))
+			{
+				$sanitizer = new \Bitrix\Security\Filter\Auditor\Xss(
+					$splitter
+				);
+			}
+		}
+
+		if ($sanitizer)
+		{
+			// bad value exists
+			if ($sanitizer->process($value))
+			{
+				$bad = true;
+				$value = $sanitizer->getFilteredValue();
+			}
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Get deleted life time days.
+	 * @return int
+	 */
+	public static function getDeletedLT()
+	{
+		$deletedDays = (int) Manager::getOption('deleted_lifetime_days', 30);
+		$deletedDays = max(1, $deletedDays);
+		return $deletedDays;
+	}
+
+	/**
+	 * Add buttons of module to the admin panel.
+	 * @return void
+	 */
+	public static function addPanelButtons()
+	{
+		return;
+		/**
+		 * RIGHT!!!
+		 */
+		$app = self::getApplication();
+		$dir = urlencode($app->getCurDir());
+		$page = urlencode($app->getCurPage());
+		// base action link
+		$urlPopup = 'javascript:' . $app->getPopupLink(array(
+			'URL' => self::PATH_ADMIN_PANEL . '?' .
+			'path=' . $dir .
+			'&page=' . $page .
+			'&site=' . SITE_ID,
+			'PARAMS' => array(
+				'width' => 500,
+				'height' => 200
+			)
+		));
+		// add button
+		$app->AddPanelButton(array(
+			'TEXT' => Loc::getMessage('LANDING_PANEL_MASTER_TITLE'),
+			'HREF' => $urlPopup,
+			'TYPE' => 'BIG',
+			'ID' => 'landing_master',
+			'ICON' => 'bx-panel-create-page-icon',
+			'MAIN_SORT' => 220,
+			'SORT' => 20,
+			'MENU' => [],
+			'HINT' => array(
+				'TITLE' => Loc::getMessage('LANDING_PANEL_MASTER_HINT'),
+ 				'TEXT' => Loc::getMessage('LANDING_PANEL_MASTER_HINT_TITLE')
+			)
+		));
 	}
 }

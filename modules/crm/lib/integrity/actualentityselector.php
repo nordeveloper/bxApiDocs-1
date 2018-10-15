@@ -464,13 +464,14 @@ class ActualEntitySelector
 	}
 
 	/**
-	 * Set actual entity that will not ranked.
+	 * Set actual entity instead of using duplicate search.
 	 *
 	 * @param integer $entityTypeId Entity type ID.
 	 * @param integer $entityId Entity ID.
+	 * @param bool $skipRanking Skip ranking.
 	 * @return $this
 	 */
-	public function setEntity($entityTypeId, $entityId)
+	public function setEntity($entityTypeId, $entityId, $skipRanking = false)
 	{
 		$entityId = $entityId ? (int) $entityId : null;
 		foreach($this->entities as $index => $entity)
@@ -489,15 +490,34 @@ class ActualEntitySelector
 			if ($entityTypeId == \CCrmOwnerType::Lead)
 			{
 				$isCurrentLeadRC = $entity['CODE'] == 'returnCustomerLeadId';
-				$isLeadRC = LeadTable::getCount(array('=ID' => $entityId, '=IS_RETURN_CUSTOMER' => 'Y')) > 0;
+				$leadRow = LeadTable::getRow([
+					'select' => ['ID', 'IS_RETURN_CUSTOMER', 'CONTACT_ID', 'COMPANY_ID'],
+					'filter' => ['=ID' => $entityId]
+				]);
+				$isLeadRC = $leadRow['IS_RETURN_CUSTOMER'] === 'Y';
 				if ($isCurrentLeadRC != $isLeadRC)
 				{
 					continue;
 				}
+
+				if ($isLeadRC)
+				{
+					if ($leadRow['CONTACT_ID'])
+					{
+						$this->setEntity(\CCrmOwnerType::Contact, $leadRow['CONTACT_ID'], true);
+					}
+					if ($leadRow['COMPANY_ID'])
+					{
+						$this->setEntity(\CCrmOwnerType::Company, $leadRow['COMPANY_ID'], true);
+					}
+				}
+
+				$skipRanking = true;
 			}
 
 			$entity['ID'] = $entityId;
-			$entity['SKIP_RANKING'] = true;
+			$entity['SKIP_DUPLICATES'] = true;
+			$entity['SKIP_RANKING'] = $skipRanking;
 			$this->entities[$index] = $entity;
 		}
 
@@ -533,10 +553,26 @@ class ActualEntitySelector
 		return false;
 	}
 
+	protected function canUseDuplicates($entityTypeId)
+	{
+		$entity = $this->getEntityByTypeId($entityTypeId);
+		if (!$entity || !$entity['ID'])
+		{
+			return true;
+		}
+
+		if (!isset($entity['SKIP_DUPLICATES']) || !$entity['SKIP_DUPLICATES'])
+		{
+			return true;
+		}
+
+		return false;
+	}
+
 	protected function getRankableList($entityTypeId)
 	{
 		$list = [];
-		if ($this->canRank($entityTypeId))
+		if ($this->canUseDuplicates($entityTypeId))
 		{
 			// get list with default ranking
 			foreach ($this->duplicates as $duplicate)
@@ -544,10 +580,14 @@ class ActualEntitySelector
 				$list = array_merge($list, $duplicate->getEntityIDsByType($entityTypeId));
 			}
 		}
-		else
+
+		if (empty($list))
 		{
 			$entity = $this->getEntityByTypeId($entityTypeId);
-			$list[] = $entity['ID'];
+			if ($entity['ID'])
+			{
+				$list[] = $entity['ID'];
+			}
 		}
 
 		// unique list
@@ -694,7 +734,10 @@ class ActualEntitySelector
 			$leadId = current($this->getRankableList(\CCrmOwnerType::Lead));
 		}
 
-		$this->set('leadId', $leadId);
+		if ($leadId)
+		{
+			$this->set('leadId', $leadId);
+		}
 	}
 
 	/**

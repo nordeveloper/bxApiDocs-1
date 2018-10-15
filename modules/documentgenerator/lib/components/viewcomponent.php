@@ -99,7 +99,12 @@ abstract class ViewComponent extends \CBitrixComponent
 					$template->setSourceType($this->arParams['PROVIDER']);
 					$this->template = $template;
 					$this->value = $this->arParams['VALUE'];
-					$this->document = Document::createByTemplate($template, $this->value);
+					$data = [];
+					if(isset($this->arParams['NUMBER']) && !empty($this->arParams['NUMBER']))
+					{
+						$data['NUMBER'] = $this->arParams['NUMBER'];
+					}
+					$this->document = Document::createByTemplate($template, $this->value, $data);
 					if(!$this->document->hasAccess(Driver::getInstance()->getUserId()))
 					{
 						$result->addError(new Error('Access denied'));

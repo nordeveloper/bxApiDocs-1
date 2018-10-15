@@ -112,7 +112,7 @@ class Event extends \Bitrix\Main\Event
 				foreach($removed as $fieldName)
 				{
 					// sometimes data array can be used for storing non-entity data
-					if ($object->entity()->hasField($fieldName))
+					if ($object->entity->hasField($fieldName))
 					{
 						$object->unset($fieldName);
 					}

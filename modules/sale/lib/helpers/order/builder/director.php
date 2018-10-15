@@ -9,16 +9,7 @@ final class Director
 	public function createOrder(OrderBuilder $builder, array $data)
 	{
 		try{
-			$builder->createOrder($data)
-				->setDiscounts() //?
-				->setFields()
-				->setProperties()
-				->setUser()
-				->buildBasket()
-				->buildPayments()
-				->buildShipments()
-				->setDiscounts() //?
-				->finalActions();
+			$builder->build($data);
 		}
 		catch(BuildingException $e)
 		{

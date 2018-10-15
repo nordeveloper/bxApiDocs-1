@@ -35,7 +35,7 @@
 			\CJSCore::init(["loader", "documentpreview", "sidepanel"]);
 		?>
 			<h2>
-				<?=Localization\Loc::getMessage('SALE_DOCUMENT_HANDLER_WAIT_TRANSFORMATION');?>
+				<?=Localization\Loc::getMessage('SALE_DOCUMENT_HANDLER_WAIT_TRANSFORMATION_2');?>
 			</h2>
 			<script>
 				BX.ready(function()

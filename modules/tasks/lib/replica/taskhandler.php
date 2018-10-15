@@ -229,7 +229,7 @@ class TaskHandler extends \Bitrix\Replica\Client\BaseHandler
 	public function beforeUpdateTrigger(array $oldRecord, array &$newRecord)
 	{
 		unset($newRecord["ADD_IN_REPORT"]);
-		$newRecord["GROUP_ID"] = 0;
+		unset($newRecord["GROUP_ID"]);
 		unset($newRecord["FORKED_BY_TEMPLATE_ID"]);
 		unset($newRecord["STAGE_ID"]);
 		$fixed = preg_replace("/\\[USER=[0-9]+\\](.*?)\\[\\/USER\\]/", "\\1", $newRecord["DESCRIPTION"]);

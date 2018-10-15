@@ -513,7 +513,11 @@ class CCrmEntityListBuilder
 				$sql = "SELECT {$primaryKey} FROM {$this->tableName}";
 			}
 
-			if (isset($this->sqlData['FROM'][0]))
+			if(isset($this->sqlData['FROM_WHERE'][0]))
+			{
+				$sql .= ' '.$this->sqlData['FROM_WHERE'];
+			}
+			elseif (isset($this->sqlData['FROM'][0]))
 			{
 				$sql .= ' '.$this->sqlData['FROM'];
 			}
@@ -542,17 +546,25 @@ class CCrmEntityListBuilder
 				$sql .= ' '.$this->tableAlias;
 			}
 
-			if (isset($this->sqlData['FROM'][0]))
+			if(isset($this->sqlData['FROM_WHERE']))
+			{
+				if($this->sqlData['FROM_WHERE'] !== '')
+				{
+					$sql .= ' '.$this->sqlData['FROM_WHERE'];
+				}
+			}
+			elseif(isset($this->sqlData['FROM']) && $this->sqlData['FROM'] !== '')
 			{
 				$sql .= ' '.$this->sqlData['FROM'];
 			}
 			elseif(isset($this->fields['ID'])
 				&& isset($this->fields['ID']['FROM'])
-				&& isset($this->fields['ID']['FROM'][0]))
+				&& $this->fields['ID']['FROM'] !== '')
 			{
 				//Hack for CrmEvent table.
 				$sql .= ' '.$this->fields['ID']['FROM'];
 			}
+
 			if (isset($this->sqlData['WHERE'][0]))
 			{
 				$sql .= ' WHERE '.$this->sqlData['WHERE'];

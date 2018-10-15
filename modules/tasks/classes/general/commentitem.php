@@ -18,7 +18,7 @@ final class CTaskCommentItem extends CTaskSubItemAbstract
 	 * @param CTaskItemInterface $oTaskItem
 	 * @param array $arFields with mandatory elements POST_MESSAGE
 	 * @throws TasksException
-	 * @return true
+	 * @return int
 	 */
 	public static function add(CTaskItemInterface $oTaskItem, $arFields)
 	{
@@ -39,7 +39,9 @@ final class CTaskCommentItem extends CTaskSubItemAbstract
 			throw new TasksException(serialize($result->getErrors()->getMessages()), TasksException::TE_ACTION_FAILED_TO_BE_PROCESSED | TasksException::TE_FLAG_SERIALIZED_ERRORS_IN_MESSAGE);
 		}
 
-		return true;
+		$resultData = $result->getData();
+
+		return $resultData['ID'];
 	}
 
 	public function update($arFields)
@@ -260,9 +262,9 @@ final class CTaskCommentItem extends CTaskSubItemAbstract
 				$taskId    = $argsParsed[0];
 				$arFields  = $argsParsed[1];
 				$oTaskItem = CTaskItem::getInstance($taskId, $executiveUserId);	// taskId in $argsParsed[0]
-				$oItem     = self::add($oTaskItem, $arFields);
+				$itemId    = self::add($oTaskItem, $arFields);
 
-				$returnValue = $oItem->getId();
+				$returnValue = $itemId;
 			}
 			elseif ($methodName === 'getlist')
 			{

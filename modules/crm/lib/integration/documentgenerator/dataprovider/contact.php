@@ -42,6 +42,14 @@ class Contact extends CrmEntityDataProvider implements Nameable
 			$this->fields['PHONE_WORK'] = [
 				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_WORK_TITLE'),
 			];
+			$this->fields['PHONE_ANOTHER'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_ANOTHER_TITLE'),
+				'VALUE' => [$this, 'getAnotherPhone'],
+			];
+			$this->fields['EMAIL_ANOTHER'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_ANOTHER_TITLE'),
+				'VALUE' => [$this, 'getAnotherEmail'],
+			];
 			$this->fields['IMOL'] = [
 				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_IMOL_TITLE'),
 			];

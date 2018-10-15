@@ -87,25 +87,6 @@ class CIMEvent
 		}
 		$ratingMentionNotifyTag = "RATING_MENTION|".($arParams['VALUE'] >= 0?"":"DL|").$arParams['ENTITY_TYPE_ID']."|".$arParams['ENTITY_ID'];
 
-		if (
-			$arParams['OWNER_ID'] != $arParams['USER_ID']
-			&& $arParams['ENTITY_TYPE_ID'] == 'BLOG_COMMENT'
-			&& Loader::includeModule('blog')
-			&& ($arBlogComment = CBlogComment::GetByID($arParams['ENTITY_ID']))
-		) // AUX
-		{
-			$handlerManager = new Bitrix\Socialnetwork\CommentAux\HandlerManager();
-			/** @var bool|object $handler */
-			if($handler = $handlerManager->getHandlerByPostText($arBlogComment["POST_TEXT"]))
-			{
-				$handler->setOptions(array(
-					'im' => true
-				));
-				$handler->sendRatingNotification($arBlogComment, $arParams);
-				return true;
-			}
-		}
-
 		$contentId = Livefeed\Provider::getContentId(array(
 			"RATING_TYPE_ID" => $arParams['ENTITY_TYPE_ID'],
 			"RATING_ENTITY_ID" => $arParams['ENTITY_ID']
@@ -121,6 +102,29 @@ class CIMEvent
 			if (!$liveFeedEntity)
 			{
 				return false;
+			}
+
+			if ($arParams['OWNER_ID'] != $arParams['USER_ID']) // AUX
+			{
+				$originalText = $liveFeedEntity->getSourceOriginalText();
+				$auxData = $liveFeedEntity->getSourceAuxData();
+
+				if (
+					strlen($originalText) > 0
+					&& !empty($auxData)
+				)
+				{
+					$handlerManager = new Bitrix\Socialnetwork\CommentAux\HandlerManager();
+					/** @var bool|object $handler */
+					if($handler = $handlerManager->getHandlerByPostText($originalText))
+					{
+						$handler->setOptions(array(
+							'im' => true
+						));
+						$handler->sendRatingNotification($auxData, $arParams);
+						return true;
+					}
+				}
 			}
 
 			$title = $liveFeedEntity->getSourceTitle();

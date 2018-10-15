@@ -1277,7 +1277,13 @@ class CSocNetLogTools
 							"QUOTE" => "Y", "LOG_QUOTE" => "N",
 							"CODE" => "Y", "LOG_CODE" => "N",
 							"FONT" => "Y", "LOG_FONT" => "N",
-							"LIST" => "Y", "SMILES" => "Y",
+							"LIST" => "Y",
+							"SMILES" => (
+								!empty($arFields["ADDITIONAL_DATA"])
+								&& !empty($arFields["ADDITIONAL_DATA"]["USE_SMILES"])
+									? $arFields["ADDITIONAL_DATA"]["USE_SMILES"]
+									: "Y"
+							),
 							"NL2BR" => "N", "MULTIPLE_BR" => "N",
 							"VIDEO" => "Y", "LOG_VIDEO" => "N"
 						)),
@@ -1297,7 +1303,13 @@ class CSocNetLogTools
 						"ANCHOR" => "Y", "BIU" => "Y",
 						"IMG" => "Y", "QUOTE" => "Y",
 						"CODE" => "Y", "FONT" => "Y",
-						"LIST" => "Y", "SMILES" => "Y",
+						"LIST" => "Y",
+						"SMILES" => (
+							!empty($arFields["ADDITIONAL_DATA"])
+							&& !empty($arFields["ADDITIONAL_DATA"]["USE_SMILES"])
+								? $arFields["ADDITIONAL_DATA"]["USE_SMILES"]
+								: "Y"
+						),
 						"NL2BR" => "Y", "MULTIPLE_BR" => "N",
 						"VIDEO" => "Y", "LOG_VIDEO" => "N",
 						"SHORT_ANCHOR" => "Y",
@@ -1453,7 +1465,13 @@ class CSocNetLogTools
 							"QUOTE" => "Y", "LOG_QUOTE" => "N",
 							"CODE" => "Y", "LOG_CODE" => "N",
 							"FONT" => "Y", "LOG_FONT" => "N",
-							"LIST" => "Y", "SMILES" => "Y",
+							"LIST" => "Y",
+							"SMILES" => (
+								!empty($arFields["ADDITIONAL_DATA"])
+								&& !empty($arFields["ADDITIONAL_DATA"]["USE_SMILES"])
+									? $arFields["ADDITIONAL_DATA"]["USE_SMILES"]
+									: "Y"
+							),
 							"NL2BR" => "Y", "MULTIPLE_BR" => "N",
 							"VIDEO" => "Y", "LOG_VIDEO" => "N",
 							"USERFIELDS" => $arFields["UF"]
@@ -1475,7 +1493,13 @@ class CSocNetLogTools
 						"ANCHOR" => "Y", "BIU" => "Y",
 						"IMG" => "Y", "QUOTE" => "Y",
 						"CODE" => "Y", "FONT" => "Y",
-						"LIST" => "Y", "SMILES" => "Y",
+						"LIST" => "Y",
+						"SMILES" => (
+							!empty($arFields["ADDITIONAL_DATA"])
+							&& !empty($arFields["ADDITIONAL_DATA"]["USE_SMILES"])
+								? $arFields["ADDITIONAL_DATA"]["USE_SMILES"]
+								: "Y"
+						),
 						"NL2BR" => "Y", "VIDEO" => "Y",
 						"LOG_VIDEO" => "N", "SHORT_ANCHOR" => "Y",
 						"USERFIELDS" => $arFields["UF"],
@@ -1498,7 +1522,13 @@ class CSocNetLogTools
 						"ANCHOR" => "Y", "BIU" => "Y",
 						"IMG" => "Y", "QUOTE" => "Y",
 						"CODE" => "Y", "FONT" => "Y",
-						"LIST" => "Y", "SMILES" => "Y",
+						"LIST" => "Y",
+						"SMILES" => (
+							!empty($arFields["ADDITIONAL_DATA"])
+							&& !empty($arFields["ADDITIONAL_DATA"]["USE_SMILES"])
+								? $arFields["ADDITIONAL_DATA"]["USE_SMILES"]
+								: "Y"
+						),
 						"NL2BR" => "Y", "VIDEO" => "Y",
 						"LOG_VIDEO" => "N", "SHORT_ANCHOR" => "Y",
 						"USERFIELDS" => $arFields["UF"],

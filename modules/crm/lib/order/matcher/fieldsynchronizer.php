@@ -6,6 +6,7 @@ use Bitrix\Crm\EntityPreset;
 use Bitrix\Crm\EntityRequisite;
 use Bitrix\Crm\Order\Matcher\Internals\FormTable;
 use Bitrix\Crm\Order\Matcher\Internals\OrderPropsMatchTable;
+use Bitrix\Crm\Order\Property;
 use Bitrix\Crm\RequisiteAddress;
 use Bitrix\Crm\StatusTable;
 use Bitrix\Main\Loader;
@@ -198,7 +199,7 @@ class FieldSynchronizer
 	{
 		$fields = [];
 
-		$personTypePropertiesIterator = OrderPropsTable::getList([
+		$personTypePropertiesIterator = Property::getList([
 			'filter' => ['=PERSON_TYPE_ID' => $personTypeId],
 			'order' => ['SORT' => 'ASC']
 		]);
@@ -1603,6 +1604,7 @@ class FieldSynchronizer
 			{
 				$prepared = static::prepareToInsert($field, $personTypeId);
 				$prepared['CODE'] = $fieldInfo['name'];
+				$prepared["ENTITY_REGISTRY_TYPE"] = \Bitrix\Sale\Registry::REGISTRY_TYPE_ORDER;
 				$prepared['ENTITY_NAME'] = $fieldInfo['entity_name'];
 				$prepared['ENTITY_FIELD_CODE'] = $fieldInfo['entity_field_name'];
 

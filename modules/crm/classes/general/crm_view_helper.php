@@ -65,9 +65,7 @@ class CCrmViewHelper
 				$title = CCrmOwnerType::GetCaption(CCrmOwnerType::Company, $entityID, (isset($arParams['CHECK_PERMISSIONS']) && $arParams['CHECK_PERMISSIONS'] == 'N' ? false : true));
 			}
 
-			$baloonID = $prefix !== '' ? "BALLOON_{$prefix}_CO_{$entityID}" : "BALLOON_CO_{$entityID}";
-			return '<a href="'.htmlspecialcharsbx($showPath).'" id="'.$baloonID.'"'.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').'>'.htmlspecialcharsbx($title).'</a>'.
-				'<script type="text/javascript">BX.tooltip("COMPANY_'.$entityID.'", "'.$baloonID.'", "/bitrix/components/bitrix/crm.company.show/card.ajax.php", "crm_balloon_company", true);</script>';
+			return '<a href="'.htmlspecialcharsbx($showPath).'"'.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').' bx-tooltip-user-id="COMPANY_'.$entityID.'" bx-tooltip-loader="'.htmlspecialcharsbx('/bitrix/components/bitrix/crm.company.show/card.ajax.php').'" bx-tooltip-classname="crm_balloon_company">'.htmlspecialcharsbx($title).'</a>';
 		}
 		elseif($entityTypeID === CCrmOwnerType::Contact)
 		{
@@ -82,9 +80,7 @@ class CCrmViewHelper
 				$title = CCrmOwnerType::GetCaption(CCrmOwnerType::Contact, $entityID, (isset($arParams['CHECK_PERMISSIONS']) && $arParams['CHECK_PERMISSIONS'] == 'N' ? false : true));
 			}
 
-			$baloonID = $prefix !== '' ? "BALLOON_{$prefix}_C_{$entityID}" : "BALLOON_C_{$entityID}";
-			return '<a href="'.htmlspecialcharsbx($showPath).'" id="'.$baloonID.'"'.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').'>'.htmlspecialcharsbx($title).'</a>'.
-			'<script type="text/javascript">BX.tooltip("CONTACT_'.$entityID.'", "'.$baloonID.'", "/bitrix/components/bitrix/crm.contact.show/card.ajax.php", "crm_balloon_contact", true);</script>';
+			return '<a href="'.htmlspecialcharsbx($showPath).'"'.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').' bx-tooltip-user-id="CONTACT_'.$entityID.'" bx-tooltip-loader="'.htmlspecialcharsbx('/bitrix/components/bitrix/crm.contact.show/card.ajax.php').'" bx-tooltip-classname="crm_balloon_contact">'.htmlspecialcharsbx($title).'</a>';
 		}
 		elseif($entityTypeID === CCrmOwnerType::Lead)
 		{
@@ -99,9 +95,7 @@ class CCrmViewHelper
 				$title = CCrmOwnerType::GetCaption(CCrmOwnerType::Lead, $entityID, (isset($arParams['CHECK_PERMISSIONS']) && $arParams['CHECK_PERMISSIONS'] == 'N' ? false : true));
 			}
 
-			$baloonID = $prefix !== '' ? "BALLOON_{$prefix}_L_{$entityID}" : "BALLOON_L_{$entityID}";
-			return '<a href="'.htmlspecialcharsbx($showPath).'" id="'.$baloonID.'"'.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').'>'.htmlspecialcharsbx($title).'</a>'.
-				'<script type="text/javascript">BX.tooltip("LEAD_'.$entityID.'", "'.$baloonID.'", "/bitrix/components/bitrix/crm.lead.show/card.ajax.php", "crm_balloon_no_photo", true);</script>';
+			return '<a href="'.htmlspecialcharsbx($showPath).'" '.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').' bx-tooltip-user-id="LEAD_'.$entityID.'" bx-tooltip-loader="'.htmlspecialcharsbx('/bitrix/components/bitrix/crm.lead.show/card.ajax.php').'" bx-tooltip-classname="crm_balloon_no_photo">'.htmlspecialcharsbx($title).'</a>';
 		}
 		elseif($entityTypeID === CCrmOwnerType::Deal)
 		{
@@ -116,9 +110,7 @@ class CCrmViewHelper
 				$title = CCrmOwnerType::GetCaption(CCrmOwnerType::Deal, $entityID, (isset($arParams['CHECK_PERMISSIONS']) && $arParams['CHECK_PERMISSIONS'] == 'N' ? false : true));
 			}
 
-			$baloonID = $prefix !== '' ? "BALLOON_{$prefix}_D_{$entityID}" : "BALLOON_D_{$entityID}";
-			return '<a href="'.htmlspecialcharsbx($showPath).'" id="'.$baloonID.'"'.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').'>'.htmlspecialcharsbx($title).'</a>'.
-				'<script type="text/javascript">BX.tooltip("DEAL_'.$entityID.'", "'.$baloonID.'", "/bitrix/components/bitrix/crm.deal.show/card.ajax.php", "crm_balloon_no_photo", true);</script>';
+			return '<a href="'.htmlspecialcharsbx($showPath).'" '.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').' bx-tooltip-user-id="DEAL_'.$entityID.'" bx-tooltip-loader="'.htmlspecialcharsbx('/bitrix/components/bitrix/crm.deal.show/card.ajax.php').'" bx-tooltip-classname="crm_balloon_no_photo">'.htmlspecialcharsbx($title).'</a>';
 
 		}
 		elseif($entityTypeID === CCrmOwnerType::Quote)
@@ -134,10 +126,7 @@ class CCrmViewHelper
 				$title = CCrmOwnerType::GetCaption(CCrmOwnerType::Quote, $entityID, (isset($arParams['CHECK_PERMISSIONS']) && $arParams['CHECK_PERMISSIONS'] == 'N' ? false : true));
 			}
 
-			$baloonID = $prefix !== '' ? "BALLOON_{$prefix}_".CCrmQuote::OWNER_TYPE."_{$entityID}" : "BALLOON_".CCrmQuote::OWNER_TYPE."_{$entityID}";
-			return '<a href="'.htmlspecialcharsbx($showPath).'" id="'.$baloonID.'"'.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').'>'.htmlspecialcharsbx($title).'</a>'.
-				'<script type="text/javascript">BX.tooltip("QUOTE_'.$entityID.'", "'.$baloonID.'", "/bitrix/components/bitrix/crm.quote.show/card.ajax.php", "crm_balloon_no_photo", true);</script>';
-
+			return '<a href="'.htmlspecialcharsbx($showPath).'" '.($className !== '' ? ' class="'.htmlspecialcharsbx($className).'"' : '').' bx-tooltip-user-id="QUOTE_'.$entityID.'" bx-tooltip-loader="'.htmlspecialcharsbx('/bitrix/components/bitrix/crm.quote.show/card.ajax.php').'" bx-tooltip-classname="crm_balloon_no_photo">'.htmlspecialcharsbx($title).'</a>';
 		}
 		return '';
 	}
@@ -157,8 +146,7 @@ class CCrmViewHelper
 		}
 		$profilePath = isset($arParams['USER_PROFILE_URL']) ? $arParams['USER_PROFILE_URL'] : '';
 		$baloonID = $prefix !== '' ? "BALLOON_{$prefix}_U_{$userID}" : "BALLOON_U_{$userID}";
-		return '<a href="'.htmlspecialcharsbx($profilePath).'" id="'.$baloonID.'" target="_blank" >'.$userName.'</a>'.
-		'<script type="text/javascript">BX.tooltip('.$userID.', "'.$baloonID.'", "");</script>';
+		return '<a href="'.htmlspecialcharsbx($profilePath).'" id="'.$baloonID.'" target="_blank" bx-tooltip-user-id="'.$userID.'">'.$userName.'</a>';
 	}
 	public static function GetFormattedUserName($userID, $format = '', $htmlEncode = false)
 	{
@@ -1975,7 +1963,8 @@ class CCrmViewHelper
 			'dialogTitle' => GetMessage('CRM_DEAL_STAGE_MANAGER_DLG_TTL'),
 			//'apologyTitle' => GetMessage('CRM_DEAL_STAGE_MANAGER_APOLOGY_TTL'),
 			'failureTitle' => GetMessage('CRM_DEAL_STAGE_MANAGER_FAILURE_TTL'),
-			'selectorTitle' => GetMessage('CRM_DEAL_STAGE_MANAGER_SELECTOR_TTL')
+			'selectorTitle' => GetMessage('CRM_DEAL_STAGE_MANAGER_SELECTOR_TTL'),
+			'checkErrorTitle' => GetMessage('CRM_DEAL_STAGE_MANAGER_CHECK_ERROR_TTL')
 		);
 
 		return '<script type="text/javascript">'
@@ -2051,7 +2040,7 @@ class CCrmViewHelper
 	public static function RenderLeadStatusSettings()
 	{
 		$result = array();
-		$isTresholdPassed = false;
+		$isThresholdPassed = false;
 		foreach(self::PrepareLeadStatuses() as $status)
 		{
 			$info = array(
@@ -2063,18 +2052,16 @@ class CCrmViewHelper
 
 			if($status['STATUS_ID'] === 'CONVERTED')
 			{
-				$isTresholdPassed = true;
+				$isThresholdPassed = true;
 				$info['semantics'] = 'success';
-				$info['name'] = GetMessage('CRM_LEAD_STATUS_MANAGER_CONVERTED_STEP_NAME');
+				$info['name'] = $status['NAME'];
 				$info['hint'] = GetMessage('CRM_LEAD_STATUS_MANAGER_CONVERTED_STEP_HINT');
-				//For disable to change final status.
-				//$info['isFrozen'] = true;
 			}
 			elseif($status['STATUS_ID'] === 'JUNK')
 			{
 				$info['semantics'] = 'failure';
 			}
-			elseif(!$isTresholdPassed)
+			elseif(!$isThresholdPassed)
 			{
 				$info['semantics'] = 'process';
 			}
@@ -2087,9 +2074,10 @@ class CCrmViewHelper
 
 		$messages = array(
 			'dialogTitle' => GetMessage('CRM_LEAD_STATUS_MANAGER_DLG_TTL'),
-			//'apologyTitle' => GetMessage('CRM_LEAD_STATUS_MANAGER_APOLOGY_TTL'),
+			//'apologyTitle' => Get?Message('CRM_LEAD_STATUS_MANAGER_APOLOGY_TTL'),
 			'failureTitle' => GetMessage('CRM_LEAD_STATUS_MANAGER_FAILURE_TTL'),
 			'selectorTitle' => GetMessage('CRM_LEAD_STATUS_MANAGER_SELECTOR_TTL'),
+			'checkErrorTitle' => GetMessage('CRM_LEAD_STAGE_MANAGER_CHECK_ERROR_TTL'),
 			'conversionCancellationTitle' => GetMessage('CRM_CONFIRMATION_DLG_TTL'),
 			'conversionCancellationContent' => GetMessage('CRM_LEAD_STATUS_MANAGER_CONVERSION_CANCEL_CNT')
 		);
@@ -2287,7 +2275,8 @@ class CCrmViewHelper
 			return '';
 		}
 
-		CCrmComponentHelper::RegisterScriptLink('/bitrix/js/crm/progress_control.js');
+		\Bitrix\Main\Page\Asset::getInstance()->addJs('/bitrix/js/crm/progress_control.js');
+		\Bitrix\Main\Page\Asset::getInstance()->addJs('/bitrix/js/crm/partial_entity_editor.js');
 
 		$entityTypeName = isset($arParams['ENTITY_TYPE_NAME']) ? $arParams['ENTITY_TYPE_NAME'] : '';
 		$leadTypeName = CCrmOwnerType::ResolveName(CCrmOwnerType::Lead);

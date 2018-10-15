@@ -1449,6 +1449,7 @@ class CSocNetAllowed
 
 	public static function getAllowedEntityTypes()
 	{
+		self::getAllowedFeatures(); // to initialize standard features
 		self::runEvents();
 		return self::$arAllowedEntityTypes;
 	}
@@ -1483,6 +1484,7 @@ class CSocNetAllowed
 
 	public static function getAllowedEntityTypesDesc()
 	{
+		self::getAllowedFeatures(); // to initialize standard features
 		self::runEvents();
 		return self::$arAllowedEntityTypesDesc;
 	}
@@ -2269,6 +2271,7 @@ class CSocNetAllowed
 	
 	public static function GetAllowedLogEvents()
 	{
+		self::getAllowedFeatures(); // to initialize standard features
 		self::runEvents();
 		return self::$arAllowedLogEvents;
 	}

@@ -72,10 +72,12 @@ class Loader
 					? $entity->compileObjectClass()
 					: $entity->compileCollectionClass();
 
-				if (Entity::normalizeName($realClass) !== Entity::normalizeName($class))
+				//if (Entity::normalizeName($realClass) !== Entity::normalizeName($class))
 				{
 					// custom class defined, we support compatibility with default classes
-					class_alias($realClass, $class);
+
+					// no need anymore as far as custom class inherits EO_
+					// class_alias($realClass, $class);
 				}
 			}
 		}

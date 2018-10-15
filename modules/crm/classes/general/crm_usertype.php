@@ -1420,8 +1420,7 @@ class CCrmUserType
 									if(!$textonly)
 									{
 										$ar['PATH_TO_USER_PROFILE'] = CComponentEngine::MakePathFromTemplate(COption::GetOptionString('crm', 'path_to_user_profile'), array('user_id' => $arList[$KEY][$FIELD_VALUE_ID]['ID']));
-										$sname = 	'<a href="'.$ar['PATH_TO_USER_PROFILE'].'" id="balloon_'.$arParams['GRID_ID'].'_'.$arList[$KEY][$FIELD_VALUE_ID]['ID'].'">'.$sname.'</a>'.
-											'<script type="text/javascript">BX.tooltip('.$arList[$KEY][$FIELD_VALUE_ID]['ID'].', "balloon_'.$arParams['GRID_ID'].'_'.$arList[$KEY][$FIELD_VALUE_ID]['ID'].'", "");</script>';
+										$sname = 	'<a href="'.$ar['PATH_TO_USER_PROFILE'].'" id="balloon_'.$arParams['GRID_ID'].'_'.$arList[$KEY][$FIELD_VALUE_ID]['ID'].'" bx-tooltip-user-id="'.$arList[$KEY][$FIELD_VALUE_ID]['ID'].'">'.$sname.'</a>';
 									}
 								}
 								$arReplaceValue[$ID][$FIELD_NAME] .= (!empty($arReplaceValue[$ID][$FIELD_NAME]) ? $delimiter : '').$sname;
@@ -1497,8 +1496,8 @@ class CCrmUserType
 									$sname = htmlspecialcharsbx($title);
 									if(!$textonly)
 									{
-										$tooltip = '<script type="text/javascript">BX.tooltip('.$CID.', "balloon_'.$ID.'_'.$FIELD_NAME.'_'.$FIELD_VALUE_NAME.'_'.$CID.'", "/bitrix/components/bitrix/crm.'.strtolower($FIELD_VALUE_NAME).'.show/card.ajax.php", "crm_balloon'.($FIELD_VALUE_NAME == 'LEAD' || $FIELD_VALUE_NAME == 'DEAL' || $FIELD_VALUE_NAME == 'QUOTE' ? '_no_photo': '_'.strtolower($FIELD_VALUE_NAME)).'", true);</script>';
-										$sname = '<a href="'.$link.'" target="_blank" id="balloon_'.$ID.'_'.$FIELD_NAME.'_'.$FIELD_VALUE_NAME.'_'.$CID.'">'.$sname.'</a>'.$tooltip;
+										Bitrix\Main\UI\Extension::load("ui.tooltip");
+										$sname = '<a href="'.$link.'" target="_blank" bx-tooltip-user-id="'.$CID.'" bx-tooltip-loader="'.htmlspecialcharsbx('/bitrix/components/bitrix/crm.'.strtolower($FIELD_VALUE_NAME).'.show/card.ajax.php').'" bx-tooltip-classname="crm_balloon'.($FIELD_VALUE_NAME == 'LEAD' || $FIELD_VALUE_NAME == 'DEAL' || $FIELD_VALUE_NAME == 'QUOTE' ? '_no_photo': '_'.strtolower($FIELD_VALUE_NAME)).'">'.$sname.'</a>';
 									}
 									else
 									{

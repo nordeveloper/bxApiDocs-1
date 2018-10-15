@@ -124,6 +124,13 @@ class Repo extends \Bitrix\Landing\Internals\BaseTable
 				{
 					$manifestLocal = array();
 				}
+				if (
+					isset($manifestLocal['block']) &&
+					is_array($manifestLocal['block'])
+				)
+				{
+					$blockDesc = $manifestLocal['block'];
+				}
 				$manifestLocal['block'] = array(
 					'name' => $block['NAME'],
 					'description' => $block['DESCRIPTION'],
@@ -132,8 +139,13 @@ class Repo extends \Bitrix\Landing\Internals\BaseTable
 					'preview' => $block['PREVIEW'],
 					'restricted' => true,
 					'repo_id' => $block['ID'],
+					'xml_id' => $block['XML_ID'],
 					'app_code' => $block['APP_CODE']
 				);
+				if (isset($blockDesc['subtype']))
+				{
+					$manifestLocal['block']['subtype'] = $blockDesc['subtype'];
+				}
 				$manifest[$id] = $manifestLocal;
 			}
 		}

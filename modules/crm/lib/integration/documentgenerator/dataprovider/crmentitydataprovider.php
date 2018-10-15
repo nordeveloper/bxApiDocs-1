@@ -19,6 +19,7 @@ use Bitrix\DocumentGenerator\Template;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Numerator\Hashable;
 use Bitrix\Crm\Requisite\EntityLink;
+use Bitrix\Main\Type\DateTime;
 
 abstract class CrmEntityDataProvider extends EntityDataProvider implements Hashable, DocumentNumerable
 {
@@ -39,7 +40,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	public function onDocumentCreate(Document $document)
 	{
 		Loc::loadLanguageFile(__FILE__);
-		$text = Loc::getMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_COMMENT', ['#TITLE#' => $document->getTitle()]);
+		$text = Loc::getMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_COMMENT', ['#TITLE#' => htmlspecialcharsbx($document->getTitle())]);
 		$entryID = DocumentEntry::create([
 			'TEXT' => $text,
 			'AUTHOR_ID' => \CCrmSecurityHelper::GetCurrentUserID(),
@@ -223,6 +224,15 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			{
 				$result[$code]['PROVIDER'] = User::class;
 			}
+			elseif($field['USER_TYPE_ID'] == 'date')
+			{
+				$result[$code]['TYPE'] = static::FIELD_TYPE_DATE;
+			}
+			elseif($field['USER_TYPE_ID'] == 'datetime')
+			{
+				$result[$code]['TYPE'] = static::FIELD_TYPE_DATE;
+				$result[$code]['FORMAT'] = ['format' => DateTime::getFormat(DataProviderManager::getInstance()->getCulture())];
+			}
 			elseif($field['USER_TYPE_ID'] == 'crm')
 			{
 				$provider = null;
@@ -267,6 +277,13 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 					$result[$code]['OPTIONS']['isLightMode'] = true;
 					$result[$code]['DESCRIPTION'] = $field;
 				}
+			}
+			elseif($field['USER_TYPE_ID'] == 'money')
+			{
+				$result[$code]['TYPE'] = Money::class;
+				$parts = explode('|', $field['VALUE']);
+				$currency = $parts[1];
+				$result[$code]['FORMAT'] = ['CURRENCY_ID' => $currency];
 			}
 		}
 
@@ -388,6 +405,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			'double' => 'double',
 			'crm' => 'crm',
 			'employee' => 'employee',
+			'address' => 'address',
 		];
 	}
 
@@ -799,6 +817,10 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 				}
 			}
 		}
+		else
+		{
+			return [];
+		}
 
 		return $this->multiFields;
 	}
@@ -861,11 +883,14 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 					break;
 				}
 			}
-			$data['changeStampsDisabledReason'] = GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_STAMPS_DISABLED_EMPTY_FIELDS');
-			$data['myCompanyEditUrl'] = $this->getMyCompanyEditUrl();
-			if($data['myCompanyEditUrl'])
+			if(!$data['changeStampsEnabled'])
 			{
-				$data['changeStampsDisabledReason'] .= '<br />'.GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_EDIT_MY_COMPANY', ['#URL#' => $data['myCompanyEditUrl']]);
+				$data['changeStampsDisabledReason'] = GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_STAMPS_DISABLED_EMPTY_FIELDS');
+				$data['myCompanyEditUrl'] = $this->getMyCompanyEditUrl();
+				if($data['myCompanyEditUrl'])
+				{
+					$data['changeStampsDisabledReason'] .= '<br />'.GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_EDIT_MY_COMPANY', ['#URL#' => $data['myCompanyEditUrl']]);
+				}
 			}
 		}
 		else
@@ -990,7 +1015,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	 * @return string
 	 * @throws \Bitrix\Main\ObjectPropertyException
 	 */
-	protected function getNameFormat()
+	public static function getNameFormat()
 	{
 		$formatId = PersonNameFormatter::getFormatID();
 		if($formatId == PersonNameFormatter::Dflt)
@@ -1001,5 +1026,45 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 		{
 			return PersonNameFormatter::getFormatByID($formatId);
 		}
+	}
+
+	/**
+	 * @return string|null
+	 */
+	public function getAnotherPhone()
+	{
+		$phones = $this->getMultiFields()['PHONE'];
+		if(is_array($phones))
+		{
+			foreach($phones as $phone)
+			{
+				if($phone['VALUE_TYPE'] === 'OTHER')
+				{
+					return $phone['VALUE'];
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * @return string|null
+	 */
+	public function getAnotherEmail()
+	{
+		$emails = $this->getMultiFields()['EMAIL'];
+		if(is_array($emails))
+		{
+			foreach($emails as $email)
+			{
+				if($email['VALUE_TYPE'] === 'OTHER')
+				{
+					return $email['VALUE'];
+				}
+			}
+		}
+
+		return null;
 	}
 }

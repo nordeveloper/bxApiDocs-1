@@ -212,4 +212,33 @@ final class ForumTopic extends Provider
 
 		return $pathToMessage;
 	}
+
+	public function getAdditionalData($params = array())
+	{
+		$result = array();
+
+		if (
+			!$this->checkAdditionalDataParams($params)
+			|| !Loader::includeModule('forum')
+		)
+		{
+			return $result;
+		}
+
+		$res = MessageTable::getList(array(
+			'filter' => array(
+				'@ID' => $params['id']
+			),
+			'select' => array('ID', 'USE_SMILES')
+		));
+
+		while ($message = $res->fetch())
+		{
+			$data = $message;
+			unset($data['ID']);
+			$result[$message['ID']] = $data;
+		}
+
+		return $result;
+	}
 }

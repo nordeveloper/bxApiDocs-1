@@ -31,6 +31,6 @@ class PublicDocument extends Document
 
 	public function showPdfAction(\Bitrix\DocumentGenerator\Document $document, $print = 'y', $hash = '')
 	{
-		parent::showPdfAction($document, $print);
+		return parent::showPdfAction($document, $print);
 	}
 }

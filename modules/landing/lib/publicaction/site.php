@@ -12,6 +12,29 @@ Loc::loadMessages(__FILE__);
 class Site
 {
 	/**
+	 * Clear disallow keys from add/update fields.
+	 * @param array $fields
+	 * @return array
+	 */
+	protected static function clearDisallowFields($fields)
+	{
+		$disallow = array('ACTIVE');
+
+		if (is_array($fields))
+		{
+			foreach ($fields as $k => $v)
+			{
+				if (in_array($k, $disallow))
+				{
+					unset($fields[$k]);
+				}
+			}
+		}
+
+		return $fields;
+	}
+
+	/**
 	 * Get additional fields of site.
 	 * @param int $id Id of site.
 	 * @return \Bitrix\Landing\PublicActionResult
@@ -46,6 +69,11 @@ class Site
 	public static function getList($params = array())
 	{
 		$result = new PublicActionResult();
+
+		if (!is_array($params))
+		{
+			$params = array();
+		}
 
 		// more usable for domain mame
 		if (
@@ -86,6 +114,9 @@ class Site
 		$result = new PublicActionResult();
 		$error = new \Bitrix\Landing\Error;
 
+		$fields = self::clearDisallowFields($fields);
+		$fields['ACTIVE'] = 'N';
+
 		$res = SiteCore::add($fields);
 
 		if ($res->isSuccess())
@@ -111,6 +142,8 @@ class Site
 	{
 		$result = new PublicActionResult();
 		$error = new \Bitrix\Landing\Error;
+
+		$fields = self::clearDisallowFields($fields);
 
 		$res = SiteCore::update($id, $fields);
 
@@ -148,6 +181,102 @@ class Site
 			$error->addFromResult($res);
 			$result->setError($error);
 		}
+
+		return $result;
+	}
+
+	/**
+	 * Mark entity as deleted.
+	 * @param int $id Entity id.
+	 * @param boolean $mark Mark.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function markDelete($id, $mark = true)
+	{
+		$result = new PublicActionResult();
+		$error = new \Bitrix\Landing\Error;
+
+		if ($mark)
+		{
+			$res = SiteCore::markDelete($id);
+		}
+		else
+		{
+			$res = SiteCore::markUnDelete($id);
+		}
+		if ($res->isSuccess())
+		{
+			$result->setResult($res->getId());
+		}
+		else
+		{
+			$error->addFromResult($res);
+			$result->setError($error);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Mark entity as undeleted.
+	 * @param int $id Entity id.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function markUnDelete($id)
+	{
+		return self::markDelete($id, false);
+	}
+
+	/**
+	 * Make site public.
+	 * @param int $id Entity id.
+	 * @param boolean $mark Mark.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function publication($id, $mark = true)
+	{
+		$result = new PublicActionResult();
+		$error = new \Bitrix\Landing\Error;
+
+		$res = SiteCore::update($id, array(
+			'ACTIVE' => $mark ? 'Y' : 'N'
+		));
+		if ($res->isSuccess())
+		{
+			$result->setResult($res->getId());
+		}
+		else
+		{
+			$error->addFromResult($res);
+			$result->setError($error);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Mark site unpublic.
+	 * @param int $id Entity id.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function unpublic($id)
+	{
+		return self::publication($id, false);
+	}
+
+	/**
+	 * Full export of the site.
+	 * @param int $id Site id.
+	 * @param array $params Params array.
+	 * @return \Bitrix\Landing\PublicActionResult
+	 */
+	public static function fullExport($id, $params = array())
+	{
+		$result = new PublicActionResult();
+
+		$result->setResult(
+			SiteCore::fullExport($id, $params)
+		);
 
 		return $result;
 	}

@@ -1,16 +1,9 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: Alexey
- * Date: 09.01.2015
- * Time: 17:41
- */
 
 namespace Bitrix\Sale;
 
 use	Bitrix\Sale\Internals\Input;
 use Bitrix\Main;
-use Bitrix\Main\Localization\Loc;
 
 /**
  * Class PropertyValueBase
@@ -18,24 +11,8 @@ use Bitrix\Main\Localization\Loc;
  */
 abstract class PropertyValueBase extends Internals\CollectableEntity
 {
-	protected $property = array();
-	protected $savedValue;
-	protected $deletedValue;
-
-	protected static $mapFields;
-
-	/**
-	 * @param PropertyValueCollectionBase $collection
-	 * @param array $property
-	 * @return static
-	 */
-	public static function create(PropertyValueCollectionBase $collection, array $property = array())
-	{
-		$propertyValue = static::createPropertyValueObject($property);
-		$propertyValue->setCollection($collection);
-
-		return $propertyValue;
-	}
+	/** @var PropertyBase|null $property */
+	protected $property = null;
 
 	/**
 	 * PropertyValueBase constructor.
@@ -46,8 +23,10 @@ abstract class PropertyValueBase extends Internals\CollectableEntity
 	 */
 	protected function __construct(array $property = null, array $value = null, array $relation = null)
 	{
-		if (! $property && !$value)
+		if (!$property && !$value)
+		{
 			throw new Main\SystemException('invalid arguments', 0, __FILE__, __LINE__);
+		}
 
 		if ($property)
 		{
@@ -67,454 +46,166 @@ abstract class PropertyValueBase extends Internals\CollectableEntity
 			);
 		}
 
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var PropertyBase $propertyClassName */
+		$propertyClassName = $registry->getPropertyClassName();
+
+		$this->property = new $propertyClassName($property, $relation);
+
 		if (!$value)
 		{
 			$value = array(
-				'ORDER_PROPS_ID' => $property['ID'],
-				'NAME' => $property['NAME'],
-				'CODE' => $property['CODE']
+				'ORDER_PROPS_ID' => $this->property->getId(),
+				'NAME' => $this->property->getName(),
+				'CODE' => $this->property->getField('CODE')
 			);
 		}
 
-		if (!isset($value['VALUE']) && !empty($property['DEFAULT_VALUE']))
+		if (isset($value['VALUE']))
 		{
-			$value['VALUE'] = $property['DEFAULT_VALUE'];
+			$value['VALUE'] = $this->property->normalizeValue($value['VALUE']);
 		}
 
-		if (!empty($relation))
-			$property['RELATION'] = $relation;
+		parent::__construct($value);
 
-		if ($value['ID'] > 0)
-			$this->savedValue = $value['VALUE'];
-
-		switch($property['TYPE'])
+		if (!isset($value['VALUE']) && !empty($this->property->getField('DEFAULT_VALUE')))
 		{
-			case 'ENUM':
-
-				if ($propertyId = $property['ID'])
-					$property['OPTIONS'] = static::loadOptions($propertyId);
-
-				break;
-
-			case 'FILE':
-
-				if ($defaultValue = &$property['DEFAULT_VALUE'])
-					$defaultValue = Input\File::loadInfo($defaultValue);
-
-				if ($orderValue = &$value['VALUE'])
-					$orderValue = Input\File::loadInfo($orderValue);
-
-				break;
+			$this->setFieldNoDemand('VALUE', $this->property->getField('DEFAULT_VALUE'));
 		}
-
-		$this->property = $property;
-
-		parent::__construct($value); //TODO field
 	}
 
 	/**
-	 * @return bool
-	 */
-	public function isChanged()
-	{
-		return $this->savedValue !== $this->getValueForDB($this->getField('VALUE'));
-	}
-
-	/**
-	 * @param $propertyId
+	 * @param OrderBase $order
 	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
-	public static function loadOptions($propertyId)
+	public static function loadForOrder(OrderBase $order)
 	{
-		$options = array();
+		$result = [];
 
-		$result = Internals\OrderPropsVariantTable::getList(array(
-			'select' => array('VALUE', 'NAME'),
-			'filter' => array('ORDER_PROPS_ID' => $propertyId),
+		$propertyValues = [];
+		$propertyValuesMap = [];
+
+		if ($order->getId() > 0)
+		{
+			$dbRes = static::getList(array(
+				'select' => array('ID', 'NAME', 'VALUE', 'CODE', 'ORDER_PROPS_ID'),
+				'filter' => array('ORDER_ID' => $order->getId())
+			));
+			while ($row = $dbRes->fetch())
+			{
+				$propertyValues[$row['ID']] = $row;
+				$propertyValuesMap[$row['ORDER_PROPS_ID']] = $row['ID'];
+			}
+		}
+
+		$filter = array();
+		if ($order->getPersonTypeId() > 0)
+		{
+			$filter['=PERSON_TYPE_ID'] = $order->getPersonTypeId();
+		}
+
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var PropertyBase $propertyClassName */
+		$propertyClassName = $registry->getPropertyClassName();
+
+		$dbRes = $propertyClassName::getList(array(
+			'select' => array('ID', 'PERSON_TYPE_ID', 'NAME', 'TYPE', 'REQUIRED', 'DEFAULT_VALUE', 'SORT',
+				'USER_PROPS', 'IS_LOCATION', 'PROPS_GROUP_ID', 'DESCRIPTION', 'IS_EMAIL', 'IS_PROFILE_NAME',
+				'IS_PAYER', 'IS_LOCATION4TAX', 'IS_FILTERED', 'CODE', 'IS_ZIP', 'IS_PHONE', 'IS_ADDRESS',
+				'ACTIVE', 'UTIL', 'INPUT_FIELD_LOCATION', 'MULTIPLE', 'SETTINGS'
+			),
+			'filter' => $filter,
 			'order' => array('SORT' => 'ASC')
 		));
 
-		while ($row = $result->fetch())
-			$options[$row['VALUE']] = $row['NAME'];
-
-		return $options;
-	}
-
-	/**
-	 * @param $personTypeId
-	 * @param $request
-	 * @return array
-	 * @throws Main\ArgumentNullException
-	 */
-	public static function getMeaningfulValues($personTypeId, $request)
-	{
-		$personTypeId = intval($personTypeId);
-		if ($personTypeId <= 0)
-			throw new Main\ArgumentNullException("personTypeId");
-
-		if (!is_array($request))
-			throw new Main\ArgumentNullException("request");
-
-		$result = array();
-
-		$db = Internals\OrderPropsTable::getList(array(
-			'select' => array('ID', 'IS_LOCATION', 'IS_EMAIL', 'IS_PROFILE_NAME',
-				'IS_PAYER', 'IS_LOCATION4TAX', 'CODE', 'IS_ZIP', 'IS_PHONE', 'IS_ADDRESS',
-			),
-			'filter' => array(
-				'ACTIVE' => 'Y',
-				'UTIL' => 'N',
-				'PERSON_TYPE_ID' => $personTypeId
-			)
-		));
-		while ($row = $db->fetch())
+		$properties = array();
+		$propRelation = array();
+		while ($row = $dbRes->fetch())
 		{
-			if (array_key_exists($row["ID"], $request))
-			{
-				foreach ($row as $key => $value)
-				{
-					if (($value === "Y") && (substr($key, 0, 3) === "IS_"))
-					{
-						$result[substr($key, 3)] = $request[$row["ID"]];
-					}
-				}
-			}
+			$properties[$row['ID']] = $row;
+			$propRelation[$row['ID']] = [];
 		}
 
-		return $result;
-	}
-
-	/**
-	 * @param $value
-	 */
-	public function setValue($value)
-	{
-		if ($value && $this->property['TYPE'] == 'FILE')
-			$value = Input\File::loadInfo($value);
-
-		if ($this->property['TYPE'] == "STRING")
-		{
-			if ($this->property['IS_EMAIL'] === "Y" && !empty($value))
-			{
-				$value = trim((string)$value);
-			}
-
-			if (Input\StringInput::isMultiple($value))
-			{
-				$fields = $this->getFields();
-				$baseValuesData = $fields->getValues();
-				$baseValues = null;
-				if (!empty($baseValuesData['VALUE']) && is_array($baseValuesData['VALUE']))
-				{
-					$baseValues = array_values($baseValuesData['VALUE']);
-				}
-				foreach ($value as $key => $data)
-				{
-					if (Input\StringInput::isDeletedSingle($data))
-					{
-						$this->deletedValue[] = $key;
-						if (is_array($baseValues) && array_key_exists($key, $baseValues))
-						{
-							$value[$key] = $baseValues[$key];
-						}
-						else
-						{
-							$value[$key] = '';
-						}
-
-					}
-				}
-			}
-		}
-
-		$this->setField('VALUE', $value);
-	}
-
-	/**
-	 * @param $value
-	 * @return array|mixed|null
-	 */
-	private function getValueForDB($value)
-	{
-		$property = $this->property;
-
-		if ($property['TYPE'] == 'FILE')
-		{
-			$value = Input\File::asMultiple($value);
-
-			foreach ($value as $i => $file)
-			{
-				if (Input\File::isDeletedSingle($file))
-				{
-					unset($value[$i]);
-				}
-				else
-				{
-					if (Input\File::isUploadedSingle($file)
-						&& ($fileId = \CFile::SaveFile(array('MODULE_ID' => 'sale') + $file, 'sale/order/properties'))
-						&& is_numeric($fileId))
-					{
-						$file = $fileId;
-					}
-
-					$value[$i] = Input\File::loadInfoSingle($file);
-				}
-			}
-
-			$this->fields->set('VALUE', $value);
-			$value = Input\File::getValue($property, $value);
-
-			foreach (
-				array_diff(
-					Input\File::asMultiple(Input\File::getValue($property, $this->savedValue         )),
-					Input\File::asMultiple(                                $value                     ),
-					Input\File::asMultiple(Input\File::getValue($property, $property['DEFAULT_VALUE']))
-				)
-				as $fileId)
-			{
-				\CFile::Delete($fileId);
-			}
-		}
-		elseif($property['TYPE'] == 'STRING')
-		{
-			if (!empty($this->deletedValue) && is_array($this->deletedValue))
-			{
-				if (!empty($value) && is_array($value))
-				{
-					foreach ($value as $i => $string)
-					{
-						if (in_array($i, $this->deletedValue))
-						{
-							unset($value[$i]);
-							unset($this->deletedValue[$i]);
-						}
-					}
-				}
-			}
-		}
-
-		return $value;
-	}
-
-	/** @return Result */
-	public function save()
-	{
-		$result = new Result();
-
-		if (!$this->isChanged())
-			return $result;
-
-		if ($this->getId() > 0)
-		{
-			$r = $this->update();
-		}
-		else
-		{
-			$r = $this->add();
-		}
-
-		if (!$r->isSuccess())
-		{
-			$result->addErrors($r->getErrors());
-		}
-
-		$this->callEventOnPropertyValueEntitySaved();
-
-		return $result;
-	}
-
-	/**
-	 * @return Result
-	 */
-	protected function update()
-	{
-		$result = new Result();
-
-		$value = self::getValueForDB($this->fields->get('VALUE'));
-
-		$r = static::updateInternal($this->getId(), array('VALUE' => $value));
-		if ($r->isSuccess())
-			$this->savedValue = $value;
-		else
-			$result->addErrors($r->getErrors());
-
-		return $result;
-	}
-
-	/**
-	 * @return Result
-	 */
-	protected function add()
-	{
-		$result = new Result();
-
-		$value = self::getValueForDB($this->fields->get('VALUE'));
-		$property = $this->property;
-
-		$r = static::addInternal(
-			array(
-				'ORDER_ID' => $this->getParentOrderId(),
-				'ORDER_PROPS_ID' => $property['ID'],
-				'NAME' => $property['NAME'],
-				'VALUE' => $value,
-				'CODE' => $property['CODE'],
-			)
-		);
-		if ($r->isSuccess())
-		{
-			$this->savedValue = $value;
-			$this->setFieldNoDemand('ID', $r->getId());
-		}
-		else
-		{
-			$result->addErrors($r->getErrors());
-		}
-
-		return $result;
-	}
-
-	/**
-	 * @return void
-	 */
-	private function callEventOnPropertyValueEntitySaved()
-	{
-		$eventName = static::getEntityEventName();
-
-		/** @var Main\Event $event */
-		$event = new Main\Event('sale', 'On'.$eventName.'EntitySaved', array(
-			'ENTITY' => $this,
-			'VALUES' => $this->fields->getOriginalValues(),
+		$dbRes = Internals\OrderPropsRelationTable::getList(array(
+			'select' => [
+				'PROPERTY_ID', 'ENTITY_ID', 'ENTITY_TYPE'
+			],
+			'filter' => [
+				'PROPERTY_ID' => array_keys($properties)
+			]
 		));
 
-		$event->send();
-	}
-
-	/**
-	 * @param array $post
-	 * @return Result
-	 */
-	function setValueFromPost(array $post)
-	{
-		$result = new Result();
-		$property = $this->property;
-
-		$key = isset($property["ID"]) ? $property["ID"] : "n".$this->getId();
-
-		if (is_array($post['PROPERTIES']) && array_key_exists($key, $post['PROPERTIES']))
+		while ($row = $dbRes->fetch())
 		{
-			$this->setValue($post['PROPERTIES'][$key]);
+			$propRelation[$row['PROPERTY_ID']][] = $row;
 		}
 
-		return $result;
-	}
-
-	/**
-	 * @param $key
-	 * @param $value
-	 * @return Result
-	 */
-	public function checkValue($key, $value)
-	{
-		static $errorsList = array();
-		$result = new Result();
-		$property = $this->getProperty();
-
-		if ($property['TYPE'] == "STRING" && ((int)$property['MAXLENGTH'] <= 0))
+		foreach ($properties as $property)
 		{
-			$property['MAXLENGTH'] = 500;
-		}
-		$error = Input\Manager::getError($property, $value);
+			$id = $property['ID'];
 
-		if (!is_array($error))
-			$error = array($error);
-
-		foreach ($error as &$message)
-		{
-			$message = Loc::getMessage(
-				"SALE_PROPERTY_ERROR",
-				array("#PROPERTY_NAME#" => $property['NAME'], "#ERROR_MESSAGE#" => $message)
-			);
-		}
-
-		if (!is_array($value) && $property['IS_EMAIL'] == 'Y' && trim($value) !== '' && !check_email(trim($value), true))
-		{
-			$error['EMAIL'] = str_replace(
-				array("#EMAIL#", "#NAME#"),
-				array(htmlspecialcharsbx($value), htmlspecialcharsbx($property['NAME'])),
-				Loc::getMessage("SALE_GOPE_WRONG_EMAIL")
-			);
-		}
-
-		foreach ($error as $e)
-		{
-			if (!empty($e) && is_array($e))
+			if (isset($propertyValuesMap[$id]))
 			{
-				foreach ($e as $errorMsg)
-				{
-					if (isset($errorsList[$property['ID']]) && in_array($errorMsg, $errorsList[$property['ID']]))
-						continue;
-
-					$result->addError(new ResultError($errorMsg, "PROPERTIES[$key]"));
-					$result->addError(new ResultWarning($errorMsg, "PROPERTIES[$key]"));
-
-					$errorsList[$property['ID']][] = $errorMsg;
-				}
+				$fields = $propertyValues[$propertyValuesMap[$id]];
+				unset($propertyValues[$propertyValuesMap[$id]]);
+				unset($propertyValuesMap[$id]);
 			}
 			else
 			{
-				if (isset($errorsList[$property['ID']]) && in_array($e, $errorsList[$property['ID']]))
+				if ($property['ACTIVE'] == 'N')
+				{
 					continue;
+				}
 
-				$result->addError(new ResultError($e, "PROPERTIES[$key]"));
-				$result->addError(new ResultWarning($e, "PROPERTIES[$key]"));
-
-				$errorsList[$property['ID']][] = $e;
+				$fields = null;
 			}
+
+			$result[] = static::createPropertyValueObject($property, $fields, $propRelation[$id]);
+		}
+
+		foreach ($propertyValues as $propertyValue)
+		{
+			$result[] = static::createPropertyValueObject(null, $propertyValue);
 		}
 
 		return $result;
 	}
 
 	/**
-	 * @param $key
-	 * @param $value
-	 *
-	 * @return Result
-	 * @throws Main\SystemException
+	 * @param PropertyValueCollectionBase $collection
+	 * @param array $property
+	 * @return mixed
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
 	 */
-	public function checkRequiredValue($key, $value)
+	public static function create(PropertyValueCollectionBase $collection, array $property = array())
 	{
-		static $errorsList = array();
-		$result = new Result();
-		$property = $this->getProperty();
+		$propertyValue = static::createPropertyValueObject($property);
+		$propertyValue->setCollection($collection);
 
-		$error = Input\Manager::getRequiredError($property, $value);
+		return $propertyValue;
+	}
 
-		foreach ($error as $e)
-		{
-			if (!empty($e) && is_array($e))
-			{
-				foreach ($e as $errorMsg)
-				{
-					if (isset($errorsList[$property['ID']]) && in_array($errorMsg, $errorsList[$property['ID']]))
-						continue;
+	/**
+	 * @param array|null $property
+	 * @param array|null $value
+	 * @param array|null $relation
+	 * @return mixed
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
+	 */
+	protected static function createPropertyValueObject(array $property = null, array $value = null, array $relation = null)
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+		$propertyValueClassName = $registry->getPropertyValueClassName();
 
-					$result->addError(new ResultError($property['NAME'].' '.$errorMsg, "PROPERTIES[".$key."]"));
-
-					$errorsList[$property['ID']][] = $errorMsg;
-				}
-			}
-			else
-			{
-				if (isset($errorsList[$property['ID']]) && in_array($e, $errorsList[$property['ID']]))
-					continue;
-
-				$result->addError(new ResultError($property['NAME'].' '.$e, "PROPERTIES[$key]"));
-
-				$errorsList[$property['ID']][] = $e;
-			}
-		}
-		return $result;
+		return new $propertyValueClassName($property, $value, $relation);
 	}
 
 	/**
@@ -546,42 +237,227 @@ abstract class PropertyValueBase extends Internals\CollectableEntity
 	}
 
 	/**
+	 * @param $name
+	 * @param $value
+	 * @return Result
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 * @throws \Exception
+	 */
+	public function setField($name, $value)
+	{
+		$result = new Result();
+
+		$value = $this->property->normalizeValue($value);
+
+		$r = parent::setField($name, $value);
+		if (!$r->isSuccess())
+		{
+			$result->addErrors($r->getErrors());
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @return Result
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 */
+	public function save()
+	{
+		$result = new Result();
+
+		if (!$this->isChanged())
+		{
+			return $result;
+		}
+
+		if ($this->getId() > 0)
+		{
+			$r = $this->update();
+		}
+		else
+		{
+			$r = $this->add();
+		}
+
+		if (!$r->isSuccess())
+		{
+			$result->addErrors($r->getErrors());
+		}
+
+		$this->callEventOnPropertyValueEntitySaved();
+
+		$this->clearChanged();
+
+		return $result;
+	}
+
+	/**
+	 * @return Result
+	 * @throws Main\NotImplementedException
+	 */
+	protected function update()
+	{
+		$result = new Result();
+
+		$value = $this->property->prepareValueBeforeSave($this->fields->get('VALUE'));
+
+		$r = static::updateInternal($this->getId(), array('VALUE' => $value));
+		if ($r->isSuccess())
+		{
+			$result->setId($r->getId());
+		}
+		else
+		{
+			$result->addErrors($r->getErrors());
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @return Result
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 */
+	protected function add()
+	{
+		$result = new Result();
+
+		$originalFields = $this->fields->getOriginalValues();
+
+		$value = $this->property->prepareValueBeforeSave($this->fields->get('VALUE'), $originalFields['VALUE']);
+
+		$r = static::addInternal(
+			array(
+				'ORDER_ID' => $this->getParentOrderId(),
+				'ORDER_PROPS_ID' => $this->property->getId(),
+				'NAME' => $this->property->getName(),
+				'VALUE' => $value,
+				'CODE' => $this->property->getField('CODE'),
+			)
+		);
+
+		if ($r->isSuccess())
+		{
+			$this->setFieldNoDemand('ID', $r->getId());
+			$result->setId($r->getId());
+		}
+		else
+		{
+			$result->addErrors($r->getErrors());
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @return void
+	 */
+	private function callEventOnPropertyValueEntitySaved()
+	{
+		$eventName = static::getEntityEventName();
+
+		/** @var Main\Event $event */
+		$event = new Main\Event('sale', 'On'.$eventName.'EntitySaved', array(
+			'ENTITY' => $this,
+			'VALUES' => $this->fields->getOriginalValues(),
+		));
+
+		$event->send();
+	}
+
+	/**
+	 * @param array $post
+	 * @return Result
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 */
+	public function setValueFromPost(array $post)
+	{
+		$result = new Result();
+
+		$key = ($this->property->getId() > 0) ? $this->property->getId() : "n".$this->getId();
+
+		if (is_array($post['PROPERTIES']) && array_key_exists($key, $post['PROPERTIES']))
+		{
+			$this->setValue($post['PROPERTIES'][$key]);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param $key
+	 * @param $value
+	 * @return Result
+	 * @throws Main\SystemException
+	 */
+	public function checkValue($key, $value)
+	{
+		$result = new Result();
+
+		$r = $this->property->checkValue($value);
+		if (!$r->isSuccess())
+		{
+			$errors = $r->getErrors();
+			foreach ($errors as $error)
+			{
+				$result->addError(new ResultError($error->getMessage(), "PROPERTIES[$key]"));
+				$result->addError(new ResultWarning($error->getMessage(), "PROPERTIES[$key]"));
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param $key
+	 * @param $value
+	 *
+	 * @return Result
+	 * @throws Main\SystemException
+	 */
+	public function checkRequiredValue($key, $value)
+	{
+		$result = new Result();
+
+		$r = $this->property->checkRequiredValue($value);
+		if (!$r->isSuccess())
+		{
+			$errors = $r->getErrors();
+			foreach ($errors as $error)
+			{
+				$result->addError(new ResultError($error->getMessage(), "PROPERTIES[$key]"));
+				$result->addError(new ResultWarning($error->getMessage(), "PROPERTIES[$key]"));
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * @return array
 	 */
-	function getProperty()
+	public function getProperty()
+	{
+		return $this->property->getFields();
+	}
+
+	/**
+	 * @return PropertyBase|null
+	 */
+	public function getPropertyObject()
 	{
 		return $this->property;
 	}
 
 	/**
-	 * @return string
-	 */
-	function getViewHtml()
-	{
-		return Input\Manager::getViewHtml($this->property, $this->getValue());
-	}
-
-	/**
-	 * @return string
-	 */
-	function getEditHtml()
-	{
-		$key = isset($this->property["ID"]) ? $this->property["ID"] : "n".$this->getId();
-		return Input\Manager::getEditHtml("PROPERTIES[".$key."]", $this->property, $this->getValue());
-	}
-
-	/**
 	 * @return null|string
 	 */
-	function getValue()
-	{
-		return $this->getField("VALUE");
-	}
-
-	/**
-	 * @return null|string
-	 */
-	function getValueId()
+	public function getValueId()
 	{
 		return $this->getField('ID');
 	}
@@ -589,182 +465,73 @@ abstract class PropertyValueBase extends Internals\CollectableEntity
 	/**
 	 * @return mixed
 	 */
-	function getPropertyId()
+	public function getPropertyId()
 	{
-		return $this->property['ID'];
+		return $this->property->getId();
 	}
 
 	/**
 	 * @return mixed
 	 */
-	function getPersonTypeId()
+	public function getPersonTypeId()
 	{
-		return $this->property['PERSON_TYPE_ID'];
+		return $this->property->getPersonTypeId();
 	}
 
 	/**
 	 * @return mixed
 	 */
-	function getGroupId()
+	public function getGroupId()
 	{
-		return $this->property['PROPS_GROUP_ID'];
+		return $this->property->getGroupId();
 	}
 
 	/**
 	 * @return mixed
 	 */
-	function getName()
+	public function getName()
 	{
-		return $this->property['NAME'];
+		return $this->property->getName();
 	}
 
 	/**
 	 * @return mixed
 	 */
-	function getRelations()
+	public function getRelations()
 	{
-		return $this->property['RELATION'];
+		return $this->property->getRelations();
 	}
 
 	/**
 	 * @return mixed
 	 */
-	function getDescription()
+	public function getDescription()
 	{
-		return $this->property['DESCRIPTION'];
+		return $this->property->getDescription();
 	}
 
 	/**
 	 * @return mixed
 	 */
-	function getType()
+	public function getType()
 	{
-		return $this->property['TYPE'];
+		return $this->property->getType();
 	}
 
 	/**
 	 * @return bool
 	 */
-	function isRequired()
+	public function isRequired()
 	{
-		return $this->property['REQUIRED'] === 'Y';
+		return $this->property->isRequired();
 	}
 
 	/**
 	 * @return bool
 	 */
-	function isUtil()
+	public function isUtil()
 	{
-		return $this->property['UTIL'] === 'Y';
-	}
-
-	/**
-	 * @param array|null $property
-	 * @param array|null $value
-	 * @param array|null $relation
-	 * @return static
-	 */
-	protected static function createPropertyValueObject(array $property = null, array $value = null, array $relation = null)
-	{
-		$registry = Registry::getInstance(static::getRegistryType());
-		$propertyValueClassName = $registry->getPropertyValueClassName();
-
-		return new $propertyValueClassName($property, $value, $relation);
-	}
-
-	/**
-	 * @param OrderBase $order
-	 * @return array
-	 */
-	public static function loadForOrder(OrderBase $order)
-	{
-		$objects = array();
-
-		$propertyValues = array();
-		$propertyValuesMap = array();
-		$properties = array();
-
-		if ($order->getId() > 0)
-		{
-			$result = static::getList(array(
-				'select' => array('ID', 'NAME', 'VALUE', 'CODE', 'ORDER_PROPS_ID'),
-				'filter' => array('ORDER_ID' => $order->getId())
-			));
-			while ($row = $result->fetch())
-			{
-				$propertyValues[$row['ID']] = $row;
-				$propertyValuesMap[$row['ORDER_PROPS_ID']] = $row['ID'];
-			}
-		}
-
-		$filter = array();
-
-		if ($order->getPersonTypeId() > 0)
-			$filter[] = array('=PERSON_TYPE_ID' => $order->getPersonTypeId());
-
-		$result = Internals\OrderPropsTable::getList(array(
-			'select' => array('ID', 'PERSON_TYPE_ID', 'NAME', 'TYPE', 'REQUIRED', 'DEFAULT_VALUE', 'SORT',
-				'USER_PROPS', 'IS_LOCATION', 'PROPS_GROUP_ID', 'DESCRIPTION', 'IS_EMAIL', 'IS_PROFILE_NAME',
-				'IS_PAYER', 'IS_LOCATION4TAX', 'IS_FILTERED', 'CODE', 'IS_ZIP', 'IS_PHONE', 'IS_ADDRESS',
-				'ACTIVE', 'UTIL', 'INPUT_FIELD_LOCATION', 'MULTIPLE', 'SETTINGS'
-			),
-			'filter' => $filter,
-			'order' => array('SORT' => 'ASC')
-		));
-
-		while ($row = $result->fetch())
-			$properties[$row['ID']] = $row;
-
-		$result = Internals\OrderPropsRelationTable::getList(array(
-			'select' => array(
-				'PROPERTY_ID', 'ENTITY_ID', 'ENTITY_TYPE'
-			),
-			'filter' => array(
-				'PROPERTY_ID' => array_keys($properties)
-			)
-		));
-
-		$propRelation = array();
-		while ($row = $result->fetch())
-		{
-			if (empty($row))
-				continue;
-
-			if (!isset($propRelation[$row['PROPERTY_ID']]))
-				$propRelation[$row['PROPERTY_ID']] = array();
-
-			$propRelation[$row['PROPERTY_ID']][] = $row;
-		}
-
-		foreach ($properties as $property)
-		{
-			$id = $property['ID'];
-
-			if (isset($propertyValuesMap[$id]))
-			{
-				$fields = $propertyValues[$propertyValuesMap[$id]];
-				unset($propertyValues[$propertyValuesMap[$id]]);
-				unset($propertyValuesMap[$id]);
-			}
-			else
-			{
-				if ($property['ACTIVE'] == 'N') // || $property['UTIL'] == 'Y')
-					continue;
-
-				$fields = null;
-			}
-			if (isset($propRelation[$id]))
-				$objects[] = static::createPropertyValueObject($property, $fields, $propRelation[$id]);
-			else
-				$objects[] = static::createPropertyValueObject($property, $fields);
-		}
-
-		foreach ($propertyValues as $propertyValue)
-		{
-			$objects[] = static::createPropertyValueObject(null, $propertyValue);
-		}
-
-		return $objects;
+		return $this->property->isUtil();
 	}
 
 	/**
@@ -799,5 +566,83 @@ abstract class PropertyValueBase extends Internals\CollectableEntity
 	public static function getList(array $parameters = array())
 	{
 		throw new Main\NotImplementedException();
+	}
+
+	/**
+	 * @param $value
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 */
+	public function setValue($value)
+	{
+		$this->setField('VALUE', $value);
+	}
+
+	/**
+	 * @return string
+	 * @throws Main\SystemException
+	 */
+	public function getViewHtml()
+	{
+		return $this->property->getViewHtml($this->getValue());
+	}
+
+	/**
+	 * @return string
+	 * @throws Main\SystemException
+	 */
+	public function getEditHtml()
+	{
+		return $this->property->getEditHtml($this->getFieldValues());
+	}
+
+	/**
+	 * @return null|string
+	 */
+	public function getValue()
+	{
+		return $this->getField("VALUE");
+	}
+
+	/**
+	 * @deprecated
+	 * @see \Bitrix\Sale\Property::getOptions
+	 *
+	 * @param $propertyId
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public static function loadOptions($propertyId)
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var PropertyBase $propertyClassName */
+		$propertyClassName = $registry->getPropertyClassName();
+		$property = $propertyClassName::getObjectById($propertyId);
+
+		return $property->getOptions();
+	}
+
+	/**
+	 * @deprecated
+	 * @see \Bitrix\Sale\Property::getMeaningfulValues
+	 *
+	 * @param $personTypeId
+	 * @param $request
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public static function getMeaningfulValues($personTypeId, $request)
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var PropertyBase $propertyClassName */
+		$propertyClassName = $registry->getPropertyClassName();
+		return $propertyClassName::getMeaningfulValues($personTypeId, $request);
 	}
 }

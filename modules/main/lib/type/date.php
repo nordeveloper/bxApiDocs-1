@@ -94,7 +94,7 @@ class Date
 	 *
 	 * @param string $interval Time interval to add.
 	 *
-	 * @return Date
+	 * @return $this
 	 */
 	public function add($interval)
 	{

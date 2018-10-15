@@ -153,6 +153,15 @@ class Parser
 	}
 
 	/**
+	 * Return pattern string suitable to detect phone number in some string.
+	 * @return string
+	 */
+	public function getValidNumberPattern()
+	{
+		return $this->validPhoneNumber;
+	}
+
+	/**
 	 * Parses provided phone number.
 	 * @param string $phoneNumber Phone number to be parsed.
 	 * @param string $defaultCountry 2-symbol country code.

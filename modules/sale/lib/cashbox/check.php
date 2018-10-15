@@ -251,7 +251,7 @@ abstract class Check
 				elseif ($entity['ENTITY_TYPE'] === CheckRelatedEntitiesTable::ENTITY_TYPE_SHIPMENT)
 				{
 					/** @var Shipment $shipmentClassName */
-					$shipmentClassName = $registry->getPaymentClassName();
+					$shipmentClassName = $registry->getShipmentClassName();
 					$dbResShipment = $shipmentClassName::getList(array(
 						'select' => array('ORDER_ID'),
 						'filter' => array('ID' => $entity['ENTITY_ID'])

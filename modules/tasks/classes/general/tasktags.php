@@ -145,6 +145,7 @@ class CTaskTags
 		if (!is_array($arOrder))
 			$arOrder = Array();
 
+		$arSqlOrder = [];
 		foreach ($arOrder as $by => $order)
 		{
 			$by = strtolower($by);

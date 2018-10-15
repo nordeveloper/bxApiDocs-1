@@ -23,6 +23,11 @@ class Deal extends EntityBase
 		return self::$instance;
 	}
 
+	public function getEntityTypeID()
+	{
+		return \CCrmOwnerType::Deal;
+	}
+
 	//region Db
 	protected function getDbEntity()
 	{
@@ -44,4 +49,6 @@ class Deal extends EntityBase
 		return \CCrmDeal::CheckReadPermission($ID, $userPermissions);
 	}
 	//endregion
+
+
 }

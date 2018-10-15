@@ -106,8 +106,12 @@ class CCrmEvent
 			'EVENT_TYPE' 	=> intval($arFields['EVENT_TYPE']),
 			'EVENT_TEXT_1'  => isset($arFields['EVENT_TEXT_1'])? $arFields['EVENT_TEXT_1']: '',
 			'EVENT_TEXT_2'  => isset($arFields['EVENT_TEXT_2'])? $arFields['EVENT_TEXT_2']: '',
-			'FILES' 		=> serialize($arFiles),
+			'FILES' => null,
 		);
+		if (count($arFiles) > 0)
+		{
+			$arFields_i['FILES'] = serialize($arFiles);
+		}
 
 		//Validate DATE_CREATE
 		if (isset($arFields['DATE_CREATE']))

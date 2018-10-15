@@ -3,6 +3,7 @@
 namespace Bitrix\Tasks\Internals\Counter;
 
 use Bitrix\Main\Event;
+use Bitrix\Tasks\Integration\Bizproc;
 use Bitrix\Tasks\Internals\Counter;
 use Bitrix\Tasks\Internals\Effective;
 use Bitrix\Tasks\Item\Task;
@@ -146,6 +147,11 @@ class Agent
 		);
 		$event->send();
 
+		if ($taskData = $task->getData())
+		{
+			Bizproc\Listener::onTaskExpired($task->getId(), $taskData);
+		}
+
 		return '';
 	}
 
@@ -166,6 +172,11 @@ class Agent
 			"tasks", self::EVENT_TASK_EXPIRED_SOON, array('TASK_ID' => $task->getId(), 'TASK' => $task->getData())
 		);
 		$event->send();
+
+		if ($taskData = $task->getData())
+		{
+			Bizproc\Listener::onTaskExpiredSoon($task->getId(), $taskData);
+		}
 
 		if ($task->deadline)
 		{

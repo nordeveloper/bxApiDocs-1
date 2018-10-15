@@ -69,6 +69,14 @@ class DealTable extends Entity\DataManager
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y')
 			),
+			'IS_REPEATED_APPROACH' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y')
+			),
+			'IS_RETURN_CUSTOMER' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y')
+			),
 			'IS_RECURRING' => array(
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y')
@@ -242,6 +250,19 @@ class DealTable extends Entity\DataManager
 			'STAGE_SEMANTIC_ID' => array(
 				'data_type' => 'string'
 			),
+			'SOURCE_ID' => array(
+				'data_type' => 'string'
+			),
+			'SOURCE_BY' => array(
+				'data_type' => 'Status',
+				'reference' => array(
+					'=this.SOURCE_ID' => 'ref.STATUS_ID',
+					'=ref.ENTITY_ID' => array('?', 'SOURCE')
+				)
+			),
+			'SOURCE_DESCRIPTION' => array(
+				'data_type' => 'string'
+			),
 			'SEARCH_CONTENT' => array(
 				'data_type' => 'string'
 			),
@@ -254,7 +275,8 @@ class DealTable extends Entity\DataManager
 			'ORIGINATOR_BY' => array(
 				'data_type' => 'ExternalSale',
 				'reference' => array('=this.ORIGINATOR_ID' => 'ref.ID')
-			)
+			),
+			new Entity\StringField('LOCATION_ID'),
 		);
 	}
 }

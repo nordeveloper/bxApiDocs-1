@@ -9,6 +9,10 @@ class QuoteSearchContentBuilder extends SearchContentBuilder
 	{
 		return \CCrmOwnerType::Quote;
 	}
+	protected function getUserFieldEntityID()
+	{
+		return \CCrmQuote::GetUserFieldEntityID();
+	}
 	public function isFullTextSearchEnabled()
 	{
 		return QuoteTable::getEntity()->fullTextIndexEnabled('SEARCH_CONTENT');
@@ -97,6 +101,13 @@ class QuoteSearchContentBuilder extends SearchContentBuilder
 				$contactID,
 				array(\CCrmFieldMulti::PHONE, \CCrmFieldMulti::EMAIL)
 			);
+		}
+		//endregion
+
+		//region UserFields
+		foreach($this->getUserFields($entityID) as $userField)
+		{
+			$map->addUserField($userField);
 		}
 		//endregion
 

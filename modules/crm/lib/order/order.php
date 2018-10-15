@@ -72,6 +72,41 @@ class Order extends Sale\Order
 			$this->setContactCompanyRequisites();
 		}
 
+		$this->addTimelineEntryOnCreate();
+
+		return $result;
+	}
+
+	/**
+	 * @param string $name
+	 * @param float|int|mixed|string $oldValue
+	 * @param float|int|mixed|string $value
+	 * @return Main\Entity\Result|Sale\Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectNotFoundException
+	 */
+	protected function onFieldModify($name, $oldValue, $value)
+	{
+		$result = parent::onFieldModify($name, $oldValue, $value);
+		if (!$result->isSuccess())
+		{
+			return $result;
+		}
+
+		if ($name === 'STATUS_ID')
+		{
+			$canceled = (OrderStatus::getSemanticID($value) === Crm\PhaseSemantics::FAILURE) ? 'Y' : 'N';
+
+			$r = $this->setField('CANCELED', $canceled);
+			if (!$r->isSuccess())
+			{
+				return $result->addErrors($r->getErrors());
+			}
+		}
+
 		return $result;
 	}
 
@@ -123,15 +158,38 @@ class Order extends Sale\Order
 	{
 		$result = parent::onAfterSave();
 
+		if ($this->fields->isChanged('CANCELED') && $this->isCanceled())
+		{
+			Crm\Automation\Trigger\OrderCanceledTrigger::execute(
+				[['OWNER_TYPE_ID' => \CCrmOwnerType::Order, 'OWNER_ID' => $this->getId()]],
+				['ORDER' => $this]
+			);
+		}
+
 		if ($this->isNew())
 		{
 			$this->runAutomationOnAdd();
-			$this->addTimelineEntryOnCreate();
 		}
-		elseif ($this->fields->isChanged('STATUS_ID'))
+		else
 		{
-			$this->runAutomationOnStatusChanged();
-			$this->addTimelineEntryOnStatusModify();
+			if ($this->fields->isChanged('STATUS_ID'))
+			{
+				$this->runAutomationOnStatusChanged();
+				$this->addTimelineEntryOnStatusModify();
+			}
+
+			if ($this->fields->isChanged('PRICE') || $this->fields->isChanged('CURRENCY') )
+			{
+				$this->updateTimelineCreationEntity();
+			}
+		}
+
+		if ($this->fields->isChanged('CANCELED'))
+		{
+			if (!($this->isNew() && $this->getField('CANCELED') === 'N'))
+			{
+				$this->addTimelineEntryOnCancel();
+			}
 		}
 
 		$this->saveRequisiteLink();
@@ -146,7 +204,33 @@ class Order extends Sale\Order
 			static::resetCounters($this->getField('RESPONSIBLE_ID'));
 		}
 
+		$this->appendBuyerGroups();
+
+		if(Main\Loader::includeModule('pull'))
+		{
+			\CPullWatch::AddToStack(
+				'CRM_ENTITY_ORDER',
+				array(
+					'module_id' => 'crm',
+					'command' => 'onOrderSave',
+					'params' => array(
+						'FIELDS' => $this->getFieldValues()
+					)
+				)
+			);
+		}
+
 		return $result;
+	}
+
+	protected function appendBuyerGroups()
+	{
+		$userId = $this->getField('USER_ID');
+
+		if (!empty($userId))
+		{
+			\CUser::AppendUserGroup($userId, BuyerGroup::getDefaultGroups());
+		}
 	}
 
 	/**
@@ -179,9 +263,30 @@ class Order extends Sale\Order
 					'CREATED_BY' => $this->getField('CREATED_BY'),
 					'RESPONSIBLE_ID' => $this->getField('RESPONSIBLE_ID'),
 					'DATE_INSERT' => $this->getField('DATE_INSERT'),
+					'PRICE' => $this->getField('PRICE'),
+					'CURRENCY' => $this->getField('CURRENCY')
 				]
 			]
 		);
+	}
+
+	/**
+	 * @throws Main\ArgumentException
+	 */
+	private function addTimelineEntryOnCancel()
+	{
+		$fields = [
+			'ID' => $this->getId(),
+			'CANCELED' => $this->getField('CANCELED'),
+		];
+
+		if ($this->getField('CANCELED') === 'Y')
+		{
+			$fields['REASON_CANCELED'] = $this->getField('REASON_CANCELED');
+			$fields['EMP_CANCELED_ID'] = $this->getField('EMP_CANCELED_ID');
+		}
+
+		Crm\Timeline\OrderController::getInstance()->onCancel($this->getId(), ['FIELDS' => $fields]);
 	}
 
 	/**
@@ -199,6 +304,26 @@ class Order extends Sale\Order
 		);
 
 		Crm\Timeline\OrderController::getInstance()->onModify($this->getId(), $modifyParams);
+	}
+
+	/**
+	 * @throws Main\ArgumentException
+	 * @return void;
+	 */
+	private function updateTimelineCreationEntity()
+	{
+		$fields = $this->getFields();
+		$selectedFields =[
+			'DATE_INSERT_TIMESTAMP' => $fields['DATE_INSERT']->getTimestamp(),
+			'PRICE' => $fields['PRICE'],
+			'CURRENCY' => $fields['CURRENCY']
+		];
+
+		Crm\Timeline\OrderController::getInstance()->updateSettingFields(
+			$this->getId(),
+			Crm\Timeline\TimelineType::CREATION,
+			$selectedFields
+		);
 	}
 
 	/**
@@ -503,6 +628,7 @@ class Order extends Sale\Order
 		$registry = array(
 			Sale\Registry::REGISTRY_TYPE_ORDER => array(
 				Sale\Registry::ENTITY_ORDER => '\Bitrix\Crm\Order\Order',
+				Sale\Registry::ENTITY_PROPERTY => '\Bitrix\Crm\Order\Property',
 				Sale\Registry::ENTITY_PROPERTY_VALUE => '\Bitrix\Crm\Order\PropertyValue',
 				Sale\Registry::ENTITY_PROPERTY_VALUE_COLLECTION => '\Bitrix\Crm\Order\PropertyValueCollection',
 				Sale\Registry::ENTITY_TAX => '\Bitrix\Crm\Order\Tax',
@@ -532,61 +658,11 @@ class Order extends Sale\Order
 				ENTITY_CRM_COMPANY => 'Bitrix\Crm\Order\Company',
 				ENTITY_CRM_CONTACT => 'Bitrix\Crm\Order\Contact',
 				ENTITY_CRM_CONTACT_COMPANY_COLLECTION => 'Bitrix\Crm\Order\ContactCompanyCollection',
+				Sale\Registry::ENTITY_TRADE_BINDING_COLLECTION => 'Bitrix\Crm\Order\TradeBindingCollection',
+				Sale\Registry::ENTITY_TRADE_BINDING_ENTITY => 'Bitrix\Crm\Order\TradeBindingEntity',
 			)
 		);
 
 		return new EventResult(EventResult::SUCCESS, $registry);
-	}
-
-	/**
-	 * Restore cancelled order.
-	 *
-	 * @return Main\Result
-	 */
-	public function restore()
-	{
-		$result = parent::restore();
-
-		if ($result->isSuccess())
-		{
-			Crm\Timeline\OrderController::getInstance()->onCancel(
-				$this->getId(),
-				[
-					'FIELDS' => [
-						'ID' => $this->getId(),
-						'CANCELED' => 'N',
-					]
-				]
-			);
-		}
-
-		return $result;
-	}
-
-	/**
-	 * @param string $comment
-	 *
-	 * @return Main\Result
-	 */
-	public function cancel($comment = '')
-	{
-		$result = parent::cancel($comment);
-
-		if ($result->isSuccess())
-		{
-			Crm\Timeline\OrderController::getInstance()->onCancel(
-				$this->getId(),
-				[
-					'FIELDS' => [
-						'ID' => $this->getId(),
-						'REASON_CANCELED' => $this->getField('REASON_CANCELED'),
-						'CANCELED' => 'Y',
-						'EMP_CANCELED_ID' => $this->getField('EMP_CANCELED_ID'),
-					]
-				]
-			);
-		}
-
-		return $result;
 	}
 }

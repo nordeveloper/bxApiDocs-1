@@ -18,6 +18,14 @@ class Lead extends ProductsDataProvider implements Nameable
 			$this->fields['STATUS'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_STATUS_TITLE'),];
 			$this->fields['SOURCE'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_SOURCE_TITLE'),];
 			$this->fields['IMOL'] = ['TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_IMOL_TITLE'),];
+			$this->fields['PHONE_ANOTHER'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_PHONE_ANOTHER_TITLE'),
+				'VALUE' => [$this, 'getAnotherPhone'],
+			];
+			$this->fields['EMAIL_ANOTHER'] = [
+				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_EMAIL_ANOTHER_TITLE'),
+				'VALUE' => [$this, 'getAnotherEmail'],
+			];
 			$this->fields['COMPANY_NAME'] = [
 				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_LEAD_COMPANY_NAME_TITLE'),
 				'VALUE' => 'COMPANY_TITLE',
@@ -133,5 +141,53 @@ class Lead extends ProductsDataProvider implements Nameable
 	protected function getUserFieldEntityID()
 	{
 		return \CCrmLead::GetUserFieldEntityID();
+	}
+
+	/**
+	 * @return array|null
+	 */
+	protected function getMultiFields()
+	{
+		if($this->isLoaded())
+		{
+			if($this->multiFields === null)
+			{
+				$this->multiFields = [];
+
+				$entityId = \CCrmOwnerType::CompanyName;
+				$elementId = $this->getCompanyId();
+				if(!$elementId)
+				{
+					$elementId = $this->getContactId();
+					$entityId = \CCrmOwnerType::ContactName;
+				}
+				if(!$elementId)
+				{
+					$elementId = $this->source;
+					$entityId = \CCrmOwnerType::LeadName;
+				}
+
+				if($elementId > 0)
+				{
+					$multiFieldDbResult = \CCrmFieldMulti::GetList(
+						['ID' => 'asc'],
+						[
+							'ENTITY_ID' => $entityId,
+							'ELEMENT_ID' => $elementId,
+						]
+					);
+					while($multiField = $multiFieldDbResult->Fetch())
+					{
+						$this->multiFields[$multiField['TYPE_ID']][] = $multiField;
+					}
+				}
+			}
+		}
+		else
+		{
+			return [];
+		}
+
+		return $this->multiFields;
 	}
 }

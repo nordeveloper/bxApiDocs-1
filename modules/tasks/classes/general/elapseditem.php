@@ -235,6 +235,10 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 			{
 				$parameters['count_total'] = (bool)$params['count_total'];
 			}
+			else
+			{
+				$parameters['count_total'] = true;
+			}
 		}
 
 		$dbResult = \Bitrix\Tasks\Integration\Rest\ElapsedTimeTable::getList($parameters, array(
@@ -243,9 +247,11 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 		));
 
 		$result = $dbResult->fetchAll();
+		$count = $dbResult->getCount();
+
 		$navData = array(
 			'offset' => $parameters['offset'],
-			'count' => $dbResult->getCount()
+			'count' => $count
 		);
 
 		return array($result, $navData);
@@ -348,14 +354,14 @@ final class CTaskElapsedItem extends CTaskSubItemAbstract
 					}
 					else
 					{
-						$navParams['iNumPage'] = 1;
+						$navParams['iNumPage'] = 0;
 					}
 				}
 				else
 				{
 					$navParams = array(
 						'nPageSize' => ($byTaskId? 0 : CTaskRestService::TASKS_LIMIT_PAGE_SIZE),
-						'iNumPage' => 1
+						'iNumPage' => 0
 					);
 				}
 

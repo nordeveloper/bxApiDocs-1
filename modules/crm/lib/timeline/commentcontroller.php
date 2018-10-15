@@ -14,7 +14,7 @@ Loc::loadMessages(__FILE__);
 class CommentController extends EntityController
 {
 	//region Singleton
-	/** @var ContactController|null */
+	/** @var CommentController|null */
 	protected static $instance = null;
 	protected static $parser = null;
 
@@ -22,7 +22,7 @@ class CommentController extends EntityController
 	const UF_COMMENT_FILE_NAME = 'UF_CRM_COMMENT_FILES';
 
 	/**
-	 * @return ContactController
+	 * @return CommentController
 	 */
 	public static function getInstance()
 	{

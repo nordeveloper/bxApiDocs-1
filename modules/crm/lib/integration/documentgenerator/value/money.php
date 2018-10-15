@@ -4,6 +4,7 @@ namespace Bitrix\Crm\Integration\DocumentGenerator\Value;
 
 use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Value;
+use Bitrix\Main\Loader;
 
 class Money extends Value
 {
@@ -130,23 +131,28 @@ class Money extends Value
 	 */
 	public static function getCurrencySymbol($currencyId, $languageId)
 	{
-		if(!isset(static::$currencyInfo[$currencyId][$languageId]))
+		if(Loader::includeModule('currency'))
 		{
-			static::loadCurrency($currencyId, $languageId);
-		}
-		if(!is_array(static::$currencyInfo[$currencyId][$languageId]))
-		{
-			if($languageId != LANGUAGE_ID)
+			if(!isset(static::$currencyInfo[$currencyId][$languageId]))
 			{
-				return static::getCurrencySymbol($currencyId,LANGUAGE_ID);
+				static::loadCurrency($currencyId, $languageId);
 			}
-			else
+			if(!is_array(static::$currencyInfo[$currencyId][$languageId]))
 			{
-				return false;
+				if($languageId != LANGUAGE_ID)
+				{
+					return static::getCurrencySymbol($currencyId,LANGUAGE_ID);
+				}
+				else
+				{
+					return false;
+				}
 			}
+
+			return trim(static::$currencyInfo[$currencyId][$languageId]['FORMAT_STRING'], " \n\r\t#");
 		}
 
-		return trim(static::$currencyInfo[$currencyId][$languageId]['FORMAT_STRING'], " \n\r\t#");
+		return '';
 	}
 
 	/**

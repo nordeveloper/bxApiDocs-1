@@ -244,10 +244,10 @@ class ActivityDynamic extends DataSource
 									<div class="crm-widget-activity-dynamic-graph">
 										<div class="crm-widget-activity-dynamic-graph-half">
 											<div class="crm-widget-activity-dynamic-graph-total">{$g["counters"][\CCrmActivityDirection::Incoming]}</div>
-											<div class="crm-widget-activity-dynamic-graph-line" style="width: {$g["percentage"][\CCrmActivityDirection::Incoming]}%"></div>
+											<div class="crm-widget-activity-dynamic-graph-line" style="max-width: {$g["percentage"][\CCrmActivityDirection::Incoming]}%"></div>
 										</div>
 										<div class="crm-widget-activity-dynamic-graph-half crm-widget-activity-dynamic-graph-half-right">
-											<div class="crm-widget-activity-dynamic-graph-line" style="width: {$g["percentage"][\CCrmActivityDirection::Outgoing]}%"></div>
+											<div class="crm-widget-activity-dynamic-graph-line" style="max-width: {$g["percentage"][\CCrmActivityDirection::Outgoing]}%"></div>
 											<div class="crm-widget-activity-dynamic-graph-total">{$g["counters"][\CCrmActivityDirection::Outgoing]}</div>
 										</div>
 									</div>
@@ -299,10 +299,10 @@ HTML;
 									<div class="crm-widget-activity-dynamic-graph">
 										<div class="crm-widget-activity-dynamic-graph-half">
 											<div class="crm-widget-activity-dynamic-graph-total">{$item["COUNTERS"][\CCrmActivityDirection::Incoming]}</div>
-											<div class="crm-widget-activity-dynamic-graph-line" style="width: {$item["PERCENTAGE"][\CCrmActivityDirection::Incoming]}%"></div>
+											<div class="crm-widget-activity-dynamic-graph-line" style="max-width: {$item["PERCENTAGE"][\CCrmActivityDirection::Incoming]}%"></div>
 										</div>
 										<div class="crm-widget-activity-dynamic-graph-half crm-widget-activity-dynamic-graph-half-right">
-											<div class="crm-widget-activity-dynamic-graph-line" style="width: {$item["PERCENTAGE"][\CCrmActivityDirection::Outgoing]}%"></div>
+											<div class="crm-widget-activity-dynamic-graph-line" style="max-width: {$item["PERCENTAGE"][\CCrmActivityDirection::Outgoing]}%"></div>
 											<div class="crm-widget-activity-dynamic-graph-total">{$item["COUNTERS"][\CCrmActivityDirection::Outgoing]}</div>
 										</div>
 									</div>
@@ -326,10 +326,10 @@ HTML;
 											<div class="crm-widget-activity-dynamic-graph">
 												<div class="crm-widget-activity-dynamic-graph-half">
 													<div class="crm-widget-activity-dynamic-graph-total">{$item["COUNTERS"][\CCrmActivityDirection::Incoming]}</div>
-													<div class="crm-widget-activity-dynamic-graph-line" style="width: {$item["PERCENTAGE"][\CCrmActivityDirection::Incoming]}%"></div>
+													<div class="crm-widget-activity-dynamic-graph-line" style="max-width: {$item["PERCENTAGE"][\CCrmActivityDirection::Incoming]}%"></div>
 												</div>
 												<div class="crm-widget-activity-dynamic-graph-half crm-widget-activity-dynamic-graph-half-right">
-													<div class="crm-widget-activity-dynamic-graph-line" style="width: {$item["PERCENTAGE"][\CCrmActivityDirection::Outgoing]}%"></div>
+													<div class="crm-widget-activity-dynamic-graph-line" style="max-width: {$item["PERCENTAGE"][\CCrmActivityDirection::Outgoing]}%"></div>
 													<div class="crm-widget-activity-dynamic-graph-total">{$item["COUNTERS"][\CCrmActivityDirection::Outgoing]}</div>
 												</div>
 											</div>

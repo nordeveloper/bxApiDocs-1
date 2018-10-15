@@ -4,7 +4,6 @@ namespace Bitrix\Sale;
 
 use Bitrix\Main;
 use Bitrix\Sale\Internals\Input;
-use Bitrix\Sale\Internals\OrderPropsGroupTable;
 use Bitrix\Main\ArgumentOutOfRangeException;
 use Bitrix\Main\Entity;
 use Bitrix\Main\Localization\Loc;
@@ -20,18 +19,6 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	/** @var OrderBase */
 	protected $order;
 
-	private $attributes = array(
-		'IS_EMAIL'        => null,
-		'IS_PAYER'        => null,
-		'IS_LOCATION'     => null,
-		'IS_LOCATION4TAX' => null,
-		'IS_PROFILE_NAME' => null,
-		'IS_ZIP'          => null,
-		'IS_PHONE'        => null,
-		'IS_ADDRESS'      => null,
-	);
-
-	protected $propertyGroupMap = array();
 	protected $propertyGroups = null;
 
 	private static $eventClassName = null;
@@ -39,6 +26,10 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	/**
 	 * @param OrderBase $order
 	 * @return PropertyValueCollectionBase
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public static function load(OrderBase $order)
 	{
@@ -72,7 +63,9 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 
 	/**
 	 * @param array $prop
-	 * @return PropertyValueBase
+	 * @return mixed
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
 	 */
 	public function createItem(array $prop)
 	{
@@ -88,38 +81,24 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 
 	/**
 	 * @param Internals\CollectableEntity $property
-	 * @return Result
+	 * @return Internals\CollectableEntity|Result
+	 * @throws Main\ArgumentTypeException
 	 */
 	public function addItem(Internals\CollectableEntity $property)
 	{
 		/** @var PropertyValueBase $property */
 		$property = parent::addItem($property);
 
-		$this->setAttributes($property);
-		$this->addToGroupMap($property);
-
 		$order = $this->getOrder();
 		return $order->onPropertyValueCollectionModify(EventActions::ADD, $property);
-	}
-
-	/**
-	 * @param PropertyValueBase $property
-	 */
-	private function addToGroupMap(PropertyValueBase $property)
-	{
-		$groups = $this->getGroups();
-
-		if (isset($groups[$property->getGroupId()]))
-			$this->propertyGroupMap[$property->getGroupId()][] = $property;
-		else
-			$this->propertyGroupMap[0][] = $property;
 	}
 
 	/**
 	 * @internal
 	 *
 	 * @param $index
-	 * @return Result
+	 * @return Result|mixed
+	 * @throws ArgumentOutOfRangeException
 	 */
 	public function deleteItem($index)
 	{
@@ -141,9 +120,7 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	public function onItemModify(Internals\CollectableEntity $item, $name = null, $oldValue = null, $value = null)
 	{
 		if (!$item instanceof PropertyValueBase)
-			throw  new Main\NotSupportedException();
-
-		$this->setAttributes($item);
+			throw new Main\NotSupportedException();
 
 		/** @var OrderBase $order */
 		$order = $this->getOrder();
@@ -189,100 +166,93 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	}
 
 	/**
-	 * @param PropertyValueBase $propValue
-	 */
-	private function setAttributes(PropertyValueBase $propValue)
-	{
-		$prop = $propValue->getProperty();
-		foreach ($this->attributes as $k => $v)
-		{
-			if ($prop[$k] == 'Y')
-				$this->attributes[$k] = $propValue;
-		}
-	}
-
-	/**
 	 * @param $name
 	 * @return PropertyValueBase
 	 * @throws ArgumentOutOfRangeException
 	 */
 	public function getAttribute($name)
 	{
-		if (!array_key_exists($name, $this->attributes))
-			throw new ArgumentOutOfRangeException("name");
-
-		if ($this->attributes[$name] !== null)
-			return $this->attributes[$name];
+		/** @var PropertyValueBase $item */
+		foreach ($this->collection as $item)
+		{
+			$property = $item->getPropertyObject();
+			if ($property->getField($name) === 'Y')
+			{
+				return $item;
+			}
+		}
 
 		return null;
 	}
 
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getUserEmail()
+	public function getUserEmail()
 	{
 		return $this->getAttribute('IS_EMAIL');
 	}
 
-
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getPayerName()
+	public function getPayerName()
 	{
 		return $this->getAttribute('IS_PAYER');
 	}
 
-
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getDeliveryLocation()
+	public function getDeliveryLocation()
 	{
 		return $this->getAttribute('IS_LOCATION');
 	}
 
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getTaxLocation()
+	public function getTaxLocation()
 	{
 		return $this->getAttribute('IS_LOCATION4TAX');
 	}
 
-
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getProfileName()
+	public function getProfileName()
 	{
 		return $this->getAttribute('IS_PROFILE_NAME');
 	}
 
-
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getDeliveryLocationZip()
+	public function getDeliveryLocationZip()
 	{
 		return $this->getAttribute('IS_ZIP');
 	}
 
-
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getPhone()
+	public function getPhone()
 	{
 		return $this->getAttribute('IS_PHONE');
 	}
 
-
 	/**
 	 * @return PropertyValueBase
+	 * @throws ArgumentOutOfRangeException
 	 */
-	function getAddress()
+	public function getAddress()
 	{
 		return $this->getAttribute('IS_ADDRESS');
 	}
@@ -291,8 +261,10 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	 * @param $post
 	 * @param $files
 	 * @return Result
+	 * @throws ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
 	 */
-	function setValuesFromPost($post, $files)
+	public function setValuesFromPost($post, $files)
 	{
 		$post = Input\File::getPostWithFiles($post, $files);
 
@@ -303,7 +275,9 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 		{
 			$r = $property->setValueFromPost($post);
 			if (!$r->isSuccess())
+			{
 				$result->addErrors($r->getErrors());
+			}
 		}
 
 		return $result;
@@ -312,9 +286,9 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	/**
 	 * @param $fields
 	 * @param $files
-	 * @param $skipUtils
-	 *
+	 * @param bool $skipUtils
 	 * @return Result
+	 * @throws Main\SystemException
 	 */
 	public function checkErrors($fields, $files, $skipUtils = false)
 	{
@@ -387,62 +361,69 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	}
 
 	/**
-	 * @return array
+	 * @return array|null
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public function getGroups()
 	{
-		if (!$this->propertyGroups)
+		$result = [];
+
+		/** @var PropertyValueBase $propertyValue */
+		foreach ($this->collection as $propertyValue)
 		{
-			$this->propertyGroups = array(
-				0 => array('NAME' => Loc::getMessage('SOP_UNKNOWN_GROUP'), 'ID' => 0)
-			);
-
-			$order = $this->getOrder();
-			if ($order)
+			$property = $propertyValue->getPropertyObject();
+			if (!isset($result[$property->getGroupId()]))
 			{
-				$result = OrderPropsGroupTable::getList(array(
-					'select' => array('ID', 'NAME', 'PERSON_TYPE_ID', 'SORT'),
-					'filter' => array('=PERSON_TYPE_ID' => $order->getPersonTypeId()),
-					'order' => array('SORT' => 'ASC'),
-				));
-
-				while ($row = $result->fetch())
-					$this->propertyGroups[$row['ID']] = $row;
+				$result[$property->getGroupId()] = $property->getGroupInfo();
 			}
 		}
 
-		return $this->propertyGroups;
+		return $result;
 	}
 
 	/**
 	 * @param $groupId
 	 * @return mixed
 	 */
-	public function getGroupProperties($groupId)
+	public function getPropertiesByGroupId($groupId)
 	{
-		return $this->propertyGroupMap[$groupId];
+		$result = [];
+
+		/** @var PropertyValueBase $propertyValue */
+		foreach ($this->collection as $propertyValue)
+		{
+			$property = $propertyValue->getPropertyObject();
+			if ((int)$property->getGroupId() === (int)$groupId)
+			{
+				$result[] = $propertyValue;
+			}
+		}
+
+		return $result;
 	}
 
 	/**
 	 * @return array
 	 */
-	function getArray()
+	public function getArray()
 	{
 		$groups = $this->getGroups();
 
 		$properties = array();
 
-		/** @var PropertyValueBase $property */
-		foreach ($this->collection as $k => $property)
+		/** @var PropertyValueBase $propertyValue */
+		foreach ($this->collection as $propertyValue)
 		{
-			$p = $property->getProperty();
+			$p = $propertyValue->getProperty();
 
 			if (!isset($p["ID"]))
-				$p["ID"] = "n".$property->getId();
+				$p["ID"] = "n".$propertyValue->getId();
 
-			$value = $property->getValue();
+			$value = $propertyValue->getValue();
 
-			$value = $property->getValueId() ? $value : ($value ? $value : $p['DEFAULT_VALUE']);
+			$value = $propertyValue->getValueId() ? $value : ($value ? $value : $p['DEFAULT_VALUE']);
 
 			$value = array_values(Input\Manager::asMultiple($p, $value));
 
@@ -460,11 +441,13 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	 */
 	public function getItemByOrderPropertyId($orderPropertyId)
 	{
-		/** @var PropertyValueBase $property */
-		foreach ($this->collection as $k => $property)
+		/** @var PropertyValueBase $propertyValue */
+		foreach ($this->collection as $propertyValue)
 		{
-			if ($property->getField('ORDER_PROPS_ID') == $orderPropertyId)
-				return $property;
+			if ($propertyValue->getField('ORDER_PROPS_ID') == $orderPropertyId)
+			{
+				return $propertyValue;
+			}
 		}
 
 		return null;
@@ -538,7 +521,9 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 			}
 
 			if (isset($itemsFromDb[$property->getId()]))
+			{
 				unset($itemsFromDb[$property->getId()]);
+			}
 		}
 
 		foreach ($itemsFromDb as $k => $v)
@@ -595,6 +580,7 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 
 	/**
 	 * @return array
+	 * @throws Main\NotImplementedException
 	 * @throws Main\ObjectNotFoundException
 	 */
 	private function getOriginalItemsValues()

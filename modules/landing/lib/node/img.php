@@ -31,6 +31,7 @@ class Img extends \Bitrix\Landing\Node
 		{
 			$src = isset($value['src']) ? trim($value['src']) : '';
 			$alt = isset($value['alt']) ? trim($value['alt']) : '';
+			$url = isset($value['url']) ? trim($value['url']) : '';
 			$id = isset($value['id']) ? intval($value['id']) : 0;
 			if ($src != '')
 			{
@@ -39,7 +40,7 @@ class Img extends \Bitrix\Landing\Node
 					if ($resultList[$pos]->getTagName() !== 'IMG')
 					{
 						$styles = StyleInliner::getStyle($resultList[$pos]);
-						$styles['background-image'] = 'url(\'' . $src . '\')';
+						$styles['background-image'] = 'url(\'' . str_replace("'", "\\'", $src) . '\')';
 						StyleInliner::setStyle($resultList[$pos], $styles);
 					}
 					else
@@ -50,6 +51,10 @@ class Img extends \Bitrix\Landing\Node
 					if ($id)
 					{
 						$resultList[$pos]->setAttribute('data-fileid', $id);
+					}
+					if ($url)
+					{
+						$resultList[$pos]->setAttribute('data-pseudo-url', $url);
 					}
 				}
 			}
@@ -76,15 +81,20 @@ class Img extends \Bitrix\Landing\Node
 				$styles['background-image'] = substr($styles['background-image'], 3);
 				$styles['background-image'] = trim($styles['background-image'], '(\'\')');
 				$data[$pos] = array(
-					'src' => $styles['background-image']
+					'src' => Manager::getUrlFromFile($styles['background-image'])
 				);
 			}
 			else
 			{
 				$data[$pos] = array(
 					'alt' => $res->getAttribute('alt'),
-					'src' => $res->getAttribute('src')
+					'src' => Manager::getUrlFromFile($res->getAttribute('src'))
 				);
+			}
+			$pseudoUrl = $res->getAttribute('data-pseudo-url');
+			if ($pseudoUrl)
+			{
+				$data[$pos]['data-pseudo-url'] = $pseudoUrl;
 			}
 		}
 

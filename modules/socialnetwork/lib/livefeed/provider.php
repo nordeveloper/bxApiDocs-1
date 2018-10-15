@@ -48,6 +48,8 @@ abstract class Provider
 	protected $cloneDiskObjects = false;
 	protected $sourceDescription = '';
 	protected $sourceTitle = '';
+	protected $sourceOriginalText = '';
+	protected $sourceAuxData = array();
 	protected $sourceAttachedDiskObjects = array();
 	protected $sourceDiskObjects = array();
 	protected $diskObjectsCloned = array();
@@ -415,12 +417,12 @@ abstract class Provider
 		return $result;
 	}
 
-	final protected  function setSourceTitle($title)
+	final protected function setSourceTitle($title)
 	{
 		$this->sourceTitle = $title;
 	}
 
-	public  function getSourceTitle()
+	public function getSourceTitle()
 	{
 		if (empty($this->sourceFields))
 		{
@@ -428,6 +430,36 @@ abstract class Provider
 		}
 
 		return $this->sourceTitle;
+	}
+
+	final protected function setSourceOriginalText($text)
+	{
+		$this->sourceOriginalText = $text;
+	}
+
+	public function getSourceOriginalText()
+	{
+		if (empty($this->sourceFields))
+		{
+			$this->initSourceFields();
+		}
+
+		return $this->sourceOriginalText;
+	}
+
+	final protected function setSourceAuxData($auxData)
+	{
+		$this->sourceAuxData = $auxData;
+	}
+
+	public function getSourceAuxData()
+	{
+		if (empty($this->sourceFields))
+		{
+			$this->initSourceFields();
+		}
+
+		return $this->sourceAuxData;
 	}
 
 	final protected function setSourceAttachedDiskObjects(array $diskAttachedObjects)
@@ -732,6 +764,10 @@ abstract class Provider
 					$contentEntityType = self::DATA_ENTITY_TYPE_TIMEMAN_REPORT;
 					$contentEntityId = intval($event["SOURCE_ID"]);
 					break;
+				case "lists_new_element":
+					$contentEntityType = self::DATA_ENTITY_TYPE_LISTS_ITEM;
+					$contentEntityId = intval($event["SOURCE_ID"]);
+					break;
 				default:
 			}
 		}
@@ -1024,6 +1060,30 @@ abstract class Provider
 		}
 
 		return $result;
+	}
+
+	public function getAdditionalData($params = array())
+	{
+		return array();
+	}
+
+	protected function checkAdditionalDataParams(&$params)
+	{
+		if (
+			empty($params)
+			|| !is_array($params)
+			|| empty($params['id'])
+		)
+		{
+			return false;
+		}
+
+		if (!is_array($params['id']))
+		{
+			$params['id'] = array($params['id']);
+		}
+
+		return true;
 	}
 
 }

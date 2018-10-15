@@ -9,11 +9,6 @@ use Bitrix\Sale\Result;
 use Bitrix\Sale\Delivery;
 use Bitrix\Main\Localization\Loc;
 
-if (!Main\Loader::includeModule('sale'))
-{
-	return;
-}
-
 Loc::loadMessages(__FILE__);
 
 /**
@@ -38,6 +33,11 @@ final class Manager
 	 */
 	public static function setOrderStatus($id, $statusId, $reasonCanceled = '')
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return new Result();
+		}
+
 		$id = (int)$id;
 		$result = new Result();
 
@@ -56,35 +56,36 @@ final class Manager
 		}
 
 		$prevStatus = $order->getField('STATUS_ID');
+		$result->setData(['PREVIOUS_STATUS_ID' => $prevStatus]);
 
 		if($prevStatus !== $statusId)
 		{
 			$res = $order->setField('STATUS_ID', $statusId);
-
-				if(!$res->isSuccess())
-					return $res;
+			if(!$res->isSuccess())
+			{
+				return $result->addErrors($res->getErrors());
+			}
 		}
-
-		$res = null;
 
 		if (OrderStatus::getSemanticID($statusId) == Crm\PhaseSemantics::FAILURE)
 		{
-			if(!$order->isCanceled())
-				$res = $order->setField('CANCELED', 'Y');
-
 			if(strlen($reasonCanceled) > 0)
-				$order->setField('REASON_CANCELED', $reasonCanceled);
+			{
+				$res = $order->setField('REASON_CANCELED', $reasonCanceled);
+				if(!$res->isSuccess())
+				{
+					return $result->addErrors($res->getErrors());
+				}
+			}
 		}
-		else
+			
+		$res = $order->save();
+		if(!$res->isSuccess())
 		{
-			if($order->isCanceled())
-				$res = $order->setField('CANCELED', 'N');
+			$result->addErrors($res->getErrors());
 		}
 
-		if($res && !$res->isSuccess())
-			return $res;
-
-		return $order->save();
+		return $result;
 	}
 
 	/**
@@ -95,6 +96,11 @@ final class Manager
 	 */
 	public static function getPaymentObject($id)
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return null;
+		}
+
 		$res = Payment::getList(array(
 			'filter' => array('=ID' => $id)
 		));
@@ -110,7 +116,7 @@ final class Manager
 			return null;
 
 		$collection = $order->getPaymentCollection();
-		/** @var \Bitrix\Sale\Payment $payment */
+		/** @var Payment $payment */
 		$payment = $collection->getItemById($id);
 		return $payment;
 	}
@@ -123,6 +129,11 @@ final class Manager
 	 */
 	public static function getShipmentObject($id)
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return null;
+		}
+
 		$res = Shipment::getList(array(
 			'filter' => array('=ID' => $id)
 		));
@@ -143,6 +154,11 @@ final class Manager
 
 	public static function createEmptyOrder($site)
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return null;
+		}
+
 		$order = Order::create($site);
 
 		$order->setPersonTypeId(
@@ -166,6 +182,11 @@ final class Manager
 
 	public static function getDeliveryServicesList(Shipment $shipment)
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return null;
+		}
+
 		static $result = null;
 
 		if($result === null)
@@ -263,6 +284,11 @@ final class Manager
 
 	public static function getDeliveryProfiles($deliveryId, $deliveryList)
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return null;
+		}
+
 		if((int)$deliveryId <= 0)
 		{
 			return [];
@@ -322,6 +348,11 @@ final class Manager
 
 	public static function getAnonymousUserID()
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return null;
+		}
+
 		return (int)\CSaleUser::GetAnonymousUserID();
 	}
 
@@ -332,6 +363,11 @@ final class Manager
 	 */
 	public static function copy($orderId)
 	{
+		if (!Main\Loader::includeModule('sale'))
+		{
+			return null;
+		}
+
 		$originalOrder = Order::load((int)$orderId);
 		if (!$originalOrder)
 		{
@@ -449,5 +485,15 @@ final class Manager
 		$order->refreshData(array('PRICE', 'PRICE_DELIVERY'));
 
 		return $order;
+	}
+
+	public static function getUfId()
+	{
+		return 'ORDER';
+	}
+
+	public static function installDeliveryServices()
+	{
+		return '';
 	}
 }

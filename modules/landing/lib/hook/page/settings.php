@@ -222,7 +222,14 @@ class Settings extends \Bitrix\Landing\Hook\Page
 			);
 			if (Loader::includeModule('catalog'))
 			{
-				$res = \CCatalog::getList();
+				$res = \CCatalog::getList(
+					[],
+					[
+						'LID' => defined('SMN_SITE_ID')
+							? SMN_SITE_ID
+							: SITE_ID
+					]
+				);
 				// get all offers
 				$offersIblock = array();
 				$resOffers = \Bitrix\Catalog\CatalogIblockTable::getList(array(
@@ -240,7 +247,14 @@ class Settings extends \Bitrix\Landing\Hook\Page
 			}
 			elseif (Loader::includeModule('iblock'))
 			{
-				$res = \CIblock::getList();
+				$res = \CIblock::getList(
+					[],
+					[
+						'SITE_ID' => defined('SMN_SITE_ID')
+								? SMN_SITE_ID
+								: SITE_ID
+					]
+				);
 			}
 			if (isset($res))
 			{

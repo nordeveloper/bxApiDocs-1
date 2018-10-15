@@ -1797,8 +1797,27 @@ class EntityRequisite
 		return true;
 	}
 
-	public function prepareViewData($fields, $fieldsInView)
+	public function prepareViewData($fields, $fieldsInView, $options = array())
 	{
+		$optionValueHtml = false;
+		$optionValueText = true;
+
+		if (is_array($options) && isset($options['VALUE_HTML'])
+			&& ($options['VALUE_HTML'] === 'Y' || $options['VALUE_HTML'] === true))
+		{
+			$optionValueHtml = true;
+		}
+
+		if (is_array($options) && isset($options['VALUE_TEXT']) &&
+			!($options['VALUE_TEXT'] === 'Y' || $options['VALUE_TEXT'] === true))
+		{
+			$optionValueText = false;
+		}
+		else if ($optionValueHtml)
+		{
+			$optionValueText = false;
+		}
+
 		$result = array(
 			'title' => '',
 			'fields' => array()
@@ -1868,9 +1887,16 @@ class EntityRequisite
 						$textValue = '';
 						if ($fieldInfo['type'] === 'boolean')
 						{
-							if (is_bool($fieldValue))
+							if ($fieldInfo['isUF'])
 							{
-								$fieldValue = $fieldValue ? 'Y' : 'N';
+								$fieldValue = intval($fieldValue) > 0 ? 'Y' : 'N';
+							}
+							else
+							{
+								if (is_bool($fieldValue))
+								{
+									$fieldValue = $fieldValue ? 'Y' : 'N';
+								}
 							}
 							$textValue = ($fieldValue === 'Y' ? GetMessage('MAIN_YES') : GetMessage('MAIN_NO'));
 						}
@@ -1908,14 +1934,22 @@ class EntityRequisite
 											);
 											if (!empty($textValue))
 											{
-												$result['fields'][] = array(
+												$resultItem = array(
 													'name' => $fieldName,
 													'title' => $addressTypeInfo['name'],
 													'type' => $addressTypeInfo['desc'],
 													'subType' => $addressTypeInfo['id'],
-													'formType' => $fieldInfo['formType'],
-													'textValue' => $textValue
+													'formType' => $fieldInfo['formType']
 												);
+												if ($optionValueText)
+												{
+													$resultItem['textValue'] = $textValue;
+												}
+												if ($optionValueHtml)
+												{
+													$resultItem['htmlValue'] = nl2br(htmlspecialcharsbx($textValue));
+												}
+												$result['fields'][] = $resultItem;
 											}
 										}
 									}
@@ -1941,14 +1975,22 @@ class EntityRequisite
 
 						if (!$skip)
 						{
-							$result['fields'][] = array(
+							$resultItem = array(
 								'name' => $fieldName,
 								'title' => $fieldInfo['title'],
 								'type' => $fieldInfo['type'],
 								'subType' => 0,
-								'formType' => $fieldInfo['formType'],
-								'textValue' => $textValue
+								'formType' => $fieldInfo['formType']
 							);
+							if ($optionValueText)
+							{
+								$resultItem['textValue'] = $textValue;
+							}
+							if ($optionValueHtml)
+							{
+								$resultItem['htmlValue'] = nl2br(htmlspecialcharsbx($textValue));;
+							}
+							$result['fields'][] = $resultItem;
 						}
 					}
 				}

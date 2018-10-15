@@ -119,6 +119,7 @@ class GrowthStatistics extends DataSource
 				$cntResponsibleValue[$cntRow['RESPONSIBLE_ID']] = $cntRow[$name];
 			}
 		}
+		$totalCountBeforePeriod = $cntValue;
 
 		$sort = isset($params['sort']) && is_array($params['sort']) && !empty($params['sort']) ? $params['sort'] : null;
 		if($sort)
@@ -170,6 +171,36 @@ class GrowthStatistics extends DataSource
 				$cntValue = $ary[$name];
 				$result[$date] = $ary;
 			}
+
+			if ($periodStartDate && $periodEndDate)
+			{
+				$valuesWholePeriod = array();
+				$currentCount = $totalCountBeforePeriod;
+				$startDate = new \DateTime($periodStartDate);
+				$endDate = new \DateTime($periodEndDate);
+				while ($startDate <= $endDate)
+				{
+					$date = $startDate->format('Y-m-d');
+					if (array_key_exists($date, $result))
+					{
+						$valuesWholePeriod[$date] = $result[$date];
+						$currentCount = $result[$date]['TOTAL_COUNT'];
+					}
+					else
+					{
+						$valuesWholePeriod[$date] = array(
+							'TOTAL_COUNT' => $currentCount,
+							'DATE' => $date
+						);
+					}
+					$startDate->add(new \DateInterval('P1D'));
+				}
+				if ($valuesWholePeriod)
+				{
+					$result = $valuesWholePeriod;
+				}
+			}
+
 			$result = array_values($result);
 		}
 		elseif($group === self::GROUP_BY_USER)

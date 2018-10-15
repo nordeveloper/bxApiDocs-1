@@ -999,6 +999,11 @@ class CAllCrmProductRow
 					$safeRow['MEASURE_CODE'] = $defaultMeasureInfo['CODE'];
 					$safeRow['MEASURE_NAME'] = $defaultMeasureInfo['SYMBOL'];
 				}
+
+				if($safeRow['MEASURE_NAME'] === '')
+				{
+					$safeRow['MEASURE_NAME'] = '-';
+				}
 			}
 			unset($safeRow);
 		}

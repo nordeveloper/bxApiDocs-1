@@ -4,11 +4,11 @@ namespace Bitrix\Crm\Ads;
 
 use Bitrix\Crm\WebForm\Form;
 use Bitrix\Crm\Ads\Form\FieldMapper;
-use Bitrix\Main\Config\Option;
 use Bitrix\Main\EventManager;
 use Bitrix\Main\NotImplementedException;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main;
 
 use Bitrix\Seo\LeadAds;
 
@@ -76,6 +76,7 @@ class AdsForm extends AdsService
 	 * Register group.
 	 *
 	 * @param string $type Type.
+	 * @param string $groupId Group ID.
 	 * @return bool
 	 */
 	public static function registerGroup($type, $groupId)
@@ -87,6 +88,7 @@ class AdsForm extends AdsService
 	 * Remove group auth.
 	 *
 	 * @param string $type Type.
+	 * @param string $groupId Group ID.
 	 * @return bool
 	 */
 	public static function unRegisterGroup($type, $groupId)
@@ -461,5 +463,54 @@ class AdsForm extends AdsService
 	protected static function isDisabled()
 	{
 		return false;
+	}
+
+	/**
+	 * Return map "connector id" - "icon name" for UI-lib icon classes
+	 *
+	 * @return array
+	 */
+	public static function getAdsIconMap()
+	{
+		return array(
+			LeadAds\Service::TYPE_FACEBOOK => 'fb-adds',
+			LeadAds\Service::TYPE_VKONTAKTE => 'vk-adds',
+		);
+	}
+
+	/**
+	 * Get background color style from ui-icon styles for services
+	 *
+	 * @return string
+	 */
+	public static function getServicesBackgroundColorCss()
+	{
+		$style = '';
+		$cssFilePath = $_SERVER["DOCUMENT_ROOT"] . '/bitrix/js/ui/icons/ui.icons.css';
+		$cssFile = file_get_contents($cssFilePath);
+
+		if (!empty($cssFile))
+		{
+			$cssList = Main\Web\DOM\CssParser::parse($cssFile);
+
+			if (!empty($cssList))
+			{
+				$column = array_column($cssList, 'SELECTOR');
+				$adsList = self::getAdsIconMap();
+
+				foreach ($adsList as $key => $ad)
+				{
+					$position = array_search('.ui-icon-service-' . $ad . ' > i', $column);
+
+					if ($position !== false)
+					{
+						$style .= '.crm-' . $key . '-background-color { background-color: ' . $cssList[$position]['STYLE']['background-color'] . '; }' . PHP_EOL;
+						$style .= '.intranet-' . $key . '-background-color { background-color: ' . $cssList[$position]['STYLE']['background-color'] . '; }' . PHP_EOL;
+					}
+				}
+			}
+		}
+
+		return $style;
 	}
 }

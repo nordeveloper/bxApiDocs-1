@@ -218,6 +218,11 @@ class PublicAction
 		)
 		{
 			$result = array();
+			// additional site id detect
+			if ($request->offsetExists('site_id'))
+			{
+				$siteId = $request->get('site_id');
+			}
 			foreach ($request->get('batch') as $key => $batchItem)
 			{
 				if (
@@ -226,6 +231,10 @@ class PublicAction
 				)
 				{
 					$batchItem['data'] = (array)$batchItem['data'];
+					if (isset($siteId))
+					{
+						$batchItem['data']['siteId'] = $siteId;
+					}
 					if ($files)
 					{
 						foreach ($files as $code => $file)
@@ -250,6 +259,11 @@ class PublicAction
 		)
 		{
 			$data = $request->get('data');
+			// additional site id detect
+			if ($request->offsetExists('site_id'))
+			{
+				$data['siteId'] = $request->get('site_id');
+			}
 			if ($files)
 			{
 				foreach ($files as $code => $file)
@@ -381,7 +395,7 @@ class PublicAction
 			{
 				Repo::deleteByAppCode($app['CODE']);
 				Placement::deleteByAppId($app['ID']);
-				//Demos::deleteByAppCode($app['CODE']);
+				Demos::deleteByAppCode($app['CODE']);
 			}
 		}
 	}

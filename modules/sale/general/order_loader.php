@@ -3332,11 +3332,6 @@ class CSaleOrderLoader
 		return false;
 	}
 
-	function test()
-	{
-		return \Bitrix\Crm\Invoice\Compatible\Invoice::class;
-	}
-
 	function oldSaveOrder($arOrder, $option=array())
 	{
 		global $APPLICATION;

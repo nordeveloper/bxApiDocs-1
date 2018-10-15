@@ -88,7 +88,7 @@ class Extranet
 		);
 		while ($ar = $db->GetNext(true, false))
 		{
-			if($ar["USER_ID"] == $userId)
+			if($ar["USER_ID"] == $userId || isset($groups['SG'.$row['GROUP_ID']]))
 				continue;
 
 			$groups['SG'.$row['GROUP_ID']]['USERS'][] = $ar["USER_ID"];

@@ -117,7 +117,7 @@ class Component extends \Bitrix\Landing\Node
 	{
 		//$data = array_pop($data);// we allow one type of component per block
 		$manifest = $block->getManifest();
-		if (isset($manifest['nodes'][$selector]))
+		if (isset($manifest['nodes'][$selector]['extra']))
 		{
 			$updateProps = array();
 			$allowedProps = $manifest['nodes'][$selector]['extra'];
@@ -281,13 +281,20 @@ class Component extends \Bitrix\Landing\Node
 						}
 						$propType = self::transformPropType(array(
 							'name' => isset($fieldItem['name'])
-								? $fieldItem['name']
-								: $newExtra[$field]['NAME'],
+										? $fieldItem['name']
+										: $newExtra[$field]['NAME'],
 							'style' => isset($fieldItem['style'])
-									&& $fieldItem['style'],
+										&& $fieldItem['style'],
 							'original_type' => 'component',
+							'component_type' => isset($newExtra[$field]['TYPE'])
+										? $newExtra[$field]['TYPE']
+										: '',
 							'attribute' => $field,
-							'value' => $newExtra[$field]['VALUE'],
+							'value' => self::preparePropValue(
+								$newExtra[$field]['VALUE'],
+								$fieldItem
+							),
+							//'original_value' => $newExtra[$field]['VALUE'],
 							'allowInlineEdit' => false
 						) + $fieldItem, $newExtra[$field]);
 						$newExtra[$field]['ATTRIBUTE_TYPE'] = $propType['type'];
@@ -505,9 +512,40 @@ class Component extends \Bitrix\Landing\Node
 	}
 
 	/**
+	 * Prepare prop value before output in edit form.
+	 * @param mixed $value Mixed value.
+	 * @param array $prop Array of field from manifest.
+	 * @return mixed
+	 */
+	protected static function preparePropValue($value, $prop)
+	{
+		if (isset($prop['type']))
+		{
+			switch ($prop['type'])
+			{
+				case 'url':
+					{
+						if ($value && isset($prop['entityType']))
+						{
+							if ($prop['entityType'] == 'element')
+							{
+								$value = '#catalogElement' . $value;
+							}
+							else if ($prop['entityType'] == 'section')
+							{
+								$value = '#catalogSection' . $value;
+							}
+						}
+					}
+			}
+		}
+		return $value;
+	}
+
+	/**
 	 * Additional transform prop value before saving.
 	 * @param mixed $value Mixed value.
-	 * @param array $prop Array of type.
+	 * @param array $prop Array of prop.
 	 * @return mixed
 	 */
 	protected static function transformPropValue($value, $prop)
@@ -589,6 +627,10 @@ class Component extends \Bitrix\Landing\Node
 										$value = $lansing->getPublicUrl();
 									}
 								}
+								else if (preg_match('/^#catalog(Element|Section)([\d]+)$/', $value, $matches))
+								{
+									$value = $matches[2];
+								}
 								break;
 							}
 						}
@@ -637,5 +679,56 @@ class Component extends \Bitrix\Landing\Node
 		{
 			return isset($params[$key]) ? $params[$key] : null;
 		}
+	}
+
+	/**
+	 * Get data for this node.
+	 * @param \Bitrix\Landing\Block &$block Block instance.
+	 * @param string $selector Selector.
+	 * @return array
+	 */
+	public static function getNode(\Bitrix\Landing\Block &$block, $selector)
+	{
+		$data = array();
+		$manifest = $block->getManifest();
+
+		// gets common attrs
+		if (isset($manifest['attrs'][$selector]))
+		{
+			$allowedProps = $manifest['attrs'][$selector];
+			foreach ($allowedProps as $attr)
+			{
+				if (!self::checkPhpCode($attr['value']))
+				{
+					$data[$attr['attribute']] = $attr['value'];
+				}
+			}
+		}
+
+		// gets attrs from style block
+		if (
+			isset($manifest['style']['block']['additional']) &&
+			is_array($manifest['style']['block']['additional'])
+		)
+		{
+			foreach ($manifest['style']['block']['additional'] as $item)
+			{
+				if (
+					isset($item['attrs']) &&
+					is_array($item['attrs'])
+				)
+				{
+					foreach ($item['attrs'] as $attr)
+					{
+						if (!self::checkPhpCode($attr['value']))
+						{
+							$data[$attr['attribute']] = $attr['value'];
+						}
+					}
+				}
+			}
+		}
+
+		return $data;
 	}
 }

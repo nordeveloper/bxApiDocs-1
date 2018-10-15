@@ -44,6 +44,34 @@ class Address
 	}
 
 	/**
+	 * Get encoded address.
+	 *
+	 * @return null|string
+	 */
+	public function getEncoded()
+	{
+		if (!$this->email)
+		{
+			return null;
+		}
+
+		if ($this->name)
+		{
+			$address = sprintf(
+				'%s <%s>',
+				sprintf('=?%s?B?%s?=', SITE_CHARSET, base64_encode($this->name)),
+				$this->email
+			);
+		}
+		else
+		{
+			$address = "<{$this->email}>";
+		}
+
+		return $address;
+	}
+
+	/**
 	 * Get address.
 	 *
 	 * @return null|string

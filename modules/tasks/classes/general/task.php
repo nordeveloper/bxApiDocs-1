@@ -17,6 +17,7 @@ use Bitrix\Main\DB\MssqlConnection;
 use Bitrix\Main\DB\MysqlCommonConnection;
 use Bitrix\Main\DB\OracleConnection;
 
+use Bitrix\Tasks\Integration\Bizproc;
 use \Bitrix\Tasks\Internals\Counter;
 use \Bitrix\Tasks\Internals\Task\FavoriteTable;
 use \Bitrix\Tasks\Internals\Task\ProjectDependenceTable;
@@ -29,6 +30,7 @@ use \Bitrix\Tasks\Util\Type;
 use \Bitrix\Tasks\Util\Calendar;
 use \Bitrix\Tasks\Util\Replicator;
 use \Bitrix\Tasks\Util\User;
+use \Bitrix\Tasks\Util\UserField;
 
 class CTasks
 {
@@ -130,38 +132,41 @@ class CTasks
 			}
 		}
 
-		if(array_key_exists('GROUP_ID', $arFields) && (int)$arFields['GROUP_ID'] > 0)
+		if (array_key_exists('GROUP_ID', $arFields) && (int)$arFields['GROUP_ID'] > 0)
 		{
-			\CModule::includeModule('socialnetwork');
-			$group = \CSocNetGroup::getById($arFields['GROUP_ID']);
-			if($group['PROJECT'] == 'Y' && ($group['PROJECT_DATE_START'] || $group['PROJECT_DATE_FINISH']))
+			if (\Bitrix\Main\Loader::IncludeModule('socialnetwork'))
 			{
-				if(array_key_exists('END_DATE_PLAN', $arFields) && $arFields['END_DATE_PLAN'])
+				$group = \CSocNetGroup::getById($arFields['GROUP_ID']);
+
+				if ($group && $group['PROJECT'] == 'Y' && ($group['PROJECT_DATE_START'] || $group['PROJECT_DATE_FINISH']))
 				{
-					if(!Calendar::isDateInRange($arFields['END_DATE_PLAN'], $group['PROJECT_DATE_START'], $group['PROJECT_DATE_FINISH']))
+					$projectStartDate = $group['PROJECT_DATE_START'];
+					$projectFinishDate = $group['PROJECT_DATE_FINISH'];
+					if ($projectFinishDate)
 					{
-						$this->_errors[] = array("text" => GetMessage("TASKS_PLAN_DATE_END_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE");
+						$projectFinishDate = Bitrix\Tasks\UI::formatDateTime(MakeTimeStamp($projectFinishDate) + 86399); // + 23:59:59
+					}
+
+					$deadline = (array_key_exists('DEADLINE', $arFields) && $arFields['DEADLINE']? $arFields['DEADLINE'] : null);
+					$endDatePlan = (array_key_exists('END_DATE_PLAN', $arFields) && $arFields['END_DATE_PLAN']? $arFields['END_DATE_PLAN'] : null);
+					$startDatePlan = (array_key_exists('START_DATE_PLAN', $arFields) && $arFields['START_DATE_PLAN']? $arFields['START_DATE_PLAN'] : null);
+
+					if ($deadline && !Calendar::isDateInRange($deadline, $projectStartDate, $projectFinishDate))
+					{
+						$this->_errors[] = ["text" => GetMessage("TASKS_DEADLINE_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE"];
+					}
+
+					if ($endDatePlan && !Calendar::isDateInRange($endDatePlan, $projectStartDate, $projectFinishDate))
+					{
+						$this->_errors[] = ["text" => GetMessage("TASKS_PLAN_DATE_END_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE"];
+					}
+
+					if ($startDatePlan && !Calendar::isDateInRange($startDatePlan, $projectStartDate, $projectFinishDate))
+					{
+						$this->_errors[] = ["text" => GetMessage("TASKS_PLAN_DATE_START_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE"];
 					}
 				}
-
-				if(array_key_exists('START_DATE_PLAN', $arFields) && $arFields['START_DATE_PLAN'])
-				{
-					if(!Calendar::isDateInRange($arFields['START_DATE_PLAN'], $group['PROJECT_DATE_START'], $group['PROJECT_DATE_FINISH']))
-					{
-						$this->_errors[] = array("text" => GetMessage("TASKS_PLAN_DATE_START_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE");
-					}
-				}
-
-				if(array_key_exists('DEADLINE', $arFields) && $arFields['DEADLINE'])
-				{
-					if(!Calendar::isDateInRange($arFields['DEADLINE'], $group['PROJECT_DATE_START'], $group['PROJECT_DATE_FINISH']))
-					{
-						$this->_errors[] = array("text" => GetMessage("TASKS_DEADLINE_OUT_OF_PROJECT_RANGE"), "id" => "ERROR_TASKS_OUT_OF_PROJECT_DATE");
-					}
-				}
-
 			}
-
 		}
 
 		if($ID && (isset($arFields['PARENT_ID']) && intval($arFields['PARENT_ID']) > 0))
@@ -591,6 +596,7 @@ class CTasks
 						CTasks::AddTags($ID, $arTask["CREATED_BY"], $arFields["TAGS"], $effectiveUserId);
 						CTasks::AddPrevious($ID, $arFields["DEPENDS_ON"]);
 
+						$arFields = CTasks::processUserFields($arFields, $ID, $effectiveUserId);
 						$USER_FIELD_MANAGER->Update("TASKS_TASK", $ID, $arFields, $effectiveUserId);
 
 						// backward compatibility with PARENT_ID
@@ -752,6 +758,8 @@ class CTasks
 				if ($bWasFatalError)
 					soundex('push&pull: bWasFatalError === true');
 
+				Bizproc\Listener::onTaskAdd($ID, $arFields);
+
 				return $ID;
 			}
 			else
@@ -787,6 +795,36 @@ class CTasks
 			$arFields['DURATION_PLAN'] = $durationPlan;
 			unset($arFields['DURATION_PLAN_SECONDS']);
 		}
+	}
+
+	/**
+	 * Changes user fields if needed
+	 *
+	 * @param $fields
+	 * @param $taskId
+	 * @param $userId
+	 * @return mixed
+	 */
+	private static function processUserFields($fields, $taskId, $userId)
+	{
+		global $USER_FIELD_MANAGER;
+
+		$systemUserFields = array('UF_CRM_TASK', 'UF_TASK_WEBDAV_FILES');
+		$userFields = $USER_FIELD_MANAGER->GetUserFields('TASKS_TASK', $taskId, false, $userId);
+
+		foreach ($fields as $key => $field)
+		{
+			if (
+				array_key_exists($key, $userFields) &&
+				!array_key_exists($key, $systemUserFields) &&
+				$userFields[$key]['USER_TYPE_ID'] == 'boolean'
+			)
+			{
+				$fields[$key] = Type::convertBooleanUserFieldValue($field);
+			}
+		}
+
+		return $fields;
 	}
 
 	/**
@@ -882,7 +920,7 @@ class CTasks
 			if ($this->CheckFields($arFields, $ID, $userID))
 			{
 				$ufCheck = true;
-				$hasUfs = \Bitrix\Tasks\Util\UserField::checkContainsUFKeys($arFields);
+				$hasUfs = UserField::checkContainsUFKeys($arFields);
 				if($hasUfs)
 				{
 					$ufCheck = $USER_FIELD_MANAGER->CheckFields("TASKS_TASK", $ID, $arFields, $userID);
@@ -1413,6 +1451,9 @@ class CTasks
 							\Bitrix\Tasks\Integration\Forum\Task\Topic::updateTopicTitle($arTask['FORUM_TOPIC_ID'], $arFields['TITLE']);
 						}
 
+
+						Bizproc\Listener::onTaskUpdate($ID, $arFields, $arTaskCopy);
+
 						return true;
 					}
 				}
@@ -1505,7 +1546,6 @@ class CTasks
 		if (array_key_exists('PARENT_ID', $newData))
 		{
 			$fakeParentChange = static::fakeParentChange($oldData['PARENT_ID'], $newData['PARENT_ID'], $userId);
-			//return !$fakeParentChange && ($oldData['PARENT_ID'] && $newData['PARENT_ID'] != $oldData['PARENT_ID']);
 			return !$fakeParentChange && ($newData['PARENT_ID'] != $oldData['PARENT_ID']);
 		}
 
@@ -1851,6 +1891,8 @@ class CTasks
 				\Bitrix\Tasks\Internals\Counter::onAfterTaskDelete($arTask);
 
 				TaskStageTable::clearTask($ID);
+
+				Bizproc\Listener::onTaskDelete($ID);
 			}
 
 			return true;
@@ -1989,6 +2031,7 @@ class CTasks
 				case "RESPONSIBLE_ID":
 				case "STAGE_ID":
 				case 'TIME_ESTIMATE':
+				case 'FORKED_BY_TEMPLATE_ID':
 					$arSqlSearch[] = CTasks::FilterCreate($sAliasPrefix."T.".$key, $val, "number_wo_nulls", $bFullJoin, $cOperationType);
 					break;
 
@@ -3331,53 +3374,76 @@ class CTasks
 		if (!$bCheckPermissions)
 			$arFilter["CHECK_PERMISSIONS"] = "N";
 
-		$res = CTasks::GetList(array(), $arFilter, array("*", "UF_*"), $arGetListParams);
+		$select = ['*','UF_*'];
+		if(array_key_exists('select', $arParams))
+		{
+			$select = $arParams['select'];
+		}
+
+		$select = array_unique(array_merge(['ID'], $select));
+
+		$res = CTasks::GetList(array(), $arFilter, $select, $arGetListParams);
 		if ($res && ($task = $res->Fetch()))
 		{
-			$task["ACCOMPLICES"] = $task["AUDITORS"] = array();
-			$rsMembers = CTaskMembers::GetList(array(), array("TASK_ID" => $ID));
-			while ($arMember = $rsMembers->Fetch())
+			if(in_array('AUDITORS', $select) || in_array('ACCOMPLICES', $select) || in_array('*', $select))
 			{
-				if ($arMember["TYPE"] == "A")
+				$task["ACCOMPLICES"]=$task["AUDITORS"]=[];
+				$rsMembers = CTaskMembers::GetList(array(), array("TASK_ID" => $ID));
+				while ($arMember = $rsMembers->Fetch())
 				{
-					$task["ACCOMPLICES"][] = $arMember["USER_ID"];
-				}
-				elseif ($arMember["TYPE"] == "U")
-				{
-					$task["AUDITORS"][] = $arMember["USER_ID"];
+					if ($arMember["TYPE"] == "A" && (in_array('ACCOMPLICES', $select) || in_array('*', $select)))
+					{
+						$task["ACCOMPLICES"][] = $arMember["USER_ID"];
+					}
+					elseif ($arMember["TYPE"] == "U" && (in_array('AUDITORS', $select) || in_array('*', $select)))
+					{
+						$task["AUDITORS"][] = $arMember["USER_ID"];
+					}
 				}
 			}
 
 			if ( ! $bSkipExtraData )
 			{
-				$arTagsFilter = array("TASK_ID" => $ID);
-				$arTagsOrder = array("NAME" => "ASC");
-				$rsTags = CTaskTags::GetList($arTagsOrder, $arTagsFilter);
-				$task["TAGS"] = array();
-				while ($arTag = $rsTags->Fetch())
+				if(in_array('TAGS', $select) || in_array('*', $select))
 				{
-					$task["TAGS"][] = $arTag["NAME"];
+					$arTagsFilter = array("TASK_ID" => $ID);
+					$arTagsOrder = array("NAME" => "ASC");
+					$rsTags = CTaskTags::GetList($arTagsOrder, $arTagsFilter);
+					$task["TAGS"] = array();
+					while ($arTag = $rsTags->Fetch())
+					{
+						$task["TAGS"][] = $arTag["NAME"];
+					}
 				}
 
-				$rsCheckList = \CTaskCheckListItem::getByTaskId($ID);
-				$task["CHECKLIST"] = array();
-				while ($arCheckListItem = $rsCheckList->Fetch())
+				if(in_array('CHECKLIST', $select) || in_array('*', $select))
 				{
-					$task["CHECKLIST"][] = $arCheckListItem;
+					$rsCheckList = \CTaskCheckListItem::getByTaskId($ID);
+					$task["CHECKLIST"] = array();
+					while ($arCheckListItem = $rsCheckList->Fetch())
+					{
+						$task["CHECKLIST"][] = $arCheckListItem;
+					}
 				}
 
-				$rsFiles = CTaskFiles::GetList(array(), array("TASK_ID" => $ID));
-				$task["FILES"] = array();
-				while ($arFile = $rsFiles->Fetch())
+				if(in_array('FILES', $select) || in_array('*', $select))
 				{
-					$task["FILES"][] = $arFile["FILE_ID"];
+					$rsFiles = CTaskFiles::GetList(array(), array("TASK_ID" => $ID));
+					$task["FILES"] = array();
+					while ($arFile = $rsFiles->Fetch())
+					{
+						$task["FILES"][] = $arFile["FILE_ID"];
+					}
 				}
 
-				$rsDependsOn = CTaskDependence::GetList(array(), array("TASK_ID" => $ID));
-				$task["DEPENDS_ON"] = array();
-				while ($arDependsOn = $rsDependsOn->Fetch())
+				if(in_array('DEPENDS_ON', $select) || in_array('*', $select))
 				{
-					$task["DEPENDS_ON"][] = $arDependsOn["DEPENDS_ON_ID"];
+					$rsDependsOn = CTaskDependence::GetList(array(), array("TASK_ID" => $ID));
+					$task["DEPENDS_ON"] = array();
+					while ($arDependsOn = $rsDependsOn->Fetch())
+					{
+						$task["DEPENDS_ON"][] = $arDependsOn["DEPENDS_ON_ID"];
+					}
 				}
 			}
 
@@ -6414,7 +6480,7 @@ class CTasks
 		// READ, WRITE, SORT, FILTER, DATE
 		return array(
 			'TITLE' => 						array(1, 1, 1, 1, 0),
-			'STAGE_ID' => 					array(1, 0, 0, 1, 0),
+			'STAGE_ID' => 					array(1, 1, 0, 1, 0),
 			'STAGES_ID' => 					array(0, 0, 0, 1, 0),
 			'DESCRIPTION' => 				array(1, 1, 0, 0, 0),
 			'DEADLINE' => 					array(1, 1, 1, 1, 1),
@@ -6430,7 +6496,6 @@ class CTasks
 			'DEPENDS_ON' => 				array(1, 1, 0, 1, 0),
 			'GROUP_ID' => 					array(1, 1, 1, 1, 0),
 			'RESPONSIBLE_ID' => 			array(1, 1, 1, 1, 0),
-			'STAGE_ID' => 			        array(1, 1, 0, 1, 0),
 			'TIME_ESTIMATE' => 				array(1, 1, 1, 1, 0),
 			'ID' => 						array(1, 0, 1, 1, 0),
 			'CREATED_BY' => 				array(1, 1, 1, 1, 0),
@@ -6449,8 +6514,8 @@ class CTasks
 			'CREATED_BY_LAST_NAME' => 		array(1, 0, 0, 0, 0),
 			'CREATED_BY_SECOND_NAME' => 	array(1, 0, 0, 0, 0),
 			'CREATED_DATE' => 				array(1, 0, 1, 1, 1),
-			'CHANGED_BY' => 				array(1, 0, 0, 1, 0),
-			'CHANGED_DATE' => 				array(1, 0, 1, 1, 1),
+			'CHANGED_BY' => 				array(1, 1, 0, 1, 0),
+			'CHANGED_DATE' => 				array(1, 1, 1, 1, 1),
 			'STATUS_CHANGED_BY' => 			array(1, 0, 0, 1, 0),
 			'STATUS_CHANGED_DATE' => 		array(1, 0, 0, 0, 1),
 			'CLOSED_BY' =>					array(1, 0, 0, 0, 0),
@@ -6536,7 +6601,8 @@ class CTasks
 					'params' => array(
 						array(
 							'description' => 'arOrder',
-							'type'        => 'array'
+							'type'        => 'array',
+							'allowedKeys' => $fieldManifest['SORT']
 						),
 						array(
 							'description' => 'arFilter',

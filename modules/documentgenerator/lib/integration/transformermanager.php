@@ -97,7 +97,7 @@ final class TransformerManager implements InterfaceCallback
 			$pdfId = $updateData['PDF_ID'];
 		}
 		$data['pdfId'] = $pdfId;
-		static::fireEvent($params['id'], $data);
+		static::fireEvent($params['documentId'], $data);
 
 		return true;
 	}

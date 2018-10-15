@@ -313,6 +313,22 @@ abstract class BasketBuilder
 				$availableFields = BasketItemBase::getAvailableFields();
 				$availableFields = array_fill_keys($availableFields, true);
 				$fillFields = array_intersect_key($productData, $availableFields);
+				
+				$orderCurrency = $this->getOrder()->getCurrency();
+				if ($fillFields['CURRENCY'] !== $orderCurrency)
+				{
+					$fillFields['PRICE'] = \CCurrencyRates::ConvertCurrency(
+						(float)$fillFields['PRICE'],
+						$fillFields['CURRENCY'],
+						$orderCurrency
+					);
+					$fillFields['BASE_PRICE'] = \CCurrencyRates::ConvertCurrency(
+						(float)$fillFields['BASE_PRICE'],
+						$fillFields['CURRENCY'],
+						$orderCurrency
+					);
+					$fillFields['CURRENCY'] = $orderCurrency;
+				}
 
 				if (!empty($fillFields))
 				{

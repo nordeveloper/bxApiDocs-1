@@ -309,19 +309,21 @@ final class CreateTask extends Base
 
 				$followValue = \CSocNetLogFollow::getExactValueByRating(
 					$userId,
-					'BLOG_COMMENT',
-					$fields['ID']
+					$ratingVoteParams['ENTITY_TYPE_ID'],
+					$ratingVoteParams['ENTITY_ID']
 				);
 
 				if ($followValue != "N")
 				{
 					$ratingVoteParams['ENTITY_LINK'] = $this->getRatingCommentLink(array(
 						'commentId' => $fields['ID'],
-						'commentAuthorId' => $ratingVoteParams['OWNER_ID']
+						'commentAuthorId' => $ratingVoteParams['OWNER_ID'],
+						'ratingEntityTypeId' => $ratingVoteParams['ENTITY_TYPE_ID'],
+						'ratingEntityId' => $ratingVoteParams['ENTITY_ID']
 					));
 
 					$ratingVoteParams["ENTITY_PARAM"] = 'COMMENT';
-					$ratingVoteParams["ENTITY_MESSAGE"] = $this->getText();
+					$ratingVoteParams["ENTITY_TITLE"] = $ratingVoteParams["ENTITY_MESSAGE"] = $this->getText();
 
 					$messageFields = array(
 						"MESSAGE_TYPE" => IM_MESSAGE_SYSTEM,

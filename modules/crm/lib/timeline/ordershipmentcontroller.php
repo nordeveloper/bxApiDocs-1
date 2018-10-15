@@ -59,7 +59,18 @@ class OrderShipmentController extends EntityController
 			return;
 		}
 
-		$settings = array();
+		$settingFields = [
+			'PRICE_DELIVERY' => $fields['PRICE_DELIVERY'],
+			'CURRENCY' => $fields['CURRENCY']
+		];
+
+		if ($fields['DATE_INSERT'] instanceof Main\Type\Date)
+		{
+			$settingFields['DATE_INSERT_TIMESTAMP'] = $fields['DATE_INSERT']->getTimestamp();
+		}
+
+		$settings = ['FIELDS' => $settingFields];
+
 		$orderId = (isset($fields['ORDER_ID']) && (int)$fields['ORDER_ID'] > 0) ? (int)$fields['ORDER_ID'] : 0;
 		if($orderId > 0)
 		{
@@ -146,7 +157,59 @@ class OrderShipmentController extends EntityController
 			self::pushHistoryEntry($historyEntryID, $tag, 'timeline_activity_add');
 		}
 	}
+	public function updateSettingFields($ownerID, $entryTypeID, array $fields)
+	{
+		$result = new Main\Result();
+		$ownerID = (int)$ownerID;
+		$entryTypeID = (int)$entryTypeID;
+		if($ownerID <= 0)
+		{
+			throw new Main\ArgumentException('Owner ID must be greater than zero.', 'ownerID');
+		}
 
+		$timelineData = Entity\TimelineTable::getList([
+			'filter' => [
+				'ASSOCIATED_ENTITY_ID' => $ownerID,
+				'ASSOCIATED_ENTITY_TYPE_ID' => \CCrmOwnerType::OrderShipment,
+				'TYPE_ID' => $entryTypeID,
+			]
+		]);
+		while ($row = $timelineData->fetch())
+		{
+			$settings = $row['SETTINGS'];
+			$settings['FIELDS'] = $fields;
+			$r = Entity\TimelineTable::update($row['ID'], ['SETTINGS' => $settings]);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+			}
+			elseif (is_array($settings['BASE']))
+			{
+				$baseOwnerId = (int)$settings['BASE']['ENTITY_ID'];
+				$baseOwnerTypeId = (int)$settings['BASE']['ENTITY_TYPE_ID'];
+				if ($baseOwnerId > 0 && \CCrmOwnerType::IsDefined($baseOwnerTypeId))
+				{
+					$row['SETTINGS'] = $settings;
+					$items = array($row['ID'] => $row);
+					TimelineManager::prepareDisplayData($items);
+					if(Main\Loader::includeModule('pull') && \CPullOptions::GetQueueServerStatus())
+					{
+						$tag = TimelineEntry::prepareEntityPushTag($baseOwnerTypeId, $baseOwnerId);
+						\CPullWatch::AddToStack(
+							$tag,
+							array(
+								'module_id' => 'crm',
+								'command' => 'timeline_item_update',
+								'params' => array('ENTITY_ID' => $row['ID'], 'TAG' => $tag, 'HISTORY_ITEM' => $items[$row['ID']]),
+							)
+						);
+					}
+				}
+			}
+		}
+
+		return $result;
+	}
 	/**
 	 * @param $ID
 	 *
@@ -222,6 +285,36 @@ class OrderShipmentController extends EntityController
 					{
 						$data['BASE']['ENTITY_INFO'] = $baseEntityInfo;
 					}
+				}
+			}
+
+			$fields = $settings['FIELDS'];
+			$title = $data['ASSOCIATED_ENTITY']['TITLE'];
+			if (!empty($fields['DATE_INSERT_TIMESTAMP']))
+			{
+				$dateInsert = \CCrmComponentHelper::TrimDateTimeString(ConvertTimeStamp($fields['DATE_INSERT_TIMESTAMP'],'SHORT'));
+			}
+			if (empty($dateInsert))
+			{
+				$dateInsert = \CCrmComponentHelper::TrimDateTimeString(ConvertTimeStamp(MakeTimeStamp($data['DATE_INSERT']),'SHORT'));
+			}
+
+			$data['ASSOCIATED_ENTITY']['TITLE'] = Loc::getMessage(
+				'CRM_SHIPMENT_CREATION_MESSAGE',
+				[
+					'#ACCOUNT_NUMBER#' => $title,
+					'#DATE_INSERT#' => $dateInsert,
+				]
+			);
+			if (!empty($fields['PRICE_DELIVERY']) && !empty($fields['CURRENCY']))
+			{
+				$sum = \CCrmCurrency::MoneyToString($fields['PRICE_DELIVERY'], $fields['CURRENCY']);
+				if (strlen($sum) > 0)
+				{
+					$data['ASSOCIATED_ENTITY']['TITLE'] .= " ".Loc::getMessage(
+							'CRM_SHIPMENT_CREATION_MESSAGE_PRICE_DELIVERY',
+							['#PRICE_WITH_CURRENCY#' => $sum]
+						);
 				}
 			}
 

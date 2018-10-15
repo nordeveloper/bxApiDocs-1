@@ -215,13 +215,12 @@ class Deal extends ProductsDataProvider implements Nameable, Filterable
 	 */
 	public function getFilterString()
 	{
-		$categoryId = 0;
-
 		if($this->isLoaded())
 		{
 			$categoryId = $this->getValue('CATEGORY_ID');
+			return static::class.'_category_'.$categoryId;
 		}
 
-		return strtolower(static::class).'_category_'.$categoryId;
+		return static::class.'_%';
 	}
 }

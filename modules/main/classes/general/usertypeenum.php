@@ -811,8 +811,9 @@ EOT;
 
 			$result = '';
 
-			$controlNodeId = $arUserField['FIELD_NAME'].'_control';
-			$valueContainerId = $arUserField['FIELD_NAME'].'_value';
+			$suffix = strtolower(RandString(4));
+			$controlNodeId = $arUserField['FIELD_NAME'].'_control_'.$suffix;
+			$valueContainerId = $arUserField['FIELD_NAME'].'_value_'.$suffix;
 
 			$attrList = array(
 				'id' => $valueContainerId,
@@ -853,7 +854,7 @@ EOT;
 <script>
 function changeHandler_{$fieldNameJS}(controlObject, value)
 {
-	if(controlObject.params.fieldName === '{$fieldNameJS}')
+	if(controlObject.params.fieldName === '{$fieldNameJS}' && !!BX('{$valueContainerIdJS}'))
 	{
 		var currentValue = JSON.parse(controlObject.node.getAttribute('data-value'));
 

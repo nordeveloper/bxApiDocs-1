@@ -66,11 +66,14 @@ class LeadConversionMapper extends EntityConversionMapper
 
 		return $this->srcMultiFields;
 	}
+
 	/**
 	 * Create conversion map for destination entity type
 	 * @static
 	 * @param int $entityTypeID Destination Entity Type ID
 	 * @return EntityConversionMap
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
 	 */
 	public static function createMap($entityTypeID)
 	{
@@ -173,6 +176,8 @@ class LeadConversionMapper extends EntityConversionMapper
 			$map->createItem('CURRENCY_ID');
 			$map->createItem('COMMENTS');
 			$map->createItem('OPENED');
+			$map->createItem('SOURCE_ID');
+			$map->createItem('SOURCE_DESCRIPTION');
 			$map->createItem('ADDRESS');
 			$map->createItem('ADDRESS_2');
 			$map->createItem('ADDRESS_CITY');
