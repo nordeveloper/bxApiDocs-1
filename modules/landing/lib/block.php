@@ -468,7 +468,7 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 
 	/**
 	 * Get content from repository by code.
-	 * @param $code Block code.
+	 * @param string $code Block code.
 	 * @param string $namespace Namespace (optional).
 	 * @return string
 	 */
@@ -1036,7 +1036,7 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 			$cache->endDataCache($blocksCats);
 			if (defined('BX_COMP_MANAGED_CACHE'))
 			{
-				Manager::getCacheManager()->EndTagCache();
+				Manager::getCacheManager()->endTagCache();
 			}
 		}
 
@@ -1375,6 +1375,7 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 
 	/**
 	 * Gets site row.
+	 * @return array
 	 */
 	public function getSite()
 	{
@@ -2164,6 +2165,7 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 
 	/**
 	 * Get metadata of current block.
+	 * @return array
 	 */
 	public function getMeta()
 	{
@@ -2174,7 +2176,7 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 	 * Adjust cards count by selector.
 	 * @param string $selector Selector.
 	 * @param int $count Needed cards count.
-	 * @param bool $changed Changed.
+	 * @param bool &$changed Changed.
 	 * @return boolean Success or failure.
 	 */
 	public function adjustCards($selector, $count, &$changed = false)
@@ -2992,6 +2994,11 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 		return parent::delete($id);
 	}
 
+	/**
+	 * Add block row.
+	 * @param array $fields Block data.
+	 * @return \Bitrix\Main\Result
+	 */
 	public static function add($fields)
 	{
 		if (
@@ -3009,6 +3016,12 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 		}
 	}
 
+	/**
+	 * Update block row.
+	 * @param int $id Primary key.
+	 * @param array $fields Block data.
+	 * @return \Bitrix\Main\Result
+	 */
 	public static function update($id, $fields = array())
 	{
 		if (
@@ -3026,6 +3039,11 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 		}
 	}
 
+	/**
+	 * Delete block row.
+	 * @param int $id Primary key.
+	 * @return \Bitrix\Main\Result
+	 */
 	public static function delete($id)
 	{
 		if (
@@ -3043,6 +3061,11 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 		}
 	}
 
+	/**
+	 * Gets block's rows.
+	 * @param array $fields Block orm data.
+	 * @return \Bitrix\Main\DB\Result
+	 */
 	public static function getList($fields = array())
 	{
 		if (

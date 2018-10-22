@@ -18,6 +18,7 @@ abstract class Body
 
 	const BLOCK_START_PLACEHOLDER = 'BLOCK_START';
 	const BLOCK_END_PLACEHOLDER = 'BLOCK_END';
+	const DO_NOT_INSERT_VALUE_MODIFIER = '__SystemDeletePlaceholder';
 
 	/**
 	 * Body constructor.
@@ -282,6 +283,10 @@ abstract class Body
 	 */
 	protected function printValue($value, $placeholder, $modifier = '')
 	{
+		if(strpos($modifier, static::DO_NOT_INSERT_VALUE_MODIFIER) !== false)
+		{
+			return '';
+		}
 		if(is_object($value))
 		{
 			if($value instanceof Value)

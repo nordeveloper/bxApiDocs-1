@@ -81,6 +81,14 @@ class Repo
 				$result->setError($error);
 				return $result;
 			}
+			else
+			{
+				$fields['CONTENT'] = str_replace(
+					' bxstyle="',
+					' style="',
+					$fields['CONTENT']
+				);
+			}
 			// sanitize card's content
 			if (
 				isset($manifest['cards']) &&

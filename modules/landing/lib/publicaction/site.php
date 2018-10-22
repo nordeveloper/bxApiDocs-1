@@ -3,6 +3,7 @@ namespace Bitrix\Landing\PublicAction;
 
 use \Bitrix\Landing\Manager;
 use \Bitrix\Landing\File;
+use \Bitrix\Landing\Landing;
 use \Bitrix\Landing\Site as SiteCore;
 use \Bitrix\Landing\PublicActionResult;
 use \Bitrix\Main\Localization\Loc;
@@ -244,6 +245,24 @@ class Site
 		if ($res->isSuccess())
 		{
 			$result->setResult($res->getId());
+			// public all pages
+			if ($mark)
+			{
+				$res = Landing::getList(array(
+					'select' => array(
+						'ID'
+					),
+					'filter' => array(
+						'SITE_ID' => $id,
+						'=ACTIVE' => 'N'
+					)
+				));
+				while ($row = $res->fetch())
+				{
+					$lansding = Landing::createInstance($row['ID']);
+					$lansding->publication();
+				}
+			}
 		}
 		else
 		{

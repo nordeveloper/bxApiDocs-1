@@ -104,7 +104,16 @@ class FormFacebook extends LeadAds\Form
 		];
 		if (!empty($field->getOptions()))
 		{
-			$item['options'] = $field->getOptions();
+			$item['options'] = array_map(
+				function ($option)
+				{
+					return [
+						'value' => $option['label'],
+						'key' => $option['key']
+					];
+				},
+				$field->getOptions()
+			);
 		}
 
 		return $item;
@@ -138,6 +147,10 @@ class FormFacebook extends LeadAds\Form
 		if ($data['DESCRIPTION'])
 		{
 			$contextCard['content'] = [$data['DESCRIPTION']];
+		}
+		elseif ($data['TITLE'])
+		{
+			$contextCard['content'] = [$data['TITLE']];
 		}
 
 

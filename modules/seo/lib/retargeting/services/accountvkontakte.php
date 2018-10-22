@@ -17,10 +17,24 @@ class AccountVkontakte extends Account
 	{
 		// https://vk.com/dev/ads.getAccounts
 
-		return $this->getRequest()->send(array(
+		$result =  $this->getRequest()->send([
 			'method' => 'GET',
-			'endpoint' => 'ads.getAccounts'
-		));
+			'endpoint' => 'ads.getAccounts',
+		]);
+		if ($result->isSuccess())
+		{
+			$list = [];
+			while ($item = $result->fetch())
+			{
+				if ($item['ACCOUNT_TYPE'] === 'general')
+				{
+					$list[] = $item;
+				}
+			}
+			$result->setData($list);
+		}
+
+		return $result;
 	}
 
 	public function getProfile()

@@ -138,7 +138,9 @@ class PropertyManager
 						);
 						break;
 					case "L":
-						$items = array();
+						$items = array(
+							"NOT_REF" => Loc::getMessage("IBLOCK_PM_LIST_DEFAULT_OPTION")
+						);
 						$propertyEnumQueryObject = \CIBlockProperty::getPropertyEnum($property["ID"]);
 						while($propertyEnum = $propertyEnumQueryObject->fetch())
 						{
@@ -220,6 +222,14 @@ class PropertyManager
 						&$filter,
 						&$filtered,
 					));
+				}
+				else
+				{
+					if ($filter["PROPERTY_".$property["ID"]] === "NOT_REF")
+					{
+						unset($filter["PROPERTY_".$property["ID"]]);
+						$filter["?PROPERTY_".$property["ID"]] = false;
+					}
 				}
 			}
 		}

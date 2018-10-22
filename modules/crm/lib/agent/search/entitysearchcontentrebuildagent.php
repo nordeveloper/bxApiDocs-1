@@ -7,7 +7,7 @@ use Bitrix\Crm\Agent\AgentBase;
 
 abstract class EntitySearchContentRebuildAgent extends AgentBase
 {
-	const ITEM_LIMIT = 100;
+	const ITEM_LIMIT = 10;
 
 	/**
 	 * @return EntitySearchContentRebuildAgent|null
@@ -51,7 +51,15 @@ abstract class EntitySearchContentRebuildAgent extends AgentBase
 			$totalItemQty = $instance->getTotalCount();
 		}
 
-		$itemIDs = $instance->prepareItemIDs($offsetID, self::ITEM_LIMIT);
+		$limit = (int)Option::get('crm', '~CRM_SEARCH_CONTENT_STEP_LIMIT',  self::ITEM_LIMIT);
+		if($limit <= 0)
+		{
+			$instance->enable(false);
+			//Trace('Canceled', $totalItemQty, 1);
+			return false;
+		}
+
+		$itemIDs = $instance->prepareItemIDs($offsetID, $limit);
 		$itemQty = count($itemIDs);
 
 		if($itemQty === 0)

@@ -226,7 +226,7 @@ class Manager
 				$fields = array(
 					'SORT' => 0,
 					'SITE_ID' => $siteId,
-					'CONDITION' => 'CSite::InDir(\'' . $subDirSite . $basePathOriginal . '\')',
+					'CONDITION' => 'CSite::inDir(\'' . $subDirSite . $basePathOriginal . '\')',
 					'TEMPLATE' => Manager::getOption('site_template_id')
 				);
 				$check = \Bitrix\Main\SiteTemplateTable::getList(array(
@@ -438,7 +438,7 @@ class Manager
 	
 	/**
 	 * Set new colored theme id.
-	 * @param string $themeId Theme id.
+	 * @param string $themeTypoId Theme id.
 	 * @return void
 	 */
 	public static function setThemeTypoId($themeTypoId)
@@ -884,16 +884,17 @@ class Manager
 
 	/**
 	 * Get current REST url for work with cloud.
+	 * @deprecated since 18.6.0
 	 * @return string
 	 */
 	public static function getRestPath()
 	{
-		return 'https://repo.bitrix24.site/rest/1/w1uqy3swvyp50bso/';
+		return '';
 	}
 
 	/**
 	 * Get module version.
-	 * return string
+	 * @return string
 	 */
 	public static function getVersion()
 	{
@@ -926,7 +927,7 @@ class Manager
 	/**
 	 * Sanitize bad value.
 	 * @param string $value Bad value.
-	 * @param bool $bad Return true, if value is bad.
+	 * @param bool &$bad Return true, if value is bad.
 	 * @param string $splitter Splitter for bad content.
 	 * @return string Good value.
 	 */
@@ -999,7 +1000,7 @@ class Manager
 			)
 		));
 		// add button
-		$app->AddPanelButton(array(
+		$app->addPanelButton(array(
 			'TEXT' => Loc::getMessage('LANDING_PANEL_MASTER_TITLE'),
 			'HREF' => $urlPopup,
 			'TYPE' => 'BIG',

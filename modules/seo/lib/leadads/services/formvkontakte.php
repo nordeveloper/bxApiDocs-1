@@ -25,6 +25,8 @@ class FormVkontakte extends LeadAds\Form
 
 	const USE_GROUP_AUTH = true;
 
+	protected static $fieldKeyPrefix = 'b24-seo-ads-';
+
 	protected static $listRowMap = array(
 		'ID' => 'ID',
 		'NAME' => 'NAME',
@@ -69,7 +71,22 @@ class FormVkontakte extends LeadAds\Form
 		];
 		if (!empty($field->getOptions()))
 		{
-			$item['options'] = $field->getOptions();
+			$item['options'] = array_map(
+				function ($option)
+				{
+					$key = $option['key'];
+					if (is_numeric($key))
+					{
+						$key = static::$fieldKeyPrefix . $key;
+					}
+
+					return [
+						'label' => $option['label'],
+						'key' => $key
+					];
+				},
+				$field->getOptions()
+			);
 		}
 
 		return $item;
@@ -327,6 +344,16 @@ class FormVkontakte extends LeadAds\Form
 		$result->setId($item->getLeadId());
 		foreach ($item->getAnswers() as $key => $values)
 		{
+			foreach ($values as $index => $value)
+			{
+				if (strpos($value, static::$fieldKeyPrefix) !== 0)
+				{
+					continue;
+				}
+
+				$values[$index] = substr($value, strlen(static::$fieldKeyPrefix));
+			}
+
 			$fieldName = $mapper->getCrmName($key);
 			$fieldName = $fieldName ? 'LEAD_' . $fieldName : $key;
 			$result->addFieldValues($fieldName, $values);
