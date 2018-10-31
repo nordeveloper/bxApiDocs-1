@@ -34,6 +34,14 @@ if(strlen($_POST['Update'])>0 && check_bitrix_sessid())
 			}
 		}
 
+		$maxSessionCount = COption::GetOptionString("imopenlines", "max_session_count");
+		if ($_POST['MAX_SESSION_COUNT'] != $maxSessionCount || empty($maxSessionCount))
+		{
+			$maxSessionCount = intval($_POST['MAX_SESSION_COUNT']) > 0 ? intval($_POST['MAX_SESSION_COUNT']) : 100;
+
+			COption::SetOptionString("imopenlines", "max_session_count", $maxSessionCount);
+		}
+
 		COption::SetOptionString("imopenlines", "debug", isset($_POST['DEBUG_MODE']));
 
 		if(strlen($Update)>0 && strlen($_REQUEST["back_url_settings"])>0)
@@ -60,6 +68,10 @@ if ($errorMessage):?>
 <tr>
 	<td width="40%"><?=GetMessage("IMOPENLINES_ACCOUNT_URL")?>:</td>
 	<td width="60%"><input type="text" name="PUBLIC_URL" value="<?=htmlspecialcharsbx(\Bitrix\ImOpenlines\Common::getServerAddress())?>" /></td>
+</tr>
+<tr>
+	<td width="40%"><?=GetMessage("IMOPENLINES_ACCOUNT_MAX_SESSION_COUNT")?>:</td>
+	<td width="60%"><input type="text" name="MAX_SESSION_COUNT" value="<?=htmlspecialcharsbx(\Bitrix\ImOpenlines\Common::getMaxSessionCount())?>" /></td>
 </tr>
 <tr>
 	<td width="40%"><?=GetMessage("IMOPENLINES_ACCOUNT_DEBUG")?>:</td>

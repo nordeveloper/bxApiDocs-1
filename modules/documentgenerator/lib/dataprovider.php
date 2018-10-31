@@ -132,4 +132,12 @@ abstract class DataProvider
 	{
 		return [];
 	}
+
+	/**
+	 * @return bool
+	 */
+	public function isRootProvider()
+	{
+		return false;
+	}
 }

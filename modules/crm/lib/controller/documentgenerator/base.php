@@ -14,7 +14,7 @@ abstract class Base extends Controller
 {
 	const MODULE_ID = 'crm';
 	const FILE_PARAM_NAME = 'file';
-	const CONTROLLER_PATH = 'crm.bitrix.crm.controller.documentgenerator';
+	const CONTROLLER_PATH = 'crm.documentgenerator';
 
 	protected function init()
 	{
@@ -26,6 +26,10 @@ abstract class Base extends Controller
 			{
 				/** @var \Bitrix\DocumentGenerator\Document $className */
 				return $className::loadById($id);
+			},
+			function()
+			{
+				return 'id';
 			}
 		);
 
@@ -35,6 +39,10 @@ abstract class Base extends Controller
 			{
 				/** @var \Bitrix\DocumentGenerator\Template $className */
 				return $className::loadById($id);
+			},
+			function()
+			{
+				return 'id';
 			}
 		);
 	}
@@ -69,28 +77,18 @@ abstract class Base extends Controller
 	/**
 	 * @param string $action
 	 * @param array $arguments
-	 * @param string $entityName
 	 * @return mixed
 	 */
-	protected function proxyAction($action, array $arguments = [], $entityName = '')
+	protected function proxyAction($action, array $arguments = [])
 	{
 		$controller = $this->getDocumentGeneratorController();
 		$controller->setScope(static::SCOPE_REST);
 		/** @var Result $result */
 		$result = call_user_func_array([$controller, $action], $arguments);
 		$this->errorCollection->add($controller->getErrors());
-
-		if(is_string($entityName) && !empty($entityName))
+		if($result === false)
 		{
-			if(is_array($result))
-			{
-				$result = [$entityName => $result];
-			}
-			elseif($result instanceof Result)
-			{
-				$data = $result->getData();
-				$result->setData([$entityName => $data]);
-			}
+			$result = null;
 		}
 
 		return $result;
@@ -118,14 +116,24 @@ abstract class Base extends Controller
 
 	/**
 	 * @param null $fileContent
+	 * @param null $fileParamName
+	 * @param bool $required
 	 * @return false|int
 	 * @throws \Exception
 	 */
-	protected function uploadFile($fileContent = null)
+	protected function uploadFile($fileContent = null, $fileParamName = null, $required = true)
 	{
+		if(!$fileParamName)
+		{
+			$fileParamName = static::FILE_PARAM_NAME;
+		}
 		if(!$fileContent)
 		{
-			$fileContent = $this->request->getFile(static::FILE_PARAM_NAME);
+			$fileContent = $this->request->getFile($fileParamName);
+		}
+		if(!$fileContent && !$required)
+		{
+			return null;
 		}
 		if(!$fileContent)
 		{

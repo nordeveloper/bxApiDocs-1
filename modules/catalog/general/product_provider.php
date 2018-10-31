@@ -978,7 +978,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 
 		$basketItem = null;
 
-		$strUseStoreControl = COption::GetOptionString('catalog','default_use_store_control');
+		$useStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 
 		$disableReservation = !static::isReservationEnabled();
 
@@ -1047,7 +1047,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 				}
 				else
 				{
-					if ($strUseStoreControl == "Y")
+					if ($useStoreControl)
 					{
 
 						if ($isOrderConverted != 'N' && empty($arParams["STORE_DATA"]) && $basketItem)
@@ -1378,7 +1378,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 				}
 				else
 				{
-					if ($strUseStoreControl == "Y")
+					if ($useStoreControl)
 					{
 						if ($isOrderConverted != 'N' && empty($arParams["STORE_DATA"]) && $basketItem)
 						{
@@ -1573,7 +1573,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 
 		$storesList = array();
 
-		$strUseStoreControl = COption::GetOptionString('catalog','default_use_store_control');
+		$useStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 
 		$productId = $basketItem->getProductId();
 
@@ -1593,7 +1593,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 		)
 			return $result;
 
-		if ($strUseStoreControl == "Y")
+		if ($useStoreControl)
 		{
 			if (empty($basketStoreData))
 			{
@@ -1784,9 +1784,6 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 		$result = new \Bitrix\Sale\Result();
 		$fields = array();
 
-		$strUseStoreControl = COption::GetOptionString('catalog','default_use_store_control');
-
-
 		$rsProducts = CCatalogProduct::GetList(
 			array(),
 			array('ID' => $productId),
@@ -1818,7 +1815,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 	public static function GetStoresCount($arParams = array())
 	{
 		//without store control stores are used for information purposes only
-		if ((string)Main\Config\Option::get('catalog','default_use_store_control') !== 'Y')
+		if (!Catalog\Config\State::isUsedInventoryManagement())
 			return -1;
 
 		return count(static::getStoreIds($arParams));
@@ -1827,7 +1824,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 	public static function GetProductStores($arParams)
 	{
 		//without store control stores are used for information purposes only
-		if ((string)Main\Config\Option::get('catalog','default_use_store_control') !== 'Y')
+		if (!Catalog\Config\State::isUsedInventoryManagement())
 			return false;
 
 		$arParams['PRODUCT_ID'] = (isset($arParams['PRODUCT_ID']) ? (int)$arParams['PRODUCT_ID'] : 0);
@@ -2630,7 +2627,7 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 	{
 		return !((string)Main\Config\Option::get("catalog", "enable_reservation") == "N"
 			&& (string)Main\Config\Option::get("sale", "product_reserve_condition") != "S"
-			&& (string)Main\Config\Option::get('catalog','default_use_store_control') != "Y"
+			&& !Catalog\Config\State::isUsedInventoryManagement()
 		);
 	}
 

@@ -323,7 +323,7 @@ if ('' == $strImportErrorMessage)
 {
 	$currentUserID = $USER->GetID();
 
-	$boolUseStoreControl = (COption::GetOptionString('catalog', 'default_use_store_control') == 'Y');
+	$boolUseStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 	$arDisableFields = array(
 		'CP_QUANTITY' => true,
 		'CP_PURCHASING_PRICE' => true,

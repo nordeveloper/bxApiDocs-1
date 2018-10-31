@@ -10,7 +10,7 @@ Loc::loadMessages(__FILE__);
 $data = array(
 	'NAME' => Loc::getMessage('SALE_HPS_ALFABANK_TITLE'),
 	'SORT' => 100,
-	'DOMAIN' => PaySystem\Manager::HANDLER_DOMAIN_NONE,
+	'IS_AVAILABLE' => PaySystem\Manager::HANDLER_AVAILABLE_FALSE,
 	'CODES' => array(
 		"ALFABANK_EXTERNAL_SYSTEM_CODE" => array(
 			"NAME" => Loc::getMessage("SALE_HPS_ALFABANK_EXT_SYSTEM_CODE"),

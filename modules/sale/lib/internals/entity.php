@@ -53,20 +53,43 @@ abstract class Entity
 			return $mapFields;
 		}
 
+		$fields = static::getFieldsDescription();
+		foreach ($fields as $field)
+		{
+			$mapFields[$field['CODE']] = $field['CODE'];
+		}
+
+		return $mapFields;
+	}
+
+	/**
+	 * @return array
+	 * @throws Main\NotImplementedException
+	 */
+	public static function getFieldsDescription()
+	{
+		$result = [];
+
 		$map = static::getFieldsMap();
 		foreach ($map as $key => $value)
 		{
 			if (is_array($value) && !isset($value['expression']))
 			{
-				$mapFields[$key] = $key;
+				$result[$key] = [
+					'CODE' => $key,
+					'TYPE' => $value['data_type']
+				];
 			}
 			elseif ($value instanceof Main\Entity\ScalarField)
 			{
-				$mapFields[$value->getName()] = $value->getName();
+				$result[$value->getName()] = [
+					'CODE' => $value->getName(),
+					'TYPE' => $value->getDataType(),
+				];
 			}
 		}
 
-		return $mapFields;
+		return $result;
 	}
 
 	/**

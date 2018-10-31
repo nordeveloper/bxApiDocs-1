@@ -656,11 +656,29 @@ class Connector
 	}
 
 	/**
-	 * Return map "connector id" - "icon name" for UI-lib icon classes
+	 * Return icon name for all connectors
 	 *
 	 * @return array
 	 */
 	public static function getIconClassMap()
+	{
+		$result = self::getConnectorIconMap();
+		$customConnectorsList = CustomConnectors::getListConnectorId();
+
+		foreach ($customConnectorsList as $customConnectorId)
+		{
+			$result[$customConnectorId] = $customConnectorId;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Return map "connector id" - "icon name" for UI-lib icon classes
+	 *
+	 * @return array
+	 */
+	public static function getConnectorIconMap()
 	{
 		return array(
 			'livechat' => 'livechat',
@@ -713,18 +731,67 @@ class Connector
 	}
 
 	/**
+	 * Return additional css-style string
+	 *
+	 * @return string
+	 */
+	public static function getAdditionalStyles()
+	{
+		$style = CustomConnectors::getStyleCss();
+		$style .= self::getServicesBackgroundColorCss();
+
+		return $style;
+	}
+
+	/**
 	 * Inits icon UI-lib and custom connector active icon styles
 	 */
 	public static function initIconCss()
 	{
 		\Bitrix\Main\UI\Extension::load("ui.icons");
 
-		$iconStyle = CustomConnectors::getStyleCss();
+		$iconStyle = self::getAdditionalStyles();
 
 		if(!empty($iconStyle))
 		{
-			Asset::getInstance()->addString('<style>' . $iconStyle . '</style>');
+			Asset::getInstance()->addString('<style>' . $iconStyle . '</style>', true);
 		}
+	}
+
+	/**
+	 * Get background color style from ui-icon styles for connectors
+	 *
+	 * @return string
+	 */
+	public static function getServicesBackgroundColorCss()
+	{
+		$style = '';
+		$cssFilePath = $_SERVER["DOCUMENT_ROOT"] . '/bitrix/js/ui/icons/ui.icons.css';
+		$cssFile = file_get_contents($cssFilePath);
+
+		if (!empty($cssFile))
+		{
+			$cssList = \Bitrix\Main\Web\DOM\CssParser::parse($cssFile);
+
+			if (!empty($cssList))
+			{
+				$column = array_column($cssList, 'SELECTOR');
+				$connectorList = self::getConnectorIconMap();
+
+				foreach ($connectorList as $key => $connector)
+				{
+					$position = array_search('.ui-icon-service-' . $connector . ' > i', $column);
+
+					if ($position !== false)
+					{
+						$style .= '.imconnector-' . $key . '-background-color { background-color: ' . $cssList[$position]['STYLE']['background-color'] . '; }' . PHP_EOL;
+						$style .= '.intranet-' . $key . '-background-color { background-color: ' . $cssList[$position]['STYLE']['background-color'] . '; }' . PHP_EOL;
+					}
+				}
+			}
+		}
+
+		return $style;
 	}
 
 	/**
@@ -738,7 +805,7 @@ class Connector
 
 		if(!empty($iconStyle))
 		{
-			Asset::getInstance()->addString('<style>' . $iconStyle . '</style>');
+			Asset::getInstance()->addString('<style>' . $iconStyle . '</style>', true);
 		}
 	}
 

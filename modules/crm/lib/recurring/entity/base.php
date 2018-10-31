@@ -63,8 +63,26 @@ abstract class Base
 		if (!($params['NEXT_EXECUTION'] instanceof Date))
 		{
 			if (!($params['START_DATE'] instanceof Date))
-				$params['START_DATE'] = new Date($params['START_DATE']);
-			$params['NEXT_EXECUTION'] = Calculator::getNextDate($params['PARAMS'], $params['START_DATE']);
+			{
+				$startDate = null;
+				if (CheckDateTime($params['START_DATE']))
+				{
+					$startDate = $params['START_DATE'];
+				}
+				$params['START_DATE'] = new Date($startDate);
+			}
+			$today = new Date();
+			$nextExecution = static::getNextDate($params['PARAMS'], clone($params['START_DATE']));
+			if ($nextExecution instanceof Date)
+			{
+				if ($params['START_DATE']->getTimestamp() > $today->getTimestamp()
+					&& $nextExecution->getTimestamp() > $params['START_DATE']->getTimestamp()
+				)
+				{
+					$nextExecution = $params['START_DATE'];
+				}
+			}
+			$params['NEXT_EXECUTION'] = $nextExecution;
 		}
 
 		return $params;
@@ -112,7 +130,7 @@ abstract class Base
 	 *
 	 * @return Date
 	 */
-	protected function getNextDate(array $params, $startDate = null)
+	public static function getNextDate(array $params, $startDate = null)
 	{
 		$params['PREPARE_PARAMS_CALCULATION'] = 'N';
 		return Calculator::getNextDate($params, $startDate);

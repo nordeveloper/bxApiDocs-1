@@ -253,10 +253,15 @@ class Lead extends ConnectorBaseFilter
 			"id" => "ASSIGNED_BY_ID",
 			"name" => Loc::getMessage('SENDER_INTEGRATION_CRM_CONNECTOR_LEAD_FIELD_ASSIGNED_BY_ID'),
 			'type' => 'custom_entity',
+			'params' => array('multiple' => 'Y'),
 			'selector' => array(
 				'TYPE' => 'user',
 				'DATA' => array('ID' => 'assigned_by', 'FIELD_ID' => 'ASSIGNED_BY_ID')
 			),
+			'sender_segment_callback' => function ($field)
+			{
+				return Helper::getFilterFieldUserSelector($field['selector']['DATA'], 'crm_segment_lead');
+			},
 			"default" => false,
 		);
 

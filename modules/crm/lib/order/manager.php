@@ -123,7 +123,7 @@ final class Manager
 
 	/**
 	 * @param $id
-	 * @return \Bitrix\Sale\Internals\CollectableEntity|bool|null
+	 * @return Shipment | null
 	 * @throws \Bitrix\Main\ArgumentException
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 */

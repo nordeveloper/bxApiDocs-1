@@ -554,7 +554,7 @@ class Template extends Base
 			}
 		}
 
-		return new Page(['templates' => $this->convertArrayKeysToCamel($templates, 1)], function() use ($filter)
+		return new Page('templates', $this->convertArrayKeysToCamel($templates, 1), function() use ($filter)
 		{
 			return TemplateTable::getCount($filter);
 		});

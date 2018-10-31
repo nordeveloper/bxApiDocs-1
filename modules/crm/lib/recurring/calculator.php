@@ -11,6 +11,7 @@ class Calculator
 	const SALE_TYPE_WEEK_OFFSET = 2;
 	const SALE_TYPE_MONTH_OFFSET = 3;
 	const SALE_TYPE_YEAR_OFFSET = 4;
+	const SALE_TYPE_CUSTOM_OFFSET = 5;
 
 	/**
 	 * @param array $params

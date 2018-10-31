@@ -279,9 +279,8 @@ abstract class BasketPropertiesCollectionBase extends Internals\EntityCollection
 					/** @var BasketPropertyItemBase $propertyItem */
 					if ($propertyItem = $this->getItemById($id))
 					{
-						if (!empty($values)
-							|| ($propertyItem->getField('CODE') == "CATALOG.XML_ID"
-								|| $propertyItem->getField('CODE') == "PRODUCT.XML_ID")
+						if ($propertyItem->getField('CODE') == "CATALOG.XML_ID"
+							|| $propertyItem->getField('CODE') == "PRODUCT.XML_ID"
 						)
 						{
 							continue;
@@ -294,9 +293,8 @@ abstract class BasketPropertiesCollectionBase extends Internals\EntityCollection
 					/** @var BasketPropertyItemBase $propertyItem */
 					foreach ($this->collection as $propertyItem)
 					{
-						if (!empty($values)
-							|| ($propertyItem->getField('CODE') == "CATALOG.XML_ID"
-								|| $propertyItem->getField('CODE') == "PRODUCT.XML_ID")
+						if ($propertyItem->getField('CODE') == "CATALOG.XML_ID"
+							|| $propertyItem->getField('CODE') == "PRODUCT.XML_ID"
 						)
 						{
 							continue;

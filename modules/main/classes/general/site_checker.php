@@ -448,6 +448,12 @@ class CSiteCheckerTest
 
 		if ($strError)
 			return $this->Result(false,GetMessage('ERR_NO_MODS')."<br>".$strError);
+
+		if (IsModuleInstalled('intranet'))
+		{
+			if (!class_exists('DOMDocument') || !class_exists('ZipArchive'))
+				return $this->Result(null,GetMessage('ERR_NO_MODS_DOC_GENERATOR'));
+		}
 		return $this->Result(true, GetMessage("MAIN_SC_ALL_MODULES"));
 	}
 

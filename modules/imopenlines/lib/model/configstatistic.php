@@ -54,17 +54,17 @@ class ConfigStatisticTable extends Main\Entity\DataManager
 			),
 			'MESSAGE' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_MESSAGE_FIELD'),
+				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_MESSAGE_FIELD_NEW'),
 				'default_value' => '0',
 			),
 			'CLOSED' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_CLOSED_FIELD'),
+				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_CLOSED_FIELD_NEW'),
 				'default_value' => '0',
 			),
 			'IN_WORK' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_IN_WORK_FIELD'),
+				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_IN_WORK_FIELD_NEW'),
 				'default_value' => '0',
 			),
 			'LEAD' => array(

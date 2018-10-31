@@ -111,6 +111,8 @@ abstract class Base implements Crm\Volume\IVolumeIndicator
 	/** @var array */
 	protected static $entityList = array();
 
+	/** @var array */
+	protected $dateSplitPeriod = array(1, 'months');
 
 	/**
 	 * @return string the fully qualified name of this class.
@@ -898,6 +900,25 @@ abstract class Base implements Crm\Volume\IVolumeIndicator
 		);
 
 		return $queueList;
+	}
+
+	/**
+	 * Returns date split period.
+	 * @return array
+	 */
+	public function getDateSplitPeriod()
+	{
+		return $this->dateSplitPeriod;
+	}
+
+	/**
+	 * Sets date split period.
+	 * @param array $dateSplitPeriod Value and units.
+	 * @return void
+	 */
+	public function setDateSplitPeriod(array $dateSplitPeriod)
+	{
+		$this->dateSplitPeriod = $dateSplitPeriod;
 	}
 
 	/**

@@ -32,6 +32,13 @@ class Rest extends \IRestService
 				'imopenlines.network.join' => array(__CLASS__, 'networkJoin'),
 				'imopenlines.network.message.add' => array(__CLASS__, 'networkMessageAdd'),
 				'imopenlines.config.path.get' => array(__CLASS__, 'configGetPath'),
+
+				'imopenlines.widget.config.get' =>  array('callback' => array(__CLASS__, 'widgetConfigGet'), 'options' => array('private' => true)),
+				'imopenlines.widget.dialog.get' =>  array('callback' => array(__CLASS__, 'widgetDialogGet'), 'options' => array('private' => true)),
+				'imopenlines.widget.user.register' =>  array('callback' => array(__CLASS__, 'widgetUserRegister'), 'options' => array('private' => true)),
+				'imopenlines.widget.user.consent.apply' =>  array('callback' => array(__CLASS__, 'widgetUserConsentApply'), 'options' => array('private' => true)),
+				'imopenlines.widget.user.get' =>  array('callback' => array(__CLASS__, 'widgetUserGet'), 'options' => array('private' => true)),
+				'imopenlines.widget.user.vote' =>  array('callback' => array(__CLASS__, 'widgetUserVote'), 'options' => array('private' => true)),
 			),
 		);
 	}
@@ -508,5 +515,271 @@ class Rest extends \IRestService
 		\Bitrix\Imopenlines\Model\RestNetworkLimitTable::add(Array('BOT_ID' => $networkBot['BOT_ID'], 'USER_ID' => $arMessageFields['DIALOG_ID']));
 
 		return true;
+	}
+
+	public static function widgetUserRegister($params, $n, \CRestServer $server)
+	{
+		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		if ($_SESSION['LIVECHAT']['REGISTER'])
+		{
+			return $_SESSION['LIVECHAT']['REGISTER'];
+		}
+
+		$params = array_change_key_case($params, CASE_UPPER);
+
+		$params['CONFIG_ID'] = intval($params['CONFIG_ID']);
+		if ($params['CONFIG_ID'] <= 0)
+		{
+			throw new \Bitrix\Rest\RestException("Config id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$config = \Bitrix\Imopenlines\Model\ConfigTable::getById($params['CONFIG_ID'])->fetch();
+		if (!$config)
+		{
+			throw new \Bitrix\Rest\RestException("Config is not found.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$userData = \Bitrix\Imopenlines\Widget\User::register([
+			'NAME' => $params['NAME'],
+			'LAST_NAME' => $params['LAST_NAME'],
+			'AVATAR' => $params['AVATAR'],
+			'EMAIL' => $params['EMAIL'],
+			'PERSONAL_WWW' => $params['WWW'],
+			'PERSONAL_GENDER' => $params['GENDER'],
+			'WORK_POSITION' => $params['POSITION'],
+			'USER_HASH' => $params['HASH'],
+		]);
+		if (!$userData)
+		{
+			throw new \Bitrix\Rest\RestException(
+				\Bitrix\Imopenlines\Widget\User::getError()->msg,
+				\Bitrix\Imopenlines\Widget\User::getError()->code,
+				\CRestServer::STATUS_WRONG_REQUEST
+			);
+		}
+
+		$dialogData = \Bitrix\Imopenlines\Widget\Dialog::register($userData['ID'], $config['ID']);
+		if (!$dialogData)
+		{
+			throw new \Bitrix\Rest\RestException(
+				\Bitrix\Imopenlines\Widget\Dialog::getError()->msg,
+				\Bitrix\Imopenlines\Widget\Dialog::getError()->code,
+				\CRestServer::STATUS_WRONG_REQUEST
+			);
+		}
+
+		global $USER;
+		$USER->Authorize($userData['ID'], false, true, 'public');
+
+		$userConsent = false;
+		if ($config['AGREEMENT_MESSAGE'] == 'Y')
+		{
+			\Bitrix\Main\UserConsent\Consent::addByContext(
+				intval($config['AGREEMENT_ID']),
+				'imopenlines/livechat',
+				$dialogData['CHAT_ID'],
+				Array('URL' => trim($params['CONSENT_URL']))
+			);
+			$userConsent = true;
+		}
+
+		$result = [
+			'id' => $userData['ID'],
+			'hash' => $userData['HASH'],
+			'chatId' => $dialogData['CHAT_ID'],
+			'userConsent' => $userConsent,
+		];
+
+		$_SESSION['LIVECHAT']['REGISTER'] = $result;
+
+		return $result;
+	}
+
+	public static function widgetUserConsentApply($params, $n, \CRestServer $server)
+	{
+		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		$params = array_change_key_case($params, CASE_UPPER);
+
+		$params['CONFIG_ID'] = intval($params['CONFIG_ID']);
+		if ($params['CONFIG_ID'] <= 0)
+		{
+			throw new \Bitrix\Rest\RestException("Config id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$config = \Bitrix\Imopenlines\Model\ConfigTable::getById($params['CONFIG_ID'])->fetch();
+		if (!$config)
+		{
+			throw new \Bitrix\Rest\RestException("Config is not found.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		if (!\Bitrix\Main\Loader::includeModule('im'))
+		{
+			throw new \Bitrix\Rest\RestException("Messenger is not installed.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		if ($config['AGREEMENT_MESSAGE'] != 'Y')
+		{
+			return false;
+		}
+
+		global $USER;
+		$chat = \Bitrix\Im\Model\ChatTable::getList(array(
+			'select' => ['ID'],
+			'filter' => array(
+				'=ENTITY_TYPE' => 'LIVECHAT',
+				'=ENTITY_ID' => $config['ID'].'|'.$USER->GetID()
+			),
+			'limit' => 1
+		))->fetch();
+		if (!$chat)
+		{
+			throw new \Bitrix\Rest\RestException("Chat is not found.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		\Bitrix\Main\UserConsent\Consent::addByContext(
+			intval($config['AGREEMENT_ID']),
+			'imopenlines/livechat',
+			$chat['ID'],
+			Array('URL' => trim($params['CONSENT_URL']))
+		);
+
+		return true;
+	}
+
+	public static function widgetUserVote($params, $n, \CRestServer $server)
+	{
+		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		$params = array_change_key_case($params, CASE_UPPER);
+
+		$params['SESSION_ID'] = intval($params['SESSION_ID']);
+		if ($params['SESSION_ID'] <= 0)
+		{
+			throw new \Bitrix\Rest\RestException("Session id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$action = strtolower($params['ACTION']) !== 'like';
+
+		\Bitrix\ImOpenlines\Session::voteAsUser($params['SESSION_ID'], $action);
+
+		return true;
+	}
+
+	public static function widgetUserGet($params, $n, \CRestServer $server)
+	{
+		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		global $USER;
+		if (!$USER->IsAuthorized())
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only for authorized users.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		$result = \Bitrix\Imopenlines\Widget\User::get($USER->GetID());
+
+		return self::objectEncode($result);
+	}
+
+	public static function widgetDialogGet($params, $n, \CRestServer $server)
+	{
+		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		global $USER;
+		if (!$USER->IsAuthorized())
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only for authorized users.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		$params = array_change_key_case($params, CASE_UPPER);
+
+		$params['CONFIG_ID'] = intval($params['CONFIG_ID']);
+		if ($params['CONFIG_ID'] <= 0)
+		{
+			throw new \Bitrix\Rest\RestException("Config id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$result = \Bitrix\Imopenlines\Widget\Dialog::get($USER->GetID(), $params['CONFIG_ID']);
+		if (!$result)
+		{
+			throw new \Bitrix\Rest\RestException(
+				\Bitrix\Imopenlines\Widget\Dialog::getError()->msg,
+				\Bitrix\Imopenlines\Widget\Dialog::getError()->code,
+				\CRestServer::STATUS_WRONG_REQUEST
+			);
+		}
+
+		return self::objectEncode($result);
+	}
+
+	public static function widgetConfigGet($params, $n, \CRestServer $server)
+	{
+		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		$params = array_change_key_case($params, CASE_UPPER);
+
+		$config = \Bitrix\Imopenlines\Widget\Config::getByCode($params['CODE']);
+		if (!$config)
+		{
+			throw new \Bitrix\Rest\RestException(
+				\Bitrix\Imopenlines\Widget\Config::getError()->msg,
+				\Bitrix\Imopenlines\Widget\Config::getError()->code,
+				\CRestServer::STATUS_WRONG_REQUEST
+			);
+		}
+
+		shuffle($config['OPERATORS']);
+		$config['OPERATORS'] = array_slice($config['OPERATORS'], 0, 3);
+
+		return self::objectEncode($config);
+	}
+
+	public static function objectEncode($params)
+	{
+		if (is_array($params))
+		{
+			$result = [];
+			foreach ($params as $key => $value)
+			{
+				if (is_array($value))
+				{
+					$value = self::objectEncode($value);
+				}
+				else if ($value instanceof \Bitrix\Main\Type\DateTime)
+				{
+					$value = date('c', $value->getTimestamp());
+				}
+				else if (is_string($key) && in_array($key, ['AVATAR', 'AVATAR_HR']) && is_string($value) && $value && strpos($value, 'http') !== 0)
+				{
+					$value = \Bitrix\ImOpenLines\Common::getServerAddress().$value;
+				}
+
+				$key = str_replace('_', '', lcfirst(ucwords(strtolower($key), '_')));
+
+				$result[$key] = $value;
+			}
+			$params = $result;
+		}
+
+		return $params;
 	}
 }

@@ -151,6 +151,14 @@ abstract class Restriction {
 		return true;
 	}
 
+	/**
+	 * @return bool
+	 */
+	public static function isAvailable()
+	{
+		return true;
+	}
+
 	/*
 	 * Children can have also this method
 	 * for performance purposes.

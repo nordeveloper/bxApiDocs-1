@@ -48,7 +48,13 @@ final class BusinessValue
 		{
 			$provider = $personTypeId;
 			$personTypeId = $provider->getPersonTypeId();
-			$mapping = self::getMapping($codeKey, $consumerKey, $personTypeId, array('GET_VALUE' => array('PROPERTY' => 'BY_ID')));
+			$mapping = self::getMapping(
+				$codeKey,
+				$consumerKey,
+				$personTypeId,
+				array('GET_VALUE' => array('PROPERTY' => 'BY_ID', 'PROVIDER' => $provider))
+			);
+
 			$providerInstance = $provider->getBusinessValueProviderInstance($mapping);
 		}
 		else
@@ -163,10 +169,11 @@ final class BusinessValue
 			&& ($providers = BusinessValue::getProviders())
 			&& is_callable($providers['PROPERTY']['GET_VALUE']))
 		{
- 			$mapping['PROVIDER_VALUE'] = call_user_func($providers['PROPERTY']['GET_VALUE']
-				, $mapping['PROVIDER_VALUE']
-				, $personTypeId
-				, isset($options['GET_VALUE']['PROPERTY']) ? $options['GET_VALUE']['PROPERTY'] : null
+ 			$mapping['PROVIDER_VALUE'] = call_user_func($providers['PROPERTY']['GET_VALUE'],
+			    $mapping['PROVIDER_VALUE'],
+			    $personTypeId,
+			    isset($options['GET_VALUE']['PROPERTY']) ? $options['GET_VALUE']['PROPERTY'] : null,
+			    isset($options['GET_VALUE']['PROVIDER']) ? $options['GET_VALUE']['PROVIDER'] : null
 			);
 		}
 
@@ -847,46 +854,52 @@ class BusinessValueHandlers
 			'PROPERTY' => call_user_func(
 				function ()
 				{
-					$fields = call_user_func(
-						function ()
+					$getFields = function ($registryType)
+					{
+						static $fields = array();
+
+						if (isset($fields[$registryType]))
 						{
-							$fields = array();
-
-							$result = Internals\OrderPropsTable::getList(array(
-								'select' => array('ID', 'NAME', 'PERSON_TYPE_ID', 'TYPE', 'CODE'),
-								'filter' => array('=PERSON_TYPE_ID' => array_keys(BusinessValue::getPersonTypes())),
-								'order'  => array('PERSON_TYPE_ID', 'SORT'),
-							));
-
-							while ($row = $result->fetch())
-							{
-								$id    = $row['ID'];
-								$name  = $row['NAME'];
-								$field = array(
-									'NAME' => $name,
-									'CODE' => $row['CODE'],
-									'GROUP' => $row['PERSON_TYPE_ID'],
-									'PERSON_TYPE_ID' => $row['PERSON_TYPE_ID']
-								);
-
-								$fields[$id] = $field;
-
-								if ($row['TYPE'] == 'LOCATION')
-								{
-									$field['NAME'] = $name.' ('.Loc::getMessage('BIZVAL_CODE_COUNTRY').')';
-									$fields[$id.'_COUNTRY'] = $field;
-
-									$field['NAME'] = $name.' ('.Loc::getMessage('BIZVAL_CODE_REGION').')';
-									$fields[$id.'_REGION'] = $field;
-
-									$field['NAME'] = $name.' ('.Loc::getMessage('BIZVAL_CODE_CITY').')';
-									$fields[$id.'_CITY'] = $field;
-								}
-							}
-
-							return $fields;
+							return $fields[$registryType];
 						}
-					);
+
+						$result = Internals\OrderPropsTable::getList(array(
+							'select' => array('ID', 'NAME', 'PERSON_TYPE_ID', 'TYPE', 'CODE'),
+							'filter' => array(
+								'=PERSON_TYPE_ID' => array_keys(BusinessValue::getPersonTypes()),
+								'=ENTITY_REGISTRY_TYPE' => $registryType
+							),
+							'order'  => array('PERSON_TYPE_ID', 'SORT'),
+						));
+
+						while ($row = $result->fetch())
+						{
+							$id    = $row['ID'];
+							$name  = $row['NAME'];
+							$field = array(
+								'NAME' => $name,
+								'CODE' => $row['CODE'],
+								'GROUP' => $row['PERSON_TYPE_ID'],
+								'PERSON_TYPE_ID' => $row['PERSON_TYPE_ID']
+							);
+
+							$fields[$registryType][$id] = $field;
+
+							if ($row['TYPE'] == 'LOCATION')
+							{
+								$field['NAME'] = $name.' ('.Loc::getMessage('BIZVAL_CODE_COUNTRY').')';
+								$fields[$registryType][$id.'_COUNTRY'] = $field;
+
+								$field['NAME'] = $name.' ('.Loc::getMessage('BIZVAL_CODE_REGION').')';
+								$fields[$registryType][$id.'_REGION'] = $field;
+
+								$field['NAME'] = $name.' ('.Loc::getMessage('BIZVAL_CODE_CITY').')';
+								$fields[$registryType][$id.'_CITY'] = $field;
+							}
+						}
+
+						return $fields[$registryType];
+					};
 
 					$parseId = function ($propertyId)
 					{
@@ -915,11 +928,23 @@ class BusinessValueHandlers
 					return array(
 						'NAME'   => Loc::getMessage('BIZVAL_PROVIDER_PROPERTY'),
 						'SORT'   => 300,
-						'FIELDS' => $fields,
+						'FIELDS' => call_user_func($getFields, Registry::REGISTRY_TYPE_ORDER),
 						'FIELDS_GROUPS' => array_map(function ($i) {return array('NAME' => $i['TITLE']);}, BusinessValue::getPersonTypes()),
-						'GET_VALUE' => function ($providerValue, $personTypeId, $options) use ($parseId, $fields)
+						'GET_VALUE' => function ($providerValue, $personTypeId, $options, $provider) use ($parseId, $getFields)
 						{
 							list ($propertyCode, $propertyId, $locationField) = call_user_func($parseId, $providerValue);
+
+							// for crm invoice compatibility
+							if (method_exists($provider, 'getRegistryType'))
+							{
+								$registry = $provider::getRegistryType();
+							}
+							else
+							{
+								$registry = Registry::REGISTRY_TYPE_ORDER;
+							}
+
+							$fields = $getFields($registry);
 
 							if ($propertyCode)
 							{

@@ -18,6 +18,10 @@ class Config
 	const CRM_CREATE_NONE = 'none';
 	const CRM_CREATE_LEAD = 'lead';
 
+	const TYPE_MAX_CHAT_ANSWERED = 'answered';
+	const TYPE_MAX_CHAT_ANSWERED_NEW = 'answered_new';
+	const TYPE_MAX_CHAT_CLOSED = 'closed';
+
 	const QUEUE_TYPE_EVENLY = 'evenly';
 	const QUEUE_TYPE_STRICTLY = 'strictly';
 	const QUEUE_TYPE_ALL = 'all';
@@ -33,6 +37,9 @@ class Config
 
 	const BOT_LEFT_QUEUE = 'queue';
 	const BOT_LEFT_CLOSE = 'close';
+
+	const EVENT_IMOPENLINE_CREATE = 'OnImopenlineCreate';
+	const EVENT_IMOPENLINE_DELETE = 'OnImopenlineDelete';
 
 	private $error = null;
 
@@ -129,6 +136,25 @@ class Config
 		else if ($mode == self::MODE_ADD)
 		{
 			$fields['QUEUE_TIME'] = 60;
+		}
+
+		if (isset($params['MAX_CHAT']))
+		{
+			if($fields['MAX_CHAT'] >= 0)
+				$fields['MAX_CHAT'] = intval($params['MAX_CHAT']);
+		}
+		else if ($mode == self::MODE_ADD)
+		{
+			$fields['MAX_CHAT'] = 0;
+		}
+
+		if (isset($params['TYPE_MAX_CHAT']))
+		{
+			$fields['TYPE_MAX_CHAT'] = in_array($params['TYPE_MAX_CHAT'], Array(self::TYPE_MAX_CHAT_ANSWERED_NEW, self::TYPE_MAX_CHAT_ANSWERED, self::TYPE_MAX_CHAT_CLOSED))? $params['TYPE_MAX_CHAT']: self::TYPE_MAX_CHAT_ANSWERED_NEW;
+		}
+		else if ($mode == self::MODE_ADD)
+		{
+			$fields['TYPE_MAX_CHAT'] = self::TYPE_MAX_CHAT_ANSWERED;
 		}
 
 		if (isset($params['CATEGORY_ENABLE']))
@@ -247,6 +273,24 @@ class Config
 		else if ($mode == self::MODE_ADD)
 		{
 			$fields["TIMEMAN"] = 'N';
+		}
+
+		if (isset($params['CHECK_ONLINE']))
+		{
+			$fields['CHECK_ONLINE'] = $params['CHECK_ONLINE'] == 'N'? 'N': 'Y';
+		}
+		else if ($mode == self::MODE_ADD)
+		{
+			$fields["CHECK_ONLINE"] = 'Y';
+		}
+
+		if (isset($params['CHECKING_OFFLINE']))
+		{
+			$fields['CHECKING_OFFLINE'] = $params['CHECKING_OFFLINE'] == 'Y'? 'Y': 'N';
+		}
+		else if ($mode == self::MODE_ADD)
+		{
+			$fields["CHECKING_OFFLINE"] = 'N';
 		}
 
 		if (isset($params['WELCOME_MESSAGE']))
@@ -469,6 +513,15 @@ class Config
 			$fields['VOTE_MESSAGE'] = 'N';
 		}
 
+		if (isset($params['VOTE_CLOSING_DELAY']))
+		{
+			$fields['VOTE_CLOSING_DELAY'] = $params['VOTE_CLOSING_DELAY'] == 'Y'? 'Y': 'N';
+		}
+		else if ($mode == self::MODE_ADD)
+		{
+			$fields["VOTE_CLOSING_DELAY"] = 'N';
+		}
+
 		if (isset($params['VOTE_MESSAGE_1_TEXT']))
 		{
 			$fields['VOTE_MESSAGE_1_TEXT'] = substr($params['VOTE_MESSAGE_1_TEXT'], 0, 100);
@@ -527,7 +580,16 @@ class Config
 			$fields['AUTO_CLOSE_RULE'] = self::RULE_NONE;
 		}
 
-		if (isset($params['AUTO_CLOSE_TIME']))
+		if (isset($params['FULL_CLOSE_TIME']) && $params['FULL_CLOSE_TIME'] >=0)
+		{
+			$fields['FULL_CLOSE_TIME'] = intval($params['FULL_CLOSE_TIME']);
+		}
+		else if ($mode == self::MODE_ADD)
+		{
+			$fields['FULL_CLOSE_TIME'] = 10;
+		}
+
+		if (isset($params['AUTO_CLOSE_TIME']) && $params['AUTO_CLOSE_TIME'] >=0)
 		{
 			$fields['AUTO_CLOSE_TIME'] = intval($params['AUTO_CLOSE_TIME']);
 		}
@@ -650,6 +712,12 @@ class Config
 		{
 			ListsDataManager::updateIblockRights($fields['QUICK_ANSWERS_IBLOCK_ID']);
 		}
+
+		$eventData = array(
+			'line' => $id
+		);
+		$event = new Main\Event('imopenlines', self::EVENT_IMOPENLINE_CREATE, $eventData);
+		$event->send();
 
 		return $id;
 	}
@@ -789,6 +857,12 @@ class Config
 			'SESSION_PRIORITY' => 0
 		));
 
+		$eventData = array(
+			'line' => $id
+		);
+		$event = new Main\Event('imopenlines', self::EVENT_IMOPENLINE_DELETE, $eventData);
+		$event->send();
+
 		return true;
 	}
 
@@ -920,13 +994,14 @@ class Config
 		$config['WORKTIME_HOLIDAYS'] = explode(",", $config["WORKTIME_HOLIDAYS"]);
 
 		$config['QUEUE'] = Array();
+		$config['QUEUE_ONLINE'] = 'N';
 		if ($withQueue)
 		{
 			if ($showOffline)
 			{
-				$orm = Model\QueueTable::getList(array(
-					'select' => Array('USER_ID'),
-					'filter' => Array('=CONFIG_ID' => $id)
+				$orm = Queue::getList(Array(
+					'select' => Array('USER_ID', 'IS_ONLINE_CUSTOM'),
+					'filter' => Array('=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y'),
 				));
 			}
 			else
@@ -936,9 +1011,25 @@ class Config
 					'filter' => Array('=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y', '=IS_ONLINE_CUSTOM' => 'Y'),
 				));
 			}
-			while ($row = $orm->fetch())
+
+			if ($showOffline)
 			{
-				$config['QUEUE'][] = $row['USER_ID'];
+				while ($row = $orm->fetch())
+				{
+					if ($row['IS_ONLINE_CUSTOM'] == 'Y')
+					{
+						$config['QUEUE_ONLINE'] = 'Y';
+					}
+					$config['QUEUE'][] = $row['USER_ID'];
+				}
+			}
+			else
+			{
+				while ($row = $orm->fetch())
+				{
+					$config['QUEUE'][] = $row['USER_ID'];
+					$config['QUEUE_ONLINE'] = 'Y';
+				}
 			}
 
 		}
@@ -993,6 +1084,7 @@ class Config
 			'select' => Array('ID', 'NAME' => 'LINE_NAME'),
 			'filter' => Array('=ACTIVE' => 'Y'),
 			'cache' => array('ttl' => 86400),
+			'order' => Array('LINE_NAME' => 'ASC'),
 		));
 		while ($config = $orm->fetch())
 		{

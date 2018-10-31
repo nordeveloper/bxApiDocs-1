@@ -1102,34 +1102,42 @@ class EntityLink
 			{
 				case \CCrmOwnerType::Deal:
 				case \CCrmOwnerType::Quote:
-					if (isset($entityFields['COMPANY_ID']) && $entityFields['COMPANY_ID'] >= 0)
+					if (isset($entityFields['COMPANY_ID']) && $entityFields['COMPANY_ID'] > 0)
 					{
 						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
 						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['COMPANY_ID'];
 					}
-					else if (isset($entityFields['CONTACT_ID']) && $entityFields['CONTACT_ID'] >= 0)
+					else if (isset($entityFields['CONTACT_ID']) && $entityFields['CONTACT_ID'] > 0)
 					{
 						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Contact;
 						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['CONTACT_ID'];
 					}
-					if (isset($entityFields['MYCOMPANY_ID']) && $entityFields['MYCOMPANY_ID'] >= 0)
+					else if ($entityTypeId === \CCrmOwnerType::Deal
+						&& is_array($entityFields['CONTACT_IDS'])
+						&& !empty($entityFields['CONTACT_IDS'])
+						&& $entityFields['CONTACT_IDS'][0] > 0)
+					{
+						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Contact;
+						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['CONTACT_IDS'][0];
+					}
+					if (isset($entityFields['MYCOMPANY_ID']) && $entityFields['MYCOMPANY_ID'] > 0)
 					{
 						$result['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
 						$result['SELLER_ENTITY_ID'] = (int)$entityFields['MYCOMPANY_ID'];
 					}
 					break;
 				case \CCrmOwnerType::Invoice:
-					if (isset($entityFields['UF_COMPANY_ID']) && $entityFields['UF_COMPANY_ID'] >= 0)
+					if (isset($entityFields['UF_COMPANY_ID']) && $entityFields['UF_COMPANY_ID'] > 0)
 					{
 						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
 						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['UF_COMPANY_ID'];
 					}
-					else if (isset($entityFields['UF_CONTACT_ID']) && $entityFields['UF_CONTACT_ID'] >= 0)
+					else if (isset($entityFields['UF_CONTACT_ID']) && $entityFields['UF_CONTACT_ID'] > 0)
 					{
 						$result['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Contact;
 						$result['CLIENT_ENTITY_ID'] = (int)$entityFields['UF_CONTACT_ID'];
 					}
-					if (isset($entityFields['UF_MYCOMPANY_ID']) && $entityFields['UF_MYCOMPANY_ID'] >= 0)
+					if (isset($entityFields['UF_MYCOMPANY_ID']) && $entityFields['UF_MYCOMPANY_ID'] > 0)
 					{
 						$result['SELLER_ENTITY_TYPE_ID'] = \CCrmOwnerType::Company;
 						$result['SELLER_ENTITY_ID'] = (int)$entityFields['UF_MYCOMPANY_ID'];

@@ -110,4 +110,12 @@ abstract class EntityDataProvider extends DataProvider
 	{
 		return (isset($this->options['isLightMode']) && $this->options['isLightMode'] === true);
 	}
+
+	/**
+	 * @return bool
+	 */
+	public function isRootProvider()
+	{
+		return true;
+	}
 }

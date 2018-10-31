@@ -77,27 +77,30 @@ abstract class PropertyBase
 	{
 		static $groupList = [];
 
-		$groupId = $this->getGroupId();
-
-		if (!isset($groupList[$groupId]))
+		if (!isset($groupList[$this->getPersonTypeId()]))
 		{
-			if ($groupId > 0)
+			$dbRes = OrderPropsGroupTable::getList([
+				'filter' => [
+					'=PERSON_TYPE_ID' => $this->getPersonTypeId()
+				]
+			]);
+			while ($group = $dbRes->fetch())
 			{
-				if ($data = OrderPropsGroupTable::getRowById($groupId))
-				{
-					$groupList[$groupId] = $data;
-				}
-			}
-			else
-			{
-				$groupList[0] = [
-					'ID' => 0,
-					'NAME' => Loc::getMessage('SOP_UNKNOWN_GROUP'),
-				];
+				$groupList[$this->getPersonTypeId()][$group['ID']] = $group;
 			}
 		}
 
-		return $groupList[$groupId];
+		$groupId = $this->getGroupId();
+
+		if (!isset($groupList[$this->getPersonTypeId()][$groupId]))
+		{
+			return [
+				'ID' => 0,
+				'NAME' => Loc::getMessage('SOP_UNKNOWN_GROUP'),
+			];
+		}
+
+		return $groupList[$this->getPersonTypeId()][$groupId];
 	}
 
 	/**

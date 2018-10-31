@@ -32,6 +32,7 @@ Loc::loadMessages(__FILE__);
  * <li> CRM_ENTITY_TYPE string(50) optional
  * <li> CRM_ENTITY_ID int optional
  * <li> CRM_ACTIVITY_ID int optional
+ * <li> CRM_DEAL_ID int optional
  * <li> DATE_CREATE datetime optional
  * <li> DATE_MODIFY datetime optional
  * <li> WAIT_ANSWER bool optional default 'Y'
@@ -100,11 +101,19 @@ class SessionTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('SESSION_ENTITY_USER_ID_FIELD'),
 				'default_value' => '0',
 			),
+			'USER' => array(
+				'data_type' => 'Bitrix\Main\UserTable',
+				'reference' => array('=this.USER_ID' => 'ref.ID'),
+			),
 			'OPERATOR_ID' => array(
 				'data_type' => 'integer',
 				'required' => true,
 				'title' => Loc::getMessage('SESSION_ENTITY_OPERATOR_ID_FIELD'),
 				'default_value' => '0',
+			),
+			'OPERATOR' => array(
+				'data_type' => 'Bitrix\Main\UserTable',
+				'reference' => array('=this.OPERATOR_ID' => 'ref.ID'),
 			),
 			'USER_CODE' => array(
 				'data_type' => 'string',
@@ -119,7 +128,7 @@ class SessionTable extends Main\Entity\DataManager
 			),
 			'MESSAGE_COUNT' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('SESSION_ENTITY_MESSAGE_FIELD'),
+				'title' => Loc::getMessage('SESSION_ENTITY_MESSAGE_FIELD_NEW'),
 				'default_value' => '0',
 			),
 			'LIKE_COUNT' => array(
@@ -165,6 +174,11 @@ class SessionTable extends Main\Entity\DataManager
 			'CRM_ACTIVITY_ID' => array(
 				'data_type' => 'integer',
 				'title' => Loc::getMessage('SESSION_ENTITY_CRM_ACTIVITY_ID_FIELD'),
+				'default_value' => 0,
+			),
+			'CRM_DEAL_ID' => array(
+				'data_type' => 'integer',
+				'title' => Loc::getMessage('SESSION_ENTITY_CRM_DEAL_ID_FIELD'),
 				'default_value' => 0,
 			),
 			'DATE_CREATE' => array(
@@ -268,6 +282,12 @@ class SessionTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('SESSION_ENTITY_WORKTIME_FIELD'),
 				'default_value' => 'Y',
 			),
+			'SEND_NO_ANSWER_TEXT' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('SESSION_ENTITY_WORKTIME_FIELD'),
+				'default_value' => 'N',
+			),
 			'QUEUE_HISTORY' => array(
 				'data_type' => 'text',
 				'title' => Loc::getMessage('SESSION_ENTITY_QUEUE_HISTORY_FIELD'),
@@ -294,6 +314,10 @@ class SessionTable extends Main\Entity\DataManager
 			'EXTRA_REGISTER' => array(
 				'data_type' => 'integer',
 				'default_value' => 0,
+			),
+			'EXTRA_USER_LEVEL' => array(
+				'data_type' => 'string',
+				'validation' => array(__CLASS__, 'validateExtraUserLevel')
 			),
 			'EXTRA_TARIFF' => array(
 				'data_type' => 'string',
@@ -326,6 +350,10 @@ class SessionTable extends Main\Entity\DataManager
 				'data_type' => 'Bitrix\ImOpenLines\Model\Config',
 				'reference' => array('=this.CONFIG_ID' => 'ref.ID'),
 			),
+			'CHAT' => array(
+				'data_type' => 'Bitrix\Im\Model\Chat',
+				'reference' => array('=this.CHAT_ID' => 'ref.ID'),
+			),
 			'CHECK' => array(
 				'data_type' => 'Bitrix\ImOpenLines\Model\SessionCheck',
 				'reference' => array('=this.ID' => 'ref.SESSION_ID'),
@@ -337,7 +365,7 @@ class SessionTable extends Main\Entity\DataManager
 			'IS_FIRST' => array(
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y'),
-			)
+			),
 		);
 	}
 
@@ -350,7 +378,10 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns selection by entity's primary key without slow fields
 
 	 * @param mixed $id Primary key of the entity
-	 * @return Main\DB\Result
+	 * @return Main\ORM\Query\Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public static function getByIdPerformance($id)
 	{
@@ -437,6 +468,10 @@ class SessionTable extends Main\Entity\DataManager
 	/**
 	 * @param array $fields Record as returned by getList
 	 * @return string
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public static function generateSearchContent(array $fields)
 	{
@@ -501,6 +536,7 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns validators for SOURCE field.
 	 *
 	 * @return array
+	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateSource()
 	{
@@ -512,6 +548,7 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns validators for SOURCE field.
 	 *
 	 * @return array
+	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateMode()
 	{
@@ -523,6 +560,7 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns validators for USER_CODE field.
 	 *
 	 * @return array
+	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateUserCode()
 	{
@@ -534,8 +572,21 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns validators for EXTRA_TARIFF field.
 	 *
 	 * @return array
+	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateExtraTariff()
+	{
+		return array(
+			new Main\Entity\Validator\Length(null, 255),
+		);
+	}
+	/**
+	 * Returns validators for EXTRA_USER_LEVEL field.
+	 *
+	 * @return array
+	 * @throws Main\ArgumentTypeException
+	 */
+	public static function validateExtraUserLevel()
 	{
 		return array(
 			new Main\Entity\Validator\Length(null, 255),
@@ -545,6 +596,7 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns validators for EXTRA_URL field.
 	 *
 	 * @return array
+	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateExtraUrl()
 	{
@@ -556,6 +608,7 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns validators for CRM_ENTITY_TYPE field.
 	 *
 	 * @return array
+	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateCrmEntityType()
 	{
@@ -567,6 +620,7 @@ class SessionTable extends Main\Entity\DataManager
 	 * Returns validators for CRM_ENTITY_TYPE field.
 	 *
 	 * @return array
+	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateSendForm()
 	{

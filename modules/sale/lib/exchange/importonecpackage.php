@@ -14,6 +14,7 @@ use Bitrix\Sale\Exchange;
 use Bitrix\Sale\Exchange\OneC;
 use Bitrix\Sale\ResultWarning;
 use Bitrix\Sale\Shipment;
+use Bitrix\Sale\Configuration;
 
 IncludeModuleLangFile(__FILE__);
 
@@ -53,7 +54,7 @@ class ImportOneCPackage extends ImportOneCBase
 			$result = new Result();
 			$message = self::getMessage();
 
-			if(Option::get('catalog', 'default_use_store_control', 'N')=='Y' ||
+			if (Configuration::useStoreControl() ||
 				Option::get('catalog', 'enable_reservation', 'N')=='Y')
 			{
 				$result->addError(new Error($message["CC_BSC1_USE_STORE_SALE"]));

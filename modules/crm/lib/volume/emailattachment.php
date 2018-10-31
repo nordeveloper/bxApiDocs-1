@@ -120,11 +120,13 @@ class EmailAttachment extends Crm\Volume\Base implements Crm\Volume\IVolumeClear
 
 			while ($months >= 0)
 			{
+				list($dateSplitPeriod, $dateSplitPeriodUnits) = $this->getDateSplitPeriod();
+
 				$period = $dateMin->format('Y.m');
-				$dateMin->add('3 months');
+				$dateMin->add("$dateSplitPeriod $dateSplitPeriodUnits");
 				$period .= '-';
 				$period .= $dateMin->format('Y.m');
-				$months -= 3;
+				$months -= $dateSplitPeriod;
 
 				$queueList[] = array(
 					'indicatorId' => $indicatorId,

@@ -1402,7 +1402,12 @@ class CCrmMobileHelper
 
 	public static function getContactFilterFields()
 	{
-		$contactTypeList = CCrmStatus::GetStatusListEx('CONTACT_TYPE');
+		$contactTypeList = array("" => GetMessage("M_CRM_NOT_SELECTED"));
+		$contactTypeList2 = CCrmStatus::GetStatusListEx('CONTACT_TYPE');
+		foreach ($contactTypeList2 as $key => $val)
+    	{
+			$contactTypeList[$key] = $val;
+   		 }
 
 		$filterFields = array(
 			array(
@@ -1421,7 +1426,7 @@ class CCrmMobileHelper
 				"type" => "select",
 				"id" => "TYPE_ID",
 				"name" => GetMessage('CRM_COLUMN_CONTACT_TYPE'),
-				"items" => array_merge(array("" => GetMessage("M_CRM_NOT_SELECTED")), $contactTypeList),
+				"items" => $contactTypeList,
 				"value" => ""
 			),
 			array(

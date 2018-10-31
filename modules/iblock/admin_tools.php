@@ -417,11 +417,11 @@ function _ShowListPropertyField($name, $property_fields, $values, $bInitDef = fa
 	$id = $property_fields["ID"];
 	$multiple = $property_fields["MULTIPLE"];
 	$res = "";
+	$prop_enums = CIBlockProperty::GetPropertyEnum($id, ['SORT' => 'ASC', 'VALUE' => 'ASC', 'ID' => 'ASC']);
 	if($property_fields["LIST_TYPE"]=="C") //list property as checkboxes
 	{
 		$cnt = 0;
 		$wSel = false;
-		$prop_enums = CIBlockProperty::GetPropertyEnum($id);
 		while($ar_enum = $prop_enums->Fetch())
 		{
 			$cnt++;
@@ -456,7 +456,6 @@ function _ShowListPropertyField($name, $property_fields, $values, $bInitDef = fa
 	else //list property as list
 	{
 		$bNoValue = true;
-		$prop_enums = CIBlockProperty::GetPropertyEnum($id);
 		while($ar_enum = $prop_enums->Fetch())
 		{
 			if($bInitDef)

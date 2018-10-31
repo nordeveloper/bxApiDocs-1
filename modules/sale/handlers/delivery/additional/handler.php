@@ -862,6 +862,9 @@ class AdditionalHandler extends Base
 				if(empty($esList[$esId]['CODE']))
 					continue;
 
+				if($esList[$esId]['CLASS_NAME'] == '\Bitrix\Sale\Delivery\ExtraServices\Checkbox' && $esVal != 'Y')
+					continue;
+
 				$result['EXTRA_SERVICES'][$esList[$esId]['CODE']] = $esVal;
 			}
 		}

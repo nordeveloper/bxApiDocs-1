@@ -84,18 +84,21 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 		{
 			$fields = parent::getFields();
 
-			$fields['MY_COMPANY'] = [
-				'PROVIDER' => Company::class,
-				'VALUE' => [$this, 'getMyCompanyId'],
-				'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_MY_COMPANY_TITLE'),
-				'OPTIONS' => [
-					'MY_COMPANY' => 'Y',
-					'VALUES' => [
-						'REQUISITE' => $this->getMyCompanyRequisiteId(),
-						'BANK_DETAIL' => $this->getMyCompanyBankDetailId(),
-					]
-				],
-			];
+			if(!$this->isLightMode())
+			{
+				$fields['MY_COMPANY'] = [
+					'PROVIDER' => Company::class,
+					'VALUE' => [$this, 'getMyCompanyId'],
+					'TITLE' => GetMessage('CRM_DOCGEN_CRMENTITYDATAPROVIDER_MY_COMPANY_TITLE'),
+					'OPTIONS' => [
+						'MY_COMPANY' => 'Y',
+						'VALUES' => [
+							'REQUISITE' => $this->getMyCompanyRequisiteId(),
+							'BANK_DETAIL' => $this->getMyCompanyBankDetailId(),
+						]
+					],
+				];
+			}
 
 			$fields['REQUISITE'] = [
 				'PROVIDER' => Requisite::class,
@@ -254,7 +257,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 					$entityTypes[] = \CCrmOwnerType::Deal;
 				}
 				$isCrmPrefix = (count($entityTypes) > 1);
-				if($isCrmPrefix || !is_numeric($field['VALUE']))
+				if($isCrmPrefix || (!is_numeric($field['VALUE'])) && $field['VALUE'] !== false)
 				{
 					$parts = explode('_', $field['VALUE']);
 					$field['VALUE'] = $parts[1];
@@ -355,6 +358,10 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			$currency = $parts[1];
 			$value = new Money($value, ['CURRENCY_ID' => $currency]);
 		}
+		elseif(is_array($value))
+		{
+			$value = implode(', ', $value);
+		}
 
 		return $value;
 	}
@@ -395,6 +402,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	{
 		return [
 			'string' => 'string',
+			'integer' => 'integer',
 			'enumeration' => 'enumeration',
 			'file' => 'file',
 			'url' => 'url',

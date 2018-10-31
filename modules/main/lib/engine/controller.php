@@ -4,6 +4,7 @@ namespace Bitrix\Main\Engine;
 
 
 use Bitrix\Main\Engine\Contract\Controllerable;
+use Bitrix\Main\Engine\Response\Converter;
 use Bitrix\Main\Error;
 use Bitrix\Main\ErrorCollection;
 use Bitrix\Main\Errorable;
@@ -47,6 +48,8 @@ class Controller implements Errorable, Controllerable
 	private $scope;
 	/** @var CurrentUser */
 	private $currentUser;
+	/** @var Converter */
+	private $converter;
 	/** @var string */
 	private $filePath;
 	/** @var array */
@@ -71,6 +74,7 @@ class Controller implements Errorable, Controllerable
 		$this->errorCollection = new ErrorCollection;
 		$this->request = $request?: Context::getCurrent()->getRequest();
 		$this->configurator = new Configurator();
+		$this->converter = Converter::toJson();
 
 		$this->init();
 	}
@@ -121,17 +125,18 @@ class Controller implements Errorable, Controllerable
 	 *
 	 * @param string $actionName Action name. It's a relative action name without controller name.
 	 * @param array $params Parameters for creating uri.
+	 * @param bool $absolute
 	 *
 	 * @return \Bitrix\Main\Web\Uri
 	 */
-	final public function getActionUri($actionName, array $params = array())
+	final public function getActionUri($actionName, array $params = array(), $absolute = false)
 	{
 		if (strpos($this->getFilePath(), '/components/') === false)
 		{
-			return UrlManager::getInstance()->createByController($this, $actionName, $params);
+			return UrlManager::getInstance()->createByController($this, $actionName, $params, $absolute);
 		}
 
-		return UrlManager::getInstance()->createByComponentController($this, $actionName, $params);
+		return UrlManager::getInstance()->createByComponentController($this, $actionName, $params, $absolute);
 	}
 
 	/**
@@ -150,6 +155,18 @@ class Controller implements Errorable, Controllerable
 		$this->currentUser = $currentUser;
 	}
 
+	/**
+	 * Converts keys of array to camel case notation.
+	 * @see \Bitrix\Main\Engine\Response\Converter::OUTPUT_JSON_FORMAT
+	 * @param mixed $data Data.
+	 *
+	 * @return array|mixed|string
+	 */
+	public function convertKeysToCamelCase($data)
+	{
+		return $this->converter->process($data);
+	}
+	
 	/**
 	 * Returns list of all
 	 * @return array

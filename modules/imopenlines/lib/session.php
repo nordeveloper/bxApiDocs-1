@@ -60,6 +60,9 @@ class Session
 	const ORM_SAVE = 'save';
 	const ORM_GET = 'get';
 
+	const VOTE_LIKE = 5;
+	const VOTE_DISLIKE = 0;
+
 	public function __construct($config = array())
 	{
 		$this->error = new Error(null, '', '');
@@ -258,7 +261,12 @@ class Session
 				Model\ConfigStatisticTable::update($this->session['CONFIG_ID'], $updateStatisticTable);
 
 				$dateClose = new \Bitrix\Main\Type\DateTime();
-				$dateClose->add('10 MINUTES');
+
+				$fullCloseTime = $this->config['FULL_CLOSE_TIME'];
+				if(!empty($fullCloseTime))
+				{
+					$dateClose->add($fullCloseTime . ' MINUTES');
+				}
 
 				$this->session['END_ID'] = 0;
 				$this->session['CLOSED'] = 'N';
@@ -387,16 +395,44 @@ class Session
 				$fields['QUEUE_HISTORY'] = Array();
 				$params['USER_LIST'] = $queue['USER_LIST'];
 
-				$queue = $this->getNextInQueue();
-				$fields['OPERATOR_ID'] = $queue['RESULT'] ? $queue['USER_ID'] : $queue['FIRST_IN_QUEUE'];
+				$fields['OPERATOR_ID'] = 0;
 			}
 			else
 			{
-				$queue = $this->getNextInQueue();
-				$fields['OPERATOR_ID'] = $queue['RESULT'] ? $queue['USER_ID'] : $queue['FIRST_IN_QUEUE'];
+				$sessionCheckCount = Model\SessionCheckTable::getList(array(
+					'select' => array('CNT'),
+					'runtime' => array(new \Bitrix\Main\Entity\ExpressionField('CNT', 'COUNT(*)')),
+					'filter' => array(
+						'!=DATE_QUEUE' => null,
+						'SESSION.CONFIG_ID' => $this->config['ID'],
+						array(
+							'LOGIC' => 'OR',
+							array('SESSION.OPERATOR_ID' => null),
+							array('SESSION.OPERATOR_ID' => 0)
+						)
+					),
+				))->fetch();
+
+				if($sessionCheckCount['CNT'] > 0)
+				{
+					$fields['OPERATOR_ID'] = 0;
+				}
+				else
+				{
+					$queue = $this->getNextInQueue(false, $this->session['OPERATOR_ID']);
+					$fields['OPERATOR_ID'] = $queue['RESULT'] ? $queue['USER_ID'] : 0;
+				}
+
 				if (isset($this->session['QUEUE_HISTORY']))
 				{
-					$fields['QUEUE_HISTORY'] = $this->session['QUEUE_HISTORY'];
+					if(!empty($fields['OPERATOR_ID']) && !empty($this->session['QUEUE_HISTORY'][$fields['OPERATOR_ID']]))
+					{
+						$fields['QUEUE_HISTORY'] = $this->session['QUEUE_HISTORY'] = array($fields['OPERATOR_ID'] => true);
+					}
+					else
+					{
+						$fields['QUEUE_HISTORY'] = $this->session['QUEUE_HISTORY'];
+					}
 				}
 			}
 
@@ -412,6 +448,7 @@ class Session
 					'ACTIVE' => $fields['CRM'],
 					'ENTITY_TYPE' => $fields['CRM_ENTITY_TYPE'],
 					'ENTITY_ID' => $fields['CRM_ENTITY_ID'],
+					'DEAL_ID' => $fields['CRM_DEAL_ID'],
 				));
 			}
 			else
@@ -420,6 +457,7 @@ class Session
 					'ACTIVE' => 'N',
 					'ENTITY_TYPE' => 'NONE',
 					'ENTITY_ID' => 0,
+					'DEAL_ID' => 0,
 				));
 			}
 
@@ -467,9 +505,13 @@ class Session
 				$fields['QUEUE_HISTORY'][$fields['OPERATOR_ID']] = true;
 			}
 
-			if (!empty($params['USER_LIST']))
+			if (!empty($params['USER_LIST']) && !empty($fields['OPERATOR_ID']))
 			{
 				$this->joinUserList = array_merge(Array($fields['OPERATOR_ID']), $params['USER_LIST']);
+			}
+			else if (!empty($params['USER_LIST']) && empty($fields['OPERATOR_ID']))
+			{
+				$this->joinUserList = $params['USER_LIST'];
 			}
 			else if ($fields['OPERATOR_ID'])
 			{
@@ -490,6 +532,7 @@ class Session
 					'ACTIVE' => 'Y',
 					'ENTITY_TYPE' => $fields['CRM_ENTITY_TYPE'],
 					'ENTITY_ID' => $fields['CRM_ENTITY_ID'],
+					'DEAL_ID' => $fields['CRM_DEAL_ID'],
 				));
 			}
 			if ($this->config['ACTIVE'] == 'N')
@@ -542,7 +585,12 @@ class Session
 		if ($fields['MODE'] == self::MODE_INPUT)
 		{
 			$dateQueue = new \Bitrix\Main\Type\DateTime();
-			if ($this->session['JOIN_BOT'])
+
+			if(empty($fields['OPERATOR_ID']))
+			{
+				$dateQueue->add('60 SECONDS');
+			}
+			elseif ($this->session['JOIN_BOT'])
 			{
 				if ($this->config['WELCOME_BOT_TIME'] > 0)
 				{
@@ -579,8 +627,21 @@ class Session
 		$eventData['CONFIG'] = $this->config;
 
 		$event = new \Bitrix\Main\Event("imopenlines", "OnSessionStart", $eventData);
-
 		$event->send();
+
+		if ($this->session['SOURCE'] == 'livechat')
+		{
+			$parsedUserCode = self::parseUserCode($this->session['USER_CODE']);
+
+			\Bitrix\Pull\Event::add($this->session['USER_ID'], Array(
+				'module_id' => 'imopenlines',
+				'command' => 'sessionStart',
+				'params' => Array(
+					'chatId' => (int)$parsedUserCode['EXTERNAL_CHAT_ID'],
+					'sessionId' => (int)$this->session['ID'],
+				)
+			));
+		}
 
 		return true;
 	}
@@ -797,7 +858,7 @@ class Session
 					$waitAction = true;
 				}
 
-				if ($enableSystemMessage && $this->config['VOTE_MESSAGE'] == 'Y' && $this->session['CHAT_ID'])
+				if ($enableSystemMessage && $this->config['VOTE_MESSAGE'] == 'Y' && $this->session['CHAT_ID'] && empty($this->session['VOTE']))
 				{
 					Im::addMessage(Array(
 						"TO_CHAT_ID" => $this->session['CHAT_ID'],
@@ -868,7 +929,7 @@ class Session
 					$waitAction = true;
 				}
 
-				if ($enableSystemMessage && $this->config['VOTE_MESSAGE'] == 'Y')
+				if ($enableSystemMessage && $this->config['VOTE_MESSAGE'] == 'Y' && empty($this->session['VOTE']))
 				{
 					Im::addMessage(Array(
 						"TO_CHAT_ID" => $this->session['CHAT_ID'],
@@ -979,6 +1040,89 @@ class Session
 		return true;
 	}
 
+	public function dismissedOperatorFinish()
+	{
+		if (empty($this->session))
+		{
+			return false;
+		}
+
+		$update = Array();
+
+		$this->session['CLOSED'] = 'Y';
+		$update['FORCE_CLOSE'] = 'Y';
+
+		$closeDate = $this->session['DATE_LAST_MESSAGE']->add('60 MINUTES');
+
+		if ($this->session['CHAT_ID'])
+		{
+			$chatData = \Bitrix\Im\Model\ChatTable::getById($this->session['CHAT_ID'])->fetch();
+			$lastMessageId = $chatData['LAST_MESSAGE_ID'];
+		}
+		else
+		{
+			$lastMessageId = 0;
+		}
+
+		$update['WAIT_ACTION'] = 'N';
+		$update['WAIT_ANSWER'] = 'N';
+		$update['CLOSED'] = 'Y';
+
+		if (!(
+			$this->session['CLOSED'] == 'Y'
+			|| $this->session['SPAM'] == 'Y'
+			|| $this->session['WAIT_ACTION'] == 'Y' && $this->session['WAIT_ANSWER'] == 'N'
+		))
+		{
+			if ($this->config['ACTIVE'] != 'N')
+			{
+				if (!\Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot())
+				{
+					$update['DATE_OPERATOR_CLOSE'] = $closeDate;
+				}
+				if ($this->session['DATE_CREATE'])
+				{
+					$update['TIME_CLOSE'] = $closeDate->getTimestamp()-$this->session['DATE_CREATE']->getTimestamp();
+				}
+			}
+			$update['DATE_MODIFY'] = $closeDate;
+		}
+
+		if ($this->session['CRM_ACTIVITY_ID'] > 0)
+		{
+			$crmManager = new Crm();
+			$crmManager->updateActivity(Array(
+				'ID' => $this->session['CRM_ACTIVITY_ID'],
+				'UPDATE' => Array(
+					'COMPLETED' => 'Y',
+					'END_TIME' => $closeDate
+				)
+			));
+		}
+
+		$update['DATE_CLOSE'] = $closeDate;
+
+		if ($this->session['TIME_CLOSE'] <= 0 && $this->session['DATE_CREATE'])
+		{
+			$update['TIME_CLOSE'] = $update['DATE_CLOSE']->getTimestamp()-$this->session['DATE_CREATE']->getTimestamp();
+		}
+		if (\Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot() && $this->session['TIME_BOT'] <= 0 && $this->session['DATE_CREATE'])
+		{
+			$update['TIME_BOT'] = $update['DATE_CLOSE']->getTimestamp()-$this->session['DATE_CREATE']->getTimestamp();
+		}
+
+		if ($this->session['CHAT_ID'])
+		{
+			$update['END_ID'] = $lastMessageId;
+		}
+
+		Im::chatHide($this->session['CHAT_ID']);
+
+		$this->update($update);
+
+		return true;
+	}
+
 	public function getData($field = '')
 	{
 		if ($field)
@@ -1018,7 +1162,8 @@ class Session
 	public function createLead($params)
 	{
 		$crmManager = new Crm();
-		$crmData = $crmManager->addLead(array(
+
+		$crmData = $crmManager->registerLead(array(
 			'CONFIG_ID' => $params['CONFIG_ID'],
 			'USER_CODE' => $params['USER_CODE'],
 			'USER_ID' => $params['USER_ID'],
@@ -1027,12 +1172,47 @@ class Session
 			'SKIP_CREATE' => $params['SKIP_CREATE'],
 			'MODE' => $params['MODE']
 		));
+
 		if ($crmData)
 		{
+			if (!empty($crmData['BINDINGS']))
+			{
+				$crmData['ACTIVITY_ID'] = $crmManager->addActivity(Array(
+					'TITLE' => $params['CRM_TITLE'],
+					'MODE' => $params['MODE'],
+					'USER_CODE' => $params['USER_CODE'],
+					'SESSION_ID' => intval($params['SESSION_ID']),
+					'COMPLETED' => 'N',
+					'DATE_CREATE' => new \Bitrix\Main\Type\DateTime(),
+					'AUTHOR_ID' => $params['OPERATOR_ID'],
+					'RESPONSIBLE_ID' => $params['OPERATOR_ID'],
+					'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
+					'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
+					'CRM_BINDINGS' => $crmData['BINDINGS'],
+					'ANSWERED' => $params['ANSWERED'] == 'Y'? 'Y': 'N',
+				));
+
+				$crmManager->executeAutomation($crmData['BINDINGS'], array(
+					'CONFIG_ID' => $params['CONFIG_ID']
+				));
+			}
+
 			if ($crmData['LEAD_CREATE'] == 'Y')
 			{
 				$messageCode = 'IMOL_SESSION_LEAD_ADD_NEW';
 				$keyboard = '';
+
+				if($crmData['ENTITY_TYPE'] == Crm::ENTITY_LEAD && !\Bitrix\Crm\Settings\LeadSettings::isEnabled())
+				{
+					$leadData = Crm::get('LEAD', $crmData['ENTITY_ID']);
+
+					$crmData['COMPANY_ID'] = $leadData['COMPANY_ID'];
+					$crmData['CONTACT_ID'] = $leadData['CONTACT_ID'];
+
+					$dealData = Crm::getDealForLead($crmData['ENTITY_ID']);
+
+					$crmData['DEAL_ID'] = $dealData['ID'];
+				}
 			}
 			else
 			{
@@ -1054,50 +1234,68 @@ class Session
 			}
 
 			$userViewChat = \CIMContactList::InRecent($params['OPERATOR_ID'], IM_MESSAGE_OPEN_LINE, $params['CHAT_ID']);
-			$messageId = Im::addMessage(Array(
-				"TO_CHAT_ID" => $params['CHAT_ID'],
-				"MESSAGE" => '[b]'.Loc::getMessage($messageCode).'[/b]',
-				"SYSTEM" => 'Y',
-				"ATTACH" => $crmManager->getEntityCard($crmData['ENTITY_TYPE'], $crmData['ENTITY_ID']),
-				"RECENT_ADD" => $userViewChat? 'Y': 'N',
-				"KEYBOARD" => $keyboard
-			));
 
-			if ($keyboard)
+			if(!\Bitrix\Crm\Settings\LeadSettings::isEnabled())
 			{
-				$result = TrackerTable::add(Array(
-					'SESSION_ID' => intval($params['SESSION_ID']),
-					'CHAT_ID' => $params['CHAT_ID'],
-					'MESSAGE_ID' => $messageId,
-					'USER_ID' => $params['USER_ID'],
-					'ACTION' => Tracker::ACTION_EXTEND,
-					'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
-					'FIELD_TYPE' => Tracker::FIELD_IM,
-					'FIELD_VALUE' => 'imol|'.$params['USER_CODE'],
-				));
-				$crmData['CRM_TRACK_ID'] = $result->getId();
+				if(!empty($crmData['COMPANY_ID']))
+				{
+					Im::addMessage(Array(
+						"TO_CHAT_ID" => $params['CHAT_ID'],
+						"MESSAGE" => '[b]'.Loc::getMessage('IMOL_SESSION_COMPANY').'[/b]',
+						"SYSTEM" => 'Y',
+						"ATTACH" => $crmManager->getEntityCard(Crm::ENTITY_COMPANY, $crmData['COMPANY_ID']),
+						"RECENT_ADD" => $userViewChat? 'Y': 'N'
+					));
+				}
+
+				if(!empty($crmData['CONTACT_ID']))
+				{
+					Im::addMessage(Array(
+						"TO_CHAT_ID" => $params['CHAT_ID'],
+						"MESSAGE" => '[b]'.Loc::getMessage('IMOL_SESSION_CONTACT').'[/b]',
+						"SYSTEM" => 'Y',
+						"ATTACH" => $crmManager->getEntityCard(Crm::ENTITY_CONTACT, $crmData['CONTACT_ID']),
+						"RECENT_ADD" => $userViewChat? 'Y': 'N'
+					));
+				}
+
+				if(!empty($crmData['DEAL_ID']))
+				{
+					Im::addMessage(Array(
+						"TO_CHAT_ID" => $params['CHAT_ID'],
+						"MESSAGE" => '[b]'.Loc::getMessage('IMOL_SESSION_DEAL').'[/b]',
+						"SYSTEM" => 'Y',
+						"ATTACH" => $crmManager->getEntityCard(Crm::ENTITY_DEAL, $crmData['DEAL_ID']),
+						"RECENT_ADD" => $userViewChat? 'Y': 'N'
+					));
+				}
 			}
-
-			if (!empty($crmData['BINDINGS']))
+			else
 			{
-				$crmData['ACTIVITY_ID'] = $crmManager->addActivity(Array(
-					'TITLE' => $params['CRM_TITLE'],
-					'MODE' => $params['MODE'],
-					'USER_CODE' => $params['USER_CODE'],
-					'SESSION_ID' => intval($params['SESSION_ID']),
-					'COMPLETED' => 'N',
-					'DATE_CREATE' => new \Bitrix\Main\Type\DateTime(),
-					'AUTHOR_ID' => $params['OPERATOR_ID'],
-					'RESPONSIBLE_ID' => $params['OPERATOR_ID'],
-					'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
-					'CRM_BINDINGS' => $crmData['BINDINGS'],
-					'ANSWERED' => $params['ANSWERED'] == 'Y'? 'Y': 'N',
+				$messageId = Im::addMessage(Array(
+					"TO_CHAT_ID" => $params['CHAT_ID'],
+					"MESSAGE" => '[b]'.Loc::getMessage($messageCode).'[/b]',
+					"SYSTEM" => 'Y',
+					"ATTACH" => $crmManager->getEntityCard($crmData['ENTITY_TYPE'], $crmData['ENTITY_ID']),
+					"RECENT_ADD" => $userViewChat? 'Y': 'N',
+					"KEYBOARD" => $keyboard
 				));
-				$crmManager->executeAutomationTrigger($crmData['BINDINGS'], array(
-					'CONFIG_ID' => $params['CONFIG_ID']
-				));
+
+				if ($keyboard)
+				{
+					$result = TrackerTable::add(Array(
+						'SESSION_ID' => intval($params['SESSION_ID']),
+						'CHAT_ID' => $params['CHAT_ID'],
+						'MESSAGE_ID' => $messageId,
+						'USER_ID' => $params['USER_ID'],
+						'ACTION' => Tracker::ACTION_EXTEND,
+						'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
+						'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
+						'FIELD_TYPE' => Tracker::FIELD_IM,
+						'FIELD_VALUE' => 'imol|'.$params['USER_CODE'],
+					));
+					$crmData['CRM_TRACK_ID'] = $result->getId();
+				}
 			}
 		}
 
@@ -1161,16 +1359,21 @@ class Session
 			$dateActivityClose->add('1 DAY');
 			$dateActivityClose->add($this->getConfig('AUTO_CLOSE_TIME').' SECONDS');
 
+			$fullCloseTime = $this->getConfig('FULL_CLOSE_TIME');
+
 			$dateClose = clone $fields['DATE_MODIFY'];
 
 			if ($this->session['PAUSE'] == 'N' || $fields['PAUSE'] == 'N')
 			{
 				if (isset($fields['USER_ID']) && \Bitrix\Im\User::getInstance($fields['USER_ID'])->isConnector())
 				{
-					if ($this->session['VOTE_SESSION'])
+					if ($this->session['VOTE_SESSION'] && ($this->session['WAIT_ACTION'] == 'Y' && $fields['WAIT_ACTION'] != 'N' || $fields['WAIT_ACTION'] == 'Y'))
 					{
 						$fields['STATUS'] = self::STATUS_WAIT_CLIENT;
-						$dateClose->add('10 MINUTES');
+						if(!empty($fullCloseTime))
+						{
+							$dateClose->add($fullCloseTime . ' MINUTES');
+						}
 
 						$updateActivity['END_TIME'] = $dateActivityClose;
 					}
@@ -1178,6 +1381,7 @@ class Session
 					{
 						$dateClose->add('1 MONTH');
 						$updateCheckTable['DATE_CLOSE'] = $dateClose;
+						$updateChatSession['WAIT_ACTION'] = $this->session['WAIT_ACTION'] = $fields['WAIT_ACTION'] = "N";
 
 						if ($this->session['STATUS'] >= self::STATUS_OPERATOR || $this->session['STATUS'] == self::STATUS_ANSWER)
 						{
@@ -1209,7 +1413,10 @@ class Session
 					else if ($this->session['WAIT_ACTION'] == 'Y' && $fields['WAIT_ACTION'] != 'N' || $fields['WAIT_ACTION'] == 'Y')
 					{
 						$fields['STATUS'] = self::STATUS_WAIT_CLIENT;
-						$dateClose->add('10 MINUTES');
+						if(!empty($fullCloseTime))
+						{
+							$dateClose->add($fullCloseTime . ' MINUTES');
+						}
 
 						$updateActivity['END_TIME'] = $dateActivityClose;
 					}
@@ -1259,7 +1466,10 @@ class Session
 					else if ($this->session['WAIT_ACTION'] == 'Y' && $fields['WAIT_ACTION'] != 'N' || $fields['WAIT_ACTION'] == 'Y')
 					{
 						$fields['STATUS'] = self::STATUS_WAIT_CLIENT;
-						$dateClose->add('10 MINUTES');
+						if(!empty($fullCloseTime))
+						{
+							$dateClose->add($fullCloseTime . ' MINUTES');
+						}
 
 						$updateActivity['END_TIME'] = $dateActivityClose;
 					}
@@ -1319,6 +1529,20 @@ class Session
 				{
 					\Bitrix\ImOpenLines\Mail::sendOperatorAnswer($this->session['ID']);
 				}
+			}
+
+			if ($this->session['SOURCE'] == 'livechat')
+			{
+				$parsedUserCode = self::parseUserCode($this->session['USER_CODE']);
+
+				\Bitrix\Pull\Event::add($this->session['USER_ID'], Array(
+					'module_id' => 'imopenlines',
+					'command' => 'sessionFinish',
+					'params' => Array(
+						'chatId' => (int)$parsedUserCode['EXTERNAL_CHAT_ID'],
+						'sessionId' => (int)$this->session['ID'],
+					)
+				));
 			}
 
 			Model\SessionCheckTable::delete($this->session['ID']);
@@ -1429,7 +1653,6 @@ class Session
 		unset($fields['SKIP_DATE_CLOSE']);
 		unset($fields['FORCE_CLOSE']);
 
-
 		if (isset($fields['STATUS']) && $this->session['STATUS'] != $fields['STATUS'])
 		{
 			$this->chat->updateSessionStatus($fields['STATUS']);
@@ -1485,12 +1708,17 @@ class Session
 		{
 			$crmManager = new Crm();
 			$entityData = $crmManager->get(
-				$facility->getPrimaryTypeId(),
+				\CCrmOwnerType::ResolveName($facility->getPrimaryTypeId()),
 				$facility->getPrimaryId()
 			);
+
 			if ($entityData && $entityData['ASSIGNED_BY_ID'])
 			{
-				$result['OPERATOR_ID'] = $params['OPERATOR_ID'] = $entityData['ASSIGNED_BY_ID'];
+				$queue = new Queue($this->session, $this->config, $this->chat);
+				if($queue->isActiveCrmUser($entityData['ASSIGNED_BY_ID']))
+				{
+					$result['OPERATOR_ID'] = $params['OPERATOR_ID'] = $entityData['ASSIGNED_BY_ID'];
+				}
 			}
 		}
 
@@ -1513,6 +1741,7 @@ class Session
 			$result['CRM_ENTITY_TYPE'] =  $crmData['ENTITY_TYPE'];
 			$result['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
 			$result['CRM_ACTIVITY_ID'] = $crmData['ACTIVITY_ID'];
+			$result['CRM_DEAL_ID'] = $crmData['DEAL_ID'];
 		}
 
 		return $result;
@@ -1624,7 +1853,7 @@ class Session
 					));
 				}
 			}
-			else if ($this->action == self::ACTION_NO_ANSWER)
+			else if ($this->action == self::ACTION_NO_ANSWER && $this->session['SEND_NO_ANSWER_TEXT'] != 'Y')
 			{
 				if ($this->config['NO_ANSWER_RULE'] == self::RULE_TEXT)
 				{
@@ -1641,40 +1870,45 @@ class Session
 						)
 					));
 				}
+
+				$update['SEND_NO_ANSWER_TEXT'] = $this->session['SEND_NO_ANSWER_TEXT'] = 'Y';
 			}
 		}
 
-		Log::write(Array(
-			'A' => $this->action,
-			'NC' => $this->chat->isNowCreated(),
-			'AGREEMENT_MESSAGE' => $this->config['AGREEMENT_MESSAGE'],
-			'ESM' => $enableSystemMessage,
-		));
-
 		if ($this->chat->isNowCreated() && $this->config['AGREEMENT_MESSAGE'] == 'Y' && $enableSystemMessage)
 		{
-			$mess = Loc::loadLanguageFile(__FILE__, $this->config['LANGUAGE_ID']);
-			Im::addMessage(Array(
-				"TO_CHAT_ID" => $this->session['CHAT_ID'],
-				"MESSAGE" => str_replace(
-					Array('#LINK_START#', '#LINK_END#'),
-					Array('[URL='.\Bitrix\ImOpenLines\Common::getAgreementLink($this->config['AGREEMENT_ID'])."]", '[/URL]'),
-					$mess['IMOL_SESSION_AGREEMENT_MESSAGE']
-				),
-				"SYSTEM" => 'Y',
-				"IMPORTANT_CONNECTOR" => 'Y',
-				"PARAMS" => Array(
-					"CLASS" => "bx-messenger-content-item-ol-output",
-				)
-			));
-			Im::addMessage(Array(
-				"TO_CHAT_ID" => $this->session['CHAT_ID'],
-				"MESSAGE" => Loc::getMessage('IMOL_SESSION_AGREEMENT_MESSAGE_OPERATOR'),
-				"SYSTEM" => 'Y',
-				"PARAMS" => Array(
-					"CLASS" => "bx-messenger-content-item-ol-attention",
-				)
-			));
+			$addAgreementMessage = true;
+			if ($this->session['SOURCE'] == 'livechat')
+			{
+				$parsedUserCode = self::parseUserCode($this->session['USER_CODE']);
+				$addAgreementMessage = !\Bitrix\Main\UserConsent\Consent::getByContext(intval($this->config['AGREEMENT_ID']), 'imopenlines/livechat', $parsedUserCode['EXTERNAL_CHAT_ID']);
+			}
+
+			if ($addAgreementMessage)
+			{
+				$mess = Loc::loadLanguageFile(__FILE__, $this->config['LANGUAGE_ID']);
+				Im::addMessage(Array(
+					"TO_CHAT_ID" => $this->session['CHAT_ID'],
+					"MESSAGE" => str_replace(
+						Array('#LINK_START#', '#LINK_END#'),
+						Array('[URL='.\Bitrix\ImOpenLines\Common::getAgreementLink($this->config['AGREEMENT_ID'])."]", '[/URL]'),
+						$mess['IMOL_SESSION_AGREEMENT_MESSAGE']
+					),
+					"SYSTEM" => 'Y',
+					"IMPORTANT_CONNECTOR" => 'Y',
+					"PARAMS" => Array(
+						"CLASS" => "bx-messenger-content-item-ol-output",
+					)
+				));
+				Im::addMessage(Array(
+					"TO_CHAT_ID" => $this->session['CHAT_ID'],
+					"MESSAGE" => Loc::getMessage('IMOL_SESSION_AGREEMENT_MESSAGE_OPERATOR'),
+					"SYSTEM" => 'Y',
+					"PARAMS" => Array(
+						"CLASS" => "bx-messenger-content-item-ol-attention",
+					)
+				));
+			}
 		}
 
 		$update['DATE_MODIFY'] = new \Bitrix\Main\Type\DateTime();
@@ -1695,10 +1929,10 @@ class Session
 		return $result;
 	}
 
-	public function getNextInQueue($manual = false)
+	public function getNextInQueue($manual = false, $currentOperator = 0)
 	{
 		$queue = new Queue($this->session, $this->config, $this->chat);
-		$result = $queue->getNextUser($manual);
+		$result = $queue->getNextUser($manual, $currentOperator);
 
 		return $result;
 	}
@@ -1713,9 +1947,17 @@ class Session
 		}
 		else
 		{
-			$queue = $this->getNextInQueue($manual);
+			$queue = $this->getNextInQueue($manual, $this->session['OPERATOR_ID']);
 			$dateQueue = new \Bitrix\Main\Type\DateTime();
-			$dateQueue->add($this->config['QUEUE_TIME'].' SECONDS');
+
+			if(!empty($queue['USER_ID']))
+			{
+				$dateQueue->add($this->config['QUEUE_TIME'].' SECONDS');
+			}
+			else
+			{
+				$dateQueue->add('60 SECONDS');
+			}
 		}
 
 		if ($queue['RESULT'])
@@ -1729,19 +1971,28 @@ class Session
 					'LEAVE' => $this->config['WELCOME_BOT_LEFT'] == Config::BOT_LEFT_CLOSE && \Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot()? 'N':'Y'
 				));
 			}
-			$this->session['QUEUE_HISTORY'][$queue['USER_ID']] = true;
+
+			if(!empty($this->session['QUEUE_HISTORY'][$queue['USER_ID']]))
+			{
+				$this->session['QUEUE_HISTORY'] = array($queue['USER_ID'] => true);
+			}
+			else
+			{
+				$this->session['QUEUE_HISTORY'][$queue['USER_ID']] = true;
+			}
+
 			$update['QUEUE_HISTORY'] = $this->session['QUEUE_HISTORY'];
 		}
 		else if ($this->session['WAIT_ACTION'] != 'Y' && $this->config['ACTIVE'] == 'Y')
 		{
 			if (
 				$this->config['QUEUE_TYPE'] != Config::QUEUE_TYPE_ALL
-				&& ($this->session['OPERATOR_ID'] <= 0 || \Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot())
+				&& (\Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot())
 			)
 			{
 				$this->chat->transfer(Array(
 					'FROM' => $this->session['OPERATOR_ID'],
-					'TO' => $queue['FIRST_IN_QUEUE'],
+					'TO' => 0,
 					'MODE' => Chat::TRANSFER_MODE_AUTO,
 					'LEAVE' => $this->config['WELCOME_BOT_LEFT'] == Config::BOT_LEFT_CLOSE && \Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot()? 'N':'Y'
 				));
@@ -1752,9 +2003,8 @@ class Session
 				if ($this->config['NO_ANSWER_RULE'] != self::RULE_QUEUE)
 				{
 					$update['WAIT_ACTION'] = 'Y';
-					$dateQueue = null;
 				}
-				if ($this->config['NO_ANSWER_RULE'] == self::RULE_TEXT && Connector::isEnableSendSystemMessage($this->connectorId))
+				if ($this->config['NO_ANSWER_RULE'] == self::RULE_TEXT && $this->session['SEND_NO_ANSWER_TEXT'] != 'Y' && Connector::isEnableSendSystemMessage($this->connectorId))
 				{
 					\Bitrix\ImOpenLines\Log\NoAnswer::add($this->session);
 
@@ -1768,6 +2018,8 @@ class Session
 							"IMOL_FORM" => "offline"
 						)
 					));
+
+					$update['SEND_NO_ANSWER_TEXT'] = $this->session['SEND_NO_ANSWER_TEXT'] = 'Y';
 				}
 			}
 			else if ($this->config['NO_ANSWER_RULE'] == self::RULE_QUEUE && $manual)
@@ -1782,35 +2034,28 @@ class Session
 		}
 		else
 		{
-			if (
-				$this->config['QUEUE_TYPE'] != Config::QUEUE_TYPE_ALL
-				&& $this->session['OPERATOR_ID'] <= 0 && $queue['FIRST_IN_QUEUE'] > 0
-			)
+			if ($manual)
 			{
-				$this->chat->transfer(Array(
-					'FROM' => $this->session['OPERATOR_ID'],
-					'TO' => $queue['FIRST_IN_QUEUE'],
-					'MODE' => Chat::TRANSFER_MODE_AUTO,
-					'LEAVE' => $this->config['WELCOME_BOT_LEFT'] == Config::BOT_LEFT_CLOSE && \Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot()? 'N':'Y'
+				Im::addMessage(Array(
+					"TO_CHAT_ID" => $this->session['CHAT_ID'],
+					'MESSAGE' => Loc::getMessage('IMOL_SESSION_SKIP_ALONE'),
+					'SYSTEM' => 'Y',
+					'SKIP_COMMAND' => 'Y'
 				));
 			}
-			else if ($manual)
+			else
 			{
-				if ($queue['FIRST_IN_QUEUE'] > 0 && $queue['FIRST_IN_QUEUE'] != $this->session['OPERATOR_ID'])
+				if ($this->session['OPERATOR_ID'] != 0 && $this->config['QUEUE_TYPE'] != Config::QUEUE_TYPE_ALL)
 				{
-					$transferToQueue = true;
-				}
-				else
-				{
-					Im::addMessage(Array(
-						"TO_CHAT_ID" => $this->session['CHAT_ID'],
-						'MESSAGE' => Loc::getMessage('IMOL_SESSION_SKIP_ALONE'),
-						'SYSTEM' => 'Y',
-						'SKIP_COMMAND' => 'Y'
+					$this->chat->transfer(Array(
+						'FROM' => $this->session['OPERATOR_ID'],
+						'TO' => 0,
+						'MODE' => Chat::TRANSFER_MODE_AUTO,
+						'LEAVE' => $this->config['WELCOME_BOT_LEFT'] == Config::BOT_LEFT_CLOSE && \Bitrix\Im\User::getInstance($this->session['OPERATOR_ID'])->isBot()? 'N':'Y'
 					));
 				}
 			}
-			$dateQueue = null;
+
 			$update['QUEUE_HISTORY'] = Array();
 		}
 
@@ -1840,7 +2085,7 @@ class Session
 		return $finalize;
 	}
 
-	public static function transferToNextInQueueAgent($nextExec)
+	public static function transferToNextInQueueAgent($nextExec, $offset = 0)
 	{
 		if (self::getQueueFlagCache(self::CACHE_QUEUE))
 			return '\Bitrix\ImOpenLines\Session::transferToNextInQueueAgent(0);';
@@ -1850,6 +2095,7 @@ class Session
 			'runtime' => array(new \Bitrix\Main\Entity\ExpressionField('CNT', 'COUNT(*)')),
 			'filter' => Array('!=DATE_QUEUE' => null),
 		))->fetch();
+
 		if ($configCount['CNT'] <= 0)
 		{
 			self::setQueueFlagCache(self::CACHE_QUEUE);
@@ -1859,6 +2105,7 @@ class Session
 		$configs = Array();
 		$chats = Array();
 		$configManager = new Config();
+		$newOffset = 0;
 
 		$select = Model\SessionTable::getSelectFieldsPerformance('SESSION');
 		$res = Model\SessionCheckTable::getList(Array(
@@ -1866,29 +2113,41 @@ class Session
 			'filter' => Array(
 				'<=DATE_QUEUE' => new \Bitrix\Main\Type\DateTime()
 			),
-			'limit' => 100
+			'order' => array('SESSION.DATE_CREATE'),
+			'limit' => Common::getMaxSessionCount()+1,
+			'offset' => $offset
 		));
+
+		$count = 0;
 		while ($row = $res->fetch())
 		{
-			$fields = Array();
-			foreach($row as $key=>$value)
+			$count++;
+			if($count <= Common::getMaxSessionCount())
 			{
-				$key = str_replace('IMOPENLINES_MODEL_SESSION_CHECK_SESSION_', '', $key);
-				$fields[$key] = $value;
-			}
+				$fields = Array();
+				foreach($row as $key=>$value)
+				{
+					$key = str_replace('IMOPENLINES_MODEL_SESSION_CHECK_SESSION_', '', $key);
+					$fields[$key] = $value;
+				}
 
-			if (!isset($configs[$fields['CONFIG_ID']]))
-			{
-				$configs[$fields['CONFIG_ID']] = $configManager->get($fields['CONFIG_ID']);
-			}
-			if (!isset($chats[$fields['CHAT_ID']]))
-			{
-				$chats[$fields['CHAT_ID']] = new Chat($fields['CHAT_ID']);
-			}
+				if (!isset($configs[$fields['CONFIG_ID']]))
+				{
+					$configs[$fields['CONFIG_ID']] = $configManager->get($fields['CONFIG_ID']);
+				}
+				if (!isset($chats[$fields['CHAT_ID']]))
+				{
+					$chats[$fields['CHAT_ID']] = new Chat($fields['CHAT_ID']);
+				}
 
-			$session = new Session();
-			$session->loadByArray($fields, $configs[$fields['CONFIG_ID']], $chats[$fields['CHAT_ID']]);
-			$session->transferToNextInQueue(false);
+				$session = new Session();
+				$session->loadByArray($fields, $configs[$fields['CONFIG_ID']], $chats[$fields['CHAT_ID']]);
+				$session->transferToNextInQueue(false);
+			}
+			else
+			{
+				$newOffset = $offset + Common::getMaxSessionCount();
+			}
 		}
 
 		if (\Bitrix\Main\Loader::includeModule('pull'))
@@ -1896,7 +2155,7 @@ class Session
 			\Bitrix\Pull\Event::send();
 		}
 
-		return '\Bitrix\ImOpenLines\Session::transferToNextInQueueAgent(1);';
+		return '\Bitrix\ImOpenLines\Session::transferToNextInQueueAgent(1, ' . $newOffset . ');';
 	}
 
 	public static function closeByTimeAgent($nextExec)
@@ -1994,10 +2253,68 @@ class Session
 
 		return '\Bitrix\ImOpenLines\Session::mailByTimeAgent(1);';
 	}
-	
+
 	public static function dismissedOperatorAgent($nextExec)
 	{
-		return '';
+		$res = Model\SessionCheckTable::getList(Array(
+			'select' => Array('SESSION_ID', 'CHAT_ID' => 'SESSION.CHAT_ID', 'OPERATOR_ID' => 'SESSION.OPERATOR_ID', 'SESSION.OPERATOR.ID', 'SESSION.OPERATOR.ACTIVE', 'DATE_LAST_MESSAGE' => 'SESSION.DATE_LAST_MESSAGE'),
+			'filter' => Array(
+				'=DATE_QUEUE' => null,
+				array(
+					'LOGIC' => 'OR',
+					array('SESSION.OPERATOR_ID' => null),
+					array('SESSION.OPERATOR_ID' => 0),
+					'SESSION.OPERATOR.ID' => null,
+					'SESSION.OPERATOR.ACTIVE' => 'N',
+				)
+			),
+			'limit' => 101
+		));
+
+		$count=0;
+		while ($row = $res->fetch())
+		{
+			$count++;
+			if($count<101)
+			{
+				if(!empty(Model\SessionCheckTable::getRowById($row['SESSION_ID'])['DATE_QUEUE']))
+				{
+					$chat = new Chat($row['CHAT_ID']);
+
+					$timeException = new \Bitrix\Main\Type\DateTime();
+					$timeException->add('-7 DAY');
+					if($row['DATE_LAST_MESSAGE']->getTimestamp() > $timeException->getTimestamp())
+					{
+						if(empty($row['OPERATOR_ID']))
+							$row['OPERATOR_ID'] = 0;
+
+						$chat->transfer(Array(
+							'FROM' => $row['OPERATOR_ID'],
+							'TO' => 'queue',
+							'MODE' => Chat::TRANSFER_MODE_AUTO,
+						));
+					}
+					else
+					{
+						$chat->dismissedOperatorFinish();
+					}
+				}
+			}
+			else
+			{
+				\CAgent::AddAgent('\Bitrix\ImOpenLines\Session::dismissedOperatorAgent(1);', "imopenlines", "N", 60, "", "Y", ConvertTimeStamp(time()+\CTimeZone::GetOffset()+60, "FULL"));
+			}
+		}
+
+		if (\Bitrix\Main\Loader::includeModule('pull'))
+		{
+			\Bitrix\Pull\Event::send();
+		}
+
+		if($nextExec == 0)
+		{
+			return '\Bitrix\ImOpenLines\Session::dismissedOperatorAgent(0);';
+		}
 	}
 
 	private static function prolongDueChatActivity($chatId)
@@ -2148,7 +2465,45 @@ class Session
 		}
 
 		$voteValue = $action == 'dislike'? 1: 5;
-		Model\SessionTable::update($sessionId, Array('VOTE' => $voteValue));
+
+		$session = new Session();
+
+		$result = $session->load(Array(
+			'USER_CODE' => $sessionData['USER_CODE'],
+			'SKIP_CREATE' => 'Y',
+			'DEFERRED_JOIN' => 'Y',
+			'VOTE_SESSION' => 'Y'
+		));
+
+		if (!$result)
+		{
+			return false;
+		};
+
+		if ($session->session['ID'] != $sessionId)
+		{
+			return false;
+		};
+
+		$updateSession['VOTE'] = $voteValue;
+		$updateSession['WAIT_VOTE'] = 'N';
+
+		if ($session->getData('CLOSED') == 'Y' && $session->getData('VOTE') === '')
+		{
+			return false;
+		}
+		else if ($session->getData('WAIT_VOTE') == 'Y')
+		{
+			if($session->getConfig('VOTE_CLOSING_DELAY') == 'Y')
+			{
+				$updateSession['WAIT_ANSWER'] = 'N';
+				$updateSession['DATE_MODIFY'] = new \Bitrix\Main\Type\DateTime();
+				$updateSession['DATE_CLOSE'] = new \Bitrix\Main\Type\DateTime();
+				$updateSession['CLOSED'] = 'Y';
+			}
+		}
+
+		$session->update($updateSession);
 
 		$voteEventParams = array(
 			'SESSION_DATA' => $sessionData,
@@ -2163,7 +2518,27 @@ class Session
 			\CIMMessageParam::SendPull($sessionData['END_ID'], Array('IMOL_VOTE_SID', 'IMOL_VOTE_USER'));
 		}
 
-		\Bitrix\ImOpenLines\Chat::sendRatingNotify(\Bitrix\ImOpenLines\Chat::RATING_TYPE_CLIENT, $sessionData['ID'], $voteValue, $sessionData['OPERATOR_ID'], $sessionData['USER_ID']);
+		if ($session->getData('SOURCE') == 'livechat')
+		{
+			// TODO change to send message to chat
+			\Bitrix\ImOpenLines\Chat::sendRatingNotify(
+				\Bitrix\ImOpenLines\Chat::RATING_TYPE_CLIENT,
+				$sessionData['ID'],
+				$voteValue,
+				$sessionData['OPERATOR_ID'],
+				$sessionData['USER_ID']
+			);
+		}
+		else
+		{
+			\Bitrix\ImOpenLines\Chat::sendRatingNotify(
+				\Bitrix\ImOpenLines\Chat::RATING_TYPE_CLIENT,
+				$sessionData['ID'],
+				$voteValue,
+				$sessionData['OPERATOR_ID'],
+				$sessionData['USER_ID']
+			);
+		}
 
 		return true;
 	}

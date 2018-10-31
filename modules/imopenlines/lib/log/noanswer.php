@@ -24,7 +24,7 @@ class NoAnswer
 			$users = array();
 
 			$res = Queue::getList(array(
-				'select' => Array('ID', 'USER_ID', 'IS_ONLINE_CUSTOM', 'LAST_ACTIVITY_DATE'),
+				'select' => Array('ID', 'USER_ID', 'IS_ONLINE_CUSTOM', 'LAST_ACTIVITY_DATE', 'LAST_ACTIVITY_DATE_EXACT'),
 				'filter' => Array('=CONFIG_ID' => $params['CONFIG_ID'])
 			));
 
@@ -36,7 +36,8 @@ class NoAnswer
 					'ABSENT' => User::getInstance($queueUser['USER_ID'])->isAbsent(),
 					'IS_ONLINE' => $queueUser['IS_ONLINE_CUSTOM'],
 					'ACTIVE_STATUS_BY_TIMEMAN' => Queue::getActiveStatusByTimeman($queueUser['USER_ID']),
-					'LAST_ACTIVITY_DATE' => $queueUser['LAST_ACTIVITY_DATE']->toString()
+					'LAST_ACTIVITY_DATE' => $queueUser['LAST_ACTIVITY_DATE']->toString(),
+					'LAST_ACTIVITY_DATE_EXACT' => $queueUser['LAST_ACTIVITY_DATE_EXACT']
 				);
 			}
 

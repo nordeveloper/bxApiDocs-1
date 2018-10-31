@@ -215,6 +215,26 @@ class Helper
 			{
 				$grid = self::getGrid($entity);
 				$effectiveFilterFieldIDs = $grid->getUsedFields();
+				// add some additional fields
+				if ($entity != $types['quote'])
+				{
+
+					$addCodes = array(
+						'ASSIGNED_BY_ID', 'ACTIVITY_COUNTER', 'STAGE_ID'
+					);
+					if (self::$categoryId)
+					{
+						$addCodes[] = 'STAGE_ID';
+					}
+					foreach ($addCodes as $code)
+					{
+						if (!in_array($code, $effectiveFilterFieldIDs))
+						{
+							$effectiveFilterFieldIDs[] = $code;
+						}
+					}
+				}
+				// compile filter
 				if (empty($effectiveFilterFieldIDs))
 				{
 					$effectiveFilterFieldIDs = $grid->getDefaultFieldIDs();

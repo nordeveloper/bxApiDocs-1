@@ -1281,7 +1281,7 @@ if (Main\Loader::includeModule('sale'))
 
 			$availableItems = $this->createProductsListWithCatalogData($products);
 
-			$useStoreControl = (Main\Config\Option::get('catalog','default_use_store_control') == 'Y');
+			$useStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 
 			$productStoreDataList = array();
 			if ($useStoreControl === true)
@@ -1371,7 +1371,7 @@ if (Main\Loader::includeModule('sale'))
 		{
 			$result = new Sale\Result();
 
-			$useStoreControl = (Main\Config\Option::get('catalog','default_use_store_control') == 'Y');
+			$useStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 
 			$productId = $productData['PRODUCT_ID'];
 
@@ -2560,7 +2560,7 @@ if (Main\Loader::includeModule('sale'))
 		{
 			$result = new Sale\Result();
 			$resultList = array();
-			$useStoreControl = (Main\Config\Option::get('catalog','default_use_store_control') == 'Y');
+			$useStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 
 			$filteredProducts = $this->createQuantityFilteredProducts($products);
 
@@ -2748,10 +2748,9 @@ if (Main\Loader::includeModule('sale'))
 		{
 			$result = new Sale\Result();
 			$resultList = array();
-			$useStoreControl = Main\Config\Option::get('catalog','default_use_store_control');
 			$availableItems = $this->createProductsListWithCatalogData($products);
 
-			if ($useStoreControl == "Y")
+			if (Catalog\Config\State::isUsedInventoryManagement())
 			{
 				$r = $this->checkProductsInStore($availableItems);
 				if ($r->isSuccess())
@@ -3762,7 +3761,7 @@ if (Main\Loader::includeModule('sale'))
 
 			$count = -1;
 
-			if ((string)Main\Config\Option::get('catalog','default_use_store_control') == 'Y')
+			if (Catalog\Config\State::isUsedInventoryManagement())
 			{
 				$count = count($this->getStoreIds());
 			}
@@ -3830,7 +3829,7 @@ if (Main\Loader::includeModule('sale'))
 			$result = new Sale\Result();
 
 			//without store control stores are used for information purposes only
-			if ((string)Main\Config\Option::get('catalog','default_use_store_control') !== 'Y')
+			if (!Catalog\Config\State::isUsedInventoryManagement())
 				return $result;
 
 			$resultList = array();
@@ -4791,7 +4790,7 @@ if (Main\Loader::includeModule('sale'))
 		{
 			return !(Main\Config\Option::get("catalog", "enable_reservation") == "N"
 				&& Main\Config\Option::get("sale", "product_reserve_condition") != "S"
-				&& Main\Config\Option::get('catalog','default_use_store_control') != "Y");
+				&& !Catalog\Config\State::isUsedInventoryManagement());
 		}
 
 		/**

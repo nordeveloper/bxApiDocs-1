@@ -19,18 +19,13 @@ class Manager extends Base\RestrictionManager
 	/**
 	 * @return array
 	 */
-	public static function getBuildInRestrictions()
+	protected static function getBuildInRestrictions()
 	{
-		$restrictions = array(
+		return array(
 			'\Bitrix\Sale\Cashbox\Restrictions\PaySystem' => 'lib/cashbox/restrictions/paysystem.php',
+			'\Bitrix\Sale\Cashbox\Restrictions\TradeBinding' => 'lib/cashbox/restrictions/tradebinding.php',
+			'\Bitrix\Sale\Cashbox\Restrictions\Company' => 'lib/cashbox/restrictions/company.php'
 		);
-
-		if (!IsModuleInstalled('bitrix24'))
-		{
-			$restrictions['\Bitrix\Sale\Cashbox\Restrictions\Company'] = 'lib/cashbox/restrictions/company.php';
-		}
-
-		return $restrictions;
 	}
 
 	/**

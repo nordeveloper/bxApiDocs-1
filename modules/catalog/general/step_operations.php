@@ -545,7 +545,7 @@ class CCatalogProductAvailable extends CCatalogStepOperations
 			'SEPARATE_SKU_MODE' => (string)Main\Config\Option::get('catalog', 'show_catalog_tab_with_offers') == 'Y',
 			'CHECK_AVAILABLE' => true,
 			'CHECK_SKU_PRICES' => true,
-			'CHECK_SETS' => \CBXFeatures::IsFeatureEnabled('CatCompleteSet'),
+			'CHECK_SETS' => Catalog\Config\Feature::isProductSetsEnabled(),
 			'CHECK_MEASURE_RATIO' => false,
 			'UPDATE_ONLY' => false
 		);
@@ -1324,7 +1324,7 @@ class CCatalogProductSettings extends CCatalogProductAvailable
 		}
 		unset($catalogId);
 
-		if (CBXFeatures::IsFeatureEnabled('CatCompleteSet'))
+		if (Catalog\Config\Feature::isProductSetsEnabled())
 			static::addSetDescription($result);
 
 		return $result;

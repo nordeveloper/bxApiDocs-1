@@ -129,6 +129,8 @@ abstract class CAllUser extends CDBResult
 
 	public function SetUserGroupArray($arr)
 	{
+		$arr = array_map("intval", $arr);
+		$arr = array_filter($arr);
 		$arr[] = 2;
 		$arr = array_values(array_unique($arr));
 		sort($arr);
@@ -584,6 +586,7 @@ abstract class CAllUser extends CDBResult
 		global $DB, $APPLICATION;
 
 		$arUser = $this->UpdateSessionData($id, $applicationId);
+
 		if($arUser !== false)
 		{
 			self::$CURRENT_USER = false;
@@ -688,6 +691,9 @@ abstract class CAllUser extends CDBResult
 					}
 					$_SESSION["SESS_AUTH"]["STORED_AUTH_ID"] = $stored_id;
 				}
+
+				if(COption::GetOptionString("main", "event_log_login_success", "N") === "Y")
+					CEventLog::Log("SECURITY", "USER_AUTHORIZE", "main", $arUser["ID"], $applicationId);
 			}
 
 			$this->admin = null;
@@ -704,9 +710,6 @@ abstract class CAllUser extends CDBResult
 
 			foreach (GetModuleEvents("main", "OnUserLogin", true) as $arEvent)
 				ExecuteModuleEventEx($arEvent, array($_SESSION["SESS_AUTH"]["USER_ID"], $arParams));
-
-			if(COption::GetOptionString("main", "event_log_login_success", "N") === "Y")
-				CEventLog::Log("SECURITY", "USER_AUTHORIZE", "main", $arUser["ID"], $applicationId);
 
 			Main\Composite\Engine::onUserLogin();
 

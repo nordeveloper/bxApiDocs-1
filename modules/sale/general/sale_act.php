@@ -1307,6 +1307,14 @@ class CSaleActionCtrlBasketGroup extends CSaleActionCtrlAction
 		$mxResult = '';
 		$boolError = false;
 
+		foreach (static::GetAtomsEx(false, false) as $atom)
+		{
+			//TODO: add full check (type, list values, etc)
+			if (!isset($arOneCondition[$atom['id']])			)
+				$boolError = true;
+		}
+		unset($atom);
+
 		if (!isset($arSubs) || !is_array($arSubs))
 		{
 			$boolError = true;

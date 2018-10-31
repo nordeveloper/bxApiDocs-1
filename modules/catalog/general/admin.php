@@ -1,9 +1,10 @@
 <?
 /** @global CAdminMenu $adminMenu */
-use Bitrix\Main\Loader;
-use Bitrix\Main\Localization\Loc;
-use Bitrix\Main\Config\Option;
-use Bitrix\Iblock;
+use Bitrix\Main\Loader,
+	Bitrix\Main\Localization\Loc,
+	Bitrix\Main\Config\Option,
+	Bitrix\Iblock,
+	Bitrix\Catalog;
 
 Loc::loadMessages(__FILE__);
 
@@ -544,7 +545,7 @@ class CCatalogAdmin
 					)
 				)
 			);
-			if (CBXFeatures::IsFeatureEnabled('CatDiscountSave'))
+			if (Catalog\Config\Feature::isCumulativeDiscountsEnabled())
 			{
 				$arItems[] = array(
 					"text" => Loc::getMessage("CAT_DISCOUNT_SAVE"),
@@ -581,7 +582,7 @@ class CCatalogAdmin
 	protected static function OnBuildSaleSettingsMenu(&$arItems)
 	{
 		$showPrices = self::$catalogRead || self::$catalogGroup;
-		$showExtra = (CBXFeatures::IsFeatureEnabled('CatMultiPrice') && (self::$catalogRead || self::$catalogExtra));
+		$showExtra = (Catalog\Config\Feature::isMultiPriceTypesEnabled() && (self::$catalogRead || self::$catalogExtra));
 		if ($showPrices || $showExtra)
 		{
 			$section = array(
@@ -691,7 +692,7 @@ class CCatalogAdmin
 		if (self::$catalogRead || self::$catalogStore)
 		{
 			$arResult = array();
-			if ((string)Option::get('catalog', 'default_use_store_control') == 'Y')
+			if (Catalog\Config\State::isUsedInventoryManagement())
 			{
 				$arResult[] = array(
 					"text" => Loc::getMessage("CM_STORE_DOCS"),

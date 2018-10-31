@@ -2,12 +2,16 @@
 
 namespace Bitrix\ImOpenLines;
 
-use \Bitrix\Main,
-	\Bitrix\Main\Loader,
-	\Bitrix\Main\ModuleManager,
-	\Bitrix\Main\Localization\Loc,
+use \Bitrix\Main\Loader,
+	\Bitrix\Main\Localization\Loc;
+
+use \Bitrix\Crm\EntityManageFacility,
 	\Bitrix\Crm\Activity\BindingSelector,
-	\Bitrix\Crm\Automation\Trigger\OpenLineTrigger;
+	\Bitrix\Crm\Integrity\ActualEntitySelector,
+	\Bitrix\Crm\Automation\Trigger\OpenLineTrigger,
+	\Bitrix\Crm\Integration\Channel\IMOpenLineTracker;
+
+use \Bitrix\Im\User as ImUser;
 
 Loc::loadMessages(__FILE__);
 
@@ -22,16 +26,37 @@ class Crm
 	const ENTITY_LEAD = 'LEAD';
 	const ENTITY_COMPANY = 'COMPANY';
 	const ENTITY_CONTACT = 'CONTACT';
+	const ENTITY_DEAL = 'DEAL';
 	const ENTITY_ACTIVITY = 'ACTIVITY';
 
 	const FIELDS_COMPANY = 'COMPANY_ID';
 	const FIELDS_CONTACT = 'CONTACT_IDS';
 
 	private $error = null;
+
+	protected $facility;
+
+	/**
+	 * @return EntityManageFacility
+	 */
+	public function getEntityManageFacility()
+	{
+		if(empty($this->facility))
+		{
+			$facility = $this->facility = new EntityManageFacility();
+		}
+		else
+		{
+			$facility = $this->facility;
+		}
+
+		return $facility;
+	}
+
 	public function __construct()
 	{
 		$this->error = new Error(null, '', '');
-		\Bitrix\Main\Loader::includeModule("crm");
+		Loader::includeModule("crm");
 	}
 
 	public static function getSourceName($userCode, $lineTitle = '')
@@ -40,7 +65,7 @@ class Crm
 		$messengerType = $parsedUserCode['CONNECTOR_ID'];
 
 		$linename = Loc::getMessage('IMOL_CRM_LINE_TYPE_'.strtoupper($messengerType));
-		if (!$linename && \Bitrix\Main\Loader::includeModule("imconnector"))
+		if (!$linename && Loader::includeModule("imconnector"))
 		{
 			$linename = \Bitrix\ImConnector\Connector::getNameConnector($messengerType);
 		}
@@ -102,6 +127,7 @@ class Crm
 	 * @param string $type
 	 * @param array $params
 	 * @return array|bool
+	 * @throws \Bitrix\Main\LoaderException
 	 *
 	 * TODO: Replace method everywhere
 	 */
@@ -112,7 +138,7 @@ class Crm
 			return false;
 		}
 
-		$facility = new \Bitrix\Crm\EntityManageFacility();
+		$facility = $this->getEntityManageFacility();
 		if ($type == self::FIND_BY_CODE)
 		{
 			$communicationType = self::getCommunicationType($params['CODE']);
@@ -169,8 +195,8 @@ class Crm
 	 * 			string SECOND_NAME
 	 * 		array PHONE
 	 * @return bool|array
+	 * @throws \Bitrix\Main\LoaderException
 	 *
-	 * TODO: To finish the BINDINGS
 	 */
 	public function finds($params = Array())
 	{
@@ -179,7 +205,9 @@ class Crm
 
 		if (Loader::includeModule('crm') && !empty($params) && (!empty($params['CODE']) || !empty($params['FULL_NAME']) || !empty($params['EMAIL']) || !empty($params['PHONE'])))
 		{
-			$selector = new \Bitrix\Crm\Integrity\ActualEntitySelector();
+			$facility = $this->getEntityManageFacility();
+
+			$selector = $facility->getSelector();
 
 			if(!empty($params['CODE']))
 			{
@@ -238,7 +266,7 @@ class Crm
 			{
 				$selector->search();
 
-				$bindings = BindingSelector::findBindings($selector);
+				$bindings = $facility->getActivityBindings();
 
 				if($companyId = $selector->getCompanyId())
 				{
@@ -294,8 +322,6 @@ class Crm
 					);
 				};
 
-				$facility = new \Bitrix\Crm\EntityManageFacility($selector);
-
 				$result['CAN_ADD_LEAD'] = $facility->canAddLead();
 			}
 		}
@@ -303,7 +329,13 @@ class Crm
 		return $result;
 	}
 
-	public function addLead($params)
+	/**
+	 * @param $params
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\LoaderException
+	 */
+	public function registerLead($params)
 	{
 		if (!Loader::includeModule('crm'))
 		{
@@ -315,13 +347,13 @@ class Crm
 
 		$communicationType = self::getCommunicationType($params['USER_CODE']);
 
-		$user = \Bitrix\Im\User::getInstance($params['USER_ID']);
-		//$comments = Loc::getMessage('IMOL_CRM_CREATE_LEAD_COMMENTS', Array(
+		$user = ImUser::getInstance($params['USER_ID']);
+		//$comments = Loc::getMessage('IMOL_CRM_CREATE_LEAD_COMMENTS_NEW', Array(
 		//	'#LINE_NAME#' => strip_tags($config['LINE_NAME']),
 		//	'#CONNECTOR_NAME#' => self::getSourceName($params['USER_CODE'])
 		//));
 
-		$facility = new \Bitrix\Crm\EntityManageFacility();
+		$facility = $this->getEntityManageFacility();
 		$facility->getSelector()->appendCommunicationCriterion($communicationType, 'imol|'.$params['USER_CODE']);
 
 		if (!$user->getLastName() && !$user->getName())
@@ -418,6 +450,8 @@ class Crm
 			$facility->setRegisterMode($facility::REGISTER_MODE_ONLY_UPDATE);
 		}
 
+		$facility->disableAutomationRun();
+
 		$id = $facility->registerLead($fields, true, Array(
 			'CURRENT_USER' => $params['OPERATOR_ID'],
 			'DISABLE_USER_FIELD_CHECK' => true
@@ -426,7 +460,7 @@ class Crm
 		if ($id)
 		{
 			$parsedUserCode = Session::parseUserCode($params['USER_CODE']);
-			\Bitrix\Crm\Integration\Channel\IMOpenLineTracker::getInstance()->registerLead($id, array(
+			IMOpenLineTracker::getInstance()->registerLead($id, array(
 				'ORIGIN_ID' => $parsedUserCode['CONFIG_ID'],
 				'COMPONENT_ID' => $parsedUserCode['CONNECTOR_ID']
 			));
@@ -475,6 +509,19 @@ class Crm
 		);
 	}
 
+	/**
+	 * @deprecated
+	 *
+	 * @param $params
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\LoaderException
+	 */
+	public function addLead($params)
+	{
+		return $this->registerLead($params);
+	}
+
 	public function get($type, $id, $withMultiFields = false)
 	{
 		if (!Loader::includeModule('crm'))
@@ -493,6 +540,10 @@ class Crm
 		else if ($type == self::ENTITY_CONTACT)
 		{
 			$entity = new \CCrmContact(false);
+		}
+		else if ($type == self::ENTITY_DEAL)
+		{
+			$entity = new \CCrmDeal(false);
 		}
 		else
 		{
@@ -516,10 +567,10 @@ class Crm
 		$assignedId = intval($data['ASSIGNED_BY_ID']);
 
 		if (
-			\Bitrix\Main\Loader::includeModule('im')
+			Loader::includeModule('im')
 			&& (
-				!\Bitrix\Im\User::getInstance($assignedId)->isActive()
-				|| \Bitrix\Im\User::getInstance($assignedId)->isAbsent()
+				!ImUser::getInstance($assignedId)->isActive()
+				|| ImUser::getInstance($assignedId)->isAbsent()
 			)
 		)
 		{
@@ -529,9 +580,26 @@ class Crm
 		return $data;
 	}
 
+	public static function getDealForLead($idLead)
+	{
+		$result = false;
+
+		if (Loader::includeModule('crm'))
+		{
+			$raw = \Bitrix\Crm\DealTable::getList(array(
+				'filter'  => array('LEAD_ID' => $idLead),
+				'order'   => array('ID' => 'DESC')
+			));
+
+			$result = $raw->fetch();
+		}
+
+		return $result;
+	}
+
 	public static function getLink($type, $id = null)
 	{
-		if (!\Bitrix\Main\Loader::includeModule('crm'))
+		if (!Loader::includeModule('crm'))
 		{
 			return false;
 		}
@@ -651,7 +719,7 @@ class Crm
 			return false;
 		}
 
-		$session = \Bitrix\Imopenlines\Model\SessionTable::getById($params['SESSION_ID'])->fetch();
+		$session = Model\SessionTable::getById($params['SESSION_ID'])->fetch();
 		if (intval($session['CRM_ACTIVITY_ID']) > 0)
 		{
 			Log::write($session['CRM_ACTIVITY_ID'], 'CRM ACTIVITY LOADED');
@@ -691,7 +759,7 @@ class Crm
 		}
 		else
 		{
-			$arFields['END_TIME'] = \Bitrix\ImOpenLines\Common::getWorkTimeEnd();
+			$arFields['END_TIME'] = Common::getWorkTimeEnd();
 		}
 
 		if(isset($params['CRM_ENTITY_ID']) && isset($params['CRM_ENTITY_TYPE']))
@@ -711,7 +779,7 @@ class Crm
 
 		if ($ID)
 		{
-			\Bitrix\Crm\Integration\Channel\IMOpenLineTracker::getInstance()->registerActivity($ID, array('ORIGIN_ID' => $lineId, 'COMPONENT_ID' => $connectorId));
+			IMOpenLineTracker::getInstance()->registerActivity($ID, array('ORIGIN_ID' => $lineId, 'COMPONENT_ID' => $connectorId));
 
 			Log::write($ID, 'CRM ACTIVITY CREATED');
 		}
@@ -726,6 +794,42 @@ class Crm
 		return $ID;
 	}
 
+	/**
+	 * @param $bindings
+	 * @param $data
+	 * @return bool
+	 */
+	public function executeAutomation($bindings, $data)
+	{
+		//Trigger crm
+		$this->executeAutomationTrigger($bindings, $data);
+
+		//run automation crm
+		$this->runAutomationFacility();
+
+		return true;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function runAutomationFacility()
+	{
+		$facility = $this->getEntityManageFacility();
+
+		if(!$facility->isAutomationRun())
+		{
+			$facility->runAutomation();
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param $bindings
+	 * @param $data
+	 * @return \Bitrix\Main\Result|bool
+	 */
 	public function executeAutomationTrigger($bindings, $data)
 	{
 		if (!is_array($bindings) || !is_array($data))
@@ -785,12 +889,12 @@ class Crm
 
 	public function getEntityCard($entityType, $entityId)
 	{
-		if (!\Bitrix\Main\Loader::includeModule('im'))
+		if (!Loader::includeModule('im'))
 		{
 			return null;
 		}
 
-		if (!in_array($entityType, Array(self::ENTITY_LEAD, self::ENTITY_CONTACT, self::ENTITY_COMPANY)))
+		if (!in_array($entityType, Array(self::ENTITY_LEAD, self::ENTITY_CONTACT, self::ENTITY_COMPANY, self::ENTITY_DEAL)))
 		{
 			return null;
 		}
@@ -839,7 +943,7 @@ class Crm
 				$entityGrid[] = Array('DISPLAY' => 'COLUMN', 'NAME' => Loc::getMessage('IMOL_CRM_CARD_POST'), 'VALUE' => $entityData['POST']);
 			}
 		}
-		else if ($entityType == self::ENTITY_COMPANY)
+		else if ($entityType == self::ENTITY_COMPANY || $entityType == self::ENTITY_DEAL)
 		{
 			if (isset($entityData['TITLE']))
 			{
@@ -881,7 +985,7 @@ class Crm
 
 	public static function getEntityCaption($type, $id)
     {
-        if(!\Bitrix\Main\Loader::includeModule('crm'))
+        if(!Loader::includeModule('crm'))
             return '';
 
         return \CCrmOwnerType::GetCaption(\CCrmOwnerType::ResolveID($type), $id, false);

@@ -5,7 +5,7 @@ use Bitrix\Main;
 use Bitrix\Main\Type\Date;
 use Bitrix\Main\Type\DateTime;
 
-class Month
+class Month extends Base
 {
 	const TYPE_DAY_OF_ALTERNATING_MONTHS = 1;
 	const TYPE_WEEKDAY_OF_ALTERNATING_MONTHS = 2;
@@ -13,6 +13,10 @@ class Month
 	const TYPE_A_FEW_MONTHS_AFTER = 4;
 	const FIRST_MONTH_DAY = 1;
 	const LAST_MONTH_DAY = 0;
+
+	/** @var $monthBeginning Date */
+	private $monthBeginning = null;
+
 	/**
 	 * @param array $params
 	 * @param Date $startDate
@@ -21,80 +25,162 @@ class Month
 	 */
 	public static function calculateDate(array $params, Date $startDate)
 	{
-		$baseData = self::prepareCalculation($params, $startDate);
-
-		$month = $baseData['MONTH'];
-		$yearValue = $baseData['YEAR'];
-		$intervalMonth = $baseData['INTERVAL_MONTH'];
-		
-		switch ((int)$params['TYPE'])
-		{
-			case self::TYPE_DAY_OF_ALTERNATING_MONTHS:
-				{
-					if ($params['IS_WORKDAY'] !== 'Y')
-					{
-						$day = self::getDayNumber($params, $month, $yearValue);
-						if ($day == self::LAST_MONTH_DAY)
-						{
-							$month++;
-						}
-						$timestamp = mktime(0, 0, 0, $month, $day, $yearValue);
-						$date = Date::createFromTimestamp($timestamp);
-						if ($timestamp < $startDate->getTimestamp())
-						{
-							$date->add('+ 1 month');
-						}
-					}
-					else
-					{
-						$firstMonthDayTimestamp = mktime(0, 0, 0, $month, 1, $yearValue);
-						$firstMonthDay = Date::createFromTimestamp($firstMonthDayTimestamp);
-						$date = clone($firstMonthDay);
-						$date = Day::calculateForWorkingDays($params,	$date, $firstMonthDay->format('t'));
-
-						if ($startDate->getTimestamp() > $date->getTimestamp())
-						{
-							$date = $firstMonthDay->add('+ 1 month');
-							$date = Day::calculateForWorkingDays($params,	$date, $firstMonthDay->format('t'));
-						}
-					}
-				}
-				break;
-			case self::TYPE_WEEKDAY_OF_ALTERNATING_MONTHS:
-				{
-					$firstMonthDay = mktime(0, 0, 0, $month, 1, $yearValue);
-					$clearDate = Date::createFromTimestamp($firstMonthDay);
-					$date = self::calculateForWeekdayType($params, $clearDate);
-					if ($startDate->getTimestamp() > $date->getTimestamp())
-					{
-						$date = self::calculateForWeekdayType($params ,$clearDate->add("+1 months"));
-					}
-				}
-				break;
-			case self::TYPE_A_FEW_MONTHS_BEFORE:
-				{
-					$date = $startDate->add(" -".$intervalMonth." months");
-				}
-				break;
-			case self::TYPE_A_FEW_MONTHS_AFTER:
-				{
-					$date = $startDate->add(" +".$intervalMonth." months");
-				}
-				break;
-			default:
-				$date = $startDate;
-		}
-
-		return $date;
+		$month = new self($params);
+		$month->setType($params['TYPE']);
+		$month->setStartDate($startDate);
+		$month->setInterval($params['INTERVAL_MONTH']);
+		return $month->calculate();
 	}
 
 	/**
+	 * @param int $type
+	 *
+	 * @return bool
+	 */
+	protected function checkType($type)
+	{
+		return in_array((int)$type, [
+			self::TYPE_DAY_OF_ALTERNATING_MONTHS,
+			self::TYPE_WEEKDAY_OF_ALTERNATING_MONTHS,
+			self::TYPE_A_FEW_MONTHS_BEFORE,
+			self::TYPE_A_FEW_MONTHS_AFTER
+		]);
+	}
+
+	/**
+	 * @return bool
+	 */
+	private function isWorkdayType()
+	{
+		return $this->params['IS_WORKDAY'] === 'Y';
+	}
+
+	/**
+	 * Result calculating.
+	 *
+	 * @return Date
+	 */
+	public function calculate()
+	{
+		if (empty($this->type))
+		{
+			return $this->startDate;
+		}
+
+		if ($this->type === self::TYPE_A_FEW_MONTHS_AFTER || $this->type === self::TYPE_A_FEW_MONTHS_BEFORE)
+		{
+			return $this->calculateAlternatingMonths();
+		}
+		else
+		{
+			return $this->calculateAlternatingWithDays();
+		}
+	}
+
+	/**
+	 * Return the date with months interval.
+	 *
+	 * Example: repeat every {count months} month
+	 *
+	 * @return Date
+	 */
+	private function calculateAlternatingMonths()
+	{
+		$interval = $this->interval;
+		if ($this->type === self::TYPE_A_FEW_MONTHS_BEFORE)
+		{
+			$interval = "-{$interval}";
+		}
+
+		return $this->startDate->add($interval." months");
+	}
+
+	/**
+	 * Set first day of the months with offset
+	 */
+	private function setMonthBeginning()
+	{
+		$monthValue = (int)$this->startDate->format("n") + $this->interval;
+		$yearValue = (int)$this->startDate->format("Y");
+
+		$ratio = $monthValue / 12;
+		if ($ratio > 1)
+		{
+			$ratio = floor($ratio);
+			$monthValue = $monthValue - (12 * $ratio);
+			$yearValue += $ratio;
+		}
+		$firstMonthDayTimestamp = mktime(0, 0, 0, $monthValue, 1, $yearValue);
+		$this->monthBeginning = Date::createFromTimestamp($firstMonthDayTimestamp);
+	}
+
+	/**
+	 * Return the date with months interval and day offset.
+	 *
+	 * Example:
+	 * 		TYPE_DAY_OF_ALTERNATING_MONTHS: repeat every {number day in month} {working|usual} day of every the {count months} month
+	 * 			#Repeat every the 10th working day of every the 4th month#
+	 * 		TYPE_WEEKDAY_OF_CERTAIN_MONTH: repeat every {number} {weekday} day of every the {count months} month
+	 * 			#Repeat every the 2nd of friday of every the 6th month#
+	 *
+	 * @return Date
+	 */
+	private function calculateAlternatingWithDays()
+	{
+		$this->setMonthBeginning();
+		$resultDate = $this->startDate;
+		if ($this->type === self::TYPE_DAY_OF_ALTERNATING_MONTHS)
+		{
+			$resultDate = clone($this->monthBeginning);
+			if (!$this->isWorkdayType())
+			{
+				$day = $this->getDayNumber();
+				if ($day === self::LAST_MONTH_DAY)
+				{
+					$resultDate->add("+ 1 month");
+				}
+				elseif ($day > 1)
+				{
+					$day = $day - 1;
+					$resultDate->add("{$day} days");
+				}
+				$timestamp = $resultDate->getTimestamp();
+				if ($timestamp < $this->startDate->getTimestamp())
+				{
+					$resultDate->add('+ 1 month');
+				}
+			}
+			else
+			{
+				$resultDate = Day::calculateForWorkingDays($this->params, $resultDate, $this->monthBeginning->format('t'));
+				if ($this->startDate->getTimestamp() > $resultDate->getTimestamp())
+				{
+					$resultDate = $this->monthBeginning->add('+ 1 month');
+					$resultDate = Day::calculateForWorkingDays($this->params, $resultDate, $this->monthBeginning->format('t'));
+				}
+			}
+		}
+		elseif ($this->type === self::TYPE_WEEKDAY_OF_ALTERNATING_MONTHS)
+		{
+			$resultDate = $this->calculateForWeekdayType($this->params, $this->monthBeginning);
+			if ($this->startDate->getTimestamp() > $resultDate->getTimestamp())
+			{
+				$resultDate = $this->calculateForWeekdayType($this->params, $this->monthBeginning->add("+1 months"));
+			}
+		}
+
+		return $resultDate;
+	}
+
+	/**
+	 * Return the date with weekday offset.
+	 *
 	 * @param array $params
 	 * @param Date $startDate
 	 *
 	 * @return Date
 	 */
-	private static function calculateForWeekdayType(array $params, Date $startDate)
+	private function calculateForWeekdayType(array $params, Date $startDate)
 	{
 		$date = clone($startDate);
 
@@ -109,7 +195,7 @@ class Month
 			$offset = 7 + $params['WEEKDAY'] - $numWeekDay;
 		}
 
-		$date->add("+ " . $offset . "days");
+		$date->add("+{$offset} days");
 
 		if ((int)$params['INTERVAL_WEEK'] <= 3)
 		{
@@ -129,57 +215,28 @@ class Month
 	}
 
 	/**
-	 * @param array $params
-	 * @param Date $startDate
-	 *
-	 * @return array
-	 */
-	private static function prepareCalculation(array $params, Date $startDate)
-	{
-		$interval = (int)$params['INTERVAL_MONTH'];
-		if ($interval < 0) 
-		{
-			$interval = 0;
-		}
-		$month = (int)$startDate->format("n") + $interval;
-
-		$year = (int)$startDate->format("Y");
-		
-		if ($month > 12)
-		{
-			$month = $month - 12;
-			$year++;
-		}
-		
-		return array(
-			"INTERVAL_MONTH" => $interval, 
-			"MONTH" => $month, 
-			"YEAR" => $year
-		);
-	}
-
-	/**
-	 * @param array $params
-	 * @param $month
-	 * @param $yearValue
-	 *
 	 * @return int
 	 */
-	private static function getDayNumber(array $params, $month, $yearValue)
+	private function getDayNumber()
 	{
-		$countMonthDays = date('t', mktime(0, 0, 0, $month, 1, $yearValue));
+		if (!$this->monthBeginning)
+		{
+			$this->setMonthBeginning();
+		}
+		$intervalDay = (int)$this->params['INTERVAL_DAY'];
+		$countMonthDays = $this->monthBeginning->format('t');
 		
-		if ((int)$params['INTERVAL_DAY'] > $countMonthDays) 
+		if ($intervalDay > $countMonthDays)
 		{
 			$day = self::LAST_MONTH_DAY;
 		} 
-		elseif ((int)$params['INTERVAL_DAY'] <= 0 || $params['IS_WORKDAY'] === 'Y')
+		elseif ($intervalDay <= 0 || $this->isWorkdayType())
 		{
 			$day = self::FIRST_MONTH_DAY;
 		} 
 		else 
 		{
-			$day = (int)$params['INTERVAL_DAY'];
+			$day = $intervalDay;
 		}
 
 		return $day;

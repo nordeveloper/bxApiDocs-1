@@ -2,7 +2,6 @@
 namespace Bitrix\Main\Data;
 
 use Bitrix\Main;
-use Bitrix\Main\IO;
 
 class CacheEngineFiles
 	implements ICacheEngine, ICacheEngineStat
@@ -23,7 +22,7 @@ class CacheEngineFiles
 	 */
 	public function __construct()
 	{
-		$cacheConfig = \Bitrix\Main\Config\Configuration::getValue("cache");
+		$cacheConfig = Main\Config\Configuration::getValue("cache");
 		if ($cacheConfig && is_array($cacheConfig) && isset($cacheConfig["use_lock"]))
 		{
 			$this->useLock = (bool)$cacheConfig["use_lock"];
@@ -468,7 +467,7 @@ class CacheEngineFiles
 	 *
 	 * @return void
 	 */
-	protected function deleteOneDir($etime = 0, $ar = false)
+	protected static function deleteOneDir($etime = 0, $ar = false)
 	{
 		$deleteFromQueue = false;
 		$dirName = Main\Loader::getDocumentRoot().$ar["RELATIVE_PATH"];

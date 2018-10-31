@@ -155,6 +155,23 @@ class Action implements Errorable
 	{
 	}
 
+	final public function getCurrentUser()
+	{
+		return $this->getController()->getCurrentUser();
+	}
+
+	/**
+	 * Converts keys of array to camel case notation.
+	 * @see \Bitrix\Main\Engine\Response\Converter::OUTPUT_JSON_FORMAT
+	 * @param mixed $data Data.
+	 *
+	 * @return array|mixed|string
+	 */
+	public function convertKeysToCamelCase($data)
+	{
+		return $this->getController()->convertKeysToCamelCase($data);
+	}
+
 	/**
 	 * Returns the fully qualified name of this class.
 	 * @return string

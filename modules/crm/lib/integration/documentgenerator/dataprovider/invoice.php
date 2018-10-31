@@ -112,7 +112,7 @@ class Invoice extends ProductsDataProvider implements Nameable
 				'PRODUCT_ID' => isset($product['PRODUCT_ID']) ? $product['PRODUCT_ID'] : 0,
 				'NAME' => isset($product['PRODUCT_NAME']) ? $product['PRODUCT_NAME'] : '',
 				'PRICE' => $product['PRICE'],
-				'QUANTITY' => isset($product['QUANTITY']) ? $product['QUANTITY'] : 0,
+				'QUANTITY' => isset($product['QUANTITY']) ? round($product['QUANTITY'], 4) : 0,
 				'DISCOUNT_TYPE_ID' => Discount::MONETARY,
 				'DISCOUNT_SUM' => $product['DISCOUNT_PRICE'],
 				'TAX_RATE' => $product['VAT_RATE'] * 100,

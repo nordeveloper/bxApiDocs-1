@@ -15,5 +15,5 @@ $data = array(
 
 if (!IsModuleInstalled('documentgenerator'))
 {
-	$data['DOMAIN'] = PaySystem\Manager::HANDLER_DOMAIN_NONE;
+	$data['IS_AVAILABLE'] = PaySystem\Manager::HANDLER_AVAILABLE_FALSE;
 }

@@ -4,7 +4,8 @@ namespace Bitrix\ImConnector;
 use \Bitrix\Main\Event,
 	\Bitrix\Main\EventResult;
 
-use \Bitrix\ImConnector\Input\ReceivingMessage,
+use \Bitrix\ImConnector\Rest\Helper,
+	\Bitrix\ImConnector\Input\ReceivingMessage,
 	\Bitrix\ImConnector\Input\DeactivateConnector,
 	\Bitrix\ImConnector\Input\ReceivingStatusReading,
 	\Bitrix\ImConnector\Input\ReceivingStatusDelivery;
@@ -46,53 +47,70 @@ class CustomConnectors
 			{
 				if (isset($params['ID']) && isset($params['NAME']) && isset($params['COMPONENT']) && isset($params['ICON']['DATA_IMAGE']))
 				{
-					self::$customConnectors[$params['ID']] = array(
-						'ID' => $params['ID'],
-						'NAME' => $params['NAME'],
-						'COMPONENT' => $params['COMPONENT'],
-						'ICON' => $params['ICON']
-					);
-
-					if (isset($params['ICON_DISABLED']))
-						self::$customConnectors[$params['ID']]['ICON_DISABLED'] = $params['ICON_DISABLED'];
-
-					if (isset($params['DEL_EXTERNAL_MESSAGES']) && ($params['DEL_EXTERNAL_MESSAGES'] === true || $params['DEL_EXTERNAL_MESSAGES'] === false))
-						self::$customConnectors[$params['ID']]['DEL_EXTERNAL_MESSAGES'] = $params['DEL_EXTERNAL_MESSAGES'];
-					else
-						self::$customConnectors[$params['ID']]['DEL_EXTERNAL_MESSAGES'] = self::DEFAULT_DEL_EXTERNAL_MESSAGES;
-
-					if (isset($params['EDIT_INTERNAL_MESSAGES']) && ($params['EDIT_INTERNAL_MESSAGES'] === true || $params['EDIT_INTERNAL_MESSAGES'] === false))
-						self::$customConnectors[$params['ID']]['EDIT_INTERNAL_MESSAGES'] = $params['EDIT_INTERNAL_MESSAGES'];
-					else
-						self::$customConnectors[$params['ID']]['EDIT_INTERNAL_MESSAGES'] = self::DEFAULT_EDIT_INTERNAL_MESSAGES;
-
-					if (isset($params['DEL_INTERNAL_MESSAGES']) && ($params['DEL_INTERNAL_MESSAGES'] === true || $params['DEL_INTERNAL_MESSAGES'] === false))
-						self::$customConnectors[$params['ID']]['DEL_INTERNAL_MESSAGES'] = $params['DEL_INTERNAL_MESSAGES'];
-					else
-						self::$customConnectors[$params['ID']]['DEL_INTERNAL_MESSAGES'] = self::DEFAULT_DEL_INTERNAL_MESSAGES;
-
-					if (isset($params['NEWSLETTER']) && ($params['NEWSLETTER'] === true || $params['NEWSLETTER'] === false))
-						self::$customConnectors[$params['ID']]['NEWSLETTER'] = $params['NEWSLETTER'];
-					else
-						self::$customConnectors[$params['ID']]['NEWSLETTER'] = self::DEFAULT_NEWSLETTER;
-
-					if (isset($params['NEED_SYSTEM_MESSAGES']) && ($params['NEED_SYSTEM_MESSAGES'] === true || $params['NEED_SYSTEM_MESSAGES'] === false))
-						self::$customConnectors[$params['ID']]['NEED_SYSTEM_MESSAGES'] = $params['NEED_SYSTEM_MESSAGES'];
-					else
-						self::$customConnectors[$params['ID']]['NEED_SYSTEM_MESSAGES'] = self::DEFAULT_NEED_SYSTEM_MESSAGES;
-
-					if (isset($params['NEED_SIGNATURE']) && ($params['NEED_SIGNATURE'] === true || $params['NEED_SIGNATURE'] === false))
-						self::$customConnectors[$params['ID']]['NEED_SIGNATURE'] = $params['NEED_SIGNATURE'];
-					else
-						self::$customConnectors[$params['ID']]['NEED_SIGNATURE'] = self::DEFAULT_NEED_SIGNATURE;
-
-					if (isset($params['CHAT_GROUP']) && ($params['CHAT_GROUP'] === true || $params['CHAT_GROUP'] === false))
-						self::$customConnectors[$params['ID']]['CHAT_GROUP'] = $params['CHAT_GROUP'];
-					else
-						self::$customConnectors[$params['ID']]['CHAT_GROUP'] = self::DEFAULT_CHAT_GROUP;
+					self::$customConnectors[$params['ID']] = self::handlingValues($params);
 				}
 			}
 		}
+
+		$restConnectors = Helper::listRestConnector();
+
+		foreach ($restConnectors as $restConnector)
+		{
+			if (isset($restConnector['ID']) && isset($restConnector['NAME']) && isset($restConnector['COMPONENT']) && isset($restConnector['ICON']['DATA_IMAGE']))
+			{
+				self::$customConnectors[$restConnector['ID']] = self::handlingValues($restConnector);
+			}
+		}
+	}
+
+	private static function handlingValues($data)
+	{
+		$result = array(
+			'ID' => $data['ID'],
+			'NAME' => $data['NAME'],
+			'COMPONENT' => $data['COMPONENT'],
+			'ICON' => $data['ICON']
+		);
+
+		if (isset($data['ICON_DISABLED']))
+			$result['ICON_DISABLED'] = $data['ICON_DISABLED'];
+
+		if (isset($data['DEL_EXTERNAL_MESSAGES']) && ($data['DEL_EXTERNAL_MESSAGES'] === true || $data['DEL_EXTERNAL_MESSAGES'] === false))
+			$result['DEL_EXTERNAL_MESSAGES'] = $data['DEL_EXTERNAL_MESSAGES'];
+		else
+			$result['DEL_EXTERNAL_MESSAGES'] = self::DEFAULT_DEL_EXTERNAL_MESSAGES;
+
+		if (isset($data['EDIT_INTERNAL_MESSAGES']) && ($data['EDIT_INTERNAL_MESSAGES'] === true || $data['EDIT_INTERNAL_MESSAGES'] === false))
+			$result['EDIT_INTERNAL_MESSAGES'] = $data['EDIT_INTERNAL_MESSAGES'];
+		else
+			$result['EDIT_INTERNAL_MESSAGES'] = self::DEFAULT_EDIT_INTERNAL_MESSAGES;
+
+		if (isset($data['DEL_INTERNAL_MESSAGES']) && ($data['DEL_INTERNAL_MESSAGES'] === true || $data['DEL_INTERNAL_MESSAGES'] === false))
+			$result['DEL_INTERNAL_MESSAGES'] = $data['DEL_INTERNAL_MESSAGES'];
+		else
+			$result['DEL_INTERNAL_MESSAGES'] = self::DEFAULT_DEL_INTERNAL_MESSAGES;
+
+		if (isset($data['NEWSLETTER']) && ($data['NEWSLETTER'] === true || $data['NEWSLETTER'] === false))
+			$result['NEWSLETTER'] = $data['NEWSLETTER'];
+		else
+			$result['NEWSLETTER'] = self::DEFAULT_NEWSLETTER;
+
+		if (isset($data['NEED_SYSTEM_MESSAGES']) && ($data['NEED_SYSTEM_MESSAGES'] === true || $data['NEED_SYSTEM_MESSAGES'] === false))
+			$result['NEED_SYSTEM_MESSAGES'] = $data['NEED_SYSTEM_MESSAGES'];
+		else
+			$result['NEED_SYSTEM_MESSAGES'] = self::DEFAULT_NEED_SYSTEM_MESSAGES;
+
+		if (isset($data['NEED_SIGNATURE']) && ($data['NEED_SIGNATURE'] === true || $data['NEED_SIGNATURE'] === false))
+			$result['NEED_SIGNATURE'] = $data['NEED_SIGNATURE'];
+		else
+			$result['NEED_SIGNATURE'] = self::DEFAULT_NEED_SIGNATURE;
+
+		if (isset($data['CHAT_GROUP']) && ($data['CHAT_GROUP'] === true || $data['CHAT_GROUP'] === false))
+			$result['CHAT_GROUP'] = $data['CHAT_GROUP'];
+		else
+			$result['CHAT_GROUP'] = self::DEFAULT_CHAT_GROUP;
+
+		return $result;
 	}
 
 	private function __clone()
@@ -222,7 +240,13 @@ class CustomConnectors
 		return $result;
 	}
 
-	//public function
+	/**
+	 * @param $connector
+	 * @param $line
+	 * @param $data
+	 * @param $type
+	 * @return Result
+	 */
 	protected static function setMessages($connector, $line, $data, $type)
 	{
 		self::getInstance();
@@ -238,6 +262,12 @@ class CustomConnectors
 		return $result;
 	}
 
+	/**
+	 * @param $connector
+	 * @param $line
+	 * @param $data
+	 * @return Result
+	 */
 	public static function sendMessages($connector, $line, $data)
 	{
 		$result = self::setMessages($connector, $line, $data, 'message');
@@ -245,6 +275,12 @@ class CustomConnectors
 		return $result;
 	}
 
+	/**
+	 * @param $connector
+	 * @param $line
+	 * @param $data
+	 * @return Result
+	 */
 	public static function updateMessages($connector, $line, $data)
 	{
 		$result = self::setMessages($connector, $line, $data, 'message_update');
@@ -252,6 +288,12 @@ class CustomConnectors
 		return $result;
 	}
 
+	/**
+	 * @param $connector
+	 * @param $line
+	 * @param $data
+	 * @return Result
+	 */
 	public static function deleteMessages($connector, $line, $data)
 	{
 		$result = self::setMessages($connector, $line, $data, 'message_del');
@@ -259,6 +301,12 @@ class CustomConnectors
 		return $result;
 	}
 
+	/**
+	 * @param $connector
+	 * @param $line
+	 * @param $data
+	 * @return Result
+	 */
 	public static function sendStatusDelivery($connector, $line, $data)
 	{
 		$receivingHandlers = new ReceivingStatusDelivery($connector, $line, $data);
@@ -267,6 +315,12 @@ class CustomConnectors
 		return $result;
 	}
 
+	/**
+	 * @param $connector
+	 * @param $line
+	 * @param $data
+	 * @return Result
+	 */
 	public static function sendStatusReading($connector, $line, $data)
 	{
 		$receivingHandlers = new ReceivingStatusReading($connector, $line, $data);
@@ -275,6 +329,11 @@ class CustomConnectors
 		return $result;
 	}
 
+	/**
+	 * @param $connector
+	 * @param $line
+	 * @return Result
+	 */
 	public static function deactivateConnectors($connector, $line)
 	{
 		$receivingHandlers = new DeactivateConnector($connector, $line);
@@ -298,6 +357,21 @@ class CustomConnectors
 	' . (!empty($connector["ICON"]["SIZE"])? 'background-size: ' . $connector["ICON"]["SIZE"] : '') . ';
 	' . (!empty($connector["ICON"]["POSITION"])? 'background-position: ' . $connector["ICON"]["POSITION"] : '') . ';
 	background-image: url(\'' . $connector["ICON"]["DATA_IMAGE"] . '\');
+}
+';
+				$style .= '.ui-icon-service-' . str_replace('.', '_', $connector['ID']) . '>i {
+	' . (!empty($connector["ICON"]["COLOR"])? 'background-color: ' . $connector["ICON"]["COLOR"] : '') . ';
+	' . (!empty($connector["ICON"]["SIZE"])? 'background-size: ' . $connector["ICON"]["SIZE"] : '') . ';
+	' . (!empty($connector["ICON"]["POSITION"])? 'background-position: ' . $connector["ICON"]["POSITION"] : '') . ';
+	background-image: url(\'' . $connector["ICON"]["DATA_IMAGE"] . '\');
+}
+';
+				$style .= '.imconnector-' . str_replace('.', '_', $connector['ID']) . '-background-color {
+	' . (!empty($connector["ICON"]["COLOR"])? 'background-color: ' . $connector["ICON"]["COLOR"] : '') . ';
+}
+';
+				$style .= '.intranet-' . str_replace('.', '_', $connector['ID']) . '-background-color {
+	' . (!empty($connector["ICON"]["COLOR"])? 'background-color: ' . $connector["ICON"]["COLOR"] : '') . ';
 }
 ';
 			}

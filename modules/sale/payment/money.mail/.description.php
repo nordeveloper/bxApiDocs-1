@@ -3,7 +3,7 @@ include(GetLangFileName(dirname(__FILE__)."/", "/money_mail.php"));
 
 $psTitle = GetMessage("MM_TITLE");
 $psDescription = GetMessage("MM_DESCRIPTION");
-$psDomain = \Bitrix\Sale\PaySystem\Manager::HANDLER_DOMAIN_NONE;
+$isAvailable = \Bitrix\Sale\PaySystem\Manager::HANDLER_AVAILABLE_FALSE;
 
 $arPSCorrespondence = array(
 		"KEY" => array(

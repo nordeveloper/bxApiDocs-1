@@ -36,6 +36,8 @@ class ReceivingMessage
 	 * @param string $connector ID Connector.
 	 * @param string|null $line ID line.
 	 * @param array $data An array of data.
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
 	function __construct($connector, $line = null, $data = array())
 	{
@@ -87,6 +89,10 @@ class ReceivingMessage
 	 * Receive data.
 	 *
 	 * @return Result
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\IO\FileNotFoundException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
 	 */
 	public function receiving()
 	{
@@ -114,6 +120,7 @@ class ReceivingMessage
 		foreach ($this->data as $cell => $message)
 		{
 			$resultMessage = new Result();
+			unset($event);
 
 			//parse full name into first name and surname
 			if(Library::isEmpty($message['user']['last_name']))
@@ -258,7 +265,6 @@ class ReceivingMessage
 			if($resultMessage->isSuccess())
 			{
 				unset($typeMessage);
-				unset($event);
 
 				if(!empty($message['type_message']))
 				{
@@ -305,8 +311,27 @@ class ReceivingMessage
 					$resultMessage->addErrors($event->getErrors());
 			}
 
-			$this->data[$cell] = $message;
+			if($resultMessage->isSuccess() && (!isset($event) || $event->isSuccess()))
+			{
+				$this->data[$cell]['SUCCESS'] = true;
+			}
+			else
+			{
+				$this->data[$cell]['SUCCESS'] = false;
+
+				if(isset($event) && $event->isSuccess())
+				{
+					$this->data[$cell]['ERRORS'] = $event->getErrorMessages();
+				}
+				elseif(!$resultMessage->isSuccess())
+				{
+					$this->data[$cell]['ERRORS'] = $resultMessage->getErrorMessages();
+				}
+			}
+
+			$this->data[$cell] = array_merge($this->data[$cell], $message);
 		}
+		//end foreach
 
 		$result->setResult($this->data);
 
@@ -319,6 +344,8 @@ class ReceivingMessage
 	 * @param array $user An array describing the user.
 	 * @return Result
 	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
 	 */
 	private function processingUser($user)
 	{
@@ -385,6 +412,7 @@ class ReceivingMessage
 	 *
 	 * @param array $user An array describing the user.
 	 * @return array Given the right format array description user.
+	 * @throws \Bitrix\Main\IO\FileNotFoundException
 	 */
 	private function preparationUserFields($user)
 	{
@@ -454,6 +482,7 @@ class ReceivingMessage
 	 *
 	 * @param array $file Description array file.
 	 * @return array|bool
+	 * @throws \Bitrix\Main\IO\FileNotFoundException
 	 */
 	private function downloadFile($file)
 	{
@@ -538,6 +567,7 @@ class ReceivingMessage
 	 *
 	 * @param array $files Array with list of files.
 	 * @return Result
+	 * @throws \Bitrix\Main\IO\FileNotFoundException
 	 */
 	private function saveFiles($files)
 	{

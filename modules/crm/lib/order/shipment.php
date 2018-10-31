@@ -58,6 +58,20 @@ class Shipment extends Sale\Shipment
 				['SHIPMENT' => $this]
 			);
 		}
+
+		if(Main\Loader::includeModule('pull'))
+		{
+			\CPullWatch::AddToStack(
+				'CRM_ENTITY_ORDER_SHIPMENT',
+				array(
+					'module_id' => 'crm',
+					'command' => 'onOrderShipmentSave',
+					'params' => array(
+						'FIELDS' => $this->getFieldValues()
+					)
+				)
+			);
+		}
 	}
 
 	/**

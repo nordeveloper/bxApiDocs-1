@@ -884,12 +884,47 @@ class Manager
 
 	/**
 	 * Get current REST url for work with cloud.
-	 * @deprecated since 18.6.0
 	 * @return string
 	 */
 	public static function getRestPath()
 	{
-		return '';
+		static $staticPath = null;
+
+		if ($staticPath !== null)
+		{
+			return $staticPath;
+		}
+
+		$path = 'https://repo.bitrix24.site/rest/1/w1uqy3swvyp50bso/';
+		//$path = 'https://repo-dev.bitrix24.site/rest/1/w1uqy3swvyp50bso/';
+
+		if (
+			!defined('LANDING_DISABLE_CLOUD') ||
+			LANDING_DISABLE_CLOUD !== true
+		)
+		{
+			Option::set(
+				'landing',
+				'block_vendor_bitrix',
+				$path
+			);
+		}
+		else
+		{
+			if (self::getOption('block_vendor_bitrix'))
+			{
+				Option::delete(
+					'landing',
+					array(
+						'name' => 'block_vendor_bitrix'
+					)
+				);
+			}
+		}
+
+		$staticPath = $path;
+
+		return $staticPath;
 	}
 
 	/**

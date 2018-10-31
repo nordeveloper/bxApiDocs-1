@@ -94,33 +94,51 @@ class HttpApplication extends Application
 	 * Runs controller and its action and sends response to the output.
 	 *
 	 * @return void
-	 * @throws SystemException
 	 */
 	public function run()
 	{
-		$router = new Router($this->context->getRequest());
-
-		/** @var Controller $controller */
-		/** @var string $actionName */
-		list($controller, $actionName) = $router->getControllerAndAction();
-		if (!$controller)
+		try
 		{
-			throw new SystemException('Could not find controller for the request');
+			$result = null;
+			$errorCollection = new ErrorCollection();
+
+			$router = new Router($this->context->getRequest());
+
+			/** @var Controller $controller */
+			/** @var string $actionName */
+			list($controller, $actionName) = $router->getControllerAndAction();
+			if (!$controller)
+			{
+				throw new SystemException('Could not find controller for the request');
+			}
+
+			$this->registerAutoWirings();
+
+			$result = $controller->run($actionName, $this->getSourceParametersList());
+			$errorCollection->add($controller->getErrors());
 		}
+		catch (\Exception $e)
+		{
+			$errorCollection[] = new Error($e->getMessage(), $e->getCode());
+		}
+		catch (\Error $e)
+		{
+			//todo add work with debug mode to show extend errors and exceptions
+			$errorCollection[] = new Error($e->getMessage(), $e->getCode());
+		}
+		finally
+		{
+			$response = $this->buildResponse($result, $errorCollection);
+			$this->context->setResponse($response);
 
-		$this->registerAutoWirings();
+			global $APPLICATION;
+			$APPLICATION->restartBuffer();
 
-		$result = $controller->run($actionName, $this->getSourceParametersList());
-		$response = $this->buildResponse($result, $controller->getErrors());
-		$this->context->setResponse($response);
+			$response->send();
 
-		global $APPLICATION;
-		$APPLICATION->restartBuffer();
-
-		$response->send();
-
-		//todo exit code in Response?
-		$this->terminate(0);
+			//todo exit code in Response?
+			$this->terminate(0);
+		}
 	}
 
 	private function registerAutoWirings()
@@ -145,19 +163,19 @@ class HttpApplication extends Application
 	 * If an action returns non subclass of HttpResponse then the method tries to create Response\StandardJson.
 	 *
 	 * @param mixed $actionResult
-	 * @param Error[] $errors
+	 * @param ErrorCollection $errorCollection
+	 *
 	 * @return HttpResponse
 	 */
-	private function buildResponse($actionResult, $errors)
+	private function buildResponse($actionResult, ErrorCollection $errorCollection)
 	{
 		if ($actionResult instanceof HttpResponse)
 		{
 			return $actionResult;
 		}
 
-		if ($errors)
+		if (!$errorCollection->isEmpty())
 		{
-			$errorCollection = new ErrorCollection($errors);
 			//todo There is opportunity to create DenyError() and recognize AjaxJson::STATUS_DENIED by this error.
 
 			return new AjaxJson(

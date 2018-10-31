@@ -337,7 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && !empty($_POST['Update']) && !$bReadO
 
 	if (!$useSaleDiscountOnly)
 	{
-		if (CBXFeatures::IsFeatureEnabled('CatDiscountSave'))
+		if (Catalog\Config\Feature::isCumulativeDiscountsEnabled())
 		{
 			$strDiscSaveApply = '';
 			if (isset($_REQUEST['discsave_apply']))
@@ -1412,7 +1412,7 @@ if ($saleIsInstalled && Loader::includeModule('sale'))
 }
 if (!$useSaleDiscountOnly)
 {
-	if (CBXFeatures::IsFeatureEnabled('CatDiscountSave'))
+	if (Catalog\Config\Feature::isCumulativeDiscountsEnabled())
 	{
 	?>
 <tr class="heading">
@@ -2208,7 +2208,7 @@ if (!$useSaleDiscountOnly || $catalogCount > 0)
 		?><h4<?=$firstTop; ?>><?=Loc::getMessage('CAT_PROC_REINDEX_CATALOG'); ?></h4>
 		<input class="adm-btn-save" type="button" id="catalog_reindex" value="<?=Loc::getMessage('CAT_PROC_REINDEX_CATALOG_BTN'); ?>">
 		<p><?=Loc::getMessage('CAT_PROC_REINDEX_CATALOG_ALERT'); ?></p><?
-		if (CBXFeatures::IsFeatureEnabled('CatCompleteSet') && CCatalogProductSetAvailable::getAllCounter() > 0)
+		if (Catalog\Config\Feature::isProductSetsEnabled() && CCatalogProductSetAvailable::getAllCounter() > 0)
 		{
 			?><h4><?=Loc::getMessage('CAT_PROC_REINDEX_SETS_AVAILABLE'); ?></h4>
 			<input class="adm-btn-save" type="button" id="sets_reindex" value="<?=Loc::getMessage('CAT_PROC_REINDEX_SETS_AVAILABLE_BTN'); ?>">

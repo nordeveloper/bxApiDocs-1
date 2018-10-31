@@ -453,6 +453,7 @@ class Client extends ConnectorBaseFilter
 			"id" => "ASSIGNED_BY_ID",
 			"name" => Loc::getMessage('SENDER_INTEGRATION_CRM_CONNECTOR_CLIENT_FIELD_ASSIGNED_BY_ID'),
 			'type' => 'custom_entity',
+			'params' => array('multiple' => 'Y'),
 			'selector' => array(
 				'TYPE' => 'user',
 				'DATA' => array('ID' => 'assigned_by', 'FIELD_ID' => 'ASSIGNED_BY_ID'),
@@ -474,6 +475,7 @@ class Client extends ConnectorBaseFilter
 				"id" => $fieldId,
 				"name" => Loc::getMessage('SENDER_INTEGRATION_CRM_CONNECTOR_CLIENT_FIELD_ASSIGNED_BY_ID') . " ($entityTypeCaption)",
 				'type' => 'custom_entity',
+				'params' => array('multiple' => 'Y'),
 				'selector' => array(
 					'TYPE' => 'user',
 					'DATA' => array('ID' => strtolower($fieldId), 'FIELD_ID' => $fieldId),

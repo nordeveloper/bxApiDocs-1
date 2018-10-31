@@ -822,4 +822,5 @@ class CIBlockPropertyElementAutoComplete
 	}
 }
 
-define ('BT_UT_AUTOCOMPLETE_CODE', CIBlockPropertyElementAutoComplete::USER_TYPE); // deprecated
+/** @deprecated */
+define ('BT_UT_AUTOCOMPLETE_CODE', CIBlockPropertyElementAutoComplete::USER_TYPE);

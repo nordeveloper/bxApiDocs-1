@@ -258,7 +258,8 @@ class Chat
 				'WAIT_ACTION' => 'N',
 				'WAIT_ANSWER' => 'N',
 				'DATE_MODIFY' => new \Bitrix\Main\Type\DateTime(),
-				'CHECK_DATE_CLOSE' => null
+				'CHECK_DATE_CLOSE' => null,
+				'SEND_NO_ANSWER_TEXT' => 'Y'
 			);
 			if (!\Bitrix\Im\User::getInstance($userId)->isBot() && $session->getData('DATE_OPERATOR_ANSWER') <= 0)
 			{
@@ -517,24 +518,38 @@ class Chat
 				$params['TO'] = $newValues['TRANSFER_ID'];
 			}
 		}
-		
-		$chat = new \CIMChat(0);
+
 		if (substr($params['TO'], 0, 5) == 'queue')
 		{
-			$queueId = intval(substr($params['TO'], 5));
-
-			$config = \Bitrix\ImOpenlines\Model\ConfigTable::getById($queueId)->fetch();
-			if (!$config)
+			if($params['TO']  == 'queue')
 			{
-				return false;
+				$queueId = 0;
 			}
-		
-			Log::write(Array($params['FROM'], $queueId), 'TRANSFER TO LINE');
+			else
+			{
+				$queueId = intval(substr($params['TO'], 5));
+
+				$config = \Bitrix\ImOpenlines\Model\ConfigTable::getById($queueId)->fetch();
+				if (!$config)
+				{
+					return false;
+				}
+			}
 
 			$session->setOperatorId(0, true);
 			$this->update(Array('AUTHOR_ID' => 0));
 
 			$userFrom = \Bitrix\Im\User::getInstance($params['FROM']);
+
+			$lineFromId = $session->getConfig('ID');
+			$lineFrom = $session->getConfig('LINE_NAME');
+
+			if($queueId == 0)
+			{
+				$queueId = $lineFromId;
+			}
+
+			Log::write(Array($params['FROM'], $queueId), 'TRANSFER TO LINE');
 
 			\Bitrix\ImOpenLines\Model\OperatorTransferTable::Add(Array(
 				'CONFIG_ID' => $session->getData('CONFIG_ID'),
@@ -544,9 +559,6 @@ class Chat
 				'TRANSFER_TYPE' => 'QUEUE',
 				'TRANSFER_LINE_ID' => $queueId
 			));
-
-			$lineFromId = $session->getConfig('ID');
-			$lineFrom = $session->getConfig('LINE_NAME');
 
 			if ($userFrom->isBot() && !$session->getData('DATE_OPERATOR'))
 			{
@@ -569,7 +581,11 @@ class Chat
 			}
 			$lineTo = $session->getConfig('LINE_NAME');
 
-			if ($lineFromId == $queueId)
+			if($params['TO']  == 'queue')
+			{
+				$message = Loc::getMessage('IMOL_CHAT_RETURNED_TO_QUEUE');
+			}
+			else if ($lineFromId == $queueId)
 			{
 				$message = Loc::getMessage('IMOL_CHAT_SKIP_'.$userFrom->getGender(), Array(
 					'#USER#' => '[USER='.$userFrom->getId().']'.$userFrom->getFullName(false).'[/USER]',
@@ -635,14 +651,12 @@ class Chat
 				if (
 					\Bitrix\Im\User::getInstance($transferUserId)->isBot() ||
 					\Bitrix\Im\User::getInstance($transferUserId)->isExtranet() ||
-					\Bitrix\Im\User::getInstance($transferUserId)->isConnector() ||
-					$transferUserId <= 0
+					\Bitrix\Im\User::getInstance($transferUserId)->isConnector()
 				)
 				{
 					return false;
 				}
 			}
-
 
 			$chat = new \CIMChat(0);
 			$relations = \CIMChat::GetRelationById($this->chat['ID']);
@@ -668,19 +682,29 @@ class Chat
 			{
 				$this->update(Array('AUTHOR_ID' => $transferUserId));
 			}
-			$chat->AddUser($this->chat['ID'], $transferUserId, false, true);
+			if($transferUserId > 0)
+			{
+				$chat->AddUser($this->chat['ID'], $transferUserId, false, true);
+			}
 
 			$userFrom = \Bitrix\Im\User::getInstance($params['FROM']);
-			$userTo = \Bitrix\Im\User::getInstance($transferUserId);
+			if($transferUserId > 0)
+			{
+				$userTo = \Bitrix\Im\User::getInstance($transferUserId);
+			}
 
 			Log::write(Array($params['FROM'], $transferUserId), 'TRANSFER TO USER');
 
-			if ($params['FROM'] > 0 && ($mode == self::TRANSFER_MODE_MANUAL || $mode == self::TRANSFER_MODE_BOT))
+			if ($transferUserId > 0 && $params['FROM'] > 0 && ($mode == self::TRANSFER_MODE_MANUAL || $mode == self::TRANSFER_MODE_BOT))
 			{
 				$message = Loc::getMessage('IMOL_CHAT_TRANSFER_'.$userFrom->getGender(), Array(
 					'#USER_FROM#' => '[USER='.$userFrom->getId().']'.$userFrom->getFullName(false).'[/USER]',
 					'#USER_TO#' => '[USER='.$userTo->getId().']'.$userTo->getFullName(false).'[/USER]')
 				);
+			}
+			else if(empty($transferUserId))
+			{
+				$message = Loc::getMessage('IMOL_CHAT_NO_OPERATOR_AVAILABLE_IN_QUEUE');
 			}
 			else
 			{
@@ -792,12 +816,14 @@ class Chat
 		$active = $params['ACTIVE'] == 'Y'? 'Y': 'N';
 		$entityType = $params['ENTITY_TYPE'];
 		$entityId = intval($params['ENTITY_ID']);
+		$dealId = intval($params['DEAL_ID']);
 
 		$sessionField = $this->getFieldData(self::FIELD_SESSION);
 		if (
 			$sessionField['CRM'] == $active &&
 			$sessionField['CRM_ENTITY_TYPE'] == $entityType &&
-			$sessionField['CRM_ENTITY_ID'] == $entityId
+			$sessionField['CRM_ENTITY_ID'] == $entityId &&
+			$sessionField['CRM_DEAL_ID'] == $dealId
 		)
 		{
 			return true;
@@ -806,7 +832,8 @@ class Chat
 		$this->updateFieldData(self::FIELD_SESSION, Array(
 			'CRM' => $active,
 			'CRM_ENTITY_TYPE' => $entityType,
-			'CRM_ENTITY_ID' => $entityId
+			'CRM_ENTITY_ID' => $entityId,
+			'CRM_DEAL_ID' => $dealId
 		));
 
 		return true;
@@ -891,6 +918,22 @@ class Chat
 
 		$session->markSpam();
 		$session->finish();
+
+		return true;
+	}
+
+	public function dismissedOperatorFinish()
+	{
+		$session = new Session();
+		$result = $session->load(Array(
+			'USER_CODE' => $this->chat['ENTITY_ID']
+		));
+		if (!$result)
+		{
+			return false;
+		}
+
+		$session->dismissedOperatorFinish();
 
 		return true;
 	}
@@ -1097,12 +1140,14 @@ class Chat
 			'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
 			'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
 			'CRM_ACTIVITY_ID' => $crmData['ACTIVITY_ID'],
+			'CRM_DEAL_ID' => $crmData['DEAL_ID'],
 		));
 
 		$this->updateFieldData(self::FIELD_SESSION, Array(
 			'CRM' => 'Y',
 			'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
 			'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
+			'CRM_DEAL_ID' => $crmData['DEAL_ID'],
 		));
 
 		return true;
@@ -1129,6 +1174,7 @@ class Chat
 				'CRM' => 'N',
 				'CRM_ENTITY_TYPE' => 'NONE',
 				'CRM_ENTITY_ID' => '0',
+				'CRM_DEAL_ID' => '0',
 				'PAUSE' => 'N',
 				'WAIT_ACTION' => 'N',
 				'DATE_CREATE' => '0'
@@ -1162,6 +1208,10 @@ class Chat
 			if (isset($fieldData[6]))
 			{
 				$data['DATE_CREATE'] = intval($fieldData[6]);
+			}
+			if (isset($fieldData[7]))
+			{
+				$data['CRM_DEAL_ID'] = intval($fieldData[7]);
 			}
 		}
 		else if ($field == self::FIELD_LIVECHAT)
@@ -1258,7 +1308,11 @@ class Chat
 			{
 				$data['DATE_CREATE'] = $fieldData['DATE_CREATE'] instanceof \Bitrix\Main\Type\DateTime? $fieldData['DATE_CREATE']->getTimestamp(): intval($fieldData['DATE_CREATE']);
 			}
-			$this->chat[self::getFieldName($field)] = $data['CRM'].'|'.$data['CRM_ENTITY_TYPE'].'|'.$data['CRM_ENTITY_ID'].'|'.$data['PAUSE'].'|'.$data['WAIT_ACTION'].'|'.$data['ID'].'|'.$data['DATE_CREATE'];
+			if (isset($fieldData['CRM_DEAL_ID']))
+			{
+				$data['CRM_DEAL_ID'] = $fieldData['CRM_DEAL_ID'];
+			}
+			$this->chat[self::getFieldName($field)] = $data['CRM'].'|'.$data['CRM_ENTITY_TYPE'].'|'.$data['CRM_ENTITY_ID'].'|'.$data['PAUSE'].'|'.$data['WAIT_ACTION'].'|'.$data['ID'].'|'.$data['DATE_CREATE'].'|'.$data['CRM_DEAL_ID'];
 		}
 		else if ($field == self::FIELD_LIVECHAT)
 		{
@@ -1337,7 +1391,19 @@ class Chat
 	{
 		foreach($fields as $field => $value)
 		{
-			$this->chat[$field] = $value;
+			if ($this->chat[$field] === $value)
+			{
+				unset($fields[$field]);
+			}
+			else
+			{
+				$this->chat[$field] = $value;
+			}
+		}
+
+		if (empty($fields))
+		{
+			return true;
 		}
 
 		\Bitrix\Im\Model\ChatTable::update($this->chat['ID'], $fields);
@@ -1357,6 +1423,24 @@ class Chat
 				{
 					\Bitrix\Im\Model\RelationTable::update($rel['ID'], Array('MANAGER' => 'Y'));
 				}
+			}
+		}
+
+		if (array_key_exists('AUTHOR_ID', $fields))
+		{
+			$parsedUserCode = Session::parseUserCode($this->chat['ENTITY_ID']);
+			if ($parsedUserCode['CONNECTOR_ID'] == 'livechat')
+			{
+				\Bitrix\Pull\Event::add($parsedUserCode['CONNECTOR_USER_ID'], Array(
+					'module_id' => 'imopenlines',
+					'command' => 'sessionOperatorChange',
+					'params' => Array(
+						'chatId' => (int)$parsedUserCode['EXTERNAL_CHAT_ID'],
+						'operator' => Rest::objectEncode(
+							Operator::getOperatorData($fields['AUTHOR_ID'], $parsedUserCode['CONFIG_ID'])
+						)
+					)
+				));
 			}
 		}
 

@@ -148,8 +148,6 @@ class CAllCatalogStore
 	 * @param int $storeId		Store id.
 	 * @return bool
 	 * @throws Main\ArgumentException
-	 * @throws Main\ArgumentNullException
-	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\Db\SqlQueryException
 	 */
 	public static function recalculateStoreBalances($storeId)
@@ -158,7 +156,7 @@ class CAllCatalogStore
 		if ($storeId <= 0)
 			return false;
 
-		if ((string)Main\Config\Option::get('catalog', 'default_use_store_control') != 'Y')
+		if (!Catalog\Config\State::isUsedInventoryManagement())
 			return true;
 
 		$iterator = Catalog\StoreTable::getList([

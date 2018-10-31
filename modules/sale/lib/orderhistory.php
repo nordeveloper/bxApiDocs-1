@@ -161,7 +161,14 @@ class OrderHistory
 					if ($data['RECORD_TYPE'] == static::SALE_ORDER_HISTORY_RECORD_TYPE_ACTION
 						|| $data['RECORD_TYPE'] == static::SALE_ORDER_HISTORY_RECORD_TYPE_DEBUG)
 					{
-						static::addRecord($entityName, $orderId, $data['TYPE'], $data['ID'], $data['ENTITY'], $data['DATA']);
+						static::addRecord(
+							$entityName,
+							$orderId,
+							$data['TYPE'],
+							$data['ID'],
+							$data['ENTITY'],
+							static::prepareDataForAdd($entityName, $data['TYPE'], $data['ENTITY'], $data['DATA'])
+						);
 						unset(static::$pool[$entityName][$orderId][$data['ID']][$data['TYPE']][$key]);
 
 						if (empty(static::$pool[$entityName][$orderId][$data['ID']][$data['TYPE']]))
@@ -243,7 +250,14 @@ class OrderHistory
 							}
 						}
 
-						static::addRecord($entityName, $orderId, $arRecord["TYPE"], $entityId, $entity, $result);
+						static::addRecord(
+							$entityName,
+							$orderId,
+							$arRecord["TYPE"],
+							$entityId,
+							$entity,
+							static::prepareDataForAdd($entityName, $arRecord["TYPE"], $entity, $result)
+						);
 					}
 				}
 			}
@@ -280,19 +294,17 @@ class OrderHistory
 
 	/**
 	 * @param $entityName
-	 * @param $orderId
 	 * @param $type
-	 * @param null $id
-	 * @param null|Entity $entity
+	 * @param Entity $entity
 	 * @param array $data
+	 * @return array
 	 */
-	protected static function addRecord($entityName, $orderId, $type, $id = null, $entity = null, array $data = array())
+	protected static function prepareDataForAdd($entityName, $type, $entity = null, array $data = array())
 	{
-		global $USER;
-
 		if ($entity !== null
 			&& ($operationType = static::getOperationType($entityName, $type))
-			&& (!empty($operationType["DATA_FIELDS"]) && is_array($operationType["DATA_FIELDS"])))
+			&& (!empty($operationType["DATA_FIELDS"]) && is_array($operationType["DATA_FIELDS"]))
+		)
 		{
 			foreach ($operationType["DATA_FIELDS"] as $fieldName)
 			{
@@ -303,6 +315,20 @@ class OrderHistory
 			}
 		}
 
+		return $data;
+	}
+
+	/**
+	 * @param $entityName
+	 * @param $orderId
+	 * @param $type
+	 * @param null $id
+	 * @param null|Entity $entity
+	 * @param array $data
+	 */
+	protected static function addRecord($entityName, $orderId, $type, $id = null, $entity = null, array $data = array())
+	{
+		global $USER;
 		$userId = (is_object($USER)) ? intval($USER->GetID()) : 0;
 
 		$fields = array(
@@ -656,7 +682,7 @@ class OrderHistory
 			"SHIPMENT_ITEM_STORE_ADD_ERROR",
 			"SHIPMENT_ITEM_STORE_UPDATE_ERROR",
 			"SHIPMENT_ITEM_BASKET_ITEM_EMPTY_ERROR",
-			
+
 		);
 	}
 

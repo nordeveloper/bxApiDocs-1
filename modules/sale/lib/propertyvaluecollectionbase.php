@@ -374,9 +374,10 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 		foreach ($this->collection as $propertyValue)
 		{
 			$property = $propertyValue->getPropertyObject();
-			if (!isset($result[$property->getGroupId()]))
+			$group = $property->getGroupInfo();
+			if (!isset($result[$group['ID']]))
 			{
-				$result[$property->getGroupId()] = $property->getGroupInfo();
+				$result[$group['ID']] = $group;
 			}
 		}
 
@@ -385,17 +386,33 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 
 	/**
 	 * @param $groupId
-	 * @return mixed
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public function getPropertiesByGroupId($groupId)
 	{
 		$result = [];
 
+		$groups = $this->getGroups();
+
 		/** @var PropertyValueBase $propertyValue */
 		foreach ($this->collection as $propertyValue)
 		{
 			$property = $propertyValue->getPropertyObject();
-			if ((int)$property->getGroupId() === (int)$groupId)
+			if (!$property)
+			{
+				continue;
+			}
+
+			$propertyGroupId = (int)$property->getGroupId();
+			if (!isset($groups[$propertyGroupId]))
+			{
+				$propertyGroupId = 0;
+			}
+
+			if ($propertyGroupId === (int)$groupId)
 			{
 				$result[] = $propertyValue;
 			}
@@ -406,6 +423,9 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 
 	/**
 	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public function getArray()
 	{
@@ -683,5 +703,20 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 		}
 
 		return self::$eventClassName;
+	}
+
+	/**
+	 * @deprecated
+	 * @use \Bitrix\Sale\PropertyValueCollectionBase::getPropertiesByGroupId
+	 *
+	 * @param $groupId
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public function getGroupProperties($groupId)
+	{
+		return $this->getPropertiesByGroupId($groupId);
 	}
 }

@@ -16,7 +16,10 @@ use Bitrix\Sale\Registry;
 use Bitrix\Sale\Services\PaySystem\Restrictions;
 use Bitrix\Crm\Invoice;
 
-Loader::includeModule('rest');
+if (!Loader::includeModule('rest'))
+{
+	return;
+}
 
 Loc::loadMessages(__FILE__);
 

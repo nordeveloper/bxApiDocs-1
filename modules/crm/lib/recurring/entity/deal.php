@@ -128,32 +128,56 @@ class Deal extends Base
 			$result->addError(new Main\Error("Entity isn't recurring"));
 			return $result;
 		}
-
+		$previousData = [
+			'ACTIVE' => $recurData['ACTIVE'],
+			'NEXT_EXECUTION' => $recurData['NEXT_EXECUTION']
+		];
+		unset($recurData['ACTIVE'], $recurData['NEXT_EXECUTION']);
 		$data = array_merge($recurData, $data);
 
 		$recurringParams = $data['PARAMS'];
 
-		if (is_array($recurringParams))
+		if (is_array($recurringParams) && $data['ACTIVE'] !== 'N')
 		{
 			$today = new Date();
+			$nextDate = null;
 
 			if ($data['START_DATE'] instanceof Date)
 			{
-				$startDay = $today->getTimestamp() > $data['START_DATE']->getTimestamp() ? $today : $data['START_DATE'];
-			}
-			else
-			{
-				$startDay = $today;
+				$nextDate = self::getNextDate($recurringParams, clone($data['START_DATE']));
+				if ($nextDate instanceof Date)
+				{
+					if (
+						$nextDate->getTimestamp() > $data['START_DATE']->getTimestamp()
+						&& $data['START_DATE']->getTimestamp() > $today->getTimestamp()
+					)
+					{
+						$nextDate = $data['START_DATE'];
+					}
+				}
 			}
 
-			$data['NEXT_EXECUTION'] = $this->getNextDate($recurringParams, $startDay);
+			if (!($nextDate instanceof Date) || ($today->getTimestamp() > $nextDate->getTimestamp()))
+			{
+				$nextDate = self::getNextDate($recurringParams);
+			}
+
+			$data['NEXT_EXECUTION'] = $nextDate;
 		}
 
-		$data = $this->prepareActivity($data);
+		if (!isset($data['ACTIVE']))
+		{
+			$data = $this->prepareActivity($data);
+		}
 
 		$resultUpdate = DealRecurTable::update($primary, $data);
 
-		if ($resultUpdate->isSuccess())
+		$previousTimestamp = ($previousData['NEXT_EXECUTION'] instanceof Date) ? $previousData['NEXT_EXECUTION']->getTimestamp() : 0;
+		$currentTimestamp = ($data['NEXT_EXECUTION'] instanceof Date) ? $data['NEXT_EXECUTION']->getTimestamp() : 0;
+		if (
+			$resultUpdate->isSuccess()
+			&& ($previousData['ACTIVE'] !== $data['ACTIVE'] || $previousTimestamp !== $currentTimestamp)
+		)
 		{
 			$data['MODIFY_BY_ID'] = \CCrmSecurityHelper::GetCurrentUserID();
 			DealRecurringController::getInstance()->onModify(
@@ -321,7 +345,7 @@ class Deal extends Base
 						);
 						$previousRecurData = $recurData;
 
-						$nextData = $this->getNextDate($recurParam);
+						$nextData = self::getNextDate($recurParam);
 
 						$recurData["LAST_EXECUTION"] = $today;
 						$recurData["COUNTER_REPEAT"] = (int)$recurData['COUNTER_REPEAT'] + 1;
@@ -406,7 +430,7 @@ class Deal extends Base
 		if ($deal = $dealData->fetch())
 		{
 			$recurringParams = $deal['PARAMS'];
-			$deal['NEXT_EXECUTION'] = $this->getNextDate($recurringParams);
+			$deal['NEXT_EXECUTION'] = self::getNextDate($recurringParams);
 			$deal["COUNTER_REPEAT"] = (int)$deal["COUNTER_REPEAT"] + 1;
 			$isActive = $this->isActive($deal);
 			if ($isActive)
@@ -545,73 +569,104 @@ class Deal extends Base
 	}
 
 	/**
+	 * Return calculated date by recurring params
+	 *
 	 * @param array $params
 	 * @param null $startDate
 	 *
 	 * @return Date
 	 */
-	protected function getNextDate(array $params, $startDate = null)
+	public static function getNextDate(array $params, $startDate = null)
 	{
 		$result = array(
 			"PERIOD" => (int)$params['PERIOD'] ? (int)$params['PERIOD'] : null
 		);
 
-		if (isset($params['PERIOD_DEAL']) && (int)$params['EXECUTION_TYPE'] === Manager::MULTIPLY_EXECUTION)
+		if (
+			isset($params['PERIOD_DEAL']) && (int)$params['EXECUTION_TYPE'] === Manager::MULTIPLY_EXECUTION
+			|| isset($params['MODE']) && (int)$params['MODE'] === Manager::MULTIPLY_EXECUTION
+		)
 		{
-			$result['PERIOD'] = (int)$params['PERIOD_DEAL'];
+			$interval = 1;
+			if ((int)$params['PERIOD_DEAL'] > 0)
+			{
+				$period = (int)$params['PERIOD_DEAL'];
+			}
+			else
+			{
+				$period = (int)$params['MULTIPLE_TYPE'];
+				if ($period === Calculator::SALE_TYPE_CUSTOM_OFFSET)
+				{
+					$period = (int)$params['MULTIPLE_CUSTOM_TYPE'];
+					$interval = (int)$params['MULTIPLE_CUSTOM_INTERVAL_VALUE'];
+				}
+			}
 
-			switch($result['PERIOD'])
+			switch($period)
 			{
 				case Calculator::SALE_TYPE_DAY_OFFSET:
 				{
-					$result['INTERVAL_DAY'] = 2;
-					$result['TYPE'] = DateType\Day::TYPE_ALTERNATING_DAYS;
+					$result['INTERVAL_DAY'] = $interval;
+					$result['TYPE'] = DateType\Day::TYPE_A_FEW_DAYS_AFTER;
 					break;
 				}
 				case Calculator::SALE_TYPE_WEEK_OFFSET:
 				{
-					$result['PERIOD'] = Calculator::SALE_TYPE_DAY_OFFSET;
-					$result['TYPE'] = DateType\Day::TYPE_ALTERNATING_DAYS;
-					$result['INTERVAL_DAY'] = 8;
+					$result['TYPE'] = DateType\Week::TYPE_A_FEW_WEEKS_AFTER;
+					$result['INTERVAL_WEEK'] = $interval;
 					break;
 				}
 				case Calculator::SALE_TYPE_MONTH_OFFSET:
 				{
-					$result['INTERVAL_MONTH'] = 1;
-					$result['INTERVAL_DAY'] = date('j');
-					$result['TYPE'] = DateType\Month::TYPE_DAY_OF_ALTERNATING_MONTHS;
+					$result['INTERVAL_MONTH'] = $interval;
+					$result['TYPE'] = DateType\Month::TYPE_A_FEW_MONTHS_AFTER;
 					break;
 				}
 				case Calculator::SALE_TYPE_YEAR_OFFSET:
 				{
 					$result['TYPE'] = DateType\Year::TYPE_ALTERNATING_YEAR;
-					$result['INTERVAL_YEARLY'] = 2;
+					$result['INTERVAL_YEARLY'] = $interval;
 					break;
 				}
 			}
+
+			$result['PERIOD'] = $period;
 		}
-		elseif (isset($params['DEAL_TYPE_BEFORE']) && (int)$params['EXECUTION_TYPE'] === Manager::SINGLE_EXECUTION)
+		elseif (
+			isset($params['DEAL_TYPE_BEFORE']) && (int)$params['EXECUTION_TYPE'] === Manager::SINGLE_EXECUTION
+			|| isset($params['MODE']) && (int)$params['MODE'] === Manager::SINGLE_EXECUTION
+		)
 		{
-			$result['PERIOD'] = (int)$params['DEAL_TYPE_BEFORE'];
+			if (isset($params['DEAL_TYPE_BEFORE']) && (int)$params['EXECUTION_TYPE'] === Manager::SINGLE_EXECUTION)
+			{
+				$typeName = 'DEAL_TYPE_BEFORE';
+				$intervalName = 'DEAL_COUNT_BEFORE';
+			}
+			else
+			{
+				$typeName = 'SINGLE_TYPE';
+				$intervalName = 'SINGLE_INTERVAL_VALUE';
+			}
+			$result['PERIOD'] = (int)$params[$typeName];
 
 			switch($result['PERIOD'])
 			{
 				case Calculator::SALE_TYPE_DAY_OFFSET:
 				{
 					$result['TYPE'] = DateType\Day::TYPE_A_FEW_DAYS_BEFORE;
-					$result['INTERVAL_DAY'] = (int)$params['DEAL_COUNT_BEFORE'];
+					$result['INTERVAL_DAY'] = (int)$params[$intervalName];
 					break;
 				}
 				case Calculator::SALE_TYPE_WEEK_OFFSET:
 				{
 					$result['TYPE'] = DateType\Week::TYPE_A_FEW_WEEKS_BEFORE;
-					$result['INTERVAL_WEEK'] = (int)$params['DEAL_COUNT_BEFORE'];
+					$result['INTERVAL_WEEK'] = (int)$params[$intervalName];
 					break;
 				}
 				case Calculator::SALE_TYPE_MONTH_OFFSET:
 				{
 					$result['TYPE'] = DateType\Month::TYPE_A_FEW_MONTHS_BEFORE;
-					$result['INTERVAL_MONTH'] = (int)$params['DEAL_COUNT_BEFORE'];
+					$result['INTERVAL_MONTH'] = (int)$params[$intervalName];
 					break;
 				}
 			}

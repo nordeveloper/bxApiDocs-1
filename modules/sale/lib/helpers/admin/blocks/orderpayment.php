@@ -1277,13 +1277,6 @@ class OrderPayment
 				if (!$setResult->isSuccess())
 					$result->addErrors($setResult->getErrors());
 
-				if ($paymentItem->getField('PAID') != $payment['PAID'] && $paymentItem->getField('IS_RETURN') == 'Y')
-				{
-					$setResult = $paymentItem->setReturn('N');
-					if (!$setResult->isSuccess())
-						$result->addErrors($setResult->getErrors());
-				}
-
 				if ($isReturn && $payment['OPERATION_ID'])
 				{
 					$setResult = $paymentItem->setReturn($payment['OPERATION_ID']);

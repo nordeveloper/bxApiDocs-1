@@ -1,6 +1,8 @@
 <?
 //<title>CSV (new)</title>
-use Bitrix\Main;
+use Bitrix\Main,
+	Bitrix\Catalog;
+
 IncludeModuleLangFile($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/catalog/import_setup_templ.php');
 /** @global string $ACTION */
 /** @global string $URL_DATA_FILE */
@@ -578,7 +580,7 @@ if ($STEP == 3)
 
 	if ($boolCatalog)
 	{
-		$boolUseStoreControl = 'Y' == COption::GetOptionString('catalog', 'default_use_store_control', 'N');
+		$boolUseStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 		$arDisableFields = array(
 			'CP_QUANTITY' => true,
 			'CP_PURCHASING_PRICE' => true,

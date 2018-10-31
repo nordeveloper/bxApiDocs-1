@@ -293,7 +293,7 @@ class Basket
 				'select' => array(
 					'ID', 'TYPE', 'AVAILABLE', 'CAN_BUY_ZERO', 'QUANTITY_TRACE', 'QUANTITY',
 					'WEIGHT', 'WIDTH', 'HEIGHT', 'LENGTH',
-					'MEASURE'
+					'MEASURE', 'BARCODE_MULTI'
 				),
 				'filter' => array('=ID' => $productId)
 			));
@@ -447,8 +447,37 @@ class Basket
 					$propertyList[] = $propertyData;
 				unset($propertyData);
 			}
-
 			unset($propertyIndex);
+
+			//TODO: change to d7 measure class
+			$productFields['MEASURE'] = (int)$productFields['MEASURE'];
+			$productFields['MEASURE_NAME'] = '';
+			$productFields['MEASURE_CODE'] = 0;
+			if ($productFields['MEASURE'] <= 0)
+			{
+				$measure = \CCatalogMeasure::getDefaultMeasure(true, true);
+				$productFields['MEASURE_NAME'] = $measure['~SYMBOL_RUS'];
+				$productFields['MEASURE_CODE'] = $measure['CODE'];
+				unset($measure);
+			}
+			else
+			{
+				$measureIterator = \CCatalogMeasure::getList(
+					[],
+					['ID' => $productFields['MEASURE']],
+					false,
+					false,
+					['ID', 'SYMBOL_RUS', 'CODE']
+				);
+				$measure = $measureIterator->Fetch();
+				unset($measureIterator);
+				if (!empty($measure))
+				{
+					$productFields['MEASURE_NAME'] = $measure['SYMBOL_RUS'];
+					$productFields['MEASURE_CODE'] = $measure['CODE'];
+				}
+				unset($measure);
+			}
 
 			if (isset($options['FILL_PRODUCT_PROPERTIES']) && $options['FILL_PRODUCT_PROPERTIES'] === 'Y')
 			{
@@ -457,6 +486,22 @@ class Basket
 					self::fillOfferProperties($propertyList, $productId, $elementFields['IBLOCK_ID']);
 				}
 			}
+
+			$fields = $fields +
+				[
+					'DETAIL_PAGE_URL' => $elementFields['~DETAIL_PAGE_URL'],
+					'BARCODE_MULTI' => $productFields['BARCODE_MULTI'],
+					'WEIGHT' => (float)$productFields['WEIGHT'],
+					'DIMENSIONS' => [
+						'WIDTH' => $productFields['WIDTH'],
+						'HEIGHT' => $productFields['HEIGHT'],
+						'LENGTH' => $productFields['LENGTH']
+					],
+					'TYPE' => ($productFields['TYPE'] == Catalog\ProductTable::TYPE_SET ? \CCatalogProductSet::TYPE_SET : null),
+					'MEASURE_ID' => $productFields['MEASURE'],
+					'MEASURE_NAME' => $productFields['MEASURE_NAME'],
+					'MEASURE_CODE' => $productFields['MEASURE_CODE']
+				];
 		}
 
 		if (static::isCompatibilityEventAvailable())
@@ -555,11 +600,7 @@ class Basket
 			}
 		}
 
-		$result->setData(
-			array(
-				'BASKET_ITEM' => $basketItem
-			)
-		);
+		$result->setData(['BASKET_ITEM' => $basketItem]);
 
 		return $result;
 	}

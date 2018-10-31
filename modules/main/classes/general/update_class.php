@@ -3974,7 +3974,7 @@ class CUpdatesXMLNode
 		$retHash = array();
 
 		$retHash["@"] = array();
-		if (count($this->attributes) > 0)
+		if (!empty($this->attributes) && is_array($this->attributes))
 			foreach ($this->attributes as $attr)
 			{
 				$retHash["@"][$attr->name] = $attr->content;
@@ -3988,7 +3988,7 @@ class CUpdatesXMLNode
 		}
 		else
 		{
-			if (count($this->children)>0)
+			if (!empty($this->children) && is_array($this->children))
 			{
 				$ar = array();
 				foreach ($this->children as $child)

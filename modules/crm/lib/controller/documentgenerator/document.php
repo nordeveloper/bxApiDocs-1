@@ -3,15 +3,59 @@
 namespace Bitrix\Crm\Controller\DocumentGenerator;
 
 use Bitrix\Crm\Integration\DocumentGeneratorManager;
+use Bitrix\Main\Engine\ActionFilter\Csrf;
+use Bitrix\Main\Engine\Binder;
+use Bitrix\Main\Engine\Response\DataType\ContentUri;
 use Bitrix\Main\Engine\Response\DataType\Page;
 use Bitrix\Main\Engine\UrlManager;
 use Bitrix\Main\Error;
 use Bitrix\Main\Result;
 use Bitrix\Main\UI\PageNavigation;
-use Bitrix\Main\Web\Uri;
 
 class Document extends Base
 {
+	protected function init()
+	{
+		parent::init();
+
+		Binder::registerParameterDependsOnName(
+			'\Bitrix\DocumentGenerator\Template',
+			function($className, $id)
+			{
+				/** @var \Bitrix\DocumentGenerator\Template $className */
+				return $className::loadById($id);
+			},
+			function()
+			{
+				return 'templateId';
+			}
+		);
+	}
+
+	/**
+	 * @return array
+	 */
+	public function configureActions()
+	{
+		$configureActions = parent::configureActions();
+		$configureActions['download'] = [
+			'-prefilters' => [
+				Csrf::class
+			]
+		];
+		$configureActions['getImage'] = [
+			'-prefilters' => [
+				Csrf::class
+			]
+		];
+		$configureActions['getPdf'] = [
+			'-prefilters' => [
+				Csrf::class
+			]
+		];
+
+		return $configureActions;
+	}
 	/**
 	 * @return \Bitrix\DocumentGenerator\Controller\Base
 	 */
@@ -20,10 +64,14 @@ class Document extends Base
 		return new \Bitrix\DocumentGenerator\Controller\Document();
 	}
 
-	protected function getDocumentFileLink(\Bitrix\DocumentGenerator\Document $document, $action)
+	protected function getDocumentFileLink($documentId, $action, $updateTime = null)
 	{
-		$link = UrlManager::getInstance()->create(static::CONTROLLER_PATH.'.document.'.$action, ['documentId' => $document->ID, 'ts' => $document->getUpdateTime()->getTimestamp()]);
-		$link = new Uri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
+		if(!$updateTime)
+		{
+			$updateTime = time();
+		}
+		$link = UrlManager::getInstance()->create(static::CONTROLLER_PATH.'.document.'.$action, ['id' => $documentId, 'ts' => $updateTime]);
+		$link = new ContentUri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
 
 		return $link;
 	}
@@ -48,24 +96,7 @@ class Document extends Base
 		}
 		if($data)
 		{
-			$data['document']['links'] = [
-				'download' => $this->getDocumentFileLink($document, 'download'),
-				'image' => $this->getDocumentFileLink($document, 'getImage'),
-				'pdf' => $this->getDocumentFileLink($document, 'getPdf'),
-				'public' => $data['document']['publicUrl'],
-			];
-			unset($data['document']['imageUrl']);
-			unset($data['document']['pdfUrl']);
-			unset($data['document']['printUrl']);
-			unset($data['document']['downloadUrl']);
-			unset($data['document']['publicUrl']);
-			$data['document']['entityId'] = $data['document']['value'];
-			unset($data['document']['value']);
-			if(isset($data['document']['provider']))
-			{
-				$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
-				$data['document']['provider'] = str_ireplace(array_values($providersMap), array_keys($providersMap), $data['document']['provider']);
-			}
+			$data['document'] = $this->prepareDocumentData($data['document']);
 
 			if($result instanceof Result)
 			{
@@ -96,16 +127,23 @@ class Document extends Base
 		}
 		$filter['template.moduleId'] = static::MODULE_ID;
 
+		if(is_array($select) && in_array('entityId', $select))
+		{
+			$select[] = 'value';
+			unset($select[array_search('entityId', $select)]);
+		}
+
 		$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
 		if(is_array($filter))
 		{
-			if(isset($filter['provider']))
+			if(isset($filter['entityTypeId']))
 			{
 				$filterMap = array_map(function($item)
 				{
 					return str_replace('\\', '\\\\', strtolower($item));
 				}, $providersMap);
-				$filter['provider'] = str_ireplace(array_keys($providersMap), $filterMap, $filter['provider']);
+				$filter['provider'] = str_ireplace(array_keys($providersMap), $filterMap, $filter['entityTypeId']);
+				unset($filter['entityTypeId']);
 			}
 			if(isset($filter['entityId']))
 			{
@@ -125,15 +163,7 @@ class Document extends Base
 
 		foreach($documents as &$document)
 		{
-			if(isset($document['provider']))
-			{
-				$document['provider'] = str_ireplace(array_values($providersMap), array_keys($providersMap), $document['provider']);
-			}
-			if(isset($document['value']))
-			{
-				$document['entityId'] = $document['value'];
-				unset($document['value']);
-			}
+			$document = $this->prepareDocumentData($document);
 		}
 
 		if($result instanceof Page)
@@ -173,10 +203,16 @@ class Document extends Base
 		if(!isset($providersMap[$entityTypeId]))
 		{
 			$this->errorCollection[] = new Error('No provider for entityTypeId');
-			return false;
+			return null;
 		}
 
-		return $this->proxyAction('addAction', [$template, $providersMap[$entityTypeId], $entityId, $values, $stampsEnabled]);
+		$result = $this->proxyAction('addAction', [$template, $providersMap[$entityTypeId], $entityId, $values, $stampsEnabled]);
+		if(is_array($result))
+		{
+			$result['document'] = $this->prepareDocumentData($result['document']);
+		}
+
+		return $result;
 	}
 
 	/**
@@ -188,7 +224,14 @@ class Document extends Base
 	 */
 	public function updateAction(\Bitrix\DocumentGenerator\Document $document, array $values = [], $stampsEnabled = 1)
 	{
-		return $this->proxyAction('updateAction', [$document, $values, $stampsEnabled]);
+		$result = $this->proxyAction('updateAction', [$document, $values, $stampsEnabled]);
+
+		if(is_array($result))
+		{
+			$result['document'] = $this->prepareDocumentData($result['document']);
+		}
+
+		return $result;
 	}
 
 	/**
@@ -234,42 +277,109 @@ class Document extends Base
 	}
 
 	/**
-	 * @see \Bitrix\DocumentGenerator\Controller\Document::downloadAction()
+	 * @see \Bitrix\DocumentGenerator\Controller\Document::getFileAction()
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @return array
 	 */
 	public function downloadAction(\Bitrix\DocumentGenerator\Document $document)
 	{
-		return $this->proxyAction('downloadAction', [$document]);
+		return $this->proxyAction('getFileAction', [$document]);
 	}
 
 	/**
 	 * @see \Bitrix\DocumentGenerator\Controller\Document::uploadAction()
+	 * @param array $fields
 	 * @param \CRestServer $restServer
-	 * @param string $fileContent
-	 * @param string $region
-	 * @param int $entityTypeId
-	 * @param mixed $entityId
-	 * @param string $title
-	 * @param string $number
 	 * @return \Bitrix\Main\Result|bool
 	 * @throws \Exception
 	 */
-	public function uploadAction(\CRestServer $restServer, $fileContent, $region, $entityTypeId, $entityId, $title, $number)
+	public function uploadAction(array $fields, \CRestServer $restServer)
 	{
+		$emptyFields = $this->checkArrayRequiredParams($fields, ['entityTypeId', 'fileContent', 'region', 'entityId', 'title', 'number']);
+		if(!empty($emptyFields))
+		{
+			$this->errorCollection[] = new Error('Empty required fields: '.implode(', ', $emptyFields));
+			return null;
+		}
+
 		$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
-		if(!isset($providersMap[$entityTypeId]))
+		if(!isset($providersMap[$fields['entityTypeId']]))
 		{
 			$this->errorCollection[] = new Error('No provider for entityTypeId');
-			return false;
+			return null;
 		}
+		$fields['providerClassName'] = $providersMap[$fields['entityTypeId']];
+		unset($fields['entityTypeId']);
 
-		$fileId = $this->uploadFile($fileContent);
-		if(!$fileId)
+		$fields['fileId'] = $this->uploadFile($fields['fileContent']);
+		if(!$fields['fileId'])
 		{
-			return false;
+			return null;
+		}
+		unset($fields['fileContent']);
+
+		$fields['pdfId'] = $this->uploadFile($fields['pdfContent'], 'pdf', false);
+		unset($fields['pdfContent']);
+		$fields['imageId'] = $this->uploadFile($fields['imageContent'], 'image', false);
+		unset($fields['imageContent']);
+		$fields['moduleId'] = static::MODULE_ID;
+		$fields['value'] = $fields['entityId'];
+		unset($fields['entityId']);
+
+		if($this->isFieldsAsArraySupportedInUpload())
+		{
+			$result = $this->proxyAction('uploadAction', [$fields, $restServer]);
+		}
+		else
+		{
+			$result = $this->proxyAction('uploadAction', [$restServer, $fields['fileId'], $fields['moduleId'], $fields['region'], $fields['providerClassName'], $fields['value'], $fields['title'], $fields['number']]);
+		}
+		if(is_array($result))
+		{
+			$result['document'] = $this->prepareDocumentData($result['document']);
 		}
 
-		return $this->proxyAction('uploadAction', [$restServer, $fileId, static::MODULE_ID, $region, $providersMap[$entityTypeId], $entityId, $title, $number]);
+		return $result;
+	}
+
+	/**
+	 * @param array $data
+	 * @return array
+	 */
+	protected function prepareDocumentData(array $data)
+	{
+		$data['links'] = [
+			'download' => $this->getDocumentFileLink($data['id'], 'download', $data['updateTime']),
+			'image' => $this->getDocumentFileLink($data['id'], 'getImage', $data['updateTime']),
+			'pdf' => $this->getDocumentFileLink($data['id'], 'getPdf', $data['updateTime']),
+			'public' => $data['publicUrl'],
+		];
+		unset($data['imageUrl']);
+		unset($data['pdfUrl']);
+		unset($data['printUrl']);
+		unset($data['downloadUrl']);
+		unset($data['publicUrl']);
+		if(isset($data['value']))
+		{
+			$data['entityId'] = $data['value'];
+			unset($data['value']);
+		}
+		if(isset($data['provider']))
+		{
+			$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
+			$data['entityTypeId'] = str_ireplace(array_values($providersMap), array_keys($providersMap), $data['provider']);
+			unset($data['provider']);
+		}
+
+		return $data;
+	}
+
+	/**
+	 * @return bool
+	 */
+	protected function isFieldsAsArraySupportedInUpload()
+	{
+		$template = new \Bitrix\DocumentGenerator\Controller\Template();
+		return method_exists($template, 'updateAction');
 	}
 }

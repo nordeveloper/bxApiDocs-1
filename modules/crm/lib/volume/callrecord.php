@@ -119,6 +119,8 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 		$res = $query->exec();
 		if ($row = $res->fetch())
 		{
+			list($dateSplitPeriod, $dateSplitPeriodUnits) = $this->getDateSplitPeriod();
+
 			$dateMin =  new \Bitrix\Main\Type\DateTime($row['DATE_MIN'], 'Y-m-d');
 			//$dateMax =  new \Bitrix\Main\Type\DateTime($row['DATE_MAX'], 'Y-m-d');
 			$months =  $row['MONTHS'];
@@ -126,10 +128,10 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 			while ($months >= 0)
 			{
 				$period = $dateMin->format('Y.m');
-				$dateMin->add('3 months');
+				$dateMin->add("$dateSplitPeriod $dateSplitPeriodUnits");
 				$period .= '-';
 				$period .= $dateMin->format('Y.m');
-				$months -= 3;
+				$months -= $dateSplitPeriod;
 
 				$queueList[] = array(
 					'indicatorId' => $indicatorId,

@@ -1,4 +1,7 @@
 <?php
+
+use Bitrix\Main\Type\Collection;
+
 /**
  * Bitrix Framework
  * @package bitrix
@@ -109,7 +112,7 @@ class CAdminList
 				if (isset($this->aHeaders[$col]))
 					$this->aHeaders[$col]["__sort"] = $i;
 
-			uasort($this->aHeaders, create_function('$a, $b', 'if($a["__sort"] == $b["__sort"]) return 0; return ($a["__sort"] < $b["__sort"])? -1 : 1;'));
+			Collection::sortByColumn($this->aHeaders, ['__sort' => SORT_ASC], '', null, true);
 		}
 
 		foreach($this->aHeaders as $id=>$arHeader)
@@ -1236,8 +1239,8 @@ class CAdminListRow
 				}
 			}
 
-			$sDefAction = htmlspecialcharsbx($sDefAction, ENT_COMPAT, false);
-			$sDefTitle = htmlspecialcharsbx($sDefTitle, ENT_COMPAT, false);
+			$sDefAction = htmlspecialcharsbx($sDefAction);
+			$sDefTitle = htmlspecialcharsbx($sDefTitle);
 		}
 
 		$sMenuItems = "";

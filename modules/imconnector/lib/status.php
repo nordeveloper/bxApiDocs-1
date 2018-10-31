@@ -503,7 +503,7 @@ class Status
 	}
 
 	/**
-	 * To set the state of check connector.
+	 * To set the state of register connector.
 	 *
 	 * @param bool $status Status.
 	 */

@@ -1,14 +1,19 @@
 <?php
 namespace Bitrix\Crm\Entity;
 
+use Bitrix\Main\Localization\Loc;
+
 class DealValidator extends EntityValidator
 {
 	/** @var array|null */
 	protected $fieldInfos = null;
+	/** @var DealClientValidator|null  */
+	protected $clientValidator = null;
 
 	public function __construct($entityID, array $entityFields)
 	{
 		parent::__construct($entityID, $entityFields);
+		$this->clientValidator = new DealClientValidator($entityID, $entityFields);
 	}
 
 	public function getEntityTypeID()
@@ -24,17 +29,47 @@ class DealValidator extends EntityValidator
 		}
 		return $this->fieldInfos;
 	}
-
-	public function checkFieldPresence($fieldName)
+	public function checkFieldPresence($fieldName, array &$messages = null)
 	{
+		$message = null;
 		if($fieldName === 'OPPORTUNITY_WITH_CURRENCY')
 		{
-			return $this->innerCheckFieldPresence('OPPORTUNITY');
+			$result = !$this->isNeedToCheck('OPPORTUNITY')
+				||  (isset($this->entityFields['OPPORTUNITY']) && $this->entityFields['OPPORTUNITY'] > 0);
+
+			if(!$result)
+			{
+				$message = Loc::getMessage(
+					'CRM_ENTITY_VALIDATOR_FIELD_MUST_BE_GREATER_THEN_ZERO',
+					array('%FIELD_NAME%' => \CCrmDeal::GetFieldCaption('OPPORTUNITY'))
+				);
+			}
 		}
 		elseif($fieldName === 'CLIENT')
 		{
-			return $this->checkAnyFieldPresence(array('COMPANY_ID', 'CONTACT_ID', 'CONTACT_IDS'));
+			$result = $this->clientValidator->checkPresence();
 		}
-		return $this->innerCheckFieldPresence($fieldName);
+		else
+		{
+			$result = $this->innerCheckFieldPresence($fieldName);
+		}
+
+		if(!$result)
+		{
+			if($message === null)
+			{
+				$message = Loc::getMessage(
+					'CRM_ENTITY_VALIDATOR_FIELD_IS_MISSING',
+					array('%FIELD_NAME%' => \CCrmDeal::GetFieldCaption($fieldName))
+				);
+			}
+
+			if(!is_array($messages))
+			{
+				$messages = array();
+			}
+			$messages[] = array('id' => $fieldName, 'text' => $message);
+		}
+		return $result;
 	}
 }

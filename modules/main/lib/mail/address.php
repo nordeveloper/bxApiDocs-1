@@ -18,6 +18,7 @@ class Address
 
 	/** @var string|null $email Email. */
 	protected $email = null;
+	private $checkingPunycode;
 
 	/**
 	 * Return true if is valid.
@@ -35,12 +36,18 @@ class Address
 	 *
 	 * @param string|null $address Address.
 	 */
-	public function __construct($address = null)
+	public function __construct($address = null, $checkingPunycode = false)
 	{
+		$this->setCheckingPunycode($checkingPunycode);
 		if ($address)
 		{
 			$this->set($address);
 		}
+	}
+
+	public function setCheckingPunycode($checkingPunycode = true)
+	{
+		$this->checkingPunycode = $checkingPunycode;
 	}
 
 	/**
@@ -157,7 +164,7 @@ class Address
 	public function setEmail($email)
 	{
 		$email = strtolower(trim($email));
-		if (!check_email($email, true))
+		if (!$this->checkMail($email))
 		{
 			$email = null;
 		}
@@ -203,5 +210,27 @@ class Address
 		{
 			$this->setEmail($address);
 		}
+	}
+
+	private function checkMail($email)
+	{
+		if (!$this->checkingPunycode)
+		{
+			return check_email($email, true);
+		}
+		if (count(explode("@", $email)) === 2)
+		{
+			$domainPart = array_pop(explode("@", $email));
+			if ($domainPart)
+			{
+				$emailAddressName = array_shift(explode("@", $email));
+				$encoder = new \CBXPunycode();
+				if ($encodedDomain = $encoder->encode($domainPart))
+				{
+					return check_email($emailAddressName . '@' . $encodedDomain);
+				}
+			}
+		}
+		return false;
 	}
 }

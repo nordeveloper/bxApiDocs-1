@@ -131,6 +131,10 @@ class TransportMail implements Transport\iBase, Transport\iDuration, Transport\i
 		}
 		if ($unsubLink)
 		{
+			if (!preg_match('/^http:|https:/', $unsubLink))
+			{
+				$unsubLink = $this->getSenderLinkProtocol() . '://' . $message->getSiteServerName() . $unsubLink;
+			}
 			$headers['List-Unsubscribe'] = '<'.$unsubLink.'>';
 		}
 
@@ -233,7 +237,7 @@ class TransportMail implements Transport\iBase, Transport\iDuration, Transport\i
 			'CONTENT_TYPE' => $mailMessage->getMailContentType(),
 			'MESSAGE_ID' => '',
 			'ATTACHMENT' => $mailAttachment,
-			'LINK_PROTOCOL' => Option::get('sender', 'link_protocol', Integration\Bitrix24\Service::isCloud() ? 'https' : 'http'),
+			'LINK_PROTOCOL' => $this->getSenderLinkProtocol(),
 			'LINK_DOMAIN' => $message->getSiteServerName(),
 			'TRACK_READ' => $this->canTrackMails() ? $message->getReadTracker()->getArray() : null,
 			'TRACK_CLICK' => $this->canTrackMails() ? $message->getClickTracker()->getArray() : null,
@@ -274,6 +278,13 @@ class TransportMail implements Transport\iBase, Transport\iDuration, Transport\i
 	public function getLimiters(Message\iBase $message = null)
 	{
 		return Integration\Bitrix24\Limitation\Limiter::getList();
+	}
+
+	protected function getSenderLinkProtocol()
+	{
+		$protocol = Option::get('sender', 'link_protocol', null);
+		$protocol = $protocol ?: (Integration\Bitrix24\Service::isCloud() ? 'https' : 'http');
+		return $protocol;
 	}
 
 	protected function canTrackMails()

@@ -2833,26 +2833,16 @@ class CAllCrmLead
 
 				if(!empty($requiredSystemFields))
 				{
-					$systemFieldCheckErrors = array();
 					$validator = new Crm\Entity\LeadValidator($ID, $fieldsToCheck);
-
+					$validationErrors = array();
 					foreach($requiredSystemFields as $fieldName)
 					{
-						if(!$validator->checkFieldPresence($fieldName))
-						{
-							$systemFieldCheckErrors[] = array(
-								'id' => $fieldName,
-								'text' => GetMessage(
-									'CRM_ERROR_FIELD_IS_MISSING',
-									array('%FIELD_NAME%' => \CCrmLead::GetFieldCaption($fieldName))
-								)
-							);
-						}
+						$validator->checkFieldPresence($fieldName, $validationErrors);
 					}
 
-					if(!empty($systemFieldCheckErrors))
+					if(!empty($validationErrors))
 					{
-						$e = new CAdminException($systemFieldCheckErrors);
+						$e = new CAdminException($validationErrors);
 						$this->checkExceptions[] = $e;
 						$this->LAST_ERROR .= $e->GetString();
 					}

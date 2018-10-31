@@ -180,6 +180,8 @@ class CIBlockXMLFile
 	{
 		global $DB;
 
+		$parentID = (int)$parentID;
+
 		if (!isset($this) || !is_object($this) || strlen($this->_table_name) <= 0)
 		{
 			$ob = new CIBlockXMLFile;

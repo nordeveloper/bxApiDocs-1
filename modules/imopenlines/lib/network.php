@@ -367,6 +367,11 @@ class Network
 
 			$extraFields['EXTRA_TARIFF'] = $params['USER']['TARIFF'];
 		}
+		if (isset($params['USER']['USER_LEVEL']) && in_array($params['USER']['USER_LEVEL'], Array('ADMIN', 'INTEGRATOR')))
+		{
+			$description .= '[B]'.Loc::getMessage('IMOL_NETWORK_USER_LEVEL').'[/B]: '.Loc::getMessage('IMOL_NETWORK_USER_LEVEL_'.$params['USER']['USER_LEVEL']).'[BR]';
+			$extraFields['EXTRA_USER_LEVEL'] = $params['USER']['USER_LEVEL'];
+		}
 		if (isset($params['USER']['REGISTER']) && !empty($params['USER']['REGISTER']))
 		{
 			$daysAgo = intval((time() - $params['USER']['REGISTER']) / 60 / 60 / 24);

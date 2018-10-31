@@ -296,13 +296,13 @@ class Document extends Base
 			$select = $this->convertArrayValuesToUpper($select, 1);
 		}
 
-		return new Page(['documents' => $this->convertArrayKeysToCamel(DocumentTable::getList([
+		return new Page('documents', $this->convertArrayKeysToCamel(DocumentTable::getList([
 			'select' => $select,
 			'filter' => $filter,
 			'order' => $order,
 			'offset' => $pageNavigation->getOffset(),
 			'limit' => $pageNavigation->getLimit(),
-		])->fetchAll(), 1)], function() use ($filter)
+		])->fetchAll(), 1), function() use ($filter)
 		{
 			return DocumentTable::getCount($filter);
 		});

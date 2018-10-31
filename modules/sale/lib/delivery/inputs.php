@@ -5,7 +5,6 @@ require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/sale/lib/internals/input
 
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\ArgumentTypeException;
-use Bitrix\Sale\Delivery\DeliveryLocationTable;
 use	Bitrix\Sale\Internals\Input;
 use Bitrix\Main\Localization\Loc;
 
@@ -273,11 +272,14 @@ Input\Manager::register('DELIVERY_MULTI_CONTROL_STRING', array(
 
 class LocationMulti extends Input\Base
 {
+	protected static $d2LClass = '\Bitrix\Sale\Delivery\DeliveryLocationTable';
+
 	public static function getViewHtml(array $input, $value = null)
 	{
 		$result = "";
+		$class = static::$d2LClass;
 
-		$res = \Bitrix\Sale\Delivery\DeliveryLocationTable::getConnectedLocations(
+		$res = $class::getConnectedLocations(
 			$input["DELIVERY_ID"],
 			array(
 				'select' => array('LNAME' => 'NAME.NAME'),
@@ -288,7 +290,7 @@ class LocationMulti extends Input\Base
 		while($loc = $res->fetch())
 			$result .= htmlspecialcharsbx($loc["LNAME"])."<br>\n";
 
-		$res = DeliveryLocationTable::getConnectedGroups(
+		$res = $class::getConnectedGroups(
 			$input["DELIVERY_ID"],
 			array(
 				'select' => array('LNAME' => 'NAME.NAME'),
@@ -313,7 +315,7 @@ class LocationMulti extends Input\Base
 			"",
 			array(
 				"ENTITY_PRIMARY" => $input["DELIVERY_ID"],
-				"LINK_ENTITY_NAME" => \Bitrix\Sale\Delivery\Services\Manager::getLocationConnectorEntityName(),
+				"LINK_ENTITY_NAME" => substr(static::$d2LClass, 0, -5),
 				"INPUT_NAME" => $name
 			),
 			false
@@ -376,6 +378,16 @@ class LocationMulti extends Input\Base
 
 Input\Manager::register('LOCATION_MULTI', array(
 	'CLASS' => __NAMESPACE__.'\\LocationMulti',
+	'NAME' => Loc::getMessage('INPUT_DELIVERY_LOCATION_MULTI')
+));
+
+class LocationMultiExclude extends LocationMulti
+{
+	protected static $d2LClass = '\Bitrix\Sale\Delivery\DeliveryLocationExcludeTable';
+}
+
+Input\Manager::register('LOCATION_MULTI_EXCLUDE', array(
+	'CLASS' => __NAMESPACE__.'\\LocationMultiExclude',
 	'NAME' => Loc::getMessage('INPUT_DELIVERY_LOCATION_MULTI')
 ));
 

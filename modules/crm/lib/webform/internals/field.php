@@ -151,4 +151,11 @@ class FieldTable extends Entity\DataManager
 
 		return $result;
 	}
+
+	public static function isUiFieldType($type)
+	{
+		$uiTypes = [self::TYPE_ENUM_BR, self::TYPE_ENUM_HR, self::TYPE_ENUM_SECTION];
+
+		return in_array($type, $uiTypes);
+	}
 }

@@ -10,6 +10,8 @@ use Bitrix\Main\DB\Result;
 use Bitrix\Main\Entity\Query;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Type\Date;
+use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\UserTable;
 use Bitrix\Report\VisualConstructor\Fields\Div;
 use Bitrix\Report\VisualConstructor\Fields\Valuable\DropDown;
@@ -336,9 +338,23 @@ abstract class Base extends BaseReport
 	 */
 	private function prepareItemForGroupingByDate($array)
 	{
-		/** @var \DateTime $date */
+		/** @var DateTime|Date $date */
 		$date = $array['DATE'];
-		$formatDate = $date->format('Y-m-d H:i');
+		if ($date instanceof DateTime)
+		{
+			if(\CTimeZone::Enabled())
+			{
+				$formatDate = $date->toUserTime()->format('Y-m-d H:i');
+			}
+			else
+			{
+				$formatDate = $date->format('Y-m-d H:i');
+			}
+		}
+		else
+		{
+			$formatDate = $date->format('Y-m-d H:i');
+		}
 		return array(
 			$formatDate => array(
 			'label' => $formatDate,

@@ -77,10 +77,10 @@ class PersonType
 			$filter['ID'] = $id;
 		}
 
-		if ($personTypeList = static::loadFromDb(array(
-			                          'order' => array("SORT" => "ASC", "NAME" => "ASC"),
-			                          'filter' => $filter,
-		                          )))
+		if ($personTypeList = static::loadFromDb([
+			'order' => ["SORT" => "ASC", "ID" => "ASC"],
+			'filter' => $filter,
+		]))
 		{
 			foreach($personTypeList as $personTypeData)
 			{

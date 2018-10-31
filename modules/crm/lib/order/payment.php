@@ -39,6 +39,20 @@ class Payment extends Sale\Payment
 				['PAYMENT' => $this]
 			);
 		}
+
+		if(Main\Loader::includeModule('pull'))
+		{
+			\CPullWatch::AddToStack(
+				'CRM_ENTITY_ORDER_PAYMENT',
+				array(
+					'module_id' => 'crm',
+					'command' => 'onOrderPaymentSave',
+					'params' => array(
+						'FIELDS' => $this->getFieldValues()
+					)
+				)
+			);
+		}
 	}
 
 	/**

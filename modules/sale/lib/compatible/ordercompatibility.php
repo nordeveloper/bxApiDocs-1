@@ -2312,8 +2312,7 @@ class OrderCompatibility extends Internals\EntityCompatibility
 
 			if ($payment->isReturn() && $payment->isInner())
 			{
-				/** @var Sale\Result $r */
-				$r = $payment->setReturn('N');
+				$r = $payment->setPaid('Y');
 			}
 			else
 			{

@@ -1671,7 +1671,10 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 			if ($oldValue != "Y")
 			{
 				$this->setField('DATE_MARKED', new Main\Type\DateTime());
-				$this->setField('EMP_MARKED_ID', $USER->GetID());
+				if ($USER)
+				{
+					$this->setField('EMP_MARKED_ID', $USER->GetID());
+				}
 			}
 			elseif ($value == "N")
 			{
@@ -1684,7 +1687,10 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 			if ($oldValue != $value)
 			{
 				$this->setField('DATE_ALLOW_DELIVERY', new Main\Type\DateTime());
-				$this->setField('EMP_ALLOW_DELIVERY_ID', $USER->GetID());
+				if ($USER)
+				{
+					$this->setField('EMP_ALLOW_DELIVERY_ID', $USER->GetID());
+				}
 			}
 
 			if ($oldValue === 'N')
@@ -1710,7 +1716,10 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 			if ($oldValue != $value)
 			{
 				$this->setField('DATE_DEDUCTED', new Main\Type\DateTime());
-				$this->setField('EMP_DEDUCTED_ID', $USER->GetID());
+				if ($USER)
+				{
+					$this->setField('EMP_DEDUCTED_ID', $USER->GetID());
+				}
 			}
 
 			if ($oldValue === 'N')

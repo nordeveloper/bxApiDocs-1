@@ -128,7 +128,6 @@ class OrderDocumentHandler extends PaySystem\BaseServiceHandler
 		$dbRes = DocumentGenerator\Model\DocumentTable::getList([
 			'select' => ['ID', 'UPDATE_TIME'],
 			'filter' => [
-				'=ACTIVE' => 'Y',
 				'=PROVIDER' => static::getDataProviderClass(),
 				'=VALUE' => $payment->getOrderId(),
 				'=TEMPLATE_ID' => $this->service->getField('PS_MODE'),

@@ -344,19 +344,23 @@ if($USER->IsAuthorized()):
 		if(isset($bxProductConfig["saas"])):
 			if($bSaas)
 			{
+				$sWarnDate = COption::GetOptionString('main', '~support_finish_date');
+				if (!empty($sWarnDate))
+					$sWarnDate = ConvertTimeStamp(MakeTimeStamp($sWarnDate, 'YYYY-MM-DD'), "SHORT");
+
 				if($daysToExpire > 0)
 				{
 					if($daysToExpire <= $bxProductConfig["saas"]["days_before_warning"])
 					{
 						$sWarn = $bxProductConfig["saas"]["warning"];
-						$sWarn = str_replace("#RENT_DATE#", COption::GetOptionString('main', '~support_finish_date'), $sWarn);
+						$sWarn = str_replace("#RENT_DATE#", $sWarnDate, $sWarn);
 						$sWarn = str_replace("#DAYS#", $daysToExpire, $sWarn);
 						echo $sWarn;
 					}
 				}
 				else
 				{
-					echo str_replace("#RENT_DATE#", COption::GetOptionString('main', '~support_finish_date'), $bxProductConfig["saas"]["warning_expired"]);
+					echo str_replace("#RENT_DATE#", $sWarnDate, $bxProductConfig["saas"]["warning_expired"]);
 				}
 			}
 			else
@@ -379,6 +383,32 @@ if($USER->IsAuthorized()):
 <?
 		endif; //saas
 		echo EndNote();
+
+	elseif(defined("TIMELIMIT_EDITION") && TIMELIMIT_EDITION == "Y"):
+	
+		$delta = $SiteExpireDate - time();
+		$daysToExpire = ceil($delta / 86400);
+		$sWarnDate = ConvertTimeStamp($SiteExpireDate, "SHORT");
+
+		if ($daysToExpire >= 0 && $daysToExpire < 60)
+		{
+			echo BeginNote('style="position: relative; top: -15px;"');
+			echo GetMessage("prolog_main_timelimit11", array(
+				'#FINISH_DATE#' => $sWarnDate,
+				'#DAYS_AGO#' => $daysToExpire,
+				'#DAYS_AGO_TXT#' => ($daysToExpire == 0? GetMessage("prolog_main_today") : GetMessage('prolog_main_support_days', array('#N_DAYS_AGO#' => $daysToExpire))),
+			));
+			echo EndNote();
+		}
+		elseif ($daysToExpire < 0)
+		{
+			echo BeginNote('style="position: relative; top: -15px;"');
+			echo GetMessage("prolog_main_timelimit12", array(
+				'#FINISH_DATE#' => $sWarnDate,
+				'#DAYS_AGO#' => ((14 - abs($daysToExpire) >= 0) ? (14 - abs($daysToExpire)) : 0),
+			));
+			echo EndNote();
+		};
 
 	elseif($USER->CanDoOperation('install_updates')):
 		//show support ending warning

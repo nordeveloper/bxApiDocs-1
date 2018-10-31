@@ -222,8 +222,7 @@ abstract class OrderBase extends Internals\Entity
 		}
 
 		$order->setFieldNoDemand('CURRENCY', $currency);
-		$order->setFieldNoDemand('STATUS_ID', static::getInitialStatus());
-		$order->setFieldNoDemand('DATE_STATUS', new Type\DateTime());
+		$order->setField('STATUS_ID', static::getInitialStatus());
 
 		$order->calculateType = static::SALE_ORDER_CALC_TYPE_NEW;
 
@@ -331,7 +330,7 @@ abstract class OrderBase extends Internals\Entity
 	 */
 	static protected function loadFromDb(array $parameters)
 	{
-		throw new Main\NotImplementedException();
+		return static::getList($parameters);
 	}
 
 	/**
@@ -597,10 +596,63 @@ abstract class OrderBase extends Internals\Entity
 	 *
 	 * @param array $select
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ObjectNotFoundException
 	 */
 	public function refreshData($select = array())
 	{
-		return new Result();
+		$result = new Result();
+
+		$isStartField = $this->isStartField();
+
+		$this->calculateType = ($this->getId() > 0 ? static::SALE_ORDER_CALC_TYPE_REFRESH : static::SALE_ORDER_CALC_TYPE_NEW);
+
+		$this->refreshInternal();
+
+		if ($isStartField)
+		{
+			$hasMeaningfulFields = $this->hasMeaningfulField();
+
+			/** @var Result $r */
+			$r = $this->doFinalAction($hasMeaningfulFields);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+			}
+		}
+
+		return $result;
+
+	}
+
+	/**
+	 * @param $select
+	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentOutOfRangeException
+	 */
+	protected function refreshInternal()
+	{
+		$result = new Result();
+
+		/** @var Basket $basket */
+		$basket = $this->getBasket();
+		if (!$basket)
+		{
+			return $result;
+		}
+
+		/** @var Result $r */
+		$r = $this->setField('PRICE', $basket->getPrice());
+		if (!$r->isSuccess())
+		{
+			$result->addErrors($r->getErrors());
+			return $result;
+		}
+
+		return $result;
 	}
 
 	/**
@@ -934,15 +986,36 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * @return mixed
+	 * @throws Main\ArgumentException
 	 * @throws Main\NotImplementedException
 	 */
 	protected static function getInitialStatus()
 	{
-		throw new Main\NotImplementedException();
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var OrderStatus $orderStatus */
+		$orderStatus = $registry->getOrderStatusClassName();
+		return $orderStatus::getInitialStatus();
+	}
+
+	/**
+	 * @return mixed
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
+	 */
+	protected static function getFinalStatus()
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var OrderStatus $orderStatus */
+		$orderStatus = $registry->getOrderStatusClassName();
+		return $orderStatus::getFinalStatus();
 	}
 
 	/**
 	 * @return Result
+	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotImplementedException
 	 * @throws Main\ObjectException
@@ -1127,6 +1200,12 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectException
+	 * @throws Main\SystemException
 	 */
 	protected function add()
 	{
@@ -1181,6 +1260,8 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @return Result
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
 	 */
 	protected function update()
 	{
@@ -1572,6 +1653,15 @@ abstract class OrderBase extends Internals\Entity
 				'VALUE' => $value,
 				'OLD_VALUE' => $oldValue,
 			));
+
+			if ($this->isStatusChangedOnPay($value, $oldValue))
+			{
+				Internals\EventsPool::addEvent($this->getInternalId(), EventActions::EVENT_ON_ORDER_STATUS_ALLOW_PAY_CHANGE, array(
+					'ENTITY' => $this,
+					'VALUE' => $value,
+					'OLD_VALUE' => $oldValue,
+				));
+			}
 		}
 
 		return $result;
@@ -1693,11 +1783,6 @@ abstract class OrderBase extends Internals\Entity
 	{
 		return $this->isNew;
 	}
-
-	/**
-	 * @return Tax
-	 */
-	abstract protected function loadTax();
 
 	/**
 	 * Reset the value of taxes
@@ -2080,13 +2165,35 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * @param $orderId
-	 * @throws Main\NotImplementedException
+	 * @param $id
 	 * @return bool
+	 * @throws Main\NotImplementedException
 	 */
-	protected static function isExists($orderId)
+	protected static function isExists($id)
 	{
-		throw new Main\NotImplementedException();
+		$dbRes = static::getList(array('filter' => array('ID' => $id)));
+		if ($dbRes->fetch())
+			return true;
+
+		return false;
+	}
+
+	/**
+	 * @deprecated Use OrderStatus::isAllowPay instead
+	 *
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 */
+	public function isAllowPay()
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var OrderStatus $orderClassName */
+		$orderClassName = $registry->getOrderStatusClassName();
+		return $orderClassName::isAllowPay($this->getField('STATUS_ID'));
 	}
 
 	/**
@@ -2134,9 +2241,32 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * @return Discount
+	 * @return Tax
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
 	 */
-	abstract protected function loadDiscount();
+	protected function loadTax()
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var Tax $taxClassName */
+		$taxClassName = $registry->getTaxClassName();
+		return $taxClassName::load($this);
+	}
+
+	/**
+	 * @return DiscountBase
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
+	 */
+	protected function loadDiscount()
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var Discount $discountClassName */
+		$discountClassName = $registry->getDiscountClassName();
+		return $discountClassName::buildFromOrder($this);
+	}
 
 	/**
 	 * @return Result
@@ -2347,9 +2477,12 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * Apply the result of the discounts to the order.
+	 *
 	 * @internal
-	 * @param array $data			Order data.
+	 *
+	 * @param array $data
 	 * @return Result
+	 * @throws Main\ArgumentNullException
 	 */
 	public function applyDiscount(array $data)
 	{
@@ -2403,6 +2536,52 @@ abstract class OrderBase extends Internals\Entity
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Reset the value of the order and delivery
+	 *
+	 * @internal
+	 *
+	 * @param array $select
+	 * @throws Main\ArgumentOutOfRangeException
+	 */
+	public function resetData($select = array('PRICE'))
+	{
+		if (in_array('PRICE', $select))
+		{
+			$this->setFieldNoDemand('PRICE', 0);
+		}
+
+		if (in_array('PRICE_DELIVERY', $select))
+		{
+			$this->setFieldNoDemand('PRICE_DELIVERY', 0);
+		}
+	}
+
+	/**
+	 * @param $value
+	 * @param $oldValue
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 */
+	protected function isStatusChangedOnPay($value, $oldValue)
+	{
+		$registry = Registry::getInstance(static::getRegistryType());
+
+		/** @var OrderStatus $orderStatus */
+		$orderStatus = $registry->getOrderStatusClassName();
+
+		$allowPayStatus = $orderStatus::getAllowPayStatusList();
+		$disallowPayStatus = $orderStatus::getDisallowPayStatusList();
+
+		return !empty($disallowPayStatus)
+				&& in_array($oldValue, $disallowPayStatus)
+				&& !empty($allowPayStatus)
+				&& in_array($value, $allowPayStatus);
 	}
 
 	/**

@@ -1159,9 +1159,6 @@ abstract class OrderDiscountBase
 		{
 			foreach ($block as $row)
 			{
-				$row['ORDER_ID'] = $order;
-				$row['ENTITY_TYPE'] = static::getRoundEntityInternal($row['ENTITY_TYPE']);
-
 				$id = null;
 				if (isset($row['RULE_ID']) && $row['RULE_ID'] > 0)
 					$id = $row['RULE_ID'];

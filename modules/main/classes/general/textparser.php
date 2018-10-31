@@ -1013,7 +1013,7 @@ class CTextParser
 				}
 				else
 				{
-					?><iframe src="<?=$pathEncoded?>" allowfullscreen="" frameborder="0" height="<?=intval($arParams["HEIGHT"])?>" width="<?=intval($arParams["WIDTH"])?>"></iframe><?
+					?><iframe src="<?=$pathEncoded?>" allowfullscreen="" frameborder="0" height="<?=intval($arParams["HEIGHT"])?>" width="<?=intval($arParams["WIDTH"])?>" style="max-width: 100%;"></iframe><?
 				}
 			}
 		}

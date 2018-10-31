@@ -429,6 +429,47 @@ class Operator
 		return false;
 	}
 
+	public static function getOperatorData($operatorId, $configId = null)
+	{
+		$operatorId = intval($operatorId);
+		if ($operatorId <= 0)
+		{
+			return [
+				'ID' => 0,
+				'NAME' => '',
+				'AVATAR' => '',
+				'ONLINE' => false,
+			];
+		}
+
+		$userData = \Bitrix\Im\User::getInstance($operatorId);
+
+		$operator['ID'] = $operatorId;
+		$operator['NAME'] = $userData->getName(false);
+		if (empty($operator['NAME']))
+		{
+			$operator['NAME'] = Loc::getMessage('IMOL_OPERATOR_USER_NAME');
+		}
+
+		if ($configId && function_exists('customImopenlinesOperatorNames')) // Temporary hack :(
+		{
+			$customName = Array(
+				'ID' => $operatorId,
+				'NAME' => $operator['NAME']
+			);
+			$customName = customImopenlinesOperatorNames($configId, $customName);
+			if ($customName && $customName['NAME'])
+			{
+				$operator['NAME'] = $customName['NAME'];
+			}
+		}
+
+		$operator['AVATAR'] = $userData->getAvatar();
+		$operator['ONLINE'] = $userData->isOnline();
+
+		return $operator;
+	}
+
 	public function getSessionHistory($sessionId)
 	{
 		$sessionId = intval($sessionId);

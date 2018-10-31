@@ -9,6 +9,7 @@ namespace Bitrix\Sale;
 
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main;
+use Bitrix\Main\Entity;
 use Bitrix\Sale;
 use Bitrix\Sale\Internals;
 
@@ -316,25 +317,149 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	 * @param mixed $oldValue
 	 * @param mixed $value
 	 * @return Result
-	 * @throws Main\NotSupportedException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectException
+	 * @throws Main\SystemException
 	 */
 	protected function onFieldModify($name, $oldValue, $value)
 	{
 		global $USER;
 
+		$result = new Result();
+
 		if ($name == "PAID")
 		{
-			if ($oldValue != "Y")
+			if ($value == "Y")
 			{
 				$this->setField('DATE_PAID', new Main\Type\DateTime());
 				$this->setField('EMP_PAID_ID', $USER->GetID());
+
+				if ($this->getField('IS_RETURN') == self::RETURN_INNER)
+				{
+					$innerPsId = Sale\PaySystem\Manager::getInnerPaySystemId();
+
+					$service = Sale\PaySystem\Manager::getObjectById($innerPsId);
+					if ($service)
+					{
+						$operationResult = $service->creditNoDemand($this);
+						if (!$operationResult->isSuccess())
+						{
+							$result->addErrors($operationResult->getErrors());
+							return $result;
+						}
+						else
+						{
+							$this->setFieldNoDemand('IS_RETURN', self::RETURN_NONE);
+						}
+					}
+				}
+				else
+				{
+					$service = Sale\PaySystem\Manager::getObjectById($this->getPaymentSystemId());
+					if ($service)
+					{
+						$operationResult = $service->creditNoDemand($this);
+						if (!$operationResult->isSuccess())
+						{
+							$result->addErrors($operationResult->getErrors());
+							return $result;
+						}
+					}
+				}
+
+
+				$this->setField('IS_RETURN', 'N');
 			}
 		}
 		elseif ($name == "IS_RETURN")
 		{
-			if ($oldValue != "Y")
+			if ($value === 'N')
+			{
+				return $result;
+			}
+
+			if ($oldValue === "N")
 			{
 				$this->setField('EMP_RETURN_ID', $USER->GetID());
+			}
+
+			/** @var PaymentCollection $collection */
+			$collection = $this->getCollection();
+
+			$creditSum = 0;
+			$overPaid = $collection->getPaidSum() - $collection->getOrder()->getPrice();
+
+			if ($overPaid <= 0)
+			{
+				$creditSum = $this->getSum();
+				$overPaid = 0;
+			}
+			elseif ($this->getSum() - $overPaid > 0)
+			{
+				$creditSum = $this->getSum() - $overPaid;
+			}
+
+			if ($value == static::RETURN_PS)
+			{
+				$psId = $this->getPaymentSystemId();
+			}
+			else
+			{
+				$psId = Sale\PaySystem\Manager::getInnerPaySystemId();
+			}
+
+			$service = Sale\PaySystem\Manager::getObjectById($psId);
+
+			if ($service && $service->isRefundable())
+			{
+				if ($creditSum)
+				{
+					if ($value == static::RETURN_PS)
+					{
+						if ($overPaid > 0)
+						{
+							$userBudget = Internals\UserBudgetPool::getUserBudgetByOrder($collection->getOrder());
+							if (PriceMaths::roundPrecision($overPaid) > PriceMaths::roundPrecision($userBudget))
+							{
+								$result->addError(
+									new Entity\EntityError(
+										Loc::getMessage('SALE_ORDER_PAYMENT_RETURN_PAID'),
+										'SALE_ORDER_PAYMENT_RETURN_PAID'
+									)
+								);
+
+								return $result;
+							}
+						}
+					}
+
+					$refResult = $service->refund($this);
+					if (!$refResult->isSuccess())
+					{
+						$result->addErrors($refResult->getErrors());
+						return $result;
+					}
+				}
+			}
+			else
+			{
+				$result->addError(
+					new Entity\EntityError(
+						Loc::getMessage('SALE_ORDER_PAYMENT_RETURN_NO_SUPPORTED'),
+						'SALE_ORDER_PAYMENT_RETURN_NO_SUPPORTED'
+					)
+				);
+
+				return $result;
+			}
+
+			$r = $this->setField('PAID', 'N');
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+				return $result;
 			}
 		}
 		elseif($name == "SUM")
@@ -356,7 +481,12 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 			}
 			elseif ($value == "N")
 			{
-				$this->setField('REASON_MARKED', '');
+				$r = $this->setField('REASON_MARKED', '');
+				if (!$r->isSuccess())
+				{
+					$result->addErrors($r->getErrors());
+					return $result;
+				}
 			}
 		}
 
@@ -760,58 +890,15 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	{
 		$result = new Result();
 
-		if ($value == "Y")
+		/** @var Result $r */
+		$r = $this->setField('PAID', $value);
+		if (!$r->isSuccess())
 		{
-			if ($this->isPaid())
-				return new Result();
-
-			if ($this->getField('IS_RETURN') == self::RETURN_INNER)
-			{
-				$innerPsId = Sale\PaySystem\Manager::getInnerPaySystemId();
-
-				$service = Sale\PaySystem\Manager::getObjectById($innerPsId);
-				if ($service)
-				{
-					$operationResult = $service->creditNoDemand($this);
-					if (!$operationResult->isSuccess())
-						$result->addErrors($operationResult->getErrors());
-					else
-						$this->setFieldNoDemand('IS_RETURN', self::RETURN_NONE);
-				}
-			}
-			else
-			{
-				$service = Sale\PaySystem\Manager::getObjectById($this->getPaymentSystemId());
-				if ($service)
-				{
-					$operationResult = $service->creditNoDemand($this);
-					if (!$operationResult->isSuccess())
-						$result->addErrors($operationResult->getErrors());
-				}
-			}
+			$result->addErrors($r->getErrors());
 		}
-		elseif($value == "N")
+		elseif($r->hasWarnings())
 		{
-			if (!$this->isPaid())
-				return new Result();
-		}
-		else
-		{
-			throw new Main\ArgumentOutOfRangeException('value');
-		}
-
-		if ($result->isSuccess())
-		{
-			/** @var Result $r */
-			$r = $this->setField('PAID', $value);
-			if (!$r->isSuccess())
-			{
-				$result->addErrors($r->getErrors());
-			}
-			elseif($r->hasWarnings())
-			{
-				$result->addWarnings($r->getWarnings());
-			}
+			$result->addWarnings($r->getWarnings());
 		}
 
 		return $result;
@@ -831,14 +918,16 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 		if ($value == "Y" || $value == "P")
 		{
 			if ($this->isReturn())
+			{
 				return new Result();
-
+			}
 		}
 		elseif($value == "N")
 		{
 			if (!$this->isReturn())
+			{
 				return new Result();
-
+			}
 		}
 		else
 		{

@@ -15,6 +15,11 @@ use Bitrix\Sale\Helpers\Admin\OrderEdit;
 use Bitrix\Sale\Order;
 use Bitrix\Sale\Provider;
 
+/**
+ * Class BasketBuilder
+ * @package Bitrix\Sale\Helpers\Order\Builder
+ * @internal
+ */
 abstract class BasketBuilder
 {
 	const BASKET_CODE_NEW = 'new';
@@ -43,9 +48,6 @@ abstract class BasketBuilder
 	protected $trustData = [];
 	/** @var bool */
 	protected $isProductAdded = false;
-
-	/** @var bool  */
-	protected static $catalogIncluded = false;
 
 	public function __construct(OrderBuilder $builder)
 	{
@@ -433,21 +435,6 @@ abstract class BasketBuilder
 		return $result;
 	}
 
-	protected function setDiscountItemData($basketCode, $productFormData, $productProviderData)
-	{
-		if(isset($productProviderData[$basketCode]) && !empty($productProviderData[$basketCode]))
-		{
-			$product = $productProviderData[$basketCode];
-
-			if(isset($productFormData['PRICE']) && isset($productFormData['CUSTOM_PRICE']) && $productFormData['CUSTOM_PRICE'] == 'Y')
-				$product['PRICE'] = $productFormData['PRICE'];
-			elseif(isset($product['BASE_PRICE']))
-				$product['PRICE'] = $product['BASE_PRICE'] - $product['DISCOUNT_PRICE'];
-
-			$discount = $this->getOrder()->getDiscount();
-		}
-	}
-
 	//todo: \Bitrix\Catalog\Product\Basket::addProductToBasket()
 	public function setItemsFields()
 	{
@@ -511,7 +498,6 @@ abstract class BasketBuilder
 				);
 			}
 
-			$this->setDiscountItemData($basketCode, $productFormData, $productProviderData);
 			$product = array();
 
 			//merge catalog data
@@ -652,17 +638,18 @@ abstract class BasketBuilder
 	public function getCatalogMeasures()
 	{
 		static $result = null;
+		$catalogIncluded = null;
 
 		if(!is_array($result))
 		{
 			$result = array();
 
-			if (self::$catalogIncluded === null)
+			if ($catalogIncluded === null)
 			{
-				self::$catalogIncluded = Loader::includeModule('catalog');
+				$catalogIncluded = Loader::includeModule('catalog');
 			}
 
-			if (self::$catalogIncluded)
+			if ($catalogIncluded)
 			{
 				$dbList = \CCatalogMeasure::getList();
 

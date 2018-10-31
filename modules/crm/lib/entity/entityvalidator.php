@@ -1,7 +1,8 @@
 <?php
 namespace Bitrix\Crm\Entity;
 
-//use Bitrix\Main;
+use Bitrix\Main\Localization\Loc;
+Loc::loadMessages(__FILE__);
 
 class EntityValidator
 {
@@ -34,7 +35,10 @@ class EntityValidator
 		$fieldInfos = $this->getFieldInfos();
 		return $fieldInfos[$fieldName] ? $fieldInfos[$fieldName] : null;
 	}
-
+	protected function isNeedToCheck($fieldName)
+	{
+		return $this->entityID <= 0 || array_key_exists($fieldName, $this->entityFields);
+	}
 	protected function checkAllFieldPresence(array $fieldNames)
 	{
 		foreach($fieldNames as $fieldName)
@@ -46,7 +50,6 @@ class EntityValidator
 		}
 		return true;
 	}
-
 	protected function checkAnyFieldPresence(array $fieldNames)
 	{
 		foreach($fieldNames as $fieldName)
@@ -58,12 +61,10 @@ class EntityValidator
 		}
 		return false;
 	}
-
-	public function checkFieldPresence($fieldName)
+	public function checkFieldPresence($fieldName, array &$messages)
 	{
 		return $this->innerCheckFieldPresence($fieldName);
 	}
-
 	protected function innerCheckFieldPresence($fieldName)
 	{
 		if($this->entityID > 0 && !array_key_exists($fieldName, $this->entityFields))
@@ -84,29 +85,5 @@ class EntityValidator
 			return !empty($value);
 		}
 		return strlen($this->entityFields[$fieldName]) > 0;
-	}
-
-	protected function checkMultifieldPresence($fieldName)
-	{
-		if($this->entityID > 0 && !array_key_exists('FM', $this->entityFields))
-		{
-			return true;
-		}
-
-		if(isset($this->entityFields['FM'])
-			&& is_array($this->entityFields['FM'])
-			&& isset($this->entityFields['FM'][$fieldName])
-			&& is_array($this->entityFields['FM'][$fieldName])
-		)
-		{
-			foreach($this->entityFields['FM'][$fieldName] as $value)
-			{
-				if(isset($value['VALUE']) && $value['VALUE'] !== '')
-				{
-					return true;
-				}
-			}
-		}
-		return false;
 	}
 }

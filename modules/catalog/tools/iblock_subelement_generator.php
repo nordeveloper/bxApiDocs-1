@@ -3,7 +3,8 @@
 /**	@global CUser $USER */
 use Bitrix\Main,
 	Bitrix\Highloadblock as HL,
-	Bitrix\Currency;
+	Bitrix\Currency,
+	Bitrix\Catalog;
 
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
 IncludeModuleLangFile(__FILE__);
@@ -33,7 +34,7 @@ $arSKUInfo = CCatalogSku::GetInfoByOfferIBlock($subIBlockId);
 CUtil::decodeURIComponent($_POST['PRODUCT_NAME']);
 $parentProductName = trim($_POST['PRODUCT_NAME']);
 
-$useStoreControl = ((string)Main\Config\Option::get('catalog', 'default_use_store_control') == 'Y');
+$useStoreControl = Catalog\Config\State::isUsedInventoryManagement();
 
 if($arSKUInfo == false)
 {

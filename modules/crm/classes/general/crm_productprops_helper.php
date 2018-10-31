@@ -65,8 +65,10 @@ class CCrmProductPropsHelper
 
 		$blackList = array(
 			'S:DiskFile',
+			'S:directory',
 			'G:SectionAuto',
-			'E:EAutocomplete'
+			'E:EAutocomplete',
+			'E:SKU'
 		);
 
 		$arUserTypeList = CIBlockProperty::GetUserType($userType);

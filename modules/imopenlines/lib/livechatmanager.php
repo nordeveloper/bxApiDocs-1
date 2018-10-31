@@ -3,7 +3,8 @@
 namespace Bitrix\ImOpenLines;
 
 use Bitrix\Main,
-	Bitrix\Main\Localization\Loc;
+	Bitrix\Main\Localization\Loc,
+	Bitrix\Main\Application;
 
 Loc::loadMessages(__FILE__);
 
@@ -408,6 +409,10 @@ class LiveChatManager
 
 	private function getWidgetSource($params = array())
 	{
+		if (Main\Config\Option::get('imopenlines', 'new_widget_enable', false))
+		{
+			return $this->getNewWidgetSource($params);
+		}
 		$config = $this->get();
 
 		$params['LANG'] = isset($params['LANG'])? $params['LANG']: null;
@@ -446,6 +451,158 @@ class LiveChatManager
 			'});';
 
 		return $codeButton;
+	}
+
+	public static function getWidgetLocalize($languageId = null)
+	{
+		$resources = \Bitrix\Main\UI\Extension::getResourceList('imopenlines.widget');
+
+		$messages = $resources['lang_additional'];
+
+		foreach ($resources['lang'] as $file)
+		{
+			$fileMessages = \Bitrix\Main\Localization\Loc::loadLanguageFile(Application::getDocumentRoot().$file, $languageId);
+			if ($fileMessages)
+			{
+				$messages = array_merge($messages, $fileMessages);
+			}
+		}
+
+		return $messages;
+	}
+
+	public static function compileWidgetAssets()
+	{
+		$scripts = [
+			// common
+			'/bitrix/js/main/polyfill/promise/js/promise.min.js',
+			'/bitrix/js/ui/vue/vue.min.js',
+			'/bitrix/js/ui/vue/vuex/vuex.min.js',
+			'/bitrix/js/main/core/core_promise.min.js',
+			'/bitrix/js/rest/client.min.js',
+			'/bitrix/js/pull/protobuf/protobuf.min.js',
+			'/bitrix/js/pull/protobuf/model.min.js',
+			'/bitrix/js/pull/client.min.js',
+			'/bitrix/js//messenger/util/timer/script.min.js',
+			// widget
+			'/bitrix/js/imopenlines/widget/imopenlines.widget.min.js',
+			// messenger
+			'/bitrix/js/messenger/component/dialog/messenger.component.dialog.min.js',
+			'/bitrix/js/messenger/component/textarea/messenger.component.textarea.min.js',
+		];
+		$styles = [
+			// widget
+			'/bitrix/js/imopenlines/widget/imopenlines.widget.css',
+			// messenger
+			'/bitrix/js/messenger/component/dialog/messenger.component.dialog.css',
+			'/bitrix/js/messenger/component/textarea/messenger.component.textarea.css',
+		];
+
+		$scriptContent = '';
+		foreach ($scripts as $path)
+		{
+			$path = $_SERVER["DOCUMENT_ROOT"].$path;
+			if (!Main\IO\File::isFileExists($path))
+			{
+				$path = substr($path, 0, -7).'.js';
+			}
+			if (!Main\IO\File::isFileExists($path))
+			{
+				continue;
+			}
+
+			$scriptContent .= ";".Main\IO\File::getFileContents($path);
+		}
+
+		Main\IO\File::putFileContents($_SERVER["DOCUMENT_ROOT"].'/upload/imopenlines/widget.js', $scriptContent);
+
+		$stylesContent = '';
+		foreach ($styles as $path)
+		{
+			$path = $_SERVER["DOCUMENT_ROOT"].$path;
+			if (!Main\IO\File::isFileExists($path))
+			{
+				continue;
+			}
+			$content = Main\IO\File::getFileContents($path);
+
+			$stylesContent .= " ".$content;
+		}
+
+		Main\IO\File::putFileContents($_SERVER["DOCUMENT_ROOT"].'/upload/imopenlines/widget.css', $stylesContent);
+	}
+
+	private function getNewWidgetSource($params = array())
+	{
+		$config = $this->get();
+
+		$params['LANG'] = isset($params['LANG'])? $params['LANG']: null;
+		$params['CONFIG'] = is_array($params['CONFIG'])? $params['CONFIG']: Array();
+
+		$charset = SITE_CHARSET;
+
+		$lang = $params['LANG'];
+		$host = \Bitrix\ImOpenLines\Common::getServerAddress();
+		$code = $config['URL_CODE'];
+		$copyrightEnable = isset($params['CONFIG']["copyright"])? (bool)$params['CONFIG']["copyright"]: true;
+		$copyrightEnable = $copyrightEnable? 'true': 'false';
+		$copyrightUrl = \Bitrix\ImOpenLines\Common::getBitrixUrlByLang($params['LANG']);
+
+		\Bitrix\ImOpenLines\LiveChatManager::compileWidgetAssets();
+
+		$localize = \CUtil::PhpToJSObject(self::getWidgetLocalize($lang));
+
+
+$initWidget = <<<JS
+	var buttonInstance = BX.SiteButton;
+	BXLiveChat = new BX.LiveChatWidget({
+		host: '{$host}',
+		code: '{$code}',
+		language: '{$lang}',
+		styles: {
+			backgroundColor: buttonInstance.config.bgColor || null
+		},
+		location: buttonInstance.config.location || null,
+		buttonInstance: buttonInstance,
+		copyrightUrl: '{$copyrightUrl}',
+		copyright: {$copyrightEnable},
+	});
+	BXLiveChat.setUtmData({
+		link: 'http://ya.ru/?link',
+		utm_source: 'source',
+		utm_medium: 'medium',
+		utm_campaign: 'campaign',
+		utm_content: 'content',
+		utm_term: 'term'
+	});
+	BXLiveChat.addLocalize({$localize});
+	BXLiveChat.start();
+	
+	window.BX.LiveChat = {
+		openLiveChat: function() { 
+			BXLiveChat.open();
+		},	
+		closeLiveChat: function() { 
+			BXLiveChat.close(); 
+		}
+	};
+JS;
+
+		$codeWidget =
+			'(function (d) {'.
+				'var n1 = d.getElementsByTagName("link")[0], s1 = d.createElement("link"), r1=1*new Date(); s1.type = "text/css"; s1.rel = "stylesheet";  s1.href = "'.$host.'/upload/imopenlines/widget.css?r='.time().'";'.
+				'var n2 = d.getElementsByTagName("script")[0], s2 = d.createElement("script"); s2.type = "text/javascript"; s2.async = "true"; s2.charset = "'.$charset.'"; s2.src = "'.$host.'/upload/imopenlines/widget.js?r='.time().'";'.
+				'var f = function () { n2.parentNode.insertBefore(s1, n1); n2.parentNode.insertBefore(s2, n2); };'.
+				'if (typeof(BX)!="undefined") {BX.ready(f)}'.
+				'else if (typeof(jQuery)!="undefined") {jQuery(f)}'.
+				'else {d.addEventListener("DOMContentLoaded", f, false);}'.
+			'})(document);'.
+			'window.addEventListener(\'onBitrixLiveChatLoaded\',function() {'
+				.str_replace(["\n","\t"], " ", $initWidget).
+			'});';
+
+		return $codeWidget;
+
 	}
 
 	public static function available()

@@ -7,7 +7,6 @@ use Bitrix\Main\Config\Option;
 use Bitrix\Main\Error;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\ObjectException;
-use Bitrix\Sale\Helpers\Admin\Blocks\OrderBasketShipment;
 use Bitrix\Sale\Order;
 use Bitrix\Sale\Helpers\Admin\Blocks\OrderBuyer;
 use Bitrix\Sale\PaySystem\Manager;
@@ -17,6 +16,7 @@ use Bitrix\Main\Type\DateTime;
 use Bitrix\Sale\Registry;
 use \Bitrix\Sale\Delivery;
 use Bitrix\Sale\Result;
+use Bitrix\Sale\Configuration;
 
 /**
  * Class OrderBuilder
@@ -380,36 +380,8 @@ abstract class OrderBuilder
 				}
 			}
 
-			$restrictedList = Delivery\Services\Manager::getRestrictedList($shipment, Delivery\Restrictions\Manager::MODE_MANAGER);
-			if ($deliveryService)
-			{
-				if ($deliveryService->canHasProfiles())
-				{
-					$profileRestricted = Delivery\Restrictions\Manager::checkService($shipmentFields['PROFILE_ID'], $shipment, Delivery\Restrictions\Manager::MODE_MANAGER);
-					if ($profileRestricted === Delivery\Restrictions\Manager::SEVERITY_NONE)
-					{
-						if (!$deliveryService->isCompatible($shipment))
-						{
-							$profileRestricted = Delivery\Restrictions\Manager::SEVERITY_SOFT;
-						}
-					}
-
-					if ($profileRestricted == Delivery\Restrictions\Manager::SEVERITY_SOFT)
-					{
-						$this->errorsContainer->addError(new Error(Loc::getMessage('SALE_HLP_ORDERBUILDER_ERROR_SHIPMENT_SERVICE')));
-						return $this;
-					}
-				}
-
-				if (isset($restrictedList[$deliveryService->getId()]) &&  $restrictedList[$deliveryService->getId()]['RESTRICTED'] != Delivery\Restrictions\Manager::SEVERITY_NONE)
-				{
-					$this->errorsContainer->addError(new Error(Loc::getMessage('SALE_HLP_ORDERBUILDER_ERROR_SHIPMENT_SERVICE')));
-					return $this;
-				}
-			}
-
 			$fields = array(
-				'CUSTOM_PRICE_DELIVERY' => $item['CUSTOM_PRICE_DELIVERY'],
+				'CUSTOM_PRICE_DELIVERY' => $item['CUSTOM_PRICE_DELIVERY'] === 'Y' ? 'Y' : 'N',
 				'ALLOW_DELIVERY' => $item['ALLOW_DELIVERY'],
 				'PRICE_DELIVERY' => (float)str_replace(',', '.', $item['PRICE_DELIVERY'])
 			);
@@ -454,7 +426,7 @@ abstract class OrderBuilder
 		$idsFromForm = array();
 		$basket = $this->order->getBasket();
 		$shipmentItemCollection = $shipment->getShipmentItemCollection();
-		$useStoreControl = (Option::get('catalog', 'default_use_store_control', 'N') == 'Y');
+		$useStoreControl = Configuration::useStoreControl();
 
 		if(is_array($shipmentBasket))
 		{
@@ -598,6 +570,7 @@ abstract class OrderBuilder
 
 				/** @var \Bitrix\Sale\BasketItem $basketItem */
 				$shipmentItem = $shipmentItemCollection->createItem($basketItem);
+
 				if ($shipmentItem === null)
 				{
 					$result->addError(
@@ -607,6 +580,7 @@ abstract class OrderBuilder
 					);
 					return $result;
 				}
+
 				unset($shippingItem['BARCODE']['ORDER_DELIVERY_BASKET_ID']);
 			}
 			else
@@ -632,6 +606,18 @@ abstract class OrderBuilder
 						$shipmentItem = $shipmentItemCollection->createItem($basketItem);
 						$shipmentItem->setField('QUANTITY', $shipmentItem->getField('QUANTITY'));
 					}
+					else
+					{
+						$result->addError(
+							new Error(
+								Loc::getMessage('SALE_HLP_ORDERBUILDER_SHIPMENT_ITEM_ERROR',[
+									'#ID#' => $shippingItem['ORDER_DELIVERY_BASKET_ID']
+								])
+							)
+						);
+
+						continue;
+					}
 				}
 			}
 
@@ -645,6 +631,8 @@ abstract class OrderBuilder
 				);
 				continue;
 			}
+
+
 
 			if ($shipmentItem->getQuantity() < $shippingItem['AMOUNT'])
 			{
@@ -790,7 +778,15 @@ abstract class OrderBuilder
 				$hasError = true;
 			}
 
-			$paymentFields['SUM'] = (float)str_replace(',', '.', $paymentData['SUM']);
+			/*
+			 * We are editing an order. We have only one payment. So the payment fields are mostly in view mode.
+			 * If we have changed the price of the order then the sum of the payment must be changed automaticaly by payment api earlier.
+			 * But if the payment sum was received from the form we will erase the previous changes.
+			 */
+			if(isset($paymentData['SUM']))
+			{
+				$paymentFields['SUM'] = (float)str_replace(',', '.', $paymentData['SUM']);
+			}
 
 			if($paymentData['PRICE_COD'])
 			{
@@ -857,16 +853,6 @@ abstract class OrderBuilder
 					$this->errorsContainer->addErrors($setResult->getErrors());
 				}
 
-				if($paymentItem->getField('PAID') != $paymentData['PAID'] && $paymentItem->getField('IS_RETURN') == 'Y')
-				{
-					$setResult = $paymentItem->setReturn('N');
-
-					if(!$setResult->isSuccess())
-					{
-						$this->errorsContainer->addErrors($setResult->getErrors());
-					}
-				}
-
 				if($isReturn && $paymentData['IS_RETURN'])
 				{
 					$setResult = $paymentItem->setReturn($paymentData['IS_RETURN']);
@@ -885,12 +871,6 @@ abstract class OrderBuilder
 				if(!$setResult->isSuccess())
 				{
 					$this->errorsContainer->addErrors($setResult->getErrors());
-				}
-
-				$checkServiceResult = PaySystem\Restrictions\Manager::checkService($paymentItem->getPaymentSystemId(), $paymentItem, PaySystem\Restrictions\Manager::MODE_MANAGER);
-				if ($checkServiceResult == PaySystem\Restrictions\Manager::SEVERITY_SOFT)
-				{
-					$this->errorsContainer->addWarning(new Error(Loc::getMessage("SALE_HLP_ORDERBUILDER_ERROR_PAYSYSTEM_SERVICE")));
 				}
 			}
 		}

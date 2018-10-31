@@ -4,59 +4,116 @@ namespace Bitrix\Crm\Recurring\DateType;
 use Bitrix\Main;
 use Bitrix\Main\Type\Date;
 
-class Week
+class Week extends Base
 {
 	const TYPE_ALTERNATING_WEEKDAYS = 1;
 	const TYPE_A_FEW_WEEKS_BEFORE = 2;
 	const TYPE_A_FEW_WEEKS_AFTER = 3;
+
 	/**
 	 * @param array $params
-	 * @param Date $date
+	 * @param Date $startDate
 	 *
 	 * @return Date
 	 */
-	public static function calculateDate(array $params, Date $date)
+	public static function calculateDate(array $params, Date $startDate)
 	{
-		$dataText = "";
+		$week = new self($params);
+		$week->setType($params['TYPE']);
+		$week->setStartDate($startDate);
+		$week->setInterval($params['INTERVAL_WEEK']);
+		return $week->calculate();
+	}
 
-		if ((int)$params['TYPE'] === self::TYPE_ALTERNATING_WEEKDAYS)
-		{
-			$days = is_array($params["WEEKDAYS"]) ? $params["WEEKDAYS"] : array(1);
-			sort($days);
-			$currentDay = (int)($date->format("N"));
-			$nextDay = null;
+	/**
+	 * @param int $type
+	 *
+	 * @return bool
+	 */
+	protected function checkType($type)
+	{
+		return in_array((int)$type, [
+			self::TYPE_ALTERNATING_WEEKDAYS,
+			self::TYPE_A_FEW_WEEKS_BEFORE,
+			self::TYPE_A_FEW_WEEKS_AFTER
+		]);
+	}
 
-			foreach ($days as $day)
-			{
-				if ($day >= $currentDay)
-				{
-					$nextDay = $day;
-					break;
-				}
-			}
-
-			if ($nextDay)
-			{
-				$dataText = "+" . ($nextDay - $currentDay) . " days";
-				if ((int)$params["INTERVAL_WEEK"] > 1)
-				{
-					$dataText = " +" . (int)$params["INTERVAL_WEEK"] - 1 . " weeks ".$dataText;
-				}
-			}
-			else
-			{
-				$dataText = " +" . (int)$params["INTERVAL_WEEK"] . " weeks +" . ($days[0] - $currentDay) . " days";
-			}
-		}
-		elseif ((int)$params['TYPE'] === self::TYPE_A_FEW_WEEKS_BEFORE)
+	/**
+	 * @return Date
+	 */
+	public function calculate()
+	{
+		if (empty($this->type))
 		{
-			$dataText = " -" . (int)$params["INTERVAL_WEEK"] . " weeks";
-		}
-		elseif ((int)$params['TYPE'] === self::TYPE_A_FEW_WEEKS_AFTER)
-		{
-			$dataText = " +" . (int)$params["INTERVAL_WEEK"] . " weeks";
+			return $this->startDate;
 		}
 
-		return $date->add($dataText);
+		if ($this->type === self::TYPE_A_FEW_WEEKS_BEFORE || $this->type === self::TYPE_A_FEW_WEEKS_AFTER)
+		{
+			return $this->calculateAlternatingWeeks();
+		}
+		else
+		{
+			return $this->calculateAlternatingWithDays();
+		}
+	}
+
+	/**
+	 * Return the date with weeks interval.
+	 *
+	 * Example: repeat every {count weeks} week
+	 *
+	 * @return Date
+	 */
+	private function calculateAlternatingWeeks()
+	{
+		$interval = $this->interval;
+		if ($this->type === self::TYPE_A_FEW_WEEKS_BEFORE)
+		{
+			$interval = "-{$interval}";
+		}
+
+		return $this->startDate->add($interval." weeks");
+	}
+
+	/**
+	 * Return the date with weeks interval and day offset.
+	 *
+	 * Example: repeat every {list of weekdays} of every the {count weeks} weeks
+	 * 		#Repeat every monday and friday of every the 4th week#
+	 *
+	 * @return Date
+	 */
+	private function calculateAlternatingWithDays()
+	{
+		$days = is_array($this->params["WEEKDAYS"]) ? $this->params["WEEKDAYS"] : array(1);
+		sort($days);
+		$currentDay = (int)($this->startDate->format("N"));
+		$nextDay = null;
+
+		foreach ($days as $day)
+		{
+			if ($day >= $currentDay)
+			{
+				$nextDay = $day;
+				break;
+			}
+		}
+
+		if ($nextDay)
+		{
+			$dataText = "+" . ($nextDay - $currentDay) . " days";
+			if ($this->interval > 1)
+			{
+				$dataText = " +" . $this->interval - 1 . " weeks ".$dataText;
+			}
+		}
+		else
+		{
+			$dataText = " +" . $this->interval . " weeks +" . ($days[0] - $currentDay) . " days";
+		}
+
+		return $this->startDate->add($dataText);
 	}
 }

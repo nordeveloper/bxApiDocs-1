@@ -83,13 +83,18 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	/**
 	 * Modify shipment collection.
 	 *
-	 * @param string $action				Action code.
-	 * @param Shipment $shipment			Shipment.
-	 * @param null|string $name					Field name.
-	 * @param null|string|int|float $oldValue				Old value.
-	 * @param null|string|int|float $value					New value.
-	 *
+	 * @param $action
+	 * @param Shipment $shipment
+	 * @param null $name
+	 * @param null $oldValue
+	 * @param null $value
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectException
 	 * @throws Main\ObjectNotFoundException
 	 */
 	public function onShipmentCollectionModify($action, Shipment $shipment, $name = null, $oldValue = null, $value = null)
@@ -573,10 +578,9 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
-	 * Fill basket.
-	 *
-	 * @param BasketBase $basket			Basket.
+	 * @param BasketBase $basket
 	 * @return Result
+	 * @throws Main\ArgumentNullException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
@@ -634,8 +638,9 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 
 	/**
 	 * @param BasketBase $basket
-	 *
 	 * @return Result
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
 	public function appendBasket(BasketBase $basket)
@@ -691,16 +696,6 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
-	 * @param array $parameters
-	 *
-	 * @return Main\DB\Result
-	 */
-	static protected function loadFromDb(array $parameters)
-	{
-		return static::getList($parameters);
-	}
-
-	/**
 	 * @return ShipmentCollection
 	 */
 	public function getShipmentCollection()
@@ -743,6 +738,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 
 	/**
 	 * @return ShipmentCollection
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
 	 */
 	public function loadShipmentCollection()
 	{
@@ -755,6 +752,7 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 
 	/**
 	 * @return PaymentCollection
+	 * @throws Main\ArgumentException
 	 */
 	public function loadPaymentCollection()
 	{
@@ -784,6 +782,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	/**
 	 * @param $oderId
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectNotFoundException
 	 */
 	protected static function deleteEntitiesNoDemand($oderId)
 	{
@@ -810,8 +810,12 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 
 	/**
 	 * @param OrderBase $order
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\ArgumentTypeException
-	 * @return void
+	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectNotFoundException
 	 */
 	protected static function deleteEntities(OrderBase $order)
 	{
@@ -851,17 +855,18 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
-	 * Modify payment collection.
-	 *
-	 * @param string $action			Action.
-	 * @param Payment $payment			Payment.
-	 * @param null|string $name				Field name.
-	 * @param null|string|int|float $oldValue		Old value.
-	 * @param null|string|int|float $value			New value.
+	 * @param $action
+	 * @param Payment $payment
+	 * @param null $name
+	 * @param null $oldValue
+	 * @param null $value
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotImplementedException
 	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
 	 */
 	public function onPaymentCollectionModify($action, Payment $payment, $name = null, $oldValue = null, $value = null)
 	{
@@ -895,21 +900,26 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 		}
 
 		if ($action != EventActions::UPDATE)
+		{
 			return $result;
+		}
 
 		if (($name == "CURRENCY") && ($value != $this->getField("CURRENCY")))
+		{
 			throw new Main\NotImplementedException();
+		}
 
 		if ($name == "SUM" || $name == "PAID")
 		{
-
 			if ($this->isCanceled())
 			{
 				$result->addError(new ResultError(Loc::getMessage('SALE_ORDER_PAID_ORDER_CANCELED'), 'SALE_ORDER_PAID_ORDER_CANCELED'));
 				return $result;
 			}
 
-			if (($name == "SUM") && !$payment->isPaid())
+			if ($name == "SUM"
+				&& !$payment->isPaid()
+			)
 			{
 				return $result;
 			}
@@ -923,141 +933,6 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 			{
 				$result->addWarnings($r->getWarnings());
 			}
-
-		}
-		elseif ($name == "IS_RETURN")
-		{
-			if ($this->isCanceled())
-			{
-				$result->addError(new ResultError(Loc::getMessage('SALE_ORDER_RETURN_ORDER_CANCELED'), 'SALE_ORDER_RETURN_ORDER_CANCELED'));
-				return $result;
-			}
-
-			if ($value != $paymentClassName::RETURN_NONE)
-			{
-				if (!$payment->isPaid())
-				{
-					$result->addError( new ResultError(Loc::getMessage('SALE_ORDER_PAYMENT_RETURN_NOT_PAID'), 'SALE_ORDER_PAYMENT_RETURN_NOT_PAID'));
-					return $result;
-				}
-
-				$oldPaid = $this->isPaid()? "Y" : "N";
-
-				/** @var PaymentCollection $paymentCollection */
-				if (!$paymentCollection = $this->getPaymentCollection())
-				{
-					throw new Main\ObjectNotFoundException('Entity "PaymentCollection" not found');
-				}
-
-				$creditSum = 0;
-				$overPaid = $paymentCollection->getPaidSum() - $this->getPrice();
-
-				if ($overPaid <= 0)
-				{
-					$creditSum = $payment->getSum();
-					$overPaid = 0;
-				}
-				elseif ($payment->getSum() - $overPaid > 0)
-				{
-					$creditSum = $payment->getSum() - $overPaid;
-				}
-
-				if ($value == $paymentClassName::RETURN_PS)
-				{
-					$psId = $payment->getPaymentSystemId();
-				}
-				elseif ($value == $paymentClassName::RETURN_INNER)
-				{
-					$psId = Manager::getInnerPaySystemId();
-				}
-				else
-				{
-					$result->addError(new Entity\EntityError('unsupported operation'));
-					return $result;
-				}
-
-				$service = Manager::getObjectById($psId);
-
-				if ($service && $service->isRefundable())
-				{
-					if ($creditSum)
-					{
-						if ($value == $paymentClassName::RETURN_PS)
-						{
-							if ($overPaid > 0)
-							{
-								$userBudget = Internals\UserBudgetPool::getUserBudgetByOrder($this);
-								if (PriceMaths::roundPrecision($overPaid) > PriceMaths::roundPrecision($userBudget))
-								{
-									$result->addError(new Entity\EntityError(Loc::getMessage('SALE_ORDER_PAYMENT_RETURN_PAID'), 'SALE_ORDER_PAYMENT_RETURN_PAID'));
-									return $result;
-								}
-							}
-						}
-
-						$refResult = $service->refund($payment);
-						if ($refResult->isSuccess())
-						{
-							if ($overPaid > 0)
-								Internals\UserBudgetPool::addPoolItem($this, -$overPaid, Internals\UserBudgetPool::BUDGET_TYPE_ORDER_PAY, $payment);
-						}
-						else
-						{
-							$result->addErrors($refResult->getErrors());
-							return $result;
-						}
-					}
-				}
-				else
-				{
-					$result->addError(new Entity\EntityError(Loc::getMessage('SALE_ORDER_PAYMENT_RETURN_NO_SUPPORTED'), 'SALE_ORDER_PAYMENT_RETURN_NO_SUPPORTED'));
-					return $result;
-				}
-
-				$payment->setFieldNoDemand('PAID', 'N');
-
-				$finalSumPaid = $this->getSumPaid() - $creditSum;
-				if ($finalSumPaid != $this->getSumPaid())
-				{
-					$this->setFieldNoDemand('SUM_PAID', $finalSumPaid);
-					$this->setFieldNoDemand('PAYED', ($this->getPrice() <= $finalSumPaid) ? "Y" : "N");
-				}
-
-				/** @var Result $r */
-				$r = $this->onAfterSyncPaid($oldPaid);
-				if (!$r->isSuccess())
-				{
-
-//					$result->addErrors($r->getErrors());
-				}
-			}
-			else
-			{
-
-				if ($payment->isPaid())
-				{
-					$result->addError( new ResultError(Loc::getMessage('SALE_ORDER_PAYMENT_RETURN_PAID'), 'SALE_ORDER_PAYMENT_RETURN_PAID'));
-					return $result;
-				}
-
-				$userBudget = Internals\UserBudgetPool::getUserBudgetByOrder($this);
-				if (PriceMaths::roundPrecision($userBudget) < PriceMaths::roundPrecision($payment->getSum()))
-				{
-					$result->addError( new ResultError( Loc::getMessage('SALE_ORDER_PAYMENT_NOT_ENOUGH_USER_BUDGET'), "SALE_ORDER_PAYMENT_NOT_ENOUGH_USER_BUDGET") );
-					return $result;
-				}
-
-				Internals\UserBudgetPool::addPoolItem($this, ($payment->getSum() * -1), Internals\UserBudgetPool::BUDGET_TYPE_ORDER_PAY, $payment);
-
-				$r = $payment->setField('PAID', "Y");
-				if (!$r->isSuccess())
-				{
-					$result->addErrors($r->getErrors());
-					return $result;
-				}
-
-			}
-
 		}
 		elseif ($name == "PAY_SYSTEM_ID")
 		{
@@ -1122,15 +997,15 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
-	 * Modify order field.
-	 *
-	 * @param string $name				Field name.
-	 * @param mixed|string|int|float $oldValue			Old value.
-	 * @param mixed|string|int|float $value				New value.
-	 * @return Entity\Result|Result
+	 * @param string $name
+	 * @param float|int|mixed|string $oldValue
+	 * @param float|int|mixed|string $value
+	 * @return Result
+	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotImplementedException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
 	protected function onFieldModify($name, $oldValue, $value)
@@ -1187,43 +1062,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 				return $result;
 			}
 		}
-		elseif($name == "STATUS_ID")
-		{
-			if ($this->isStatusChangedOnPay($value, $oldValue))
-			{
-				Internals\EventsPool::addEvent($this->getInternalId(), EventActions::EVENT_ON_ORDER_STATUS_ALLOW_PAY_CHANGE, array(
-					'ENTITY' => $this,
-					'VALUE' => $value,
-					'OLD_VALUE' => $oldValue,
-				));
-			}
-		}
 
 		return $result;
-	}
-
-	/**
-	 * @param $value
-	 * @param $oldValue
-	 * @return bool
-	 * @throws Main\ArgumentException
-	 * @throws Main\ArgumentNullException
-	 * @throws Main\ArgumentOutOfRangeException
-	 * @throws Main\NotImplementedException
-	 */
-	protected function isStatusChangedOnPay($value, $oldValue)
-	{
-		$registry = Registry::getInstance(static::getRegistryType());
-		/** @var OrderStatus $orderStatus */
-		$orderStatus = $registry->getOrderStatusClassName();
-
-		$allowPayStatus = $orderStatus::getAllowPayStatusList();
-		$disallowPayStatus = $orderStatus::getDisallowPayStatusList();
-
-		return !empty($disallowPayStatus)
-				&& in_array($oldValue, $disallowPayStatus)
-				&& !empty($allowPayStatus)
-				&& in_array($value, $allowPayStatus);
 	}
 
 	/**
@@ -1649,6 +1489,10 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	/**
 	 * @param null $oldPaid
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
 	private function onAfterSyncPaid($oldPaid = null)
@@ -1829,115 +1673,38 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
-	 * Reset the value of the order and delivery
-	 * @internal
-	 * @param array $select - the list of fields which need to be reset
-	 */
-	public function resetData($select = array('PRICE'))
-	{
-		if (in_array('PRICE', $select))
-		{
-			$this->setFieldNoDemand('PRICE', 0);
-		}
-
-		if (in_array('PRICE_DELIVERY', $select))
-		{
-			$this->setFieldNoDemand('PRICE_DELIVERY', 0);
-		}
-	}
-
-	/**
-	 * Full refresh order data.
-	 *
-	 * @param array $select				Fields list.
+	 * @param $select
 	 * @return Result
-	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
-	public function refreshData($select = array())
+	public function refreshInternal()
 	{
-		$result = new Result();
-
-		$isStartField = $this->isStartField();
-
-		$this->calculateType = ($this->getId() > 0 ? static::SALE_ORDER_CALC_TYPE_REFRESH : static::SALE_ORDER_CALC_TYPE_NEW);
-		$this->resetData($select);
-
-		/** @var Basket $basket */
-		$basket = $this->getBasket();
-		if (!$basket)
+		$result = parent::refreshInternal();
+		if (!$result->isSuccess())
 		{
 			return $result;
 		}
 
-		/** @var Result $r */
-		$r = $this->setField('PRICE', $basket->getPrice());
-		if (!$r->isSuccess())
+		/** @var ShipmentCollection $shipmentCollection */
+		if (!$shipmentCollection = $this->getShipmentCollection())
 		{
-			$result->addErrors($r->getErrors());
-			return $result;
+			throw new Main\ObjectNotFoundException('Entity "ShipmentCollection" not found');
 		}
 
-		if ($this instanceof \IShipmentOrder)
-		{
-			/** @var ShipmentCollection $shipmentCollection */
-			if (!$shipmentCollection = $this->getShipmentCollection())
-			{
-				throw new Main\ObjectNotFoundException('Entity "ShipmentCollection" not found');
-			}
-
-			$r = $shipmentCollection->refreshData();
-			if (!$r->isSuccess())
-			{
-				$result->addErrors($r->getErrors());
-				return $result;
-			}
-		}
-
-		if ($isStartField)
-		{
-			$hasMeaningfulFields = $this->hasMeaningfulField();
-
-			/** @var Result $r */
-			$r = $this->doFinalAction($hasMeaningfulFields);
-			if (!$r->isSuccess())
-			{
-				$result->addErrors($r->getErrors());
-			}
-		}
-
-		return $result;
+		return $shipmentCollection->refreshData();
 	}
 
 	/**
-	 * @return Tax
-	 */
-	protected function loadTax()
-	{
-		$registry = Registry::getInstance(static::getRegistryType());
-
-		/** @var Tax $taxClassName */
-		$taxClassName = $registry->getTaxClassName();
-		return $taxClassName::load($this);
-	}
-
-	/**
-	 * @return Discount
-	 */
-	protected function loadDiscount()
-	{
-		$registry = Registry::getInstance(static::getRegistryType());
-
-		/** @var Discount $discountClassName */
-		$discountClassName = $registry->getDiscountClassName();
-		return $discountClassName::buildFromOrder($this);
-	}
-
-	/**
-	 * apply discount.
 	 * @internal
-	 * @param array $data			Order data.
+	 *
+	 * @param array $data
 	 * @return Result
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
 	 */
 	public function applyDiscount(array $data)
 	{
@@ -2571,32 +2338,6 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
-	 * @return mixed
-	 * @throws Main\ArgumentException
-	 */
-	protected static function getInitialStatus()
-	{
-		$registry = Registry::getInstance(static::getRegistryType());
-
-		/** @var OrderStatus $orderStatus */
-		$orderStatus = $registry->getOrderStatusClassName();
-		return $orderStatus::getInitialStatus();
-	}
-
-	/**
-	 * @return mixed
-	 * @throws Main\ArgumentException
-	 */
-	protected static function getFinalStatus()
-	{
-		$registry = Registry::getInstance(static::getRegistryType());
-
-		/** @var OrderStatus $orderStatus */
-		$orderStatus = $registry->getOrderStatusClassName();
-		return $orderStatus::getFinalStatus();
-	}
-
-	/**
 	 * @throws Main\ArgumentException
 	 * @return void
 	 */
@@ -2760,38 +2501,6 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 				$historyFields
 			);
 		}
-	}
-
-	/**
-	 * @param $orderId
-	 * @return bool
-	 * @throws Main\ArgumentException
-	 */
-	protected static function isExists($orderId)
-	{
-		$dbRes = static::getList(array('filter' => array('ID' => $orderId)));
-		if ($dbRes->fetch())
-			return true;
-
-		return false;
-	}
-
-	/**
-	 * @deprecated Use OrderStatus::isAllowPay instead
-	 *
-	 * @return bool
-	 * @throws Main\ArgumentException
-	 * @throws Main\ArgumentNullException
-	 * @throws Main\ArgumentOutOfRangeException
-	 * @throws Main\NotImplementedException
-	 */
-	public function isAllowPay()
-	{
-		$registry = Registry::getInstance(static::getRegistryType());
-
-		/** @var OrderStatus $orderClassName */
-		$orderClassName = $registry->getOrderStatusClassName();
-		return $orderClassName::isAllowPay($this->getField('STATUS_ID'));
 	}
 
 	/**

@@ -683,7 +683,7 @@ class Form
 		);
 		foreach($this->getFieldsMap() as $field)
 		{
-			if(in_array($field['type'], array('hr', 'br', 'section')))
+			if(Internals\FieldTable::isUiFieldType($field['type']))
 			{
 				continue;
 			}

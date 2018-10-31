@@ -77,7 +77,7 @@ class CCatalogAdminToolsAll
 					'SHOW_TITLE' => true
 				);
 			}
-			if (CBXFeatures::IsFeatureEnabled('CatCompleteSet'))
+			if (Catalog\Config\Feature::isProductSetsEnabled())
 			{
 				if (CCatalogSku::TYPE_OFFERS != $arCatalog['CATALOG_TYPE'])
 				{
@@ -141,7 +141,7 @@ class CCatalogAdminToolsAll
 		if (empty($arParams) || !is_array($arParams))
 			$arParams = array();
 
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 
 		$intProductID = CIBlockElement::GetRealElement($intID);
 
@@ -333,7 +333,7 @@ class CCatalogAdminToolsAll
 		if (empty($arCatalog))
 			return false;
 
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 
 		$arResult = array_fill_keys(self::getTabList(false), false);
 		$strProductType = '';
@@ -438,7 +438,7 @@ class CCatalogAdminToolsAll
 
 	public static function getFormParams($params = array())
 	{
-		$featureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$featureSet = Catalog\Config\Feature::isProductSetsEnabled();
 		$productType = '';
 		if (isset($_REQUEST[self::$strMainPrefix.self::TAB_KEY]))
 		{
@@ -601,7 +601,7 @@ class CCatalogAdminToolsAll
 
 		$intProductID = CIBlockElement::GetRealElement($intID);
 
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 
 		if ($boolFeatureSet)
 		{
@@ -617,7 +617,7 @@ class CCatalogAdminToolsAll
 	{
 		if (!is_array($arParams))
 			return;
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 		$strProductType = '';
 		if (isset($_REQUEST[self::$strMainPrefix.self::TAB_KEY]))
 		{
@@ -672,7 +672,7 @@ class CCatalogAdminToolsAll
 				Catalog\ProductTable::TYPE_FREE_OFFER
 			)
 		);
-		if (CBXFeatures::IsFeatureEnabled('CatCompleteSet'))
+		if (Catalog\Config\Feature::isProductSetsEnabled())
 		{
 			$data[CCatalogSku::TYPE_CATALOG][] = Catalog\ProductTable::TYPE_SET;
 			$data[CCatalogSku::TYPE_FULL][] = Catalog\ProductTable::TYPE_SET;
@@ -834,7 +834,7 @@ class CCatalogAdminProductSetEdit
 		if (empty($arSets) || !is_array($arSets))
 			return;
 
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 		if (!$boolFeatureSet)
 			return;
 
@@ -1000,7 +1000,7 @@ class CCatalogAdminProductSetEdit
 		if (empty($arSets) || !is_array($arSets))
 			return;
 
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 		if (!$boolFeatureSet)
 			return;
 
@@ -1220,7 +1220,7 @@ if (!window.ob<?=$blockName; ?>)
 	{
 		self::$arErrors = array();
 
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 		if (!$boolFeatureSet)
 			return true;
 
@@ -1327,7 +1327,7 @@ if (!window.ob<?=$blockName; ?>)
 
 	public static function saveFormValues($arItem)
 	{
-		$boolFeatureSet = CBXFeatures::IsFeatureEnabled('CatCompleteSet');
+		$boolFeatureSet = Catalog\Config\Feature::isProductSetsEnabled();
 		if (!$boolFeatureSet)
 			return;
 

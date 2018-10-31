@@ -1,6 +1,8 @@
 <?php
 namespace Bitrix\Crm\Entity;
+
 use Bitrix\Crm;
+use Bitrix\Main\Localization\Loc;
 
 class LeadValidator extends EntityValidator
 {
@@ -8,6 +10,11 @@ class LeadValidator extends EntityValidator
 	protected $fieldInfos = null;
 	/** @var int */
 	protected $customerType = Crm\CustomerType::GENERAL;
+	/** @var AddressValidator|null  */
+	protected $addressValidator = null;
+	/** @var MultifieldValidator|null */
+	protected $multifieldValidator = null;
+
 	/** @var array */
 	protected static $exclusiveFields = array(
 		Crm\CustomerType::GENERAL => array(
@@ -31,6 +38,8 @@ class LeadValidator extends EntityValidator
 		parent::__construct($entityID, $entityFields);
 		$this->customerType = $this->entityID > 0
 			? \CCrmLead::GetCustomerType($this->entityID) : Crm\CustomerType::GENERAL;
+		$this->addressValidator = new AddressValidator(\CCrmOwnerType::Lead, $entityID, $entityFields);
+		$this->multifieldValidator = new MultifieldValidator(\CCrmOwnerType::Lead, $entityID, $entityFields);
 	}
 
 	public function getEntityTypeID()
@@ -70,7 +79,7 @@ class LeadValidator extends EntityValidator
 		return true;
 	}
 
-	public function checkFieldPresence($fieldName)
+	public function checkFieldPresence($fieldName, array &$messages)
 	{
 		//If field is not available ignore it.
 		if(!$this->checkFieldAvailability($fieldName))
@@ -78,28 +87,49 @@ class LeadValidator extends EntityValidator
 			return true;
 		}
 
+		$message = null;
 		if($fieldName === 'OPPORTUNITY_WITH_CURRENCY')
 		{
-			return $this->innerCheckFieldPresence('OPPORTUNITY');
+			$result = !$this->isNeedToCheck('OPPORTUNITY')
+				||  (isset($this->entityFields['OPPORTUNITY']) && $this->entityFields['OPPORTUNITY'] > 0);
+
+			if(!$result)
+			{
+				$message = Loc::getMessage(
+					'CRM_ENTITY_VALIDATOR_FIELD_MUST_BE_GREATER_THEN_ZERO',
+					array('%FIELD_NAME%' => \CCrmDeal::GetFieldCaption('OPPORTUNITY'))
+				);
+			}
 		}
 		elseif($fieldName === 'ADDRESS')
 		{
-			return $this->checkAnyFieldPresence(
-				array(
-					'ADDRESS',
-					'ADDRESS_2',
-					'ADDRESS_CITY',
-					'ADDRESS_REGION',
-					'ADDRESS_PROVINCE',
-					'ADDRESS_POSTAL_CODE',
-					'ADDRESS_COUNTRY'
-				)
-			);
+			$result = $this->addressValidator->checkPresence();
 		}
 		elseif(\CCrmFieldMulti::IsSupportedType($fieldName))
 		{
-			return $this->checkMultifieldPresence($fieldName);
+			$result = $this->multifieldValidator->checkPresence(array('TYPE_ID' => $fieldName));
 		}
-		return $this->innerCheckFieldPresence($fieldName);
+		else
+		{
+			$result = $this->innerCheckFieldPresence($fieldName);
+		}
+
+		if(!$result)
+		{
+			if($message === null)
+			{
+				$message = Loc::getMessage(
+					'CRM_ENTITY_VALIDATOR_FIELD_IS_MISSING',
+					array('%FIELD_NAME%' => \CCrmLead::GetFieldCaption($fieldName))
+				);
+			}
+
+			if(!is_array($messages))
+			{
+				$messages = array();
+			}
+			$messages[] = array('id' => $fieldName, 'text' => $message);
+		}
+		return $result;
 	}
 }

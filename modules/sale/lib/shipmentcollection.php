@@ -1185,8 +1185,6 @@ class ShipmentCollection
 	{
 		$result = new Result();
 
-		$this->resetData();
-
 		$r = $this->calculateDelivery();
 		if (!$r->isSuccess())
 		{

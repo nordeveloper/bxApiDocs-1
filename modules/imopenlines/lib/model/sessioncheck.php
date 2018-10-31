@@ -57,7 +57,7 @@ class SessionCheckTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('SESSION_CHECK_ENTITY_DATE_MAIL_FIELD'),
 			),
 			'SESSION' => array(
-				'data_type' => 'Bitrix\ImOpenLines\Model\Session',
+				'data_type' => 'Bitrix\ImOpenLines\Model\SessionTable',
 				'reference' => array('=this.SESSION_ID' => 'ref.ID'),
 			),
 		);

@@ -115,6 +115,14 @@ class Tracker
 			$current['ACTION'] = self::ACTION_EXTEND;
 			$current['CRM_ENTITY_TYPE'] = $params['CRM']['ENTITY_TYPE'];
 			$current['CRM_ENTITY_ID'] = $params['CRM']['ENTITY_ID'];
+			if(isset($params['CRM']['CRM_DEAL_ID']))
+			{
+				$current['CRM_DEAL_ID'] = $params['CRM']['DEAL_ID'];
+			}
+			else
+			{
+				$current['CRM_DEAL_ID'] = 0;
+			}
 
 			if (
 				$session->getData('SOURCE') == Connector::TYPE_LIVECHAT &&
@@ -140,12 +148,14 @@ class Tracker
 				'CRM' => 'Y',
 				'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
 				'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
+				'CRM_DEAL_ID' => $current['CRM_DEAL_ID'],
 			));
 
 			$session->chat->setCrmFlag(Array(
 				'ACTIVE' => 'Y',
 				'ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
 				'ENTITY_ID' => $current['CRM_ENTITY_ID'],
+				'DEAL_ID' => $current['CRM_DEAL_ID'],
 			));
 		}
 		else if ($session->getData('CRM') == 'Y')
@@ -262,18 +272,21 @@ class Tracker
 					$current['CRM_ENTITY_TYPE'] = $crmData['PRIMARY']['ENTITY_TYPE'];
 					$current['CRM_ENTITY_ID'] = $crmData['PRIMARY']['ENTITY_ID'];
 					$current['CRM_BINDINGS'] = $crmData['PRIMARY']['BINDINGS'];
+					$current['CRM_DEAL_ID'] = $crmData['DEAL']['ENTITY_ID'];
 
 					$session->update(Array(
 						'CRM_CREATE' => 'Y',
 						'CRM' => 'Y',
 						'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
 						'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
+						'CRM_DEAL_ID' => $current['CRM_DEAL_ID'],
 					));
 
 					$session->chat->setCrmFlag(Array(
 						'ACTIVE' => 'Y',
 						'ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
 						'ENTITY_ID' => $current['CRM_ENTITY_ID'],
+						'DEAL_ID' => $current['CRM_DEAL_ID'],
 					));
 
 					$crm->updateActivity(Array(
@@ -369,7 +382,7 @@ class Tracker
 			}
 			else
 			{
-				$crmData = $crm->addLead(array(
+				$crmData = $crm->registerLead(array(
 					'CONFIG_ID' => $session->getData('CONFIG_ID'),
 					'USER_CODE' => $session->getData('USER_CODE'),
 					'USER_ID' => $session->getData('USER_ID'),
@@ -431,11 +444,23 @@ class Tracker
 					'ANSWERED' => $session->getData('ANSWERED') == 'Y'? 'Y': 'N',
 				));
 
-				$crm->executeAutomationTrigger($current['CRM_BINDINGS'], array(
+				$crm->executeAutomation($current['CRM_BINDINGS'], array(
 					'CONFIG_ID' => $session->getData('CONFIG_ID')
 				));
 
 				$updateSession['CRM_ACTIVITY_ID'] = $current['CRM_ACTIVITY_ID'];
+			}
+
+			if ($crmData && $crmData['LEAD_CREATE'] == 'Y' && $crmData['ENTITY_TYPE'] == Crm::ENTITY_LEAD && !\Bitrix\Crm\Settings\LeadSettings::isEnabled())
+			{
+				$leadData = Crm::get('LEAD', $crmData['ENTITY_ID']);
+
+				$current['COMPANY_ID'] = $leadData['COMPANY_ID'];
+				$current['CONTACT_ID'] = $leadData['CONTACT_ID'];
+
+				$dealData = Crm::getDealForLead($crmData['ENTITY_ID']);
+
+				$updateSession['CRM_DEAL_ID'] = $current['CRM_DEAL_ID'] = $dealData['ID'];
 			}
 
 			$session->update($updateSession);
@@ -443,6 +468,7 @@ class Tracker
 				'ACTIVE' => 'Y',
 				'ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
 				'ENTITY_ID' => $current['CRM_ENTITY_ID'],
+				'DEAL_ID' => $current['CRM_DEAL_ID'],
 			));
 		}
 
@@ -563,87 +589,129 @@ class Tracker
 			);
 		}
 
-		$attach = $crm->getEntityCard($current['CRM_ENTITY_TYPE'], $current['CRM_ENTITY_ID']);
-		if ($current['ACTION'] == self::ACTION_CREATE)
+		if(\Bitrix\Crm\Settings\LeadSettings::isEnabled())
 		{
-			$message =  Loc::getMessage('IMOL_TRACKER_'.$current['CRM_ENTITY_TYPE'].'_ADD');
-			$keyboard = new \Bitrix\Im\Bot\Keyboard();
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
-				"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-				"CONTEXT" => "DESKTOP",
-			));
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
-				"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-			));
-		}
-		else
-		{
-			$message =  Loc::getMessage('IMOL_TRACKER_'.$current['CRM_ENTITY_TYPE'].'_EXTEND');
-			$keyboard = new \Bitrix\Im\Bot\Keyboard();
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
-				"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-				"CONTEXT" => "DESKTOP",
-			));
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
-				"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-			));
-		}
-
-		$messageId = 0;
-		if ($message)
-		{
-			if ($params['UPDATE_ID'])
+			$attach = $crm->getEntityCard($current['CRM_ENTITY_TYPE'], $current['CRM_ENTITY_ID']);
+			if ($current['ACTION'] == self::ACTION_CREATE)
 			{
-				$messageId = $params['UPDATE_ID'];
-
-				\CIMMessenger::DisableMessageCheck();
-				\CIMMessageParam::Set($messageId, Array('ATTACH' => $attach));
-				\CIMMessenger::Update($messageId, $message, true, false);
-				\CIMMessenger::EnableMessageCheck();
+				$message =  Loc::getMessage('IMOL_TRACKER_'.$current['CRM_ENTITY_TYPE'].'_ADD');
+				$keyboard = new \Bitrix\Im\Bot\Keyboard();
+				$keyboard->addButton(Array(
+					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
+					"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
+					"DISPLAY" => "LINE",
+					"CONTEXT" => "DESKTOP",
+				));
+				$keyboard->addButton(Array(
+					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
+					"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
+					"DISPLAY" => "LINE",
+				));
 			}
 			else
 			{
-				$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+				$message =  Loc::getMessage('IMOL_TRACKER_'.$current['CRM_ENTITY_TYPE'].'_EXTEND');
+				$keyboard = new \Bitrix\Im\Bot\Keyboard();
+				$keyboard->addButton(Array(
+					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
+					"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
+					"DISPLAY" => "LINE",
+					"CONTEXT" => "DESKTOP",
+				));
+				$keyboard->addButton(Array(
+					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
+					"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
+					"DISPLAY" => "LINE",
+				));
+			}
 
-				$messageId = Im::addMessage(Array(
+			$messageId = 0;
+			if ($message)
+			{
+				if ($params['UPDATE_ID'])
+				{
+					$messageId = $params['UPDATE_ID'];
+
+					\CIMMessenger::DisableMessageCheck();
+					\CIMMessageParam::Set($messageId, Array('ATTACH' => $attach));
+					\CIMMessenger::Update($messageId, $message, true, false);
+					\CIMMessenger::EnableMessageCheck();
+				}
+				else
+				{
+					$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+
+					$messageId = Im::addMessage(Array(
+						"TO_CHAT_ID" => $session->getData('CHAT_ID'),
+						"MESSAGE" => '[b]'.$message.'[/b]',
+						"SYSTEM" => 'Y',
+						"ATTACH" => $attach,
+						"KEYBOARD" => $keyboard,
+						"RECENT_ADD" => $userViewChat? 'Y': 'N'
+					));
+				}
+			}
+
+			if (!empty($updateFm) || !empty($updateFields) && !empty($keyboard))
+			{
+				foreach ($addLog as $log)
+				{
+					TrackerTable::add(Array(
+						'SESSION_ID' => $session->getData('ID'),
+						'CHAT_ID' => $session->getData('CHAT_ID'),
+						'MESSAGE_ID' => $messageId,
+						'MESSAGE_ORIGIN_ID' => $messageOriginId,
+						'USER_ID' => $session->getData('USER_ID'),
+						'ACTION' => $log['ACTION'],
+						'CRM_ENTITY_TYPE' => $log['CRM_ENTITY_TYPE'],
+						'CRM_ENTITY_ID' => $log['CRM_ENTITY_ID'],
+						'FIELD_ID' => $log['FIELD_ID'],
+						'FIELD_TYPE' => $log['FIELD_TYPE'],
+						'FIELD_VALUE' => $log['FIELD_VALUE'],
+					));
+				}
+			}
+		}
+		else
+		{
+			$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+
+			if(!empty($current['COMPANY_ID']))
+			{
+				Im::addMessage(Array(
 					"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-					"MESSAGE" => '[b]'.$message.'[/b]',
+					"MESSAGE" => '[b]'.Loc::getMessage('IMOL_TRACKER_SESSION_COMPANY').'[/b]',
 					"SYSTEM" => 'Y',
-					"ATTACH" => $attach,
-					"KEYBOARD" => $keyboard,
+					"ATTACH" => $crm->getEntityCard(Crm::ENTITY_COMPANY, $current['COMPANY_ID']),
+					"RECENT_ADD" => $userViewChat? 'Y': 'N'
+				));
+			}
+
+			if(!empty($current['CONTACT_ID']))
+			{
+				Im::addMessage(Array(
+					"TO_CHAT_ID" => $session->getData('CHAT_ID'),
+					"MESSAGE" => '[b]'.Loc::getMessage('IMOL_TRACKER_SESSION_CONTACT').'[/b]',
+					"SYSTEM" => 'Y',
+					"ATTACH" => $crm->getEntityCard(Crm::ENTITY_CONTACT, $current['CONTACT_ID']),
+					"RECENT_ADD" => $userViewChat? 'Y': 'N'
+				));
+			}
+
+			if(!empty($current['CRM_DEAL_ID']))
+			{
+				Im::addMessage(Array(
+					"TO_CHAT_ID" => $session->getData('CHAT_ID'),
+					"MESSAGE" => '[b]'.Loc::getMessage('IMOL_TRACKER_SESSION_DEAL').'[/b]',
+					"SYSTEM" => 'Y',
+					"ATTACH" => $crm->getEntityCard(Crm::ENTITY_DEAL, $current['CRM_DEAL_ID']),
 					"RECENT_ADD" => $userViewChat? 'Y': 'N'
 				));
 			}
 		}
 
-		if (!empty($updateFm) || !empty($updateFields))
-		{
-			foreach ($addLog as $log)
-			{
-				TrackerTable::add(Array(
-					'SESSION_ID' => $session->getData('ID'),
-					'CHAT_ID' => $session->getData('CHAT_ID'),
-					'MESSAGE_ID' => $messageId,
-					'MESSAGE_ORIGIN_ID' => $messageOriginId,
-					'USER_ID' => $session->getData('USER_ID'),
-					'ACTION' => $log['ACTION'],
-					'CRM_ENTITY_TYPE' => $log['CRM_ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $log['CRM_ENTITY_ID'],
-					'FIELD_ID' => $log['FIELD_ID'],
-					'FIELD_TYPE' => $log['FIELD_TYPE'],
-					'FIELD_VALUE' => $log['FIELD_VALUE'],
-				));
-			}
-		}
 		\Bitrix\Imopenlines\Limit::increaseTracker();
+
 		return true;
 	}
 

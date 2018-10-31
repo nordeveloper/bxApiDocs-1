@@ -565,18 +565,16 @@ class CCatalogProduct extends CAllCatalogProduct
 	 */
 	public static function GetVATInfo($PRODUCT_ID)
 	{
-		global $DB;
+		$vat = self::GetVATDataByID($PRODUCT_ID);
+		if (empty($vat))
+			$vat = [];
+		else
+			$vat = [0 => $vat];
+		$result = new CDBResult();
+		$result->InitFromArray($vat);
+		unset($vat);
 
-		$query = "
-SELECT CAT_PR.ID as PRODUCT_ID, CAT_VAT.*, CAT_PR.VAT_INCLUDED
-FROM b_catalog_product CAT_PR
-LEFT JOIN b_iblock_element BE ON (BE.ID = CAT_PR.ID)
-LEFT JOIN b_catalog_iblock CAT_IB ON ((CAT_PR.VAT_ID IS NULL OR CAT_PR.VAT_ID = 0) AND CAT_IB.IBLOCK_ID = BE.IBLOCK_ID)
-LEFT JOIN b_catalog_vat CAT_VAT ON (CAT_VAT.ID = IF((CAT_PR.VAT_ID IS NULL OR CAT_PR.VAT_ID = 0), CAT_IB.VAT_ID, CAT_PR.VAT_ID))
-WHERE CAT_PR.ID = '".intval($PRODUCT_ID)."'
-AND CAT_VAT.ACTIVE='Y'
-";
-		return $DB->Query($query);
+		return $result;
 	}
 
 	/**

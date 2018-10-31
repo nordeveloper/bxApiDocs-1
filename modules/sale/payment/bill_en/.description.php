@@ -10,4 +10,4 @@ $isAffordPdf = true;
 
 include \Bitrix\Main\Application::getDocumentRoot().'/bitrix/modules/sale/handlers/paysystem/billen/.description.php';
 
-$data['DOMAIN'] = \Bitrix\Sale\PaySystem\Manager::HANDLER_DOMAIN_NONE;
+$data['IS_AVAILABLE'] = \Bitrix\Sale\PaySystem\Manager::HANDLER_AVAILABLE_FALSE;

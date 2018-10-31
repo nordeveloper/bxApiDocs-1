@@ -163,6 +163,9 @@ Loader::registerAutoLoadClasses(
 		'CCatalogResult' => 'general/result.php',
 
 		'\Bitrix\Catalog\Compatible\EventCompatibility' => 'lib/compatible/eventcompatibility.php',
+		'\Bitrix\Catalog\Config\Configuration' => 'lib/config/state.php', // deprecated, temporary
+		'\Bitrix\Catalog\Config\Feature' => 'lib/config/feature.php',
+		'\Bitrix\Catalog\Config\State' => 'lib/config/state.php',
 		'\Bitrix\Catalog\Discount\DiscountManager' => 'lib/discount/discountmanager.php',
 		'\Bitrix\Catalog\Ebay\EbayXMLer' => 'lib/ebay/ebayxmler.php',
 		'\Bitrix\Catalog\Ebay\ExportOffer' => 'lib/ebay/exportoffer.php',
@@ -183,6 +186,7 @@ Loader::registerAutoLoadClasses(
 		'\Bitrix\Catalog\Product\CatalogProvider' =>  'lib/product/catalogprovider.php',
 		'\Bitrix\Catalog\Product\CatalogProviderCompatibility' =>  'lib/product/catalogprovidercompatibility.php',
 		'\Bitrix\Catalog\Product\Price' => 'lib/product/price.php',
+		'\Bitrix\Catalog\Product\PropertyCatalogFeature' => 'lib/product/propertycatalogfeature.php',
 		'\Bitrix\Catalog\Product\QuantityControl' =>  'lib/product/quantitycontrol.php',
 		'\Bitrix\Catalog\Product\Search' => 'lib/product/search.php',
 		'\Bitrix\Catalog\Product\Sku' => 'lib/product/sku.php',

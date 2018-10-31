@@ -5530,6 +5530,28 @@ class CAllCrmActivity
 			'DESCRIPTION' => isset($arFields['DESCRIPTION']) ? $arFields['DESCRIPTION'] : ''
 		);
 
+		//convert current user time to calendar owner time
+		if ($userTzName = \CCalendar::GetUserTimezoneName($responsibleID, true))
+		{
+			$userTz = new DateTimeZone($userTzName);
+			$format = \Bitrix\Main\Type\DateTime::getFormat();
+
+			if (isset($arFields['START_TIME']))
+			{
+				$startTime = \Bitrix\Main\Type\DateTime::createFromUserTime($arFields['START_TIME']);
+				$startTime->setTimeZone($userTz);
+				$arCalEventFields['DATE_FROM'] = $startTime->format($format);
+				$arCalEventFields['TZ_FROM'] = $userTzName;
+			}
+			if (isset($arFields['END_TIME']))
+			{
+				$endTime = \Bitrix\Main\Type\DateTime::createFromUserTime($arFields['END_TIME']);
+				$endTime->setTimeZone($userTz);
+				$arCalEventFields['DATE_TO'] = $endTime->format($format);
+				$arCalEventFields['TZ_TO'] = $userTzName;
+			}
+		}
+
 		if (method_exists('CCalendar', 'GetCrmSection'))
 		{
 			$arCalEventFields['SECTIONS'] = CCalendar::GetCrmSection($responsibleID, true);

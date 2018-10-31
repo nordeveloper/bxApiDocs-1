@@ -1124,7 +1124,7 @@ class CAdminMenu
 
 		$menuText = htmlspecialcharsbx(htmlspecialcharsback($aMenu["text"]));
 		if(isset($aMenu["url"]) && $aMenu["url"] <> ""):
-			$menuUrl = htmlspecialcharsbx(htmlspecialcharsback($aMenu["url"]));
+			$menuUrl = htmlspecialcharsbx($aMenu["url"], ENT_COMPAT, false);
 			?><a class="adm-submenu-item-name-link<?=(isset($aMenu["readonly"]) && $aMenu["readonly"] == true? ' menutext-readonly':'')?>"<?=$level > 0 ? ' style="padding-left:'.$this->_get_menu_item_padding($level).'px;"' : ''?> href="<?=$menuUrl?>"><?=$icon?><span class="adm-submenu-item-name-link-text"><?=$menuText?></span></a><?
 		elseif ($bSubmenu):
 			if(isset($aMenu["dynamic"]) && $aMenu["dynamic"] == true && !$bSectionActive && (!$aMenu["items"] || count($aMenu["items"]) <= 0)):
@@ -1154,13 +1154,15 @@ class CAdminMenu
 		else
 			echo  "<div class=\"adm-sub-submenu-block-children\"></div>";
 ?></div><?
+		$url = str_replace("&amp;", "&", $aMenu['url']);
+
 		if (isset($aMenu["fav_id"]))
 		{
 			$scripts .= "BX.adminMenu.registerItem('".$id."', {FAV_ID:'".CUtil::JSEscape($aMenu['fav_id'])."'});";
 		}
 		elseif (isset($aMenu["items_id"]) && $aMenu['url'])
 		{
-			$scripts .= "BX.adminMenu.registerItem('".$id."', {ID:'".CUtil::JSEscape($aMenu['items_id'])."', URL:'".CUtil::JSEscape(htmlspecialcharsback($aMenu['url']))."', MODULE_ID:'".$aMenu['module_id']."'});";
+			$scripts .= "BX.adminMenu.registerItem('".$id."', {ID:'".CUtil::JSEscape($aMenu['items_id'])."', URL:'".CUtil::JSEscape($url)."', MODULE_ID:'".$aMenu['module_id']."'});";
 		}
 		elseif (isset($aMenu["items_id"]))
 		{
@@ -1168,7 +1170,7 @@ class CAdminMenu
 		}
 		elseif ($aMenu['url'])
 		{
-			$scripts .= "BX.adminMenu.registerItem('".$id."', {URL:'".CUtil::JSEscape(htmlspecialcharsback($aMenu['url']))."'});";
+			$scripts .= "BX.adminMenu.registerItem('".$id."', {URL:'".CUtil::JSEscape($url)."'});";
 		}
 
 		return $scripts;
@@ -1462,7 +1464,7 @@ window.'.$this->name.' = new PopupMenu("'.$this->id.'"'.
 						($action["HTML"]<>""? "'HTML':'".CUtil::JSEscape($action["HTML"])."',":"").
 						(isset($action["TITLE"]) && $action["TITLE"]<>""? "'TITLE':'".CUtil::JSEscape($action["TITLE"])."',":"").
 						(isset($action["SHOW_TITLE"]) && $action["SHOW_TITLE"] == true ? "'SHOW_TITLE':true,":"").
-						($action["ACTION"]<>""? "'ONCLICK':'".CUtil::JSEscape(htmlspecialcharsback($action["ACTION"]))."',":"").
+						($action["ACTION"]<>""? "'ONCLICK':'".CUtil::JSEscape(str_replace("&amp;", "&", $action["ACTION"]))."',":"").
 						(isset($action["ONMENUPOPUP"]) && $action["ONMENUPOPUP"]<>""? "'ONMENUPOPUP':'".CUtil::JSEscape($action["ONMENUPOPUP"])."',":"").
 						(isset($action["MENU"]) && is_array($action["MENU"])? "'MENU':".CAdminPopup::PhpToJavaScript($action["MENU"]).",":"").
 						(isset($action["MENU_URL"]) && $action["MENU_URL"]<>''? "'MENU_URL':'".CUtil::JSEscape($action["MENU_URL"])."',":"").
@@ -1797,14 +1799,16 @@ BX.Fix(right_bar, {type: 'right', limit_node: BX.previousSibling(right_bar)});
 		}
 		else
 		{
+			$link = htmlspecialcharsbx($item["LINK"], ENT_COMPAT, false);
+
 			if ($item['ICON'] == 'btn_list'/* || $item['ICON'] == 'btn_up'*/):
 ?>
-	<a <?if ($this->isPublicFrame):?>target="_top"<?endif;?> href="<?=($item["ONCLICK"] <> ''? 'javascript:void(0)' : htmlspecialcharsbx(htmlspecialcharsback($item["LINK"])))?>" <?=$item["LINK_PARAM"]?> class="adm-detail-toolbar-btn" title="<?=$item["TITLE"].$hkInst->GetTitle($item["ICON"])?>"<?=($item["ONCLICK"] <> ''? ' onclick="'.htmlspecialcharsbx($item["ONCLICK"]).'"':'')?><?=(!empty($item["ICON"])? ' id="'.$item["ICON"].'"':'')?>><span class="adm-detail-toolbar-btn-l"></span><span class="adm-detail-toolbar-btn-text"><?=$item["TEXT"]?></span><span class="adm-detail-toolbar-btn-r"></span></a>
+	<a <?if ($this->isPublicFrame):?>target="_top"<?endif;?> href="<?=($item["ONCLICK"] <> ''? 'javascript:void(0)' : $link)?>" <?=$item["LINK_PARAM"]?> class="adm-detail-toolbar-btn" title="<?=$item["TITLE"].$hkInst->GetTitle($item["ICON"])?>"<?=($item["ONCLICK"] <> ''? ' onclick="'.htmlspecialcharsbx($item["ONCLICK"]).'"':'')?><?=(!empty($item["ICON"])? ' id="'.$item["ICON"].'"':'')?>><span class="adm-detail-toolbar-btn-l"></span><span class="adm-detail-toolbar-btn-text"><?=$item["TEXT"]?></span><span class="adm-detail-toolbar-btn-r"></span></a>
 <?
 			else:
 				$sClassName = $this->GetClassByID($item["ICON"]);
 ?>
-	<a <?if ($this->isPublicFrame):?>target="_top"<?endif;?> href="<?=($item["ONCLICK"] <> ''? 'javascript:void(0)' : htmlspecialcharsbx(htmlspecialcharsback($item["LINK"])))?>" <?=$item["LINK_PARAM"]?> class="adm-btn<?=$sClassName != '' ? ' '.$sClassName : ''?>" title="<?=$item["TITLE"].$hkInst->GetTitle($item["ICON"])?>"<?=($item["ONCLICK"] <> ''? ' onclick="'.htmlspecialcharsbx($item["ONCLICK"]).'"' : '')?><?=(!empty($item["ICON"])? ' id="'.$item["ICON"].'"':'')?>><?=$item["TEXT"]?></a>
+	<a <?if ($this->isPublicFrame):?>target="_top"<?endif;?> href="<?=($item["ONCLICK"] <> ''? 'javascript:void(0)' : $link)?>" <?=$item["LINK_PARAM"]?> class="adm-btn<?=$sClassName != '' ? ' '.$sClassName : ''?>" title="<?=$item["TITLE"].$hkInst->GetTitle($item["ICON"])?>"<?=($item["ONCLICK"] <> ''? ' onclick="'.htmlspecialcharsbx($item["ONCLICK"]).'"' : '')?><?=(!empty($item["ICON"])? ' id="'.$item["ICON"].'"':'')?>><?=$item["TEXT"]?></a>
 
 <?
 			endif;
@@ -2336,7 +2340,10 @@ class CAdminChain
 			$text = htmlspecialcharsbx(htmlspecialcharsback($item["TEXT"]));
 			if (!empty($item['LINK']))
 			{
-				echo '<a class="adm-navchain-item" href="'.htmlspecialcharsbx(htmlspecialcharsback($item["LINK"])).'"'.(!empty($item["ONCLICK"])? ' onclick="'.$item["ONCLICK"].'"':'').'><span class="adm-navchain-item-text'.$className.'">'.$text.'</span></a>';
+				$link = htmlspecialcharsbx($item["LINK"], ENT_COMPAT, false);
+				echo '<a class="adm-navchain-item" href="'.$link.'"'.
+					(!empty($item["ONCLICK"])? ' onclick="'.htmlspecialcharsbx($item["ONCLICK"]).'"':'').
+					'><span class="adm-navchain-item-text'.$className.'">'.$text.'</span></a>';
 			}
 			elseif (!empty($item['ID']))
 			{

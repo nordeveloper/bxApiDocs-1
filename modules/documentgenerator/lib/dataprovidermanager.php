@@ -4,13 +4,16 @@ namespace Bitrix\DocumentGenerator;
 
 use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\DocumentGenerator\DataProvider\HashDataProvider;
+use Bitrix\DocumentGenerator\DataProvider\Rest;
 use Bitrix\DocumentGenerator\Value\DateTime;
 use Bitrix\DocumentGenerator\Value\Name;
 use Bitrix\Main\Application;
 use Bitrix\Main\Context\Culture;
 use Bitrix\Main\IO\File;
+use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\CultureTable;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\ModuleManager;
 use Bitrix\Main\Type\Date;
 
 final class DataProviderManager
@@ -52,11 +55,28 @@ final class DataProviderManager
 	 * Module with this class should be included before this check.
 	 *
 	 * @param string $providerClassName
+	 * @param string $moduleId
 	 * @return bool
 	 */
-	public static function checkProviderName($providerClassName)
+	public static function checkProviderName($providerClassName, $moduleId = null)
 	{
-		return is_a($providerClassName, DataProvider::class, true);
+		$result = is_a($providerClassName, DataProvider::class, true);
+
+		if($result && $moduleId && is_string($moduleId) && !empty($moduleId))
+		{
+			$result = false;
+			$providers = static::getInstance()->getList(['filter' => ['MODULE' => $moduleId]]);
+			$providerClassName = strtolower($providerClassName);
+			foreach($providers as $name => $provider)
+			{
+				if($name == $providerClassName || (isset($provider['ORIGINAL']) && $provider['ORIGINAL'] == $providerClassName))
+				{
+					return true;
+				}
+			}
+		}
+
+		return $result;
 	}
 
 	/**
@@ -371,12 +391,24 @@ final class DataProviderManager
 	 */
 	public function getList(array $params = [])
 	{
-		$providers = Registry\DataProvider::getList();
-		if(isset($params['filter']))
+		$providers = Registry\DataProvider::getList($params);
+		$moduleId = null;
+		if(isset($params['filter']) && isset($params['filter']['MODULE']) && is_string($params['filter']['MODULE']) && !empty($params['filter']['MODULE']))
+		{
+			$moduleId = $params['filter']['MODULE'];
+		}
+		if($moduleId)
+		{
+			if(!ModuleManager::isModuleInstalled($moduleId) || !Loader::includeModule($moduleId))
+			{
+				$moduleId = null;
+			}
+		}
+		if($moduleId)
 		{
 			foreach($providers as $key => $provider)
 			{
-				if(isset($params['filter']['MODULE']) && isset($provider['MODULE']) && $params['filter']['MODULE'] != $provider['MODULE'])
+				if(isset($provider['MODULE']) && $moduleId != $provider['MODULE'])
 				{
 					unset($providers[$key]);
 				}
@@ -390,6 +422,7 @@ final class DataProviderManager
 	 * @param $providerClassName
 	 * @param array $placeholders
 	 * @param array $mainProviderOptions
+	 * @param bool $isAddRootGroups
 	 * @return array
 	 */
 	public function getDefaultTemplateFields($providerClassName, array $placeholders = [], array $mainProviderOptions = [], $isAddRootGroups = true)
@@ -509,11 +542,18 @@ final class DataProviderManager
 	 * @param array $placeholders
 	 * @param array $group
 	 * @param bool $isArray
+	 * @param array $providers
+	 * @param bool $stopRecursion
 	 * @return array
 	 */
-	protected function getProviderFields(DataProvider $parentDataProvider, array $placeholders = [], array $group = [], $isArray = false)
+	protected function getProviderFields(DataProvider $parentDataProvider, array $placeholders = [], array $group = [], $isArray = false, array $providers = [], $stopRecursion = false)
 	{
 		$values = [];
+		// skip the first provider
+		if(!empty($group) && $parentDataProvider->isRootProvider())
+		{
+			$providers[] = get_class($parentDataProvider);
+		}
 		foreach($parentDataProvider->getFields() as $placeholder => $field)
 		{
 			$dataProvider = $this->createDataProvider($field, ' ', $parentDataProvider);
@@ -526,13 +566,22 @@ final class DataProviderManager
 			{
 				$group[] = $this->valueToPlaceholder($placeholder);
 			}
-			if($dataProvider)
+			if(
+				$dataProvider &&
+				(($dataProvider->isRootProvider() && !$stopRecursion) ||
+				(!$dataProvider->isRootProvider()))
+			)
 			{
 				if($dataProvider instanceof ArrayDataProvider)
 				{
 					$isArray = true;
 				}
-				$values = array_merge($values, $this->getProviderFields($dataProvider, $placeholders, $group, $isArray));
+				$stopRecursion = false;
+				if(in_array(get_class($dataProvider), $providers))
+				{
+					$stopRecursion = true;
+				}
+				$values = array_merge($values, $this->getProviderFields($dataProvider, $placeholders, $group, $isArray, $providers, $stopRecursion));
 				$isArray = false;
 			}
 			else

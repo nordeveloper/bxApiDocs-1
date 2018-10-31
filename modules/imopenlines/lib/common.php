@@ -62,6 +62,14 @@ class Common
 			return (\Bitrix\Main\Context::getCurrent()->getRequest()->isHttps() ? "https" : "http")."://".$_SERVER['SERVER_NAME'].(in_array($_SERVER['SERVER_PORT'], Array(80, 443))?'':':'.$_SERVER['SERVER_PORT']);
 	}
 
+	public static function getMaxSessionCount()
+	{
+		$maxSessionCount = \Bitrix\Main\Config\Option::get("imopenlines", "max_session_count");
+		$maxSessionCount = intval($maxSessionCount) > 0 ? intval($maxSessionCount) : 100;
+
+		return $maxSessionCount;
+	}
+
 	public static function deleteBrokenSession()
 	{
 		$orm = \Bitrix\ImOpenLines\Model\SessionTable::getList(array(
@@ -115,14 +123,14 @@ class Common
 		return true;
 	}
 
-	public static function getAgreementLink($agreementId)
+	public static function getAgreementLink($agreementId, $iframe = false)
 	{
 		$agreementId = intval($agreementId);
 
 		$ag = new \Bitrix\Main\UserConsent\Agreement($agreementId);
 		$data = $ag->getData();
 
-		return \Bitrix\ImOpenLines\Common::getServerAddress().'/pub/imol.php?id='.$agreementId.'&sec='.$data['SECURITY_CODE'];
+		return \Bitrix\ImOpenLines\Common::getServerAddress().'/pub/imol.php?id='.$agreementId.'&sec='.$data['SECURITY_CODE'].($iframe? '&iframe=Y': '');
 	}
 
 	public static function getHistoryLink($sessionId, $configId)

@@ -14,6 +14,7 @@ Loc::loadMessages(__FILE__);
  * <li> CONFIG_ID int mandatory
  * <li> USER_ID int mandatory
  * <li> LAST_ACTIVITY_DATE datetime optional
+ * <li> LAST_ACTIVITY_DATE_EXACT bigint optional
  * </ul>
  *
  * @package Bitrix\Imopenlines
@@ -60,6 +61,10 @@ class QueueTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('QUEUE_ENTITY_LAST_ACTIVITY_DATE_FIELD'),
 				'default_value' => array(__CLASS__, 'getCurrentDate'),
 			),
+			'LAST_ACTIVITY_DATE_EXACT' => array(
+				'data_type' => 'integer',
+				'title' => Loc::getMessage('QUEUE_ENTITY_LAST_ACTIVITY_DATE_EXACT_FIELD')
+			),
 			'USER' => array(
 				'data_type' => 'Bitrix\Main\User',
 				'reference' => array('=this.USER_ID' => 'ref.ID')
@@ -68,9 +73,10 @@ class QueueTable extends Main\Entity\DataManager
 	}
 
 	/**
-	 * Return current date for DATE_CREATE field.
+	 * Return current date for LAST_ACTIVITY_DATE field.
 	 *
-	 * @return array
+	 * @return Main\Type\DateTime
+	 * @throws Main\ObjectException
 	 */
 	public static function getCurrentDate()
 	{

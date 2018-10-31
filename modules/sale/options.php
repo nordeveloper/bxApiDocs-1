@@ -910,7 +910,7 @@ $tabControl->BeginNextTab();
 		</td>
 		<td>
 			<?
-			$val = Main\Config\Option::get("sale", "value_precision", SALE_VALUE_PRECISION);
+			$val = Main\Config\Option::get("sale", "value_precision", 2);
 			?>
 			<select name="VALUE_PRECISION">
 				<option value="1"<?if ($val == "1") echo " selected";?>><?= GetMessage("SMO_VALUE_PRECISION_1") ?></option>
@@ -1588,11 +1588,11 @@ function allowAutoDelivery(value)
 			<tr>
 				<td width="40%" class="adm-detail-content-cell-l"><?echo GetMessage("SMO_PAR_SITE_WEIGHT_UNIT_SALE")?></td>
 				<td width="60%" class="adm-detail-content-cell-r"><select name="weight_unit_tmp[<?=htmlspecialcharsbx($siteList[$i]["ID"])?>]" OnChange="setWeightValue(this)">
-						<option selected="selected"></option><?
+						<?
 					$arUnitList = CSaleMeasure::GetList("W");
 					foreach ($arUnitList as $key => $arM)
 					{
-						$selectedWeightUnit = COption::GetOptionString($module_id, "weight_unit", trim($siteList[$i]["ID"]));
+						$selectedWeightUnit = COption::GetOptionString($module_id, "weight_unit", GetMessage('SMO_PAR_WEIGHT_UNIT_GRAMM'), trim($siteList[$i]["ID"]));
 						?>
 						<option value="<?=floatval($arM["KOEF"])?>" <?=($selectedWeightUnit == $arM["NAME"]?"selected":"")?>><?=htmlspecialcharsbx($arM["NAME"])?></option>
 						<?

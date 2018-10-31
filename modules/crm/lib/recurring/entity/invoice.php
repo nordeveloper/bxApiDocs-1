@@ -152,7 +152,7 @@ class Invoice extends Base
 				}
 			}
 
-			$data['NEXT_EXECUTION'] = $this->getNextDate($recurringParams, $startDay);
+			$data['NEXT_EXECUTION'] = self::getNextDate($recurringParams, $startDay);
 		}
 
 		$data = $this->prepareActivity($data);
@@ -353,7 +353,7 @@ class Invoice extends Base
 						
 						$newInvoiceIds[] = $resultInvoiceId;
 
-						$nextData = $this->getNextDate($recurParam, $tomorrow);
+						$nextData = self::getNextDate($recurParam, $tomorrow);
 
 						$recurData["LAST_EXECUTION"] = $today;
 						$recurData["COUNTER_REPEAT"] = (int)$recurData['COUNTER_REPEAT'] + 1;
@@ -466,7 +466,7 @@ class Invoice extends Base
 		if ($invoice = $invoiceData->fetch())
 		{
 			$recurringParams = $invoice['PARAMS'];
-			$invoice['NEXT_EXECUTION'] = $this->getNextDate($recurringParams);
+			$invoice['NEXT_EXECUTION'] = self::getNextDate($recurringParams);
 			$invoice["COUNTER_REPEAT"] = (int)$invoice["COUNTER_REPEAT"] + 1;
 			$isActive = $this->isActive($invoice);
 			if ($isActive)
@@ -722,7 +722,7 @@ class Invoice extends Base
 	 *
 	 * @return Date
 	 */
-	protected function getNextDate(array $params, $startDate = null)
+	public static function getNextDate(array $params, $startDate = null)
 	{
 		$result = array(
 			"PERIOD" => (int)$params['PERIOD'] ? (int)$params['PERIOD'] : null

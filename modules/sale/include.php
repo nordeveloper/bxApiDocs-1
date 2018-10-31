@@ -6,7 +6,6 @@ global $DBType;
 
 IncludeModuleLangFile(__FILE__);
 
-
 $GLOBALS["SALE_FIELD_TYPES"] = array(
 	"TEXT" => GetMessage("SALE_TYPE_TEXT"),
 	"CHECKBOX" => GetMessage("SALE_TYPE_CHECKBOX"),
@@ -440,6 +439,7 @@ CModule::AddAutoloadClasses(
 		////////////////////////////
 
 		"Bitrix\\Sale\\Delivery\\DeliveryLocationTable" => "lib/delivery/deliverylocation.php",
+		"Bitrix\\Sale\\Delivery\\DeliveryLocationExcludeTable" => "lib/delivery/deliverylocationexclude.php",
 		"Bitrix\\Sale\\Tax\\RateLocationTable" => "lib/tax/ratelocation.php",
 		////////////////////////////
 
@@ -503,6 +503,7 @@ CModule::AddAutoloadClasses(
 		'Bitrix\Sale\Services\Base\RestrictionManager' => 'lib/services/base/restrictionmanager.php',
 
 		'\Bitrix\Sale\Compatible\DiscountCompatibility' => 'lib/compatible/discountcompatibility.php',
+		'\Bitrix\Sale\Config\Feature' => 'lib/config/feature.php',
 		'\Bitrix\Sale\Discount\Context\BaseContext' => 'lib/discount/context/basecontext.php',
 		'\Bitrix\Sale\Discount\Context\Fuser' => 'lib/discount/context/fuser.php',
 		'\Bitrix\Sale\Discount\Context\User' => 'lib/discount/context/user.php',

@@ -15,6 +15,11 @@ use Bitrix\Main\Localization\Loc;
 
 Loc::loadMessages(__FILE__);
 
+if (!Main\Loader::includeModule('iblock'))
+{
+	return;
+}
+
 class ProductTable extends Main\Entity\DataManager
 {
 	public static function getTableName()

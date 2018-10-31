@@ -27,7 +27,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 
 		CUtil::decodeURIComponent($_POST);
 
-		$control = new \Bitrix\ImOpenLines\LiveChatForm($chatId, $userId);
+		$control = new \Bitrix\ImOpenLines\Widget\Form($chatId, $userId);
 		$result = $control->saveForm($_POST['FORM'], $_POST['FIELDS']);
 		if ($result)
 		{

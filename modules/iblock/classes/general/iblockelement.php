@@ -5410,7 +5410,6 @@ class CAllIBlockElement
 		$propertiesList = array();
 		$shortProperties = array();
 		$userTypesList = array();
-		$existList = array();
 
 		$selectListMultiply = array('SORT' => SORT_ASC, 'VALUE' => SORT_STRING);
 		$selectAllMultiply = array('PROPERTY_VALUE_ID' => SORT_ASC);
@@ -5514,10 +5513,6 @@ class CAllIBlockElement
 			if (is_array($property['DEFAULT_VALUE']) || preg_match("/[;&<>\"]/", $property['DEFAULT_VALUE']))
 				$property['DEFAULT_VALUE'] = htmlspecialcharsEx($property['DEFAULT_VALUE']);
 
-			if ($property['PROPERTY_TYPE'] == Iblock\PropertyTable::TYPE_LIST)
-			{
-				$existList[] = $property['ID'];
-			}
 			$propertiesList[$code] = $property;
 			$shortProperties[$code] = (!empty($propertyFieldList)
 				? array_intersect_key($property, $propertyFieldList)
@@ -5529,29 +5524,7 @@ class CAllIBlockElement
 		if (empty($propertiesList))
 			return;
 
-		if (!empty($existList))
-		{
-			$enumList = array();
-			$enumIterator = Iblock\PropertyEnumerationTable::getList(array(
-				'select' => array('ID', 'PROPERTY_ID', 'VALUE', 'SORT', 'XML_ID'),
-				'filter' => array('PROPERTY_ID' => $existList),
-				'order' => array('PROPERTY_ID' => 'ASC', 'SORT' => 'ASC', 'VALUE' => 'ASC')
-			));
-			while ($enum = $enumIterator->fetch())
-			{
-				if (!isset($enumList[$enum['PROPERTY_ID']]))
-				{
-					$enumList[$enum['PROPERTY_ID']] = array();
-				}
-				$enumList[$enum['PROPERTY_ID']][$enum['ID']] = array(
-					'ID' => $enum['ID'],
-					'VALUE' => $enum['VALUE'],
-					'SORT' => $enum['SORT'],
-					'XML_ID' => $enum['XML_ID']
-				);
-			}
-			unset($enum, $enumIterator);
-		}
+		$enumList = array();
 
 		$valuesRes = (
 			!empty($propertyID)
@@ -5643,7 +5616,29 @@ class CAllIBlockElement
 								$selectedValues = array();
 								foreach ($value[$property['ID']] as $listKey => $listValue)
 								{
-									if (isset($enumList[$property['ID']][$listValue]))
+									if (!isset($enumList[$property['ID']][$listValue]))
+									{
+										if (!isset($enumList[$property['ID']]))
+											$enumList[$property['ID']] = [];
+										$enumList[$property['ID']][$listValue] = false;
+										$enumIterator = Iblock\PropertyEnumerationTable::getList(array(
+											'select' => array('ID', 'VALUE', 'SORT', 'XML_ID'),
+											'filter' => array('=ID' => $listValue, '=PROPERTY_ID' => $property['ID'])
+										));
+										$row = $enumIterator->fetch();
+										unset($enumIterator);
+										if (!empty($row))
+										{
+											$enumList[$property['ID']][$listValue] = array(
+												'ID' => $row['ID'],
+												'VALUE' => $row['VALUE'],
+												'SORT' => $row['SORT'],
+												'XML_ID' => $row['XML_ID']
+											);
+										}
+										unset($row);
+									}
+									if (!empty($enumList[$property['ID']][$listValue]))
 									{
 										$selectedValues[$listKey] = $enumList[$property['ID']][$listValue];
 										$selectedValues[$listKey]['DESCRIPTION'] = (
@@ -5829,7 +5824,29 @@ class CAllIBlockElement
 						if ($property['PROPERTY_TYPE'] == Iblock\PropertyTable::TYPE_LIST)
 						{
 							$elementValues[$code]['VALUE_ENUM_ID'] = $value[$property['ID']];
-							if (isset($enumList[$property['ID']][$value[$property['ID']]]))
+							if (!isset($enumList[$property['ID']][$value[$property['ID']]]))
+							{
+								if (!isset($enumList[$property['ID']]))
+									$enumList[$property['ID']] = [];
+								$enumList[$property['ID']][$value[$property['ID']]] = false;
+								$enumIterator = Iblock\PropertyEnumerationTable::getList(array(
+									'select' => array('ID', 'VALUE', 'SORT', 'XML_ID'),
+									'filter' => array('=ID' => $value[$property['ID']], '=PROPERTY_ID' => $property['ID'])
+								));
+								$row = $enumIterator->fetch();
+								unset($enumIterator);
+								if (!empty($row))
+								{
+									$enumList[$property['ID']][$value[$property['ID']]] = array(
+										'ID' => $row['ID'],
+										'VALUE' => $row['VALUE'],
+										'SORT' => $row['SORT'],
+										'XML_ID' => $row['XML_ID']
+									);
+								}
+								unset($row);
+							}
+							if (!empty($enumList[$property['ID']][$value[$property['ID']]]))
 							{
 								$elementValues[$code]['VALUE'] = $enumList[$property['ID']][$value[$property['ID']]]['VALUE'];
 								$elementValues[$code]['VALUE_ENUM'] = $elementValues[$code]['VALUE'];

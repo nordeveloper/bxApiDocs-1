@@ -28,9 +28,8 @@ Loc::loadMessages(__FILE__);
  */
 final class Manager
 {
-	const HANDLER_DOMAIN_NONE = 'NONE';
-	const HANDLER_DOMAIN_BOX = 'BOX';
-	const HANDLER_DOMAIN_CLOUD = 'CLOUD';
+	const HANDLER_AVAILABLE_TRUE = true;
+	const HANDLER_AVAILABLE_FALSE = false;
 
 	const EVENT_ON_GET_HANDLER_DESC = 'OnSaleGetHandlerDescription';
 	const CACHE_ID = "BITRIX_SALE_INNER_PS_ID";
@@ -347,7 +346,7 @@ final class Manager
 					{
 						$data = array();
 						$psTitle = '';
-						$psDomain = null;
+						$isAvailable = null;
 
 						if (strpos($item->getName(), '.description') !== false)
 						{
@@ -358,9 +357,9 @@ final class Manager
 							if (array_key_exists('NAME', $data))
 							{
 								$psTitle = $data['NAME'].' ('.$handlerName.')';
-								if (isset($data['DOMAIN']))
+								if (isset($data['IS_AVAILABLE']))
 								{
-									$psDomain = $data['DOMAIN'];
+									$isAvailable = $data['IS_AVAILABLE'];
 								}
 							}
 							else
@@ -380,15 +379,11 @@ final class Manager
 
 							if (!isset($result[$group][$handlerName]))
 							{
-								if ($psDomain !== null)
+								if ($isAvailable !== null
+									&& $isAvailable === static::HANDLER_AVAILABLE_FALSE
+								)
 								{
-									if ((IsModuleInstalled('bitrix24') && $psDomain === static::HANDLER_DOMAIN_BOX) ||
-										(!IsModuleInstalled('bitrix24') && $psDomain === static::HANDLER_DOMAIN_CLOUD) ||
-										$psDomain === static::HANDLER_DOMAIN_NONE
-									)
-									{
-										continue(2);
-									}
+									continue(2);
 								}
 
 								$result[$group][$handlerName] = $psTitle;

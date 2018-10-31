@@ -375,12 +375,7 @@ abstract class BasketBase extends BasketItemCollection
 		/** @var BasketItemBase $basketItem */
 		foreach ($this->collection as $basketItem)
 		{
-			if ($basketItem->isCustomPrice())
-				$basePrice = $basketItem->getPrice();
-			else
-				$basePrice = $basketItem->getBasePrice();
-
-			$orderPrice += PriceMaths::roundPrecision($basePrice * $basketItem->getQuantity());
+			$orderPrice += PriceMaths::roundPrecision($basketItem->getBasePrice() * $basketItem->getQuantity());
 		}
 
 		$orderPrice = PriceMaths::roundPrecision($orderPrice);

@@ -3,6 +3,7 @@
 namespace Bitrix\Sale;
 
 use Bitrix\Currency;
+use Bitrix\Main\Engine\CurrentUser;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\NotImplementedException;
@@ -217,10 +218,8 @@ abstract class BasketItemCollection extends Internals\EntityCollection
 		$basketItem = $this->rewind();
 		if ($basketItem)
 		{
-
 			$siteId = $basketItem->getField('LID');
 			$fuserId = $basketItem->getFUserId();
-			$currency = $basketItem->getCurrency();
 
 			$userId = Fuser::getUserIdById($fuserId);
 
@@ -233,19 +232,6 @@ abstract class BasketItemCollection extends Internals\EntityCollection
 			{
 				$context['USER_ID'] = $userId;
 			}
-
-			if (empty($context['CURRENCY']) && !empty($siteId))
-			{
-				if (empty($currency))
-				{
-					$currency = Internals\SiteCurrencyTable::getSiteCurrency($siteId);
-				}
-
-				if (!empty($currency) && Currency\CurrencyManager::checkCurrencyID($currency))
-				{
-					$context['CURRENCY'] = $currency;
-				}
-			}
 		}
 
 		if (empty($context['SITE_ID']))
@@ -255,13 +241,25 @@ abstract class BasketItemCollection extends Internals\EntityCollection
 
 		if (empty($context['USER_ID']))
 		{
-			$context['USER_ID'] = $USER->GetID() > 0 ? $USER->GetID() : 0;
+			$context['USER_ID'] = isset($USER) && $USER instanceof \CUser ? (int)$USER->GetID() : 0;
 		}
 
-		if (empty($context['CURRENCY']))
+		if (Loader::includeModule('currency'))
 		{
-			Loader::includeModule('currency');
-			$context['CURRENCY'] = Currency\CurrencyManager::getBaseCurrency();
+			if (!empty($context['SITE_ID']))
+			{
+				$currency = Internals\SiteCurrencyTable::getSiteCurrency($context['SITE_ID']);
+			}
+
+			if (empty($currency))
+			{
+				$currency = Currency\CurrencyManager::getBaseCurrency();
+			}
+
+			if (!empty($currency) && Currency\CurrencyManager::checkCurrencyID($currency))
+			{
+				$context['CURRENCY'] = $currency;
+			}
 		}
 
 		return $context;

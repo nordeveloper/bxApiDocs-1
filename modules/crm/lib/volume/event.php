@@ -668,6 +668,9 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 		{
 			$query = $this->prepareQuery();
 			$countField = new Entity\ExpressionField('CNT', 'COUNT(DISTINCT %s)', 'EVENT_BY.ID');
+
+			$filesFieldAlias = new Entity\ExpressionField('FILES', '%s', 'EVENT_BY.FILES');
+			$query->registerRuntimeField('', $filesFieldAlias);
 		}
 
 		if ($this->prepareFilter($query))
@@ -677,15 +680,7 @@ class Event extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volu
 			$query
 				->registerRuntimeField('', $countField)
 				->addSelect('CNT')
-				//->where('FILES', '>', 6); // length of serialized string 'a:0:{}'
 				->whereNotNull('FILES');
-
-			/*
-			$query
-				->whereNotNull('EVENT_BY.FILES')
-				->where('EVENT_BY.FILES', '!=', '')
-				->where('EVENT_BY.FILES', '!=', 'a:0:{}');
-			*/
 
 			$res = $query->exec();
 			if ($row = $res->fetch())

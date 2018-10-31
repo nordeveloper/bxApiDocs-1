@@ -7,18 +7,25 @@
  */
 namespace Bitrix\Crm\WebForm\Internals;
 
-use Bitrix\Crm\WebForm\ResultEntity;
+use Bitrix\Main\ORM;
 use Bitrix\Main\Context;
-use Bitrix\Main\Entity;
 use Bitrix\Main\Security\Random;
 use Bitrix\Main\Localization\Loc;
-use Bitrix\Crm\WebForm\Helper;
-use Bitrix\Crm\WebForm\Entity as WebFormEntity;
 use Bitrix\Main\Type\DateTime;
+
+use Bitrix\Crm\Ads;
+use Bitrix\Crm\WebForm\Helper;
+use Bitrix\Crm\WebForm\ResultEntity;
+use Bitrix\Crm\WebForm\Entity as WebFormEntity;
 
 Loc::loadMessages(__FILE__);
 
-class FormTable extends Entity\DataManager
+/**
+ * Class FormTable
+ *
+ * @package Bitrix\Crm\WebForm\Internals
+ */
+class FormTable extends ORM\Data\DataManager
 {
 	public static function getTableName()
 	{
@@ -208,10 +215,10 @@ class FormTable extends Entity\DataManager
 		);
 	}
 
-	public static function onBeforeAdd(Entity\Event $event)
+	public static function onBeforeAdd(ORM\Event $event)
 	{
 		$fields = $event->getParameter('fields');
-		$result = new Entity\EventResult();
+		$result = new ORM\EventResult();
 		if(isset($fields['ENTITY_SCHEME']) && $fields['ENTITY_SCHEME'])
 		{
 			$fields['ENTITY_SCHEME'] = intval($fields['ENTITY_SCHEME']);
@@ -220,9 +227,9 @@ class FormTable extends Entity\DataManager
 		return $result;
 	}
 
-	public static function onAfterAdd(Entity\Event $event)
+	public static function onAfterAdd(ORM\Event $event)
 	{
-		$result = new Entity\EventResult();
+		$result = new ORM\EventResult();
 		$fields = $event->getParameter('fields');
 		$data = $event->getParameters();
 		$formId = $data['primary']['ID'];
@@ -232,10 +239,10 @@ class FormTable extends Entity\DataManager
 		return $result;
 	}
 
-	public static function onBeforeUpdate(Entity\Event $event)
+	public static function onBeforeUpdate(ORM\Event $event)
 	{
 		$fields = $event->getParameter('fields');
-		$result = new Entity\EventResult();
+		$result = new ORM\EventResult();
 		$data = $event->getParameters();
 		$formId = $data['primary']['ID'];
 		if(isset($fields['ENTITY_SCHEME']) && $fields['ENTITY_SCHEME'])
@@ -267,14 +274,17 @@ class FormTable extends Entity\DataManager
 	}
 
 	/**
-	 * @param Entity\Event $event Event
-	 * @return Entity\EventResult Result
+	 * @param ORM\Event $event Event
+	 * @return ORM\EventResult Result
 	 */
-	public static function onDelete(Entity\Event $event)
+	public static function onDelete(ORM\Event $event)
 	{
-		$result = new Entity\EventResult;
+		$result = new ORM\EventResult;
 		$data = $event->getParameters();
 		$formId = $data['primary']['ID'];
+
+		// delete Ads links
+		Ads\AdsForm::unlinkForm($formId);
 
 		// delete fields
 		$fieldDb = FieldTable::getList(array(
@@ -329,7 +339,7 @@ class FormTable extends Entity\DataManager
 	public static function validateName()
 	{
 		return array(
-			new Entity\Validator\Length(null, 50),
+			new ORM\Fields\Validators\LengthValidator(null, 50),
 		);
 	}
 }

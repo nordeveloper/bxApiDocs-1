@@ -750,4 +750,5 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 	}
 }
 
-define ('BT_UT_SECTION_AUTOCOMPLETE_CODE', CIBlockPropertySectionAutoComplete::USER_TYPE); // deprecated
+/** @deprecated */
+define ('BT_UT_SECTION_AUTOCOMPLETE_CODE', CIBlockPropertySectionAutoComplete::USER_TYPE);

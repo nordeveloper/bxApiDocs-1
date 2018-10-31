@@ -327,4 +327,11 @@ CJSCore::RegisterExt('crm_import_csv', array(
 		'lang' => '/bitrix/modules/crm/lang/'.LANGUAGE_ID.'/install/js/import_csv.php',
 ));
 
+if (IsModuleInstalled('socialnetwork'))
+{
+	CJSCore::RegisterExt('crm_sonet_commentaux', array(
+		'js' => '/bitrix/js/crm/socialnetwork.js'
+	));
+}
+
 \Bitrix\Main\Page\Asset::getInstance()->addJsKernelInfo("crm", array("/bitrix/js/crm/crm.js"));

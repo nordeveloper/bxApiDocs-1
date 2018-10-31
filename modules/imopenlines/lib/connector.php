@@ -15,8 +15,8 @@ class Connector
 	const TYPE_CONNECTOR = 'connector';
 
 	static $noVote = array(
-		self::TYPE_LIVECHAT,
-		self::TYPE_NETWORK
+		//self::TYPE_LIVECHAT,
+		//self::TYPE_NETWORK
 	);
 
 	private $error = null;
@@ -209,7 +209,15 @@ class Connector
 		$session->joinUser();
 
 		$addVoteResult = false;
-		$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+		if($session->getData('OPERATOR_ID') > 0)
+		{
+			$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+		}
+		else
+		{
+			$userViewChat  = false;
+		}
+
 		if ($voteSession && $session->getData('WAIT_VOTE') == 'Y')
 		{
 			$voteValue = 0;
@@ -233,6 +241,20 @@ class Connector
 			{
 				$addMessage['RECENT_ADD'] = $userViewChat? 'Y': 'N';
 				$session->update(Array('VOTE' => $voteValue, 'WAIT_VOTE' => 'N'));
+
+				if($session->getConfig('VOTE_CLOSING_DELAY') == 'Y')
+				{
+					$updateSession = array(
+						'WAIT_ANSWER' => 'N',
+						'DATE_MODIFY' => new \Bitrix\Main\Type\DateTime(),
+						'DATE_CLOSE' => new \Bitrix\Main\Type\DateTime(),
+						'CLOSED' => 'Y'
+					);
+				}
+				else
+				{
+					$updateSession = array();
+				}
 
 				\Bitrix\ImOpenLines\Chat::sendRatingNotify(\Bitrix\ImOpenLines\Chat::RATING_TYPE_CLIENT, $session->getData('ID'), $voteValue, $session->getData('OPERATOR_ID'), $session->getData('USER_ID'));
 			}
@@ -294,10 +316,9 @@ class Connector
 			'MESSAGE_ID' => $messageId
 		));
 
-		$updateSession = array(
-			'MESSAGE_COUNT' => true,
-			'DATE_LAST_MESSAGE' => new \Bitrix\Main\Type\DateTime()
-		);
+
+		$updateSession['MESSAGE_COUNT'] = true;
+		$updateSession['DATE_LAST_MESSAGE'] = new \Bitrix\Main\Type\DateTime();
 
 		if (isset($params['extra']))
 		{
@@ -327,6 +348,28 @@ class Connector
 				'CONFIG_ID' => $session->getData('CONFIG_ID'),
 				'USER_CODE' => $session->getUser('USER_CODE'),
 			));
+		}
+
+		if (!$session->isNowCreated())
+		{
+			if($session->getConfig('CHECKING_OFFLINE') == 'Y' &&
+				$session->getData('PAUSE') != 'Y' &&
+				!empty($session->getData('OPERATOR_ID')))
+			{
+				if(Queue::isOperatorOnline($session->getData('OPERATOR_ID')) != true)
+				{
+					$chat = new Chat($session->getData('CHAT_ID'));
+
+					$chat->transfer(Array(
+						'FROM' => $session->getData('OPERATOR_ID'),
+						'TO' => 'queue',
+						'MODE' => Chat::TRANSFER_MODE_AUTO,
+					));
+
+					$chat = new \CIMChat();
+					$chat->DeleteUser($session->getData('CHAT_ID'), $session->getData('OPERATOR_ID'), false);
+				}
+			}
 		}
 
 		return Array(
@@ -908,6 +951,13 @@ class Connector
 			$files = Array();
 			if (isset($messageFields['FILES']) && \Bitrix\Main\Loader::includeModule('disk'))
 			{
+				$config = Model\ConfigTable::getById($lineId)->fetch();
+				$langId = '';
+				if ($config && $config['LANGUAGE_ID'])
+				{
+					$langId = strtolower($config['LANGUAGE_ID']);
+				}
+
 				foreach ($messageFields['FILES'] as $file)
 				{
 					$fileModel = \Bitrix\Disk\File::loadById($file['id']);
@@ -924,6 +974,7 @@ class Connector
 					$file['link'] = \Bitrix\Disk\Driver::getInstance()->getUrlManager()->getShortUrlExternalLink(array(
 						'hash' => $extModel->getHash(),
 						'action' => 'default',
+						'langId' => $langId,
 					), true);
 
 					if (!$file['link'])

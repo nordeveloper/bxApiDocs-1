@@ -21,6 +21,7 @@ Loc::loadMessages(__FILE__);
  * <li> QUEUE_TIME int optional
  * <li> QUEUE_TYPE string(50) optional default 'evenly'
  * <li> TIMEMAN bool optional default 'N'
+ * <li> CHECKING_OFFLINE bool optional default 'N'
  * <li> NO_ANSWER_RULE string(50) optional default 'form'
  * <li> NO_ANSWER_FORM_ID int optional
  * <li> NO_ANSWER_BOT_ID int optional
@@ -47,6 +48,8 @@ Loc::loadMessages(__FILE__);
  * <li> AUTO_EXPIRE_TIME int optional
  * <li> TEMPORARY bool optional default 'Y'
  * <li> QUICK_ANSWERS_IBLOCK_ID int optional
+ * <li> TYPE_MAX_CHAT string(50) optional
+ * <li> MAX_CHAT int optional
  * </ul>
  *
  * @package Bitrix\Imopenlines
@@ -121,7 +124,7 @@ class ConfigTable extends Main\Entity\DataManager
 			),
 			'QUEUE_TIME' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('CONFIG_ENTITY_QUEUE_TIME_FIELD'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_QUEUE_TIME_FIELD_NEW'),
 				'default_value' => '60',
 			),
 			'QUEUE_TYPE' => array(
@@ -135,6 +138,18 @@ class ConfigTable extends Main\Entity\DataManager
 				'values' => array('N', 'Y'),
 				'title' => Loc::getMessage('CONFIG_ENTITY_TIMEMAN_FIELD'),
 				'default_value' => 'N',
+			),
+			'CHECKING_OFFLINE' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_CHECKING_OFFLINE_FIELD'),
+				'default_value' => 'N',
+			),
+			'CHECK_ONLINE' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_CHECKING_OFFLINE_FIELD'),
+				'default_value' => 'Y',
 			),
 			'WELCOME_BOT_ENABLE' => array(
 				'data_type' => 'boolean',
@@ -157,6 +172,12 @@ class ConfigTable extends Main\Entity\DataManager
 				'values' => array('N', 'Y'),
 				'title' => Loc::getMessage('CONFIG_ENTITY_VOTE_MESSAGE_FIELD'),
 				'default_value' => 'Y',
+			),
+			'VOTE_CLOSING_DELAY' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_VOTE_CLOSING_DELAY_FIELD'),
+				'default_value' => 'N',
 			),
 			'VOTE_MESSAGE_1_TEXT' => array(
 				'data_type' => 'text',
@@ -317,6 +338,11 @@ class ConfigTable extends Main\Entity\DataManager
 				'data_type' => 'text',
 				'title' => Loc::getMessage('CONFIG_ENTITY_CLOSE_TEXT_FIELD'),
 			),
+			'FULL_CLOSE_TIME' => array(
+				'data_type' => 'integer',
+				'title' => Loc::getMessage('CONFIG_ENTITY_FULL_CLOSE_TIME_FIELD'),
+				'default_value' => '10',
+			),
 			'AUTO_CLOSE_RULE' => array(
 				'data_type' => 'string',
 				'validation' => array(__CLASS__, 'validateAutoCloseRule'),
@@ -386,6 +412,15 @@ class ConfigTable extends Main\Entity\DataManager
 			'SESSION_PRIORITY' => array(
 				'data_type' => 'integer',
 				'default_value' => 0,
+			),
+			'TYPE_MAX_CHAT' => array(
+				'data_type' => 'string',
+				'validation' => array(__CLASS__, 'validateTypeMaxChat'),
+				'default_value' => 'ANSWERED_NEW',
+			),
+			'MAX_CHAT' => array(
+				'data_type' => 'integer',
+				'default_value' => '0',
 			),
 		);
 	}
@@ -563,5 +598,18 @@ class ConfigTable extends Main\Entity\DataManager
 	public static function getCurrentDate()
 	{
 		return new \Bitrix\Main\Type\DateTime();
+	}
+
+	/**
+	 * Returns validators for TYPE_MAX_CHAT field.
+	 *
+	 * @return array
+	 * @throws Main\ArgumentTypeException
+	 */
+	public static function validateTypeMaxChat()
+	{
+		return array(
+			new Main\Entity\Validator\Length(null, 50),
+		);
 	}
 }

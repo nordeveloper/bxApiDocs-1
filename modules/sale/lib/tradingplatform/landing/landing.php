@@ -21,6 +21,8 @@ class Landing extends Sale\TradingPlatform\Platform
 	const TRADING_PLATFORM_CODE = 'landing';
 	const CODE_DELIMITER = '_';
 
+	protected $site = [];
+
 	/**
 	 * @return bool|int
 	 * @throws \Exception
@@ -122,16 +124,14 @@ class Landing extends Sale\TradingPlatform\Platform
 	 */
 	public function getInfo()
 	{
-		static $result = [];
-
-		if ($result)
-		{
-			return $result;
-		}
-
 		if (!Loader::includeModule('landing'))
 		{
-			return $result;
+			return [];
+		}
+
+		if ($this->site)
+		{
+			return $this->site;
 		}
 
 		/** @var DB\Result $dbRes */
@@ -143,12 +143,11 @@ class Landing extends Sale\TradingPlatform\Platform
 
 		if ($data = $dbRes->fetch())
 		{
-			$result = $data;
-
-			$result['PUBLIC_URL'] = \Bitrix\Landing\Site::getPublicUrl($this->getCode());
+			$this->site = $data;
+			$this->site['PUBLIC_URL'] = \Bitrix\Landing\Site::getPublicUrl($this->getCode());
 		}
 
-		return $result;
+		return $this->site;
 	}
 
 	/**

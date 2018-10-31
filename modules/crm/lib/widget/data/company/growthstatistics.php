@@ -174,31 +174,47 @@ class GrowthStatistics extends DataSource
 
 			if ($periodStartDate && $periodEndDate)
 			{
-				$valuesWholePeriod = array();
-				$currentCount = $totalCountBeforePeriod;
-				$startDate = new \DateTime($periodStartDate);
-				$endDate = new \DateTime($periodEndDate);
-				while ($startDate <= $endDate)
+				try
 				{
-					$date = $startDate->format('Y-m-d');
-					if (array_key_exists($date, $result))
+					$valuesWholePeriod = array();
+					$currentCount = $totalCountBeforePeriod;
+
+					if (is_string($periodStartDate))
 					{
-						$valuesWholePeriod[$date] = $result[$date];
-						$currentCount = $result[$date]['TOTAL_COUNT'];
+						$periodStartDate = \DateTime::createFromFormat(FORMAT_DATE, $periodStartDate)->getTimestamp();
+						$periodStartDate = date('Y-m-d', $periodStartDate);
 					}
-					else
+					if (is_string($periodEndDate))
 					{
-						$valuesWholePeriod[$date] = array(
-							'TOTAL_COUNT' => $currentCount,
-							'DATE' => $date
-						);
+						$periodEndDate = \DateTime::createFromFormat(FORMAT_DATE, $periodEndDate)->getTimestamp();
+						$periodEndDate = date('Y-m-d', $periodEndDate);
 					}
-					$startDate->add(new \DateInterval('P1D'));
+
+					$startDate = new \DateTime($periodStartDate);
+					$endDate = new \DateTime($periodEndDate);
+					while ($startDate <= $endDate)
+					{
+						$date = $startDate->format('Y-m-d');
+						if (array_key_exists($date, $result))
+						{
+							$valuesWholePeriod[$date] = $result[$date];
+							$currentCount = $result[$date]['TOTAL_COUNT'];
+						}
+						else
+						{
+							$valuesWholePeriod[$date] = array(
+								'TOTAL_COUNT' => $currentCount,
+								'DATE' => $date
+							);
+						}
+						$startDate->add(new \DateInterval('P1D'));
+					}
+					if ($valuesWholePeriod)
+					{
+						$result = $valuesWholePeriod;
+					}
 				}
-				if ($valuesWholePeriod)
-				{
-					$result = $valuesWholePeriod;
-				}
+				catch (\Exception $e) {}
 			}
 
 			$result = array_values($result);

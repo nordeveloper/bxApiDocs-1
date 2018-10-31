@@ -320,21 +320,6 @@ class CUserTypeFile extends Main\UserField\TypeBase
 		{
 			if($value > 0)
 			{
-				$fileInputUtility = FileInputUtility::instance();
-
-				$checkResult = $fileInputUtility->checkFiles($fileInputUtility->getUserFieldCid($arUserField), array($value));
-
-				if(!in_array($value, $checkResult))
-				{
-					$aMsg[] = array(
-						"id" => $arUserField["FIELD_NAME"],
-						"text" => GetMessage("FILE_BAD_TYPE"),
-					);
-				}
-			}
-
-			if($value > 0)
-			{
 				$fileInfo = \CFile::GetFileArray($value);
 				if($fileInfo)
 				{

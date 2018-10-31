@@ -1,9 +1,12 @@
 <?php
-
 namespace Bitrix\ImOpenLines;
 
-use Bitrix\Main,
-	Bitrix\Main\Localization\Loc;
+use \Bitrix\Main\Loader,
+	\Bitrix\Main\Localization\Loc;
+
+use \Bitrix\Im\User;
+
+use \Bitrix\ImOpenLines\Model\QueueTable;
 
 Loc::loadMessages(__FILE__);
 
@@ -18,7 +21,7 @@ class QueueManager
 		$this->error = new Error(null, '', '');
 		$this->id = intval($id);
 		$this->config = $config;
-		\Bitrix\Main\Loader::includeModule("im");
+		Loader::includeModule("im");
 	}
 
 	public function updateUsers($users)
@@ -32,52 +35,52 @@ class QueueManager
 		}
 		foreach ($users as $userId)
 		{
-			if (!\Bitrix\Im\User::getInstance($userId)->isExtranet())
+			if (!User::getInstance($userId)->isExtranet())
 			{
 				$addQueue[$userId] = $userId;
 			}
 		}
 
 		$inQueue = Array();
-		$orm = Model\QueueTable::getList(array(
+		$orm = QueueTable::getList(array(
 			'filter' => Array('=CONFIG_ID' => $this->id)
 		));
 		while ($row = $orm->fetch())
 		{
 			$inQueue[$row['ID']] = $row['USER_ID'];
 		}
-		
+
 		if (implode('|', $addQueue) != implode('|', $inQueue))
 		{
 			foreach ($inQueue as $id => $userId)
 			{
-				Model\QueueTable::delete($id);
+				QueueTable::delete($id);
 				unset($inQueue[$id]);
 			}
 			foreach ($addQueue as $userId)
 			{
-				$orm = Model\QueueTable::add(array(
+				$orm = QueueTable::add(array(
 					"CONFIG_ID" => $this->id,
 					"USER_ID" => $userId,
 				));
 				$inQueue[$orm->getId()] = $userId;
 			}
 		}
-		
+
 		if (empty($inQueue))
 		{
 			if ($businessUsers === false || !isset($businessUsers[0]))
 			{
-				$userId = \Bitrix\Im\User::getInstance()->getId();
+				$userId = User::getInstance()->getId();
 			}
 			else
 			{
 				$userId = $businessUsers[0];
 			}
-			
+
 			if ($userId)
 			{
-				Model\QueueTable::add(array(
+				QueueTable::add(array(
 					"CONFIG_ID" => $this->id,
 					"USER_ID" => $userId,
 				));
@@ -94,7 +97,7 @@ class QueueManager
 		{
 			return false;
 		}
-		$orm = Model\QueueTable::getList(Array(
+		$orm = QueueTable::getList(Array(
 			'select' => Array('ID'),
 			'filter' => Array(
 				'!=USER_ID' => $businessUsers
@@ -102,7 +105,7 @@ class QueueManager
 		));
 		while($row = $orm->fetch())
 		{
-			Model\QueueTable::delete($row['ID']);
+			QueueTable::delete($row['ID']);
 		}
 
 		return true;

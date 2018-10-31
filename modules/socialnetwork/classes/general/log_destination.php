@@ -586,7 +586,7 @@ class CSocNetLogDestination
 					$arUsers['U'.$arUserTmp["ID"]] = Array(
 						'id' => 'U'.$arUserTmp["ID"],
 						'entityId' => $arUserTmp["ID"],
-						'email' => $arUserTmp["EMAIL"],
+						'email' => $arUserTmp["EMAIL"] ? $arUserTmp["EMAIL"] : '',
 						'name' => $sName,
 						'avatar' => empty($arFileTmp['src'])? '': $arFileTmp['src'],
 						'desc' => $arUserTmp['WORK_POSITION'] ? $arUserTmp['WORK_POSITION'] : ($arUserTmp['PERSONAL_PROFESSION'] ? $arUserTmp['PERSONAL_PROFESSION'] : '&nbsp;'),

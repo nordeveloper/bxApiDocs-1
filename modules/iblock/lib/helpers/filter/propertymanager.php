@@ -89,7 +89,24 @@ class PropertyManager
 						);
 						break;
 					default:
-						if (array_key_exists("GetPublicFilterHTML", $property["PROPERTY_USER_TYPE"]))
+						if (array_key_exists("GetUIFilterProperty", $property["PROPERTY_USER_TYPE"]))
+						{
+							$fields = array(
+								"id" => $fieldId,
+								"name" => $fieldName,
+								"type" => "custom",
+								"value" => "",
+								"filterable" => ""
+							);
+							call_user_func_array($property["PROPERTY_USER_TYPE"]["GetUIFilterProperty"],
+								array(
+									$property,
+									array("VALUE" => $fieldId, "FORM_NAME" => "main-ui-filter"),
+									&$fields
+								)
+							);
+						}
+						elseif (array_key_exists("GetPublicFilterHTML", $property["PROPERTY_USER_TYPE"]))
 						{
 							$fields = array(
 								"id" => $fieldId,
