@@ -119,6 +119,7 @@ class Invoice extends Sale\Order
 				Sale\Registry::ENTITY_ORDER_STATUS => 'Bitrix\Crm\Invoice\InvoiceStatus',
 				Sale\Registry::ENTITY_DELIVERY_STATUS => 'Bitrix\Crm\Invoice\DeliveryStatus',
 				Sale\Registry::ENTITY_ENTITY_MARKER => 'Bitrix\Crm\Invoice\EntityMarker',
+				Sale\Registry::ENTITY_PERSON_TYPE => 'Bitrix\Crm\Invoice\PersonType',
 				Sale\Registry::ENTITY_ORDER_HISTORY => 'Bitrix\Crm\Invoice\InvoiceHistory',
 				Sale\Registry::ENTITY_ORDER_DISCOUNT => '\Bitrix\Crm\Invoice\InvoiceDiscount',
 				Sale\Registry::ENTITY_DISCOUNT_COUPON => '\Bitrix\Crm\Invoice\DiscountCouponsManager',

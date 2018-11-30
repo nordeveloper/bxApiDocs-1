@@ -4,8 +4,8 @@ namespace Bitrix\Main\UI\Viewer\Renderer;
 
 class Pdf extends Renderer
 {
-	const WIDTH  = 700;
-	const HEIGHT = 700;
+	const WIDTH  = 900;
+	const HEIGHT = 800;
 
 	const JS_TYPE_DOCUMENT = 'document';
 

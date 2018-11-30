@@ -201,7 +201,10 @@ class WebHookFormFillHandler
 
 		// add result
 		$result = $form->addResult($fields, $addResultParameters);
-		$this->errorCollection->add($result->getErrors());
+		foreach ($result->getErrors() as $errorMessage)
+		{
+			$this->errorCollection->setError(new Error($errorMessage));
+		}
 
 		return ($result->getId() && $result->getId() > 0);
 	}

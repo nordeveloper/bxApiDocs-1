@@ -96,6 +96,12 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 	protected $siteId = 0;
 
 	/**
+	 * Folder id of current landing.
+	 * @var int
+	 */
+	protected $folderId = 0;
+
+	/**
 	 * Current template id.
 	 * @var int
 	 */
@@ -127,14 +133,23 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 	protected function __construct($id, $params = array())
 	{
 		$this->error = new Error;
+		$filter = array(
+			'ID' => $id
+		);
+		if (
+			isset($params['force_deleted']) &&
+			$params['force_deleted'] === true
+		)
+		{
+			$filter['=DELETED'] = ['Y', 'N'];
+			$filter['=SITE.DELETED'] = ['Y', 'N'];
+		}
 		$landing = self::getList(array(
 			'select' => array(
 				'*',
 				'SITE_TPL_ID' => 'SITE.TPL_ID'
 			),
-			'filter' => array(
-				'ID' => $id
-			)
+			'filter' => $filter
 		))->fetch();
 
 		if ($landing)
@@ -149,6 +164,7 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 			$this->xmlId = $landing['XML_ID'];
 			$this->id = (int)$landing['ID'];
 			$this->siteId = (int)$landing['SITE_ID'];
+			$this->folderId = (int)$landing['FOLDER_ID'];
 			$this->active = $landing['ACTIVE'] == 'Y';
 			$this->tplId = $landing['TPL_ID'] > 0
 							? $landing['TPL_ID']
@@ -340,17 +356,24 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 	/**
 	 * Delete landing by id and its blocks.
 	 * @param int $id Landing id.
+	 * @param bool $forceDeleted Force delete throw an errors.
 	 * @return \Bitrix\Main\Result
 	 */
-	public static function delete($id)
+	public static function delete($id, $forceDeleted = false)
 	{
 		$result = new \Bitrix\Main\Entity\DeleteResult();
+		$params = [];
+
+		if ($forceDeleted)
+		{
+			$params['force_deleted'] = true;
+		}
 
 		// first check
 		foreach (array('draft', 'public') as $code)
 		{
 			self::setEditMode($code == 'draft');
-			$landing = self::createInstance($id);
+			$landing = self::createInstance($id, $params);
 			if ($landing->exist())
 			{
 				foreach ($landing->getBlocks() as $block)
@@ -367,13 +390,20 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 					}
 				}
 			}
+			else
+			{
+				$result->addError(
+					$landing->getError()->getErrors()[0]
+				);
+				return $result;
+			}
 		}
 
 		// delete blocks
 		foreach (array('draft', 'public') as $code)
 		{
 			self::setEditMode($code == 'draft');
-			$landing = self::createInstance($id);
+			$landing = self::createInstance($id, $params);
 			if ($landing->exist())
 			{
 				foreach ($landing->getBlocks() as $block)
@@ -525,7 +555,8 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 				'FOLDER_CODE' => 'LF.CODE'
 			),
 			'filter' => array(
-				'ID' => $id
+				'ID' => $id,
+				'=DELETED' => ['Y', 'N']
 			),
 			'runtime' => array(
 				new \Bitrix\Main\Entity\ReferenceField(
@@ -650,31 +681,24 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 		// title
 		if ($this->mainInstance)
 		{
-			Manager::getApplication()->setTitle(
+			Manager::setPageTitle(
 				\htmlspecialcharsbx($this->title)
 			);
 		}
 
 		// add chain item if need
-		if ($this->folderId && $this->mainInstance)
+		if ($this->mainInstance)
 		{
-			if ($this->folderId == $this->id)
-			{
-				Manager::getApplication()->addChainItem(
-					$this->title,
-					'#landing' . $this->id
-				);
-			}
-			else
+			if ($this->folderId)
 			{
 				$res = self::getList(array(
-										 'select' => array(
-											 'ID', 'TITLE'
-										 ),
-										 'filter' => array(
-											 'ID' => $this->folderId
-										 )
-									 ));
+					 'select' => array(
+						'ID', 'TITLE'
+					 ),
+					'filter' => array(
+						'ID' => $this->folderId
+					)
+		 		));
 				if ($row = $res->fetch())
 				{
 					Manager::getApplication()->addChainItem(
@@ -682,6 +706,13 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 						'#landing' . $row['ID']
 					);
 				}
+			}
+			else
+			{
+				Manager::getApplication()->addChainItem(
+					$this->title,
+					'#landing' . $this->id
+				);
 			}
 		}
 
@@ -909,7 +940,7 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 	 */
 	protected function parseLocalUrl($content)
 	{
-		$pattern = '/([",\']{1})#(landing|block)([\d]+)\@{0,1}([^\'"]*)([",\']{1})/is';
+		$pattern = '/([",\'\;]{1})#(landing|block)([\d]+)\@{0,1}([^\'"]*)([",\'\&]{1})/is';
 
 		// replace catalog links in preview mode
 		if (self::$previewMode)
@@ -1267,7 +1298,7 @@ class Landing extends \Bitrix\Landing\Internals\BaseTable
 
 	/**
 	 * Add new block to the landing.
-	 * @param array $code Code of block.
+	 * @param string $code Code of block.
 	 * @param array $data Data array of block.
 	 * @return int|false Id of new block or false on failure.
 	 */

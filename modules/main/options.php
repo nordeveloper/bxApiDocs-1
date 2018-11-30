@@ -216,6 +216,131 @@ $arAllOptions["main"][] = GetMessage("MAIN_OPTIONS_URL_PREVIEW");
 $arAllOptions["main"][] = Array("url_preview_enable", GetMessage("MAIN_OPTION_URL_PREVIEW_ENABLE"), "N", array("checkbox", "Y"));
 $arAllOptions["main"][] = Array("url_preview_save_images", GetMessage("MAIN_OPTION_URL_PREVIEW_SAVE_IMAGES"), "N", array("checkbox", "Y"));
 
+$arAllOptions["main"][] = GetMessage("MAIN_OPTIONS_IMAGE_EDITOR");
+$imageEditorOptions = array();
+$imageEditorOptions["N"] = GetMessage("MAIN_OPTION_IMAGE_EDITOR_PROXY_ENABLED_NO");
+$imageEditorOptions["Y"] = GetMessage("MAIN_OPTION_IMAGE_EDITOR_PROXY_ENABLED_YES_FOR_ALL");
+$imageEditorOptions["YWL"] = GetMessage("MAIN_OPTION_IMAGE_EDITOR_PROXY_ENABLED_YES_FROM_WHITE_LIST");
+$arAllOptions["main"][] = Array("imageeditor_proxy_enabled", GetMessage("MAIN_OPTION_IMAGE_EDITOR_PROXY_ENABLED"), "N", array("selectbox", $imageEditorOptions));
+
+$allowedHostsList = unserialize(COption::GetOptionString("main", "imageeditor_proxy_white_list"));
+
+if (!is_array($allowedHostsList) || empty($allowedHostsList))
+{
+    $allowedHostsList[] = '';
+}
+
+$allowedWhiteListLabel = GetMessage("MAIN_OPTIONS_IMAGE_EDITOR_PROXY_WHITE_LIST");
+$allowedWhiteListPlaceholder = GetMessage("MAIN_OPTIONS_IMAGE_EDITOR_PROXY_WHITE_LIST_PLACEHOLDER");
+
+foreach($allowedHostsList as $key => $item)
+{
+	$arAllOptions["main"][] = Array("imageeditor_proxy_white_list", $key === 0 ? $allowedWhiteListLabel : "", $item, Array("text", 30));
+}
+
+$addAllowedHost = "
+    <script>
+        var whiteListValues = ".CUtil::phpToJsObject($allowedHostsList).";
+        var firstWhiteListInputs = [].slice.call(document.querySelectorAll('input[name=\'imageeditor_proxy_white_list\']'));
+        
+        if (firstWhiteListInputs.length)
+        {
+            firstWhiteListInputs.forEach(function(item, index) {
+            	item.setAttribute('placeholder', '".htmlspecialcharsbx($allowedWhiteListPlaceholder)."');
+            	item.name = 'imageeditor_proxy_white_list[]';
+            	item.setAttribute('value', whiteListValues[index]);
+            	
+            	var allowedHostRemoveButton = '<a href=\"javascript:void(0);\" onclick=\"removeAllowedHost(this)\" class=\"access-delete\"></a>';
+                item.parentElement.innerHTML += allowedHostRemoveButton;
+            });
+        }
+        
+        function removeAllowedHost(button)
+        {
+        	var row = button.parentElement.parentElement;
+        	var inputs = [].slice.call(document.querySelectorAll('input[name*=\'imageeditor_proxy_white_list\']'));
+        	
+        	if (inputs.length > 1)
+            {
+            	if (row.firstElementChild.innerHTML)
+                {
+                    row.nextElementSibling.firstElementChild.innerHTML = row.firstElementChild.innerHTML;
+                }
+                row.parentElement.removeChild(
+        	        button.parentElement.parentElement
+        	    );
+            }
+            else 
+            {
+                var input = row.querySelector('input[type=\'text\']');
+                input.removeAttribute('value');
+                input.value = '';
+            }
+        	
+        }
+        
+        function addProxyAllowedHost(button)
+        {
+        	var row = button
+        	    .parentElement
+        	    .parentElement
+        	    .previousElementSibling;
+        	
+        	if (row)
+            {
+                var clonedRow = row.cloneNode(true);
+                clonedRow.firstElementChild.innerHTML = '';
+                var clonedInput = clonedRow.querySelector('input[type=\'text\']');
+                clonedInput.removeAttribute('value');
+                clonedInput.value = '';
+                row.parentElement.insertBefore(clonedRow, row.nextElementSibling);
+                
+                if (!clonedInput.parentElement.querySelector('.access-delete'))
+                {
+                    var allowedHostRemoveButton = '<a href=\"javascript:void(0);\" onclick=\"removeAllowedHost(this)\" class=\"access-delete\"></a>';
+                    clonedInput.parentElement.innerHTML += allowedHostRemoveButton;
+                }
+            }
+        }
+        
+        var proxyEnabled = document.querySelector('[name=\'imageeditor_proxy_enabled\']');
+        if (proxyEnabled)
+        {
+            proxyEnabled.addEventListener('change', onProxyEnabledChange);
+            
+            requestAnimationFrame(function() {
+               onProxyEnabledChange({currentTarget: proxyEnabled});
+            });
+        }
+        
+        function onProxyEnabledChange(event)
+        {
+            var inputs = [].slice.call(document.querySelectorAll('input[name*=\'imageeditor_proxy_white_list\']'));
+            
+            inputs.forEach(function(item) {
+                item.disabled = event.currentTarget.value !== 'YWL';
+            });
+            
+            var button = document.querySelector('.adm-add-allowed-host');
+            
+            if (event.currentTarget.value !== 'YWL')
+            {
+                button.style.pointerEvents = 'none';
+                button.style.opacity = .4;
+            }
+            else 
+            {
+            	button.removeAttribute('style');
+            }
+        
+        }
+    </script>
+";
+
+$addAllowedHost .= "<a href=\"javascript:void(0)\" onclick=\"addProxyAllowedHost(this)\" hidefocus=\"true\" class=\"adm-btn adm-add-allowed-host\">".GetMessage("MAIN_OPTIONS_IMAGE_EDITOR_PROXY_WHITE_LIST_ADD_HOST")."</a>";
+$arAllOptions["main"][] = Array("", "", $addAllowedHost, Array("statichtml"));
+
+
 CJSCore::Init(array('access'));
 
 //show the public panel for users
@@ -382,6 +507,7 @@ if($_SERVER["REQUEST_METHOD"]=="POST" && strlen($_POST["Update"])>0 && ($USER->C
 	COption::SetOptionString("main", "admin_lid", $_POST["admin_lid"]);
 	COption::SetOptionString("main", "show_panel_for_users", serialize($_POST["show_panel_for_users"]));
 	COption::SetOptionString("main", "hide_panel_for_users", serialize($_POST["hide_panel_for_users"]));
+	COption::SetOptionString("main", "imageeditor_proxy_white_list", serialize($_POST["imageeditor_proxy_white_list"]));
 
 	$cleanup_days = COption::GetOptionInt("main", "new_user_registration_cleanup_days", 7);
 	if($cleanup_days > 0 && COption::GetOptionString("main", "new_user_registration_email_confirmation", "N") === "Y")

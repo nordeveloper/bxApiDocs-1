@@ -1287,6 +1287,9 @@ class CAllCatalogProduct
 				{
 					foreach ($productData['QUANTITY_LIST'] as $basketCode => $quantity)
 					{
+						//TODO: remove this hack after refactoring new provider
+						if ($quantity <= 0)
+							continue;
 						$mxResult = ExecuteModuleEventEx(
 							$arEvent,
 							array(

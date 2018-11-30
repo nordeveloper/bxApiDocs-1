@@ -314,7 +314,7 @@ CJSCore::RegisterExt('crm_visit_tracker', array(
 	'js' => array('/bitrix/js/crm/visit.js'),
 	'css' => array('/bitrix/js/crm/css/visit.css', '/bitrix/components/bitrix/crm.activity.visit/templates/.default/style.css', '/bitrix/components/bitrix/crm.card.show/templates/.default/style.css'),
 	'lang' => '/bitrix/modules/crm/lang/'.LANGUAGE_ID.'/install/js/visit.php',
-	'rel' => array('crm_recorder'),
+	'rel' => array('crm_recorder', 'ui.fonts.opensans'),
 ));
 
 CJSCore::RegisterExt('crm_form_loader', array(

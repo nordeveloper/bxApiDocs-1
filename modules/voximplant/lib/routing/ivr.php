@@ -29,6 +29,11 @@ class Ivr extends Node
 		$actionId = $request['IVR_ACTION_ID'];
 		$actionResult = $request['ACTION_RESULT'];
 
+		if(!$actionId)
+		{
+			return false;
+		}
+		
 		$ivrAction = IvrActionTable::getRowById($actionId);
 		if(!$ivrAction)
 		{

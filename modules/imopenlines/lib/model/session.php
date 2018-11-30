@@ -29,10 +29,7 @@ Loc::loadMessages(__FILE__);
  * <li> END_ID int mandatory
  * <li> CRM bool optional default 'N'
  * <li> CRM_CREATE bool optional default 'N'
- * <li> CRM_ENTITY_TYPE string(50) optional
- * <li> CRM_ENTITY_ID int optional
  * <li> CRM_ACTIVITY_ID int optional
- * <li> CRM_DEAL_ID int optional
  * <li> DATE_CREATE datetime optional
  * <li> DATE_MODIFY datetime optional
  * <li> WAIT_ANSWER bool optional default 'Y'
@@ -160,25 +157,33 @@ class SessionTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('SESSION_ENTITY_CRM_CREATE_FIELD'),
 				'default_value' => 'N',
 			),
-			'CRM_ENTITY_TYPE' => array(
-				'data_type' => 'string',
-				'validation' => array(__CLASS__, 'validateCrmEntityType'),
-				'title' => Loc::getMessage('SESSION_ENTITY_CRM_ENTITY_TYPE_FIELD'),
-				'default_value' => 'NONE',
+			'CRM_CREATE_LEAD' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('SESSION_ENTITY_CRM_CREATE_LEAD'),
+				'default_value' => 'N',
 			),
-			'CRM_ENTITY_ID' => array(
-				'data_type' => 'integer',
-				'title' => Loc::getMessage('SESSION_ENTITY_CRM_ENTITY_ID_FIELD'),
-				'default_value' => 0,
+			'CRM_CREATE_COMPANY' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('SESSION_ENTITY_CRM_CREATE_COMPANY'),
+				'default_value' => 'N',
+			),
+			'CRM_CREATE_CONTACT' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('SESSION_ENTITY_CRM_CREATE_CONTACT'),
+				'default_value' => 'N',
+			),
+			'CRM_CREATE_DEAL' => array(
+				'data_type' => 'boolean',
+				'values' => array('N', 'Y'),
+				'title' => Loc::getMessage('SESSION_ENTITY_CRM_CREATE_DEAL'),
+				'default_value' => 'N',
 			),
 			'CRM_ACTIVITY_ID' => array(
 				'data_type' => 'integer',
 				'title' => Loc::getMessage('SESSION_ENTITY_CRM_ACTIVITY_ID_FIELD'),
-				'default_value' => 0,
-			),
-			'CRM_DEAL_ID' => array(
-				'data_type' => 'integer',
-				'title' => Loc::getMessage('SESSION_ENTITY_CRM_DEAL_ID_FIELD'),
 				'default_value' => 0,
 			),
 			'DATE_CREATE' => array(
@@ -444,6 +449,13 @@ class SessionTable extends Main\Entity\DataManager
 		return new Entity\EventResult();
 	}
 
+	/**
+	 * @param $id
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public static function indexRecord($id)
 	{
 		$id = (int)$id;
@@ -475,10 +487,7 @@ class SessionTable extends Main\Entity\DataManager
 	 */
 	public static function generateSearchContent(array $fields)
 	{
-		if($fields['CRM_ENTITY_TYPE'] != '' && $fields['CRM_ENTITY_ID'] > 0)
-			$crmEntityCaption = \Bitrix\ImOpenLines\Crm::getEntityCaption($fields['CRM_ENTITY_TYPE'], $fields['CRM_ENTITY_ID']);
-		else
-			$crmEntityCaption = '';
+		$crmCaption = \Bitrix\ImOpenLines\Crm\Common::generateSearchContent($fields['CRM_ACTIVITY_ID']);
 
 		$userId = array();
 
@@ -520,16 +529,34 @@ class SessionTable extends Main\Entity\DataManager
 			$userId[$fields['USER_ID']] = $fields['USER_ID'];
 		}
 
-		$result = \Bitrix\Main\Search\MapBuilder::create()
-			->addUser($userId)
-			->addText($crmEntityCaption)
-			->addText($fields['EXTRA_URL'])
-			->addInteger($fields['ID'])
-			->addText('imol|'.$fields['ID'])
-			->addText($transcriptLines)
-			->build();
+		$mapBuilderManager = \Bitrix\Main\Search\MapBuilder::create();
 
-		return $result;
+		if(!empty($userId))
+		{
+			$mapBuilderManager->addUser($userId);
+		}
+		if(!empty($crmCaption))
+		{
+			foreach ($crmCaption as $item)
+			{
+				$mapBuilderManager->addText($item);
+			}
+		}
+		if(!empty($fields['EXTRA_URL']))
+		{
+			$mapBuilderManager->addText($fields['EXTRA_URL']);
+		}
+		if(!empty($fields['ID']))
+		{
+			$mapBuilderManager->addInteger($fields['ID']);
+			$mapBuilderManager->addText('imol|'.$fields['ID']);
+		}
+		if(!empty($transcriptLines))
+		{
+			$mapBuilderManager->addText($transcriptLines);
+		}
+
+		return $mapBuilderManager->build();
 	}
 
 	/**
@@ -605,19 +632,7 @@ class SessionTable extends Main\Entity\DataManager
 		);
 	}
 	/**
-	 * Returns validators for CRM_ENTITY_TYPE field.
-	 *
-	 * @return array
-	 * @throws Main\ArgumentTypeException
-	 */
-	public static function validateCrmEntityType()
-	{
-		return array(
-			new Main\Entity\Validator\Length(null, 50),
-		);
-	}
-	/**
-	 * Returns validators for CRM_ENTITY_TYPE field.
+	 * Returns validators for SEND_FORM field.
 	 *
 	 * @return array
 	 * @throws Main\ArgumentTypeException

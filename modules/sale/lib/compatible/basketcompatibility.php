@@ -708,6 +708,7 @@ class BasketCompatibility extends Internals\EntityCompatibility
 			{
 				/** @var Sale\BasketItem $item */
 				$item = $itemResultData['BASKET_ITEM'];
+				$basket = $item->getCollection();
 			}
 
 			if (isset($itemResultData['ORDER']))
@@ -891,7 +892,7 @@ class BasketCompatibility extends Internals\EntityCompatibility
 				return $result;
 			}
 
-			$r = $item->save();
+			$r = $basket->save();
 		}
 
 		if (!$r->isSuccess())

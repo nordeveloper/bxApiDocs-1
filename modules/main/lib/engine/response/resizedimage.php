@@ -3,6 +3,8 @@
 namespace Bitrix\Main\Engine\Response;
 
 
+use Bitrix\Main;
+
 class ResizedImage extends BFile
 {
 	protected $showInline = true;
@@ -21,24 +23,18 @@ class ResizedImage extends BFile
 
 	public static function createByImageId($imageId, $width, $height, $name = null)
 	{
-		$image = static::createByFileId($imageId, $name);
-		$image
-			->setWidth($width)
-			->setHeight($height)
-		;
+		$imageData = \CFile::getFileArray($imageId);
+		if (!$imageData)
+		{
+			throw new Main\ObjectNotFoundException("Could not find file");
+		}
 
-		return $image;
+		return new self($imageData, $width, $height, $name);
 	}
 
 	public static function createByImageData(array $imageData, $width, $height, $name = null)
 	{
-		$image = static::createByFileData($imageData, $name);
-		$image
-			->setWidth($width)
-			->setHeight($height)
-		;
-
-		return $image;
+		return new self($imageData, $width, $height, $name);
 	}
 
 	/**

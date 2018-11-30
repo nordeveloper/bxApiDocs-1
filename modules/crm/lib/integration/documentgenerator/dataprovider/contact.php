@@ -2,6 +2,7 @@
 
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
+use Bitrix\Crm\ContactAddress;
 use Bitrix\Crm\ContactTable;
 use Bitrix\DocumentGenerator\Nameable;
 use Bitrix\DocumentGenerator\Value\Name;
@@ -84,6 +85,14 @@ class Contact extends CrmEntityDataProvider implements Nameable
 		if($this->data['ADDRESS'] === '')
 		{
 			unset($this->data['ADDRESS']);
+		}
+		else
+		{
+			$address = ContactAddress::getByOwner(ContactAddress::Primary, $this->getCrmOwnerType(), $this->source);
+			if($address)
+			{
+				$this->data['ADDRESS'] = new \Bitrix\Crm\Integration\DocumentGenerator\Value\Address($address);
+			}
 		}
 		$this->nameData = [
 			'TITLE' => $this->getHonorificName(),

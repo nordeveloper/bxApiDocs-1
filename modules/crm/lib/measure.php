@@ -1,6 +1,10 @@
 <?php
 namespace Bitrix\Crm;
-use Bitrix\Main;
+use Bitrix\Main,
+	Bitrix\Main\Localization\Loc;
+
+Loc::loadMessages(__FILE__);
+
 class Measure
 {
 	private static $defaultMeasure = null;
@@ -201,5 +205,11 @@ class Measure
 			'SYMBOL' => isset($measureFields['SYMBOL_RUS'])
 				? $measureFields['SYMBOL_RUS'] : $measureFields['SYMBOL_INTL']
 		);
+	}
+
+	public static function getFieldCaption($fieldName)
+	{
+		$result = Loc::getMessage("CRM_MEASURE_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
 	}
 }

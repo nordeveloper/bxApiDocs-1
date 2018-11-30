@@ -10,6 +10,69 @@ Loc::loadMessages(__FILE__);
 
 class CCrmProductPropsHelper
 {
+	protected static $whiteListByOperation = null;
+	protected static $blackList = null;
+
+	public static function GetUserTypeWhiteListByOperation()
+	{
+		if (self::$whiteListByOperation === null)
+		{
+			self::$whiteListByOperation = array(
+				'view' => array(),
+				'edit' => array(),
+				'filter' => array(),
+				'import' => array(
+					'S:HTML',
+					'S:Date',
+					'S:DateTime',
+					'S:employee',
+					'S:map_yandex',
+					'S:ECrm',
+					'S:Money',
+					'N:Sequence'
+				),
+				'export' => array(
+					'S:HTML',
+					'S:Date',
+					'S:DateTime',
+					'S:employee',
+					'S:map_yandex',
+					'S:ECrm',
+					'S:Money',
+					'N:Sequence'
+				),
+				'rest' => array(
+					'S:HTML',
+					'S:Date',
+					'S:DateTime',
+					'S:employee',
+					'S:map_yandex',
+					'S:ECrm',
+					'S:Money',
+					'E:EList',
+					'N:Sequence'
+				)
+			);
+		}
+
+		return self::$whiteListByOperation;
+	}
+	public static function GetUserTypeBlackList()
+	{
+		if (self::$blackList === null)
+		{
+			self::$blackList = array(
+				'S:DiskFile',
+				'S:directory',
+				'G:SectionAuto',
+				'E:EAutocomplete',
+				'E:SKU'
+			);
+		}
+
+		return self::$blackList;
+	}
+
 	public static function GetPropsTypesDescriptions($userType = false, $arOperations = array())
 	{
 		$descriptions = array(
@@ -33,43 +96,13 @@ class CCrmProductPropsHelper
 			'edit' => 'GetPublicEditHTML',
 			'filter' => 'GetPublicFilterHTML',
 			'import' => 'GetPublicEditHTML',
+			'export' => 'GetPublicEditHTML',
 			'rest' => 'GetPublicEditHTML',
 		);
 
-		$whiteListByOperation = array(
-			'view' => array(),
-			'edit' => array(),
-			'filter' => array(),
-			'import' => array(
-				'S:HTML',
-				'S:Date',
-				'S:DateTime',
-				'S:employee',
-				'S:map_yandex',
-				'S:ECrm',
-				'S:Money',
-				'N:Sequence'
-			),
-			'rest' => array(
-				'S:HTML',
-				'S:Date',
-				'S:DateTime',
-				'S:employee',
-				'S:map_yandex',
-				'S:ECrm',
-				'S:Money',
-				'E:EList',
-				'N:Sequence'
-			)
-		);
+		$whiteListByOperation = self::GetUserTypeWhiteListByOperation();
 
-		$blackList = array(
-			'S:DiskFile',
-			'S:directory',
-			'G:SectionAuto',
-			'E:EAutocomplete',
-			'E:SKU'
-		);
+		$blackList = self::GetUserTypeBlackList();
 
 		$arUserTypeList = CIBlockProperty::GetUserType($userType);
 
@@ -137,6 +170,7 @@ class CCrmProductPropsHelper
 			'edit',
 			'filter',
 			'import',
+			'export',
 			'rest'
 		);
 		$validatedOperations = array();
@@ -157,16 +191,16 @@ class CCrmProductPropsHelper
 				'!PROPERTY_TYPE' => 'G'
 			);
 
-			$bImport = false;
+			$isImportOrExport = false;
 			foreach ($arOperations as $operationName)
 			{
-				if ($operationName === 'import')
+				if ($operationName === 'import' || $operationName === 'export')
 				{
-					$bImport = true;
+					$isImportOrExport = true;
 				}
 				else
 				{
-					$bImport = false;
+					$isImportOrExport = false;
 					break;
 				}
 			}
@@ -181,7 +215,7 @@ class CCrmProductPropsHelper
 					(isset($arProp['USER_TYPE']) && !empty($arProp['USER_TYPE'])
 						&& !array_key_exists($arProp['USER_TYPE'], $arPropUserTypeList))
 					|| (
-						$bImport
+						$isImportOrExport
 						&& (
 							($arProp['PROPERTY_TYPE'] === 'E'
 								&& (!isset($arProp['USER_TYPE']) || empty($arProp['USER_TYPE'])))
@@ -561,5 +595,51 @@ class CCrmProductPropsHelper
 			}
 		}
 		return false;
+	}
+
+	public static function AjustExportMode ($exportType, $propertyInfo)
+	{
+		$result = 'CSV_EXPORT';
+
+		if (!is_string($exportType) || $exportType === '')
+		{
+			$exportType = 'csv';
+		}
+		else
+		{
+			$exportType = strtolower($exportType);
+		}
+
+		switch ($exportType)
+		{
+			case 'csv':
+				$result = 'CSV_EXPORT';
+				break;
+			case 'excel':
+				$propertyType = '';
+				if (isset($propertyInfo['PROPERTY_TYPE']))
+				{
+					$propertyType .= $propertyInfo['PROPERTY_TYPE'];
+				}
+				if ($propertyType != '' && isset($propertyInfo['USER_TYPE']) && $propertyInfo['USER_TYPE'] != '')
+				{
+					$propertyType .= ':'.$propertyInfo['USER_TYPE'];
+				}
+				switch ($propertyType)
+				{
+					case 'S:DateTime':
+					case 'S:map_yandex':
+						$result = 'CSV_EXPORT';
+						break;
+					case 'S:HTML':
+						$result = null;
+						break;
+					default:
+						$result = 'EXCEL_EXPORT';
+				}
+				break;
+		}
+
+		return $result;
 	}
 }

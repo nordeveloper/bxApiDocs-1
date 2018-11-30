@@ -4,14 +4,18 @@ namespace Bitrix\ImOpenLines;
 use Bitrix\Main,
 	Bitrix\Main\Localization\Loc;
 
+use \Bitrix\Im\Model\ChatTable,
+	\Bitrix\Im\User as ImUser;
+
 Loc::loadMessages(__FILE__);
 
 class Chat
 {
 	const FIELD_SESSION = 'LINES_SESSION';
-	const FIELD_CONFIG = 'LINES_CONFIG';
-	const FIELD_SILENT_MODE = 'LINES_SILENT_MODE';
+	const FIELD_CRM = 'LINES_CRM';
 	const FIELD_LIVECHAT = 'LIVECHAT_SESSION';
+
+	const FIELD_SILENT_MODE = 'LINES_SILENT_MODE';
 
 	const RATING_TYPE_CLIENT = 'CLIENT';
 	const RATING_TYPE_HEAD = 'HEAD';
@@ -20,8 +24,7 @@ class Chat
 
 	public static $fieldAssoc = Array(
 		'LINES_SESSION' => 'ENTITY_DATA_1',
-		'LINES_CONFIG' => 'ENTITY_DATA_2',
-		'LINES_SILENT_MODE' => 'ENTITY_DATA_3',
+		'LINES_CRM' => 'ENTITY_DATA_2',
 		'LIVECHAT_SESSION' => 'ENTITY_DATA_1',
 	);
 
@@ -40,24 +43,26 @@ class Chat
 	private $isDataLoaded = false;
 	private $joinByUserId = 0;
 
+	const IMOL_CRM_ERROR_NOT_GIVEN_CORRECT_DATA = 'IMOL CRM ERROR NOT GIVEN THE CORRECT DATA';
+
 	public function __construct($chatId = 0, $params = Array())
 	{
 		$imLoad = \Bitrix\Main\Loader::includeModule('im');
 		$pullLoad = \Bitrix\Main\Loader::includeModule('pull');
 		if ($imLoad && $pullLoad)
 		{
-			$this->error = new Error(null, '', '');
+			$this->error = new BasicError(null, '', '');
 			$this->moduleLoad = true;
 		}
 		else
 		{
 			if (!$imLoad)
 			{
-				$this->error = new Error(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_IM_LOAD'));
+				$this->error = new BasicError(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_IM_LOAD'));
 			}
 			elseif (!$pullLoad)
 			{
-				$this->error = new Error(__METHOD__, 'PULL_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_PULL_LOAD'));
+				$this->error = new BasicError(__METHOD__, 'PULL_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_PULL_LOAD'));
 			}
 		}
 		$chatId = intval($chatId);
@@ -115,7 +120,7 @@ class Chat
 			return false;
 		}
 
-		$parsedUserCode = Session::parseUserCode($params['USER_CODE']);
+		$parsedUserCode = Session\Common::parseUserCode($params['USER_CODE']);
 		$connectorId = $parsedUserCode['CONNECTOR_ID'];
 
 		$avatarId = 0;
@@ -181,6 +186,17 @@ class Chat
 		return true;
 	}
 
+	/**
+	 * @param $userId
+	 * @param bool $skipSession
+	 * @param bool $skipMessage
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public function answer($userId, $skipSession = false, $skipMessage = false)
 	{
 		if ($this->chat['AUTHOR_ID'] == $userId)
@@ -235,22 +251,16 @@ class Chat
 		}
 		else if ($session && !$session->isNowCreated())
 		{
-			$session->setOperatorId($userId, false);
+			$session->setOperatorId($userId, false, false);
 
 			if ($session->getData('CRM_ACTIVITY_ID') > 0)
 			{
-				$endTime = new Main\Type\DateTime();
-				$endTime->add(intval($session->getConfig('AUTO_CLOSE_TIME')).' SECONDS');
-				$endTime->add('1 DAY');
+				$closeDate = new Main\Type\DateTime();
+				$closeDate->add(intval($session->getConfig('AUTO_CLOSE_TIME')).' SECONDS');
+				$closeDate->add('1 DAY');
 
-				$crmManager = new Crm();
-				$crmManager->updateActivity(Array(
-					'ID' => $session->getData('CRM_ACTIVITY_ID'),
-					'UPDATE' => Array(
-						'ANSWERED' => 'Y',
-						'END_TIME' => $endTime
-					)
-				));
+				$crmManager = new Crm($session);
+				$crmManager->setSessionAnswered(['DATE_CLOSE' => $closeDate]);
 			}
 
 			$sessionUpdate = Array(
@@ -481,6 +491,15 @@ class Chat
 		));
 	}
 
+	/**
+	 * @param $params
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public function transfer($params)
 	{
 		$mode = in_array($params['MODE'], Array(self::TRANSFER_MODE_AUTO, self::TRANSFER_MODE_BOT))? $params['MODE']: self::TRANSFER_MODE_MANUAL;
@@ -536,7 +555,7 @@ class Chat
 				}
 			}
 
-			$session->setOperatorId(0, true);
+			$session->setOperatorId(0, true, $mode ==  self::TRANSFER_MODE_MANUAL ? false : true);
 			$this->update(Array('AUTHOR_ID' => 0));
 
 			$userFrom = \Bitrix\Im\User::getInstance($params['FROM']);
@@ -741,7 +760,7 @@ class Chat
 			}
 			else
 			{
-				$session->setOperatorId($transferUserId, true);
+				$session->setOperatorId($transferUserId, true, true);
 				$session->update(Array(
 					'CHECK_DATE_CLOSE' => null,
 				));
@@ -791,11 +810,11 @@ class Chat
 			$this->leave($relation['USER_ID']);
 		}
 
-		$this->updateFieldData(Chat::FIELD_SESSION, Array(
-			'ID' => '0',
-			'PAUSE' => 'N',
-			'WAIT_ACTION' => 'N'
-		));
+		$this->updateFieldData([Chat::FIELD_SESSION => [
+				'ID' => '0',
+				'PAUSE' => 'N',
+				'WAIT_ACTION' => 'N'
+			]]);
 
 		$this->update(Array(
 			'AUTHOR_ID' => 0,
@@ -811,32 +830,111 @@ class Chat
 		return true;
 	}
 
+	/**
+	 * @param $params array
+	 * 			(
+	 * 				ACTIVE
+	 * 				CRM
+	 *				CRM_ENTITY_TYPE
+	 *				CRM_ENTITY_ID
+	 *				LEAD
+	 *				COMPANY
+	 *				CONTACT
+	 *				DEAL
+	 * 			)
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public function setCrmFlag($params)
 	{
-		$active = $params['ACTIVE'] == 'Y'? 'Y': 'N';
-		$entityType = $params['ENTITY_TYPE'];
-		$entityId = intval($params['ENTITY_ID']);
-		$dealId = intval($params['DEAL_ID']);
+		$result = false;
+
+		$updateDate = [];
 
 		$sessionField = $this->getFieldData(self::FIELD_SESSION);
-		if (
-			$sessionField['CRM'] == $active &&
-			$sessionField['CRM_ENTITY_TYPE'] == $entityType &&
-			$sessionField['CRM_ENTITY_ID'] == $entityId &&
-			$sessionField['CRM_DEAL_ID'] == $dealId
-		)
+		$sessionCrmField = $this->getFieldData(self::FIELD_CRM);
+
+		if(isset($params['ACTIVE']))
 		{
-			return true;
+			$params['ACTIVE'] = $params['ACTIVE'] == 'Y'? 'Y': 'N';
+			if($params['ACTIVE'] != $sessionField['CRM'])
+			{
+				$updateDate[self::FIELD_SESSION]['CRM'] = $params['ACTIVE'];
+			}
+		}
+		if(isset($params['CRM']))
+		{
+			$params['CRM'] = $params['CRM'] == 'Y'? 'Y': 'N';
+			if($params['CRM'] != $sessionField['CRM'])
+			{
+				$updateDate[self::FIELD_SESSION]['CRM'] = $params['CRM'];
+			}
+		}
+		if(isset($params['ENTITY_TYPE']))
+		{
+			if($params['ENTITY_TYPE'] != $sessionField['CRM_ENTITY_TYPE'])
+			{
+				$updateDate[self::FIELD_SESSION]['CRM_ENTITY_TYPE'] = $params['ENTITY_TYPE'];
+			}
+		}
+		if(isset($params['ENTITY_ID']))
+		{
+			$params['ENTITY_ID'] = intval($params['ENTITY_ID']);
+			if($params['ENTITY_ID'] != $sessionField['CRM_ENTITY_ID'])
+			{
+				$updateDate[self::FIELD_SESSION]['CRM_ENTITY_ID'] = $params['ENTITY_ID'];
+			}
 		}
 
-		$this->updateFieldData(self::FIELD_SESSION, Array(
-			'CRM' => $active,
-			'CRM_ENTITY_TYPE' => $entityType,
-			'CRM_ENTITY_ID' => $entityId,
-			'CRM_DEAL_ID' => $dealId
-		));
+		if(isset($params['LEAD']))
+		{
+			$params['LEAD'] = intval($params['LEAD']);
+			if($params['LEAD'] != $sessionCrmField['LEAD'])
+			{
+				$updateDate[self::FIELD_CRM]['LEAD'] = $params['LEAD'];
+			}
+		}
 
-		return true;
+		if(isset($params['COMPANY']))
+		{
+			$params['COMPANY'] = intval($params['COMPANY']);
+			if($params['COMPANY'] != $sessionCrmField['COMPANY'])
+			{
+				$updateDate[self::FIELD_CRM]['COMPANY'] = $params['COMPANY'];
+			}
+		}
+
+		if(isset($params['CONTACT']))
+		{
+			$params['CONTACT'] = intval($params['CONTACT']);
+			if($params['CONTACT'] != $sessionCrmField['CONTACT'])
+			{
+				$updateDate[self::FIELD_CRM]['CONTACT'] = $params['CONTACT'];
+			}
+		}
+
+		if(isset($params['DEAL']))
+		{
+			$params['DEAL'] = intval($params['DEAL']);
+			if($params['DEAL'] != $sessionCrmField['DEAL'])
+			{
+				$updateDate[self::FIELD_CRM]['DEAL'] = $params['DEAL'];
+			}
+		}
+
+		if(!empty($updateDate))
+		{
+			$raw = $this->updateFieldData($updateDate);
+
+			if($raw->isSuccess())
+			{
+				$result = true;
+			}
+		}
+
+		return $result;
 	}
 
 	public function updateSessionStatus($status)
@@ -883,43 +981,57 @@ class Chat
 		return true;
 	}
 
+	/**
+	 * @param $userId
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public function markSpamAndFinish($userId)
 	{
+		$result = false;
+
 		$session = new Session();
-		$result = $session->load(Array(
-			'USER_CODE' => $this->chat['ENTITY_ID']
-		));
-		if (!$result)
+
+		if (
+			$session->load(Array(
+			'USER_CODE' => $this->chat['ENTITY_ID'],
+			'SKIP_CREATE' => 'Y'
+		))
+		)
 		{
-			return false;
-		}
-
-		$user = \Bitrix\Im\User::getInstance($userId);
-		$message = Loc::getMessage('IMOL_CHAT_MARK_SPAM_'.$user->getGender(), Array(
-			'#USER#' => '[USER='.$user->getId().']'.$user->getFullName(false).'[/USER]',
-		));
-
-		Im::addMessage(Array(
-			"TO_CHAT_ID" => $this->chat['ID'],
-			"MESSAGE" => $message,
-			"SYSTEM" => 'Y',
-		));
-
-		if ($session->getData('SOURCE') == 'livechat')
-		{
-			$parsedUserCode = Session::parseUserCode($session->getData('USER_CODE'));
-			$chatId = $parsedUserCode['EXTERNAL_CHAT_ID'];
-			$liveChat = new Chat($chatId);
-			$liveChat->updateFieldData(Chat::FIELD_LIVECHAT, Array(
-				'SESSION_ID' => 0,
-				'SHOW_FORM' => 'N'
+			$user = \Bitrix\Im\User::getInstance($userId);
+			$message = Loc::getMessage('IMOL_CHAT_MARK_SPAM_'.$user->getGender(), Array(
+				'#USER#' => '[USER='.$user->getId().']'.$user->getFullName(false).'[/USER]',
 			));
+
+			Im::addMessage(Array(
+				"TO_CHAT_ID" => $this->chat['ID'],
+				"MESSAGE" => $message,
+				"SYSTEM" => 'Y',
+			));
+
+			if ($session->getData('SOURCE') == 'livechat')
+			{
+				$parsedUserCode = Session\Common::parseUserCode($session->getData('USER_CODE'));
+				$chatId = $parsedUserCode['EXTERNAL_CHAT_ID'];
+				$liveChat = new Chat($chatId);
+				$liveChat->updateFieldData([Chat::FIELD_LIVECHAT => [
+					'SESSION_ID' => 0,
+					'SHOW_FORM' => 'N'
+				]]);
+			}
+
+			$session->markSpam();
+			$session->finish();
+
+			$result = true;
 		}
 
-		$session->markSpam();
-		$session->finish();
-
-		return true;
+		return $result;
 	}
 
 	public function dismissedOperatorFinish()
@@ -1069,9 +1181,9 @@ class Chat
 
 		$session->pause($pause == 'Y');
 
-		$this->updateFieldData(self::FIELD_SESSION, Array(
-			'PAUSE' => $pause,
-		));
+		$this->updateFieldData([self::FIELD_SESSION => [
+			'PAUSE' => $pause
+		]]);
 
 		if ($pause == 'Y')
 		{
@@ -1097,152 +1209,154 @@ class Chat
 		return true;
 	}
 
+	/**
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public function createLead()
 	{
-		if (!\Bitrix\Main\Loader::includeModule('crm'))
-		{
-			return false;
-		}
+		$result = false;
 
 		$sessionField = $this->getFieldData(self::FIELD_SESSION);
 		if ($sessionField['CRM'] == 'Y')
 		{
-			return true;
+			$result = true;
 		}
-
-		$session = new Session();
-		$result = $session->load(Array(
-			'USER_CODE' => $this->chat['ENTITY_ID']
-		));
-		if (!$result)
+		else
 		{
-			return false;
+			$session = new Session();
+			if($session->load(Array(
+				'USER_CODE' => $this->chat['ENTITY_ID']
+			)))
+			{
+				$crmManager = new Crm($session);
+				$crmFieldsManager = $crmManager->getFields();
+				$crmFieldsManager->setTitle($session->getChat()->getData('TITLE'));
+				$crmFieldsManager->setDataFromUser();
+				$crmManager->setSkipSearch();
+				$crmManager->setSkipAutomationTrigger();
+
+				$rawResult = $crmManager->registrationChanges();
+				$crmManager->sendCrmImMessages();
+
+				if($rawResult->isSuccess())
+				{
+					$result = true;
+				}
+			}
 		}
 
-		$params = $session->getData();
-		$crmData = $session->createLead(array(
-			'CONFIG_ID' => $params['CONFIG_ID'],
-			'SESSION_ID' => $params['ID'],
-			'MODE' => $params['MODE'],
-			'USER_CODE' => $params['USER_CODE'],
-			'USER_ID' => $params['USER_ID'],
-			'CRM_TITLE' => $this->getData('TITLE'),
-			'OPERATOR_ID' => $params['OPERATOR_ID'],
-			'CHAT_ID' => $params['CHAT_ID'],
-			'SKIP_CREATE' => 'N',
-		));
-		if (!$crmData)
-			return false;
-
-		$session->update(Array(
-			'CRM' => 'Y',
-			'CRM_CREATE' => $crmData['LEAD_CREATE'],
-			'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
-			'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
-			'CRM_ACTIVITY_ID' => $crmData['ACTIVITY_ID'],
-			'CRM_DEAL_ID' => $crmData['DEAL_ID'],
-		));
-
-		$this->updateFieldData(self::FIELD_SESSION, Array(
-			'CRM' => 'Y',
-			'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
-			'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
-			'CRM_DEAL_ID' => $crmData['DEAL_ID'],
-		));
-
-		return true;
+		return $result;
 	}
 
+	/**
+	 * @param $field
+	 * @return array
+	 */
 	public function getFieldData($field)
 	{
-		if (!$this->isDataLoaded())
-		{
-			return false;
-		}
+		$data = [];
 
-		if (!in_array($field, Array(self::FIELD_CONFIG, self::FIELD_SESSION, self::FIELD_LIVECHAT)))
+		if ($this->isDataLoaded() &&
+			in_array($field, [self::FIELD_CRM, self::FIELD_SESSION, self::FIELD_LIVECHAT])
+		)
 		{
-			return false;
-		}
+			if ($field == self::FIELD_SESSION)
+			{
+				$data = [
+					'ID' => time(),
+					'CRM' => 'N',
+					'CRM_ENTITY_TYPE' => 'NONE',
+					'CRM_ENTITY_ID' => '0',
+					'PAUSE' => 'N',
+					'WAIT_ACTION' => 'N',
+					'DATE_CREATE' => '0'
+				];
 
-		$data = Array();
+				$fieldData = explode("|", $this->chat[self::getFieldName($field)]);
+				if (isset($fieldData[0]) && $fieldData[0] == 'Y')
+				{
+					$data['CRM'] = $fieldData[0];
+				}
+				if (isset($fieldData[1]))
+				{
+					$data['CRM_ENTITY_TYPE'] = $fieldData[1];
+				}
+				if (isset($fieldData[2]))
+				{
+					$data['CRM_ENTITY_ID'] = $fieldData[2];
+				}
+				if (isset($fieldData[3]) && $fieldData[3] == 'Y')
+				{
+					$data['PAUSE'] = $fieldData[3];
+				}
+				if (isset($fieldData[4]) && $fieldData[4] == 'Y')
+				{
+					$data['WAIT_ACTION'] = $fieldData[4];
+				}
+				if (isset($fieldData[5]))
+				{
+					$data['ID'] = intval($fieldData[5]);
+				}
+				if (isset($fieldData[6]))
+				{
+					$data['DATE_CREATE'] = intval($fieldData[6]);
+				}
+			}
+			else if ($field == self::FIELD_CRM)
+			{
+				$data = [
+					'LEAD' => 0,
+					'COMPANY' => 0,
+					'CONTACT' => 0,
+					'DEAL' => 0,
+				];
 
-		if ($field == self::FIELD_SESSION)
-		{
-			$data = Array(
-				'ID' => time(),
-				'CRM' => 'N',
-				'CRM_ENTITY_TYPE' => 'NONE',
-				'CRM_ENTITY_ID' => '0',
-				'CRM_DEAL_ID' => '0',
-				'PAUSE' => 'N',
-				'WAIT_ACTION' => 'N',
-				'DATE_CREATE' => '0'
-			);
+				$fieldData = explode("|", $this->chat[self::getFieldName($field)]);
 
-			$fieldData = explode("|", $this->chat[self::getFieldName($field)]);
-			if (isset($fieldData[0]) && $fieldData[0] == 'Y')
-			{
-				$data['CRM'] = $fieldData[0];
+				$countFields = count($fieldData);
+				for($i = 0; $countFields>$i; $i=$i+2)
+				{
+					if(isset($data[$fieldData[$i]]) && isset($fieldData[$i+1]))
+					{
+						$data[$fieldData[$i]] = $fieldData[$i+1];
+					}
+				}
 			}
-			if (isset($fieldData[1]))
+			else if ($field == self::FIELD_LIVECHAT)
 			{
-				$data['CRM_ENTITY_TYPE'] = $fieldData[1];
-			}
-			if (isset($fieldData[2]))
-			{
-				$data['CRM_ENTITY_ID'] = $fieldData[2];
-			}
-			if (isset($fieldData[3]) && $fieldData[3] == 'Y')
-			{
-				$data['PAUSE'] = $fieldData[3];
-			}
-			if (isset($fieldData[4]) && $fieldData[4] == 'Y')
-			{
-				$data['WAIT_ACTION'] = $fieldData[4];
-			}
-			if (isset($fieldData[5]))
-			{
-				$data['ID'] = intval($fieldData[5]);
-			}
-			if (isset($fieldData[6]))
-			{
-				$data['DATE_CREATE'] = intval($fieldData[6]);
-			}
-			if (isset($fieldData[7]))
-			{
-				$data['CRM_DEAL_ID'] = intval($fieldData[7]);
-			}
-		}
-		else if ($field == self::FIELD_LIVECHAT)
-		{
-			$data = Array(
-				'READED' => 'N',
-				'READED_ID' => '0',
-				'READED_TIME' => false,
-				'SESSION_ID' => '0',
-				'SHOW_FORM' => 'Y',
-			);
-			$fieldData = explode("|", $this->chat[self::getFieldName($field)]);
-			if (isset($fieldData[0]) && $fieldData[0] == 'Y')
-			{
-				$data['READED'] = $fieldData[0];
-			}
-			if (isset($fieldData[1]))
-			{
-				$data['READED_ID'] = intval($fieldData[1]);
-			}
-			if (isset($fieldData[2]))
-			{
-				$data['READED_TIME'] = $fieldData[2];
-			}
-			if (isset($fieldData[3]))
-			{
-				$data['SESSION_ID'] = intval($fieldData[3]);
-			}
-			if (isset($fieldData[4]))
-			{
-				$data['SHOW_FORM'] = $fieldData[4] == 'N'? 'N': 'Y';
+				$data = [
+					'READED' => 'N',
+					'READED_ID' => '0',
+					'READED_TIME' => false,
+					'SESSION_ID' => '0',
+					'SHOW_FORM' => 'Y',
+				];
+				$fieldData = explode("|", $this->chat[self::getFieldName($field)]);
+				if (isset($fieldData[0]) && $fieldData[0] == 'Y')
+				{
+					$data['READED'] = $fieldData[0];
+				}
+				if (isset($fieldData[1]))
+				{
+					$data['READED_ID'] = intval($fieldData[1]);
+				}
+				if (isset($fieldData[2]))
+				{
+					$data['READED_TIME'] = $fieldData[2];
+				}
+				if (isset($fieldData[3]))
+				{
+					$data['SESSION_ID'] = intval($fieldData[3]);
+				}
+				if (isset($fieldData[4]))
+				{
+					$data['SHOW_FORM'] = $fieldData[4] == 'N'? 'N': 'Y';
+				}
 			}
 		}
 
@@ -1269,122 +1383,177 @@ class Chat
 		);
 	}
 
-	public function updateFieldData($field, $fieldData)
+	/**
+	 * @param $fields
+	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public function updateFieldData($fields)
 	{
-		if (!in_array($field, Array(self::FIELD_CONFIG, self::FIELD_SESSION, self::FIELD_LIVECHAT)))
+		$result = new Result;
+		$updateDate = [];
+
+		if(is_array($fields))
 		{
-			return false;
+			foreach ($fields as $fieldType => $fieldData)
+			{
+				if (in_array($fieldType, [self::FIELD_CRM, self::FIELD_SESSION, self::FIELD_LIVECHAT]) && !empty($fieldData))
+				{
+					if ($fieldType == self::FIELD_SESSION)
+					{
+						$data = self::getFieldData($fieldType);
+						if (isset($fieldData['CRM']))
+						{
+							$data['CRM'] = $fieldData['CRM'];
+						}
+						if (isset($fieldData['CRM_ENTITY_TYPE']))
+						{
+							$data['CRM_ENTITY_TYPE'] = $fieldData['CRM_ENTITY_TYPE'];
+						}
+						if (isset($fieldData['CRM_ENTITY_ID']))
+						{
+							$data['CRM_ENTITY_ID'] = $fieldData['CRM_ENTITY_ID'];
+						}
+						if (isset($fieldData['PAUSE']))
+						{
+							$data['PAUSE'] = $fieldData['PAUSE'];
+						}
+						if (isset($fieldData['WAIT_ACTION']))
+						{
+							$data['WAIT_ACTION'] = $fieldData['WAIT_ACTION'];
+						}
+						if (isset($fieldData['ID']))
+						{
+							$data['ID'] = $fieldData['ID'];
+						}
+						if (isset($fieldData['DATE_CREATE']))
+						{
+							$data['DATE_CREATE'] = $fieldData['DATE_CREATE'] instanceof \Bitrix\Main\Type\DateTime? $fieldData['DATE_CREATE']->getTimestamp(): intval($fieldData['DATE_CREATE']);
+						}
+
+						$updateDate[self::getFieldName($fieldType)] = $this->chat[self::getFieldName($fieldType)] = $data['CRM'].'|'.$data['CRM_ENTITY_TYPE'].'|'.$data['CRM_ENTITY_ID'].'|'.$data['PAUSE'].'|'.$data['WAIT_ACTION'].'|'.$data['ID'].'|'.$data['DATE_CREATE'];
+					}
+					else if ($fieldType == self::FIELD_CRM)
+					{
+						$strungData = '';
+						$data = self::getFieldData($fieldType);
+						if (isset($fieldData['LEAD']))
+						{
+							$data['LEAD'] = $fieldData['LEAD'];
+						}
+						if (isset($fieldData['COMPANY']))
+						{
+							$data['COMPANY'] = $fieldData['COMPANY'];
+						}
+						if (isset($fieldData['CONTACT']))
+						{
+							$data['CONTACT'] = $fieldData['CONTACT'];
+						}
+						if (isset($fieldData['DEAL']))
+						{
+							$data['DEAL'] = $fieldData['DEAL'];
+						}
+
+						foreach ($data as $type => $value)
+						{
+							if(!empty($strungData))
+								$strungData .= '|';
+
+							$strungData .= $type . '|' . $value;
+						}
+
+						if(!empty($strungData))
+						{
+							$updateDate[self::getFieldName($fieldType)] = $this->chat[self::getFieldName($fieldType)] = $strungData;
+						}
+					}
+					elseif ($fieldType == self::FIELD_LIVECHAT)
+					{
+						$data = self::getFieldData($fieldType);
+						if (isset($fieldData['READED']))
+						{
+							$data['READED'] = $fieldData['READED'];
+						}
+						if (isset($fieldData['READED_ID']))
+						{
+							$data['READED_ID'] = intval($fieldData['READED_ID']);
+						}
+						if (isset($fieldData['READED_TIME']))
+						{
+							$data['READED_TIME'] = $fieldData['READED_TIME'] instanceof \Bitrix\Main\Type\DateTime? date('c', $fieldData['READED_TIME']->getTimestamp()): false;
+						}
+						if (isset($fieldData['SESSION_ID']))
+						{
+							$data['SESSION_ID'] = intval($fieldData['SESSION_ID']);
+						}
+						if (isset($fieldData['SHOW_FORM']))
+						{
+							$data['SHOW_FORM'] = $fieldData['SHOW_FORM'] == 'N'? 'N': 'Y';
+						}
+						$updateDate[self::getFieldName($fieldType)] = $this->chat[self::getFieldName($fieldType)] = $data['READED'].'|'.$data['READED_ID'].'|'.$data['READED_TIME'].'|'.$data['SESSION_ID'].'|'.$data['SHOW_FORM'];
+					}
+				}
+			}
 		}
 
-		$data = Array();
-		if ($field == self::FIELD_SESSION)
+		if(empty($updateDate))
 		{
-			$data = self::getFieldData($field);
-			if (isset($fieldData['CRM']))
-			{
-				$data['CRM'] = $fieldData['CRM'];
-			}
-			if (isset($fieldData['CRM_ENTITY_TYPE']))
-			{
-				$data['CRM_ENTITY_TYPE'] = $fieldData['CRM_ENTITY_TYPE'];
-			}
-			if (isset($fieldData['CRM_ENTITY_ID']))
-			{
-				$data['CRM_ENTITY_ID'] = $fieldData['CRM_ENTITY_ID'];
-			}
-			if (isset($fieldData['PAUSE']))
-			{
-				$data['PAUSE'] = $fieldData['PAUSE'];
-			}
-			if (isset($fieldData['WAIT_ACTION']))
-			{
-				$data['WAIT_ACTION'] = $fieldData['WAIT_ACTION'];
-			}
-			if (isset($fieldData['ID']))
-			{
-				$data['ID'] = $fieldData['ID'];
-			}
-			if (isset($fieldData['DATE_CREATE']))
-			{
-				$data['DATE_CREATE'] = $fieldData['DATE_CREATE'] instanceof \Bitrix\Main\Type\DateTime? $fieldData['DATE_CREATE']->getTimestamp(): intval($fieldData['DATE_CREATE']);
-			}
-			if (isset($fieldData['CRM_DEAL_ID']))
-			{
-				$data['CRM_DEAL_ID'] = $fieldData['CRM_DEAL_ID'];
-			}
-			$this->chat[self::getFieldName($field)] = $data['CRM'].'|'.$data['CRM_ENTITY_TYPE'].'|'.$data['CRM_ENTITY_ID'].'|'.$data['PAUSE'].'|'.$data['WAIT_ACTION'].'|'.$data['ID'].'|'.$data['DATE_CREATE'].'|'.$data['CRM_DEAL_ID'];
-		}
-		else if ($field == self::FIELD_LIVECHAT)
-		{
-			$data = self::getFieldData($field);
-			if (isset($fieldData['READED']))
-			{
-				$data['READED'] = $fieldData['READED'];
-			}
-			if (isset($fieldData['READED_ID']))
-			{
-				$data['READED_ID'] = intval($fieldData['READED_ID']);
-			}
-			if (isset($fieldData['READED_TIME']))
-			{
-				$data['READED_TIME'] = $fieldData['READED_TIME'] instanceof \Bitrix\Main\Type\DateTime? date('c', $fieldData['READED_TIME']->getTimestamp()): false;
-			}
-			if (isset($fieldData['SESSION_ID']))
-			{
-				$data['SESSION_ID'] = intval($fieldData['SESSION_ID']);
-			}
-			if (isset($fieldData['SHOW_FORM']))
-			{
-				$data['SHOW_FORM'] = $fieldData['SHOW_FORM'] == 'N'? 'N': 'Y';
-			}
-			$this->chat[self::getFieldName($field)] = $data['READED'].'|'.$data['READED_ID'].'|'.$data['READED_TIME'].'|'.$data['SESSION_ID'].'|'.$data['SHOW_FORM'];
+			$result->addError(new Error(Loc::getMessage('IMOL_CRM_ERROR_NOT_GIVEN_CORRECT_DATA'), self::IMOL_CRM_ERROR_NOT_GIVEN_CORRECT_DATA, __METHOD__));
 		}
 
-		\Bitrix\Im\Model\ChatTable::update($this->chat['ID'], Array(
-			self::getFieldName($field) => $this->chat[self::getFieldName($field)]
-		));
-
-		$users = Array();
-		$relationList = \Bitrix\Im\Model\RelationTable::getList(array(
-			"select" => array("ID", "USER_ID", "EXTERNAL_AUTH_ID" => "USER.EXTERNAL_AUTH_ID"),
-			"filter" => array(
-				"=CHAT_ID" => $this->chat['ID']
-			),
-		));
-		while ($relation = $relationList->fetch())
+		if($result->isSuccess())
 		{
-			if (
-				\Bitrix\Im\User::getInstance($relation['USER_ID'])->isBot() ||
-				\Bitrix\Im\User::getInstance($relation['USER_ID'])->isNetwork() ||
-				$field != self::FIELD_LIVECHAT && \Bitrix\Im\User::getInstance($relation['USER_ID'])->isConnector()
-			)
+			$rawUpdate = ChatTable::update($this->chat['ID'], $updateDate);
+
+			if(!$rawUpdate->isSuccess())
 			{
-				continue;
+				$result->addErrors($rawUpdate->getErrors());
 			}
-			\CIMContactList::CleanChatCache($relation['USER_ID']);
-			$users[] = $relation['USER_ID'];
 		}
 
-		if (!empty($users))
+		if($result->isSuccess())
 		{
-			\Bitrix\Pull\Event::add($users, Array(
-				'module_id' => 'im',
-				'command' => 'chatUpdateParam',
-				'params' => Array(
-					'chatId' => $this->chat['ID'],
-					'name' => strtolower(self::getFieldName($field)),
-					'value' => $this->chat[self::getFieldName($field)]
-				),
-				'extra' => method_exists('\Bitrix\Im\Common', 'getPullExtra') ?
-					\Bitrix\Im\Common::getPullExtra() :
-					Array(
-						'im_revision' => IM_REVISION,
-						'im_revision_mobile' => IM_REVISION_MOBILE,
-					),
-			));
+			$users = [];
+			$relationList = \Bitrix\Im\Model\RelationTable::getList([
+				"select" => array("ID", "USER_ID", "EXTERNAL_AUTH_ID" => "USER.EXTERNAL_AUTH_ID"),
+				"filter" => array(
+					"=CHAT_ID" => $this->chat['ID']
+				)
+			]);
+			while ($relation = $relationList->fetch())
+			{
+				if (
+					!ImUser::getInstance($relation['USER_ID'])->isBot() &&
+					!ImUser::getInstance($relation['USER_ID'])->isNetwork() &&
+					(isset($fields[self::FIELD_LIVECHAT]) || !ImUser::getInstance($relation['USER_ID'])->isConnector())
+				)
+				{
+					\CIMContactList::CleanChatCache($relation['USER_ID']);
+					$users[] = $relation['USER_ID'];
+				}
+			}
+
+			if (!empty($users))
+			{
+				foreach ($updateDate as $name => $value)
+				{
+					\Bitrix\Pull\Event::add($users, Array(
+						'module_id' => 'im',
+						'command' => 'chatUpdateParam',
+						'params' => Array(
+							'chatId' => $this->chat['ID'],
+							'name' => strtolower($name),
+							'value' => $value
+						),
+						'extra' =>  \Bitrix\Im\Common::getPullExtra()
+					));
+				}
+			}
 		}
 
-		return $data;
+		return $result;
 	}
 
 	public function update($fields)
@@ -1428,7 +1597,7 @@ class Chat
 
 		if (array_key_exists('AUTHOR_ID', $fields))
 		{
-			$parsedUserCode = Session::parseUserCode($this->chat['ENTITY_ID']);
+			$parsedUserCode = Session\Common::parseUserCode($this->chat['ENTITY_ID']);
 			if ($parsedUserCode['CONNECTOR_ID'] == 'livechat')
 			{
 				\Bitrix\Pull\Event::add($parsedUserCode['CONNECTOR_USER_ID'], Array(

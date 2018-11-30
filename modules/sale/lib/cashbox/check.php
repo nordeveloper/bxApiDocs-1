@@ -437,9 +437,15 @@ abstract class Check
 
 		if ($entitiesData)
 		{
+			if (isset($entitiesData['ORDER']))
+			{
+				$result['order'] = $entitiesData['ORDER'];
+			}
+
 			foreach ($entitiesData['PAYMENTS'] as $payment)
 			{
 				$result['payments'][] = array(
+					'entity' => $payment['ENTITY'],
 					'type' => $payment['TYPE'],
 					'is_cash' => $payment['IS_CASH'],
 					'sum' => $payment['SUM']
@@ -451,6 +457,7 @@ abstract class Check
 				foreach ($entitiesData['PRODUCTS'] as $product)
 				{
 					$item = array(
+						'entity' => $product['ENTITY'],
 						'name' => $product['NAME'],
 						'base_price' => $product['BASE_PRICE'],
 						'price' => $product['PRICE'],
@@ -476,6 +483,7 @@ abstract class Check
 				foreach ($entitiesData['DELIVERY'] as $delivery)
 				{
 					$item = array(
+						'entity' => $delivery['ENTITY'],
 						'name' => $delivery['NAME'],
 						'base_price' => $delivery['BASE_PRICE'],
 						'price' => $delivery['PRICE'],
@@ -532,7 +540,10 @@ abstract class Check
 		foreach ($entities as $entity)
 		{
 			if ($order === null)
+			{
 				$order = CheckManager::getOrder($entity);
+				$result['ORDER'] = $order;
+			}
 
 			if ($entity instanceof Payment)
 			{
@@ -540,6 +551,7 @@ abstract class Check
 				$type = $service->getField('IS_CASH') === 'Y' ? static::PAYMENT_TYPE_CASH : static::PAYMENT_TYPE_CASHLESS;
 
 				$result['PAYMENTS'][] = array(
+					'ENTITY' => $entity,
 					'IS_CASH' => $service->getField('IS_CASH'),
 					'TYPE' => $type,
 					'SUM' => $entity->getSum()
@@ -558,6 +570,7 @@ abstract class Check
 					$basketItem = $shipmentItem->getBasketItem();
 
 					$item = array(
+						'ENTITY' => $basketItem,
 						'PRODUCT_ID' => $basketItem->getProductId(),
 						'NAME' => $basketItem->getField('NAME'),
 						'BASE_PRICE' => $basketItem->getBasePriceWithVat(),
@@ -589,6 +602,7 @@ abstract class Check
 				if ($priceDelivery > 0)
 				{
 					$item = array(
+						'ENTITY' => $entity,
 						'NAME' => Main\Localization\Loc::getMessage('SALE_CASHBOX_SELL_DELIVERY'),
 						'BASE_PRICE' => (float)$entity->getField('BASE_PRICE_DELIVERY'),
 						'PRICE' => (float)$entity->getPrice(),

@@ -278,6 +278,7 @@ class Mail
 			$bodyPart = $this->replaceImages($bodyPart);
 			$bodyPart = $this->replaceHrefs($bodyPart);
 			$bodyPart = $this->trackRead($bodyPart);
+			$bodyPart = $this->addMessageIdToBody($bodyPart, true, $messageId);
 
 			$htmlPart = new Part();
 			$htmlPart->addHeader('Content-Type', 'text/html; charset=' . $charset);

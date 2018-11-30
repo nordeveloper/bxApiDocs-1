@@ -24,7 +24,7 @@ final class CalendarEntity extends Entity
 		{
 			return $this->canRead;
 		}
-		$this->canRead = \CCalendarEvent::canView($this->entityId, $userId);
+		$this->canRead = \CCalendarEvent::canView($this->getId(), $userId);
 
 		return $this->canRead;
 	}

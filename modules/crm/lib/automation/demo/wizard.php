@@ -26,23 +26,31 @@ class Wizard
 		return true;
 	}
 
+	/**
+	 * @deprecated
+	 * @return bool
+	 */
 	public static function installSimpleCRM()
 	{
 		if (!Factory::isAutomationAvailable(\CCrmOwnerType::Lead, true))
 		{
 			return false;
 		}
-		static::installAutomation(\CCrmOwnerType::Lead, 3);
+		//static::installAutomation(\CCrmOwnerType::Lead, 3);
 		return true;
 	}
 
+	/**
+	 * @deprecated
+	 * @return bool
+	 */
 	public static function unInstallSimpleCRM()
 	{
 		if (!Factory::isAutomationAvailable(\CCrmOwnerType::Lead, true))
 		{
 			return false;
 		}
-		static::unInstallAutomation(\CCrmOwnerType::Lead, 3);
+		//static::unInstallAutomation(\CCrmOwnerType::Lead, 3);
 		return true;
 	}
 

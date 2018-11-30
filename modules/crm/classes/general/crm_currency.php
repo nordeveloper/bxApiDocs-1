@@ -71,6 +71,12 @@ class CCrmCurrency
 		return self::$FIELD_INFOS;
 	}
 
+	public static function GetFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_CURRENCY_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
+	}
+
 	public static function GetCurrencyLocalizationFieldsInfo()
 	{
 		if(!self::$LOC_FIELD_INFOS)

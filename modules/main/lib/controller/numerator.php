@@ -28,6 +28,12 @@ class Numerator extends Main\Engine\Controller
 			}
 			return [];
 		}
-		return ['id' => $id = $result->getId()];
+		$resultData = $result->getData();
+		$numeratorType = null;
+		if (!empty($resultData) && !empty($resultData['TYPE']))
+		{
+			$numeratorType = $resultData['TYPE'];
+		}
+		return ['id' => $id = $result->getId(), 'type' => $numeratorType];
 	}
 }

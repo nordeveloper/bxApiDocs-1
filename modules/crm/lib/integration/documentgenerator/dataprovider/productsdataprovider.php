@@ -52,8 +52,9 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_CURRENCY_NAME_TITLE'),
 				'VALUE' => [$this, 'getCurrencyName'],
 			];
-			$this->fields = array_merge($this->fields, $this->getTotalFields());
 		}
+
+		$this->fields = array_merge($this->fields, $this->getTotalFields());
 
 		return $this->fields;
 	}

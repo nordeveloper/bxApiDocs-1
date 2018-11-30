@@ -148,7 +148,7 @@ class File extends Main\HttpResponse
 	{
 		$path = new \Bitrix\Main\IO\File($this->getPath());
 
-		return \CFile::makeFileArray($path);
+		return \CFile::makeFileArray($path->getPhysicalPath());
 	}
 
 	public function send()

@@ -164,6 +164,14 @@ class Limits
 	}
 
 	/**
+	 * Returns true if telephony is limited to rest-only mode in current region
+	 */
+	public static function isRestOnly()
+	{
+		return \Bitrix\Voximplant\Integration\Bitrix24::getLicensePrefix() === 'by';
+	}
+
+	/**
 	 * Returns array or russian license prefixes.
 	 * @return array
 	 */

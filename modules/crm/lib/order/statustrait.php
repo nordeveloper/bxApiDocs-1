@@ -84,7 +84,7 @@ trait StatusTrait
 			/** @var Main\DB\Result $dbRes */
 			$dbRes = static::getList(array(
 				'select' => ['SORT'],
-				'filter' => ['=ID' => $statusId, '=TYPE' => static::TYPE],
+				'filter' => ['=ID' => $statusId],
 			));
 
 			if ($data = $dbRes->fetch())
@@ -155,16 +155,14 @@ trait StatusTrait
 	 */
 	public static function getListInCrmFormat()
 	{
-		static $result = null;
+		static $result = [];
 
-		if($result !== null)
+		if (isset($result[static::TYPE]))
 		{
-			return $result;
+			return $result[static::TYPE];
 		}
 
-		$result = [];
-
-		$defaultList = static::getDefaultStatuses();
+		$result[static::TYPE] = [];
 
 		/** @var Main\DB\Result $dbRes */
 		$dbRes = static::getList([
@@ -177,21 +175,57 @@ trait StatusTrait
 
 		while ($status = $dbRes->fetch())
 		{
-			$result[$status['ID']] = [
-				'ID' => self::ord($status['ID']),
-				'ENTITY_ID' => static::NAME,
-				'STATUS_ID' => $status['ID'],
-				'NAME' => $status['NAME'],
-				'NAME_INIT' => $status['NAME'],
-				'SORT' => $status['SORT'],
-				'SYSTEM' => 'N'
-			];
+			$result[static::TYPE][$status['ID']] = self::convertToCrmFormat($status);
+		}
 
-			if (isset($defaultList[$status['ID']]))
+		$statusIdList = array_diff(static::getAllStatuses(), array_keys($result[static::TYPE]));
+
+		if ($statusIdList)
+		{
+			$dbRes = static::getList([
+				'select' => ['*', 'NAME' => 'Bitrix\Sale\Internals\StatusLangTable:STATUS.NAME'],
+				'filter' => [
+					'@ID' => $statusIdList
+				],
+				'order' => ['SORT' => 'ASC']
+			]);
+
+			while ($status = $dbRes->fetch())
 			{
-				$result[$status['ID']]['NAME_INIT'] = $defaultList[$status['ID']]['NAME'];
-				$result[$status['ID']]['SYSTEM'] = 'Y';
+				if (!isset($result[static::TYPE][$status['ID']]))
+				{
+					$result[static::TYPE][$status['ID']] = self::convertToCrmFormat($status);
+				}
 			}
+
+			uasort($result[static::TYPE], function ($a, $b) {return ($a['SORT'] < $b['SORT']) ? -1 : 1;});
+		}
+
+		return $result[static::TYPE];
+	}
+
+	/**
+	 * @param $status
+	 * @return array
+	 */
+	private static function convertToCrmFormat($status)
+	{
+		$defaultList = static::getDefaultStatuses();
+
+		$result = [
+			'ID' => self::ord($status['ID']),
+			'ENTITY_ID' => static::NAME,
+			'STATUS_ID' => $status['ID'],
+			'NAME' => $status['NAME'],
+			'NAME_INIT' => $status['NAME'],
+			'SORT' => $status['SORT'],
+			'SYSTEM' => 'N'
+		];
+
+		if (isset($defaultList[$status['ID']]))
+		{
+			$result['NAME_INIT'] = $defaultList[$status['ID']]['NAME'];
+			$result['SYSTEM'] = 'Y';
 		}
 
 		return $result;

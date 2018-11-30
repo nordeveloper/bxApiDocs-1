@@ -605,6 +605,8 @@ abstract class BasketBase extends BasketItemCollection
 			{
 				$result->addErrors($r->getErrors());
 			}
+
+			$this->clearChanged();
 		}
 
 		return $result;

@@ -19,17 +19,9 @@ class OrderAccountSyncAgent extends EntityStepwiseAgent
 		}
 		return self::$instance;
 	}
-	public static function activate()
+	public function getRegistrationName()
 	{
-		\CAgent::AddAgent(
-			__CLASS__.'::run();',
-			'crm',
-			'Y',
-			2,
-			'',
-			'Y',
-			ConvertTimeStamp(time() + \CTimeZone::GetOffset(), 'FULL')
-		);
+		return __CLASS__.'::run();';
 	}
 	//region EntityTimelineBuildAgent
 	public function process(array $itemIDs)

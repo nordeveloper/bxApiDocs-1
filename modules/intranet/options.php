@@ -316,7 +316,9 @@ $tabControl->BeginNextTab();
 		<td valign="top" width="50%"><?echo GetMessage('INTR_OPTION_IBLOCK_TYPE')?>:</td>
 		<td valign="top" width="50%"><select name="IBLOCK_TYPE" onchange="change_iblock_list(this.value)">
 			<option value=""><?echo GetMessage('INTR_OPTION_NOT_SET')?></option>
-<?foreach ($arIBTypes as $ibtype_id => $ibtype_name):?><option value="<?echo $ibtype_id?>"<?echo $ibtype_id == $current_ibtype ? ' selected="selected"' : ''?>><?echo $ibtype_name?></option><?endforeach;?>
+			<? foreach ($arIBTypes as $ibtype_id => $ibtype_name): ?>
+				<option value="<?=$ibtype_id ?>" <? if ($ibtype_id == $current_ibtype) echo 'selected'; ?>><?=htmlspecialcharsbx($ibtype_name) ?></option>
+			<? endforeach ?>
 		</select></td>
 	</tr>
 	<tr>
@@ -372,9 +374,9 @@ endif;
 		<td valign="top" width="50%"><?=GetMessage('INTR_OPTION_IBLOCK_TYPE'); ?>:</td>
 		<td valign="top" width="50%"><select name="IBLOCK_TYPE_VACANCY" onchange="change_iblock_list(this.value, 1)">
 			<option value=""><?=GetMessage('INTR_OPTION_NOT_SET'); ?></option>
-			<? foreach ($arIBTypes as $ibtype_id => $ibtype_name) { ?>
-			<option value="<?=$ibtype_id; ?>"<? if ($ibtype_id == $current_ibtype_vacancy) { ?> selected="selected"<? } ?>><?=$ibtype_name; ?></option>
-			<? } ?>
+			<? foreach ($arIBTypes as $ibtype_id => $ibtype_name): ?>
+				<option value="<?=$ibtype_id ?>" <? if ($ibtype_id == $current_ibtype_vacancy) echo 'selected'; ?>><?=htmlspecialcharsbx($ibtype_name) ?></option>
+			<? endforeach ?>
 		</select></td>
 	</tr>
 	<? if (COption::GetOptionString("intranet", "calendar_2", "N") != "Y" || !CModule::IncludeModule('calendar')) { ?>
@@ -384,11 +386,10 @@ endif;
 	<tr>
 		<td valign="top" width="50%"><?echo GetMessage('INTR_OPTION_IBLOCK_TYPE')?>:</td>
 		<td valign="top" width="50%"><select name="IBLOCK_TYPE_CALENDAR" onchange="change_iblock_list(this.value, 2)">
-			<option value=""><?echo GetMessage('INTR_OPTION_NOT_SET')?></option><?
-			foreach ($arIBTypes as $ibtype_id => $ibtype_name):
-				?><option value="<?echo $ibtype_id?>"<?echo $ibtype_id == $current_ibtype_calendar ? ' selected="selected"' : ''?>><?echo $ibtype_name?></option><?
-			endforeach;
-			?>
+			<option value=""><?echo GetMessage('INTR_OPTION_NOT_SET')?></option>
+			<? foreach ($arIBTypes as $ibtype_id => $ibtype_name): ?>
+				<option value="<?=$ibtype_id ?>" <? if ($ibtype_id == $current_ibtype_calendar) echo 'selected'; ?>><?=htmlspecialcharsbx($ibtype_name) ?></option>
+			<? endforeach ?>
 		</select></td>
 	</tr>
 	<? } ?>

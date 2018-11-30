@@ -536,7 +536,7 @@ class Deal extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volum
 
 		$querySql = $this->prepareActivityQuery(array(
 			'DATE_CREATE' => 'DEAL.DATE_CREATE_SHORT',
-			'DEAL_STAGE_SEMANTIC_ID' => 'DEAL.STAGE_SEMANTIC_ID',
+			'DEAL_STAGE_SEMANTIC' => 'DEAL.STAGE_SEMANTIC_ID',
 		));
 
 		if ($querySql != '')
@@ -549,7 +549,7 @@ class Deal extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volum
 					'".static::getIndicatorId()."' as INDICATOR_TYPE,
 					'".$this->getOwner()."' as OWNER_ID,
 					DATE_CREATE,
-					DEAL_STAGE_SEMANTIC_ID, 
+					DEAL_STAGE_SEMANTIC, 
 					(	FILE_SIZE +
 						ACTIVITY_COUNT * {$avgActivityTableRowLength} + 
 						BINDINGS_COUNT * {$avgBindingTableRowLength} ) as ACTIVITY_SIZE,
@@ -570,7 +570,7 @@ class Deal extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volum
 					'INDICATOR_TYPE' => 'INDICATOR_TYPE',
 					'OWNER_ID' => 'OWNER_ID',
 					'DATE_CREATE' => 'DATE_CREATE',
-					'STAGE_SEMANTIC_ID' => 'DEAL_STAGE_SEMANTIC_ID',
+					'STAGE_SEMANTIC_ID' => 'DEAL_STAGE_SEMANTIC',
 				)
 			);
 		}

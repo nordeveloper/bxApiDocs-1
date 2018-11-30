@@ -60,7 +60,7 @@ class FaceId
 
 		foreach ($items as $item)
 		{
-			if ($item['ID'] == 'EVENT')
+			if ($item['ID'] == 'START')
 			{
 				$newItems[] = array(
 					'ID' => 'FACETRACKER',
@@ -68,7 +68,8 @@ class FaceId
 					'NAME' => Loc::getMessage('FACEID_TRACKER'),
 					'TITLE' => Loc::getMessage('FACEID_TRACKER'),
 					'URL' => '/crm/face-tracker/',
-					'ICON' => 'settings'
+					'ICON' => 'settings',
+					'IS_DISABLED' => true
 				);
 			}
 

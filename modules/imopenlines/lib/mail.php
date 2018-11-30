@@ -20,28 +20,28 @@ class Mail
 				'filter' => Array('=SESSION_ID' => $sessionId)
 			));
 			$session = $orm->fetch();
-			
+
 			if (!$session || $session['SOURCE'] != 'livechat' || $session['SPAM'] == 'Y')
 			{
 				return false;
 			}
 		}
-		
+
 		$mailData = new \Bitrix\Main\Type\DateTime();
 		$mailData->add('1 MINUTE');
-	
+
 		\Bitrix\ImOpenlines\Model\SessionCheckTable::update($sessionId, Array(
 			'DATE_MAIL' => $mailData
 		));
-		
+
 		Session::deleteQueueFlagCache(Session::CACHE_MAIL);
-		
+
 		$event = new \Bitrix\Main\Event("imopenlines", "OnSessionToMailQueueAdd", Array('SESSION_ID' => $sessionId));
 		$event->send();
-		
+
 		return true;
 	}
-	
+
 	public static function removeSessionFromMailQueue($sessionId, $withCheck = true)
 	{
 		if ($withCheck)
@@ -55,22 +55,22 @@ class Mail
 				return false;
 			}
 		}
-		
+
 		\Bitrix\ImOpenlines\Model\SessionCheckTable::update($sessionId, Array(
 			'DATE_MAIL' => null
 		));
-		
+
 		return true;
 	}
-	
-	
+
+
 	public static function sendOperatorAnswerAgent($sessionId)
 	{
 		self::sendOperatorAnswer($sessionId);
-		
+
 		return "";
 	}
-	
+
 	public static function sendOperatorAnswer($sessionId)
 	{
 		$sessionId = intval($sessionId);
@@ -78,13 +78,13 @@ class Mail
 		{
 			return false;
 		}
-				
+
 		$select =  Model\SessionTable::getSelectFieldsPerformance();
 		$select['CONFIG_LINE_NAME'] = 'CONFIG.LINE_NAME';
 		$select['CONFIG_LANGUAGE_ID'] = 'CONFIG.LANGUAGE_ID';
 		$select['LIVECHAT_URL_CODE'] = 'LIVECHAT.URL_CODE';
 		$select['LIVECHAT_URL_CODE_PUBLIC'] = 'LIVECHAT.URL_CODE_PUBLIC';
-		
+
 		$orm = Model\SessionTable::getList(Array(
 			'select' => $select,
 			'filter' => Array('=ID' => $sessionId)
@@ -95,26 +95,26 @@ class Mail
 				'DATE_MAIL' => null
 			));
 		}
-		
+
 		if (!$session || $session['SOURCE'] != 'livechat' || $session['SPAM'] == 'Y')
 		{
 			return false;
 		}
-		
+
 		$email = \Bitrix\Im\User::getInstance($session['USER_ID'])->getEmail();
 		if (!$email)
 		{
 			return false;
 		}
-		
+
 		$messages = self::prepareOperatorAnswerForTemplate($session['ID'], false);
 		if ($messages <= 0)
 		{
 			return false;
 		}
-		
+
 		$mess = Loc::loadLanguageFile(__FILE__, $session['CONFIG_LANGUAGE_ID']? $session['CONFIG_LANGUAGE_ID']: null);
-		
+
 		$lineName = $session['CONFIG_LINE_NAME'];
 		$widgetUrl = $session['EXTRA_URL'];
 		if (empty($widgetUrl))
@@ -129,19 +129,19 @@ class Mail
 			}
 		}
 		$widgetUrlParsed = parse_url($widgetUrl);
-		
+
 		$title = str_replace(
-			Array('#SITE_URL#', '#SESSION_ID#'), 
-			Array($widgetUrlParsed['host'], $sessionId), 
+			Array('#SITE_URL#', '#SESSION_ID#'),
+			Array($widgetUrlParsed['host'], $sessionId),
 			$mess['IMOL_MAIL_HISTORY_TITLE']
 		);
 		$actionTitle = $mess['IMOL_MAIL_ANSWER_ACTION_TITLE'];
 		$actionDesc = str_replace(
-			Array('#SESSION_ID#'), 
-			Array($sessionId), 
+			Array('#SESSION_ID#'),
+			Array($sessionId),
 			$mess['IMOL_MAIL_HISTORY_ACTION_DESC']
 		);
-		
+
 		$arFields = array(
 			"EMAIL_TO" => $email,
 			"EMAIL_TITLE" => $title,
@@ -153,27 +153,27 @@ class Mail
 			"TEMPLATE_WIDGET_URL" => $widgetUrl,
 			"TEMPLATE_LINE_NAME" => $lineName,
 		);
-		
+
 		$event = new \CEvent;
 		$event->Send("IMOL_OPERATOR_ANSWER", SITE_ID, $arFields, "N", "", array(), $session['CONFIG_LANGUAGE_ID']);
-				
+
 		return true;
 	}
-	
+
 	public static function prepareOperatorAnswerForTemplate($sessionId, $setSendFlag = true)
 	{
 		if (!\Bitrix\Main\Loader::includeModule('im'))
 		{
 			return false;
 		}
-	
+
 		$sessionId = intval($sessionId);
 		if (!$sessionId)
 			return false;
-		
+
 		$select =  Model\SessionTable::getSelectFieldsPerformance();
 		$select['CONFIG_LANGUAGE_ID'] = 'CONFIG.LANGUAGE_ID';
-		
+
 		$orm = Model\SessionTable::getList(Array(
 			'select' => $select,
 			'filter' => Array('=ID' => $sessionId)
@@ -183,7 +183,7 @@ class Mail
 		{
 			return false;
 		}
-		$parsedUserCode = Session::parseUserCode($session['USER_CODE']);
+		$parsedUserCode = Session\Common::parseUserCode($session['USER_CODE']);
 		$chatId = $parsedUserCode['EXTERNAL_CHAT_ID'];
 
 		$relation = \Bitrix\Im\Model\RelationTable::getList(Array(
@@ -196,14 +196,14 @@ class Mail
 		{
 			return false;
 		}
-		
+
 		$CIMChat = new \CIMChat($session['USER_ID']);
 		$result = $CIMChat->GetLastMessageLimit($chatId, $session['START_ID'], $session['END_ID'], false, false);
 		if (!$result)
 		{
 			return false;
 		}
-		
+
 		$messages = Array();
 		$findClientMessage = false;
 		$findOperatorMessage = false;
@@ -238,24 +238,24 @@ class Mail
 			}
 			$messages[$messageId] = $messageData;
 		}
-		
+
 		if (!$findOperatorMessage)
 			return false;
-		
+
 		\Bitrix\Main\Type\Collection::sortByColumn($messages, Array('id' => SORT_ASC), '', null, true);
 		$result['message'] = $messages;
-		
+
 		$messages = self::prepareMessagesForTemplate($session, $result, $session['CONFIG_LANGUAGE_ID']);
-		
+
 		if ($setSendFlag)
 		{
 			\CIMMessage::SetLastSendId($chatId, $session['USER_ID'], $lastMessageId);
 		}
-		
+
 		return $messages;
 	}
-	
-	
+
+
 	public static function sendSessionHistory($sessionId, $email)
 	{
 		$sessionId = intval($sessionId);
@@ -263,13 +263,13 @@ class Mail
 		{
 			return false;
 		}
-		
+
 		$select = Model\SessionTable::getSelectFieldsPerformance();
 		$select['CONFIG_LINE_NAME'] = 'CONFIG.LINE_NAME';
 		$select['CONFIG_LANGUAGE_ID'] = 'CONFIG.LANGUAGE_ID';
 		$select['LIVECHAT_URL_CODE'] = 'LIVECHAT.URL_CODE';
 		$select['LIVECHAT_URL_CODE_PUBLIC'] = 'LIVECHAT.URL_CODE_PUBLIC';
-		
+
 		$orm = Model\SessionTable::getList(Array(
 			'select' => $select,
 			'filter' => Array('=ID' => $sessionId)
@@ -279,14 +279,14 @@ class Mail
 		{
 			return false;
 		}
-		
+
 		$mess = Loc::loadLanguageFile(__FILE__, $session['CONFIG_LANGUAGE_ID']? $session['CONFIG_LANGUAGE_ID']: null);
-		
+
 		Log::write(Array(
 			'LANG' => $select['CONFIG_LANGUAGE_ID']? $select['CONFIG_LANGUAGE_ID']: null,
 			'MESS' => $mess
 		));
-		
+
 		$lineName = $session['CONFIG_LINE_NAME'];
 		$widgetUrl = $session['EXTRA_URL'];
 		if (empty($widgetUrl))
@@ -301,19 +301,19 @@ class Mail
 			}
 		}
 		$widgetUrlParsed = parse_url($widgetUrl);
-		
+
 		$title = str_replace(
-			Array('#SITE_URL#', '#SESSION_ID#'), 
-			Array($widgetUrlParsed['host'], $sessionId), 
+			Array('#SITE_URL#', '#SESSION_ID#'),
+			Array($widgetUrlParsed['host'], $sessionId),
 			$mess['IMOL_MAIL_HISTORY_TITLE']
 		);
 		$actionTitle = $mess['IMOL_MAIL_HISTORY_ACTION_TITLE'];
 		$actionDesc = str_replace(
-			Array('#SESSION_ID#'), 
-			Array($sessionId), 
+			Array('#SESSION_ID#'),
+			Array($sessionId),
 			$mess['IMOL_MAIL_HISTORY_ACTION_DESC']
 		);
-		
+
 		$arFields = array(
 			"EMAIL_TO" => $email,
 			"EMAIL_TITLE" => $title,
@@ -325,29 +325,29 @@ class Mail
 			"TEMPLATE_WIDGET_URL" => $widgetUrl,
 			"TEMPLATE_LINE_NAME" => $lineName,
 		);
-		
+
 		$event = new \CEvent;
 		$event->Send("IMOL_HISTORY_LOG", SITE_ID, $arFields, "N", "", Array(), $session['CONFIG_LANGUAGE_ID']);
-		
+
 		\CEvent::ExecuteEvents();
-		
+
 		Model\SessionTable::update($session['ID'], Array('SEND_HISTORY' => 'Y'));
-		
+
 		return true;
 	}
-	
+
 	public static function prepareSessionHistoryForTemplate($sessionId)
 	{
 		if (!\Bitrix\Main\Loader::includeModule('im'))
 			return false;
-		
+
 		$sessionId = intval($sessionId);
 		if (!$sessionId)
 			return false;
-		
+
 		$select =  Model\SessionTable::getSelectFieldsPerformance();
 		$select['CONFIG_LANGUAGE_ID'] = 'CONFIG.LANGUAGE_ID';
-		
+
 		$orm = Model\SessionTable::getList(Array(
 			'select' => $select,
 			'filter' => Array('=ID' => $sessionId)
@@ -357,33 +357,33 @@ class Mail
 		{
 			return false;
 		}
-		
+
 		$CIMChat = new \CIMChat($session['USER_ID']);
 		$result = $CIMChat->GetLastMessageLimit($session['CHAT_ID'], $session['START_ID'], $session['END_ID'], false, false, 'ASC');
 		if (!$result)
 			return false;
-		
+
 		$messages = self::prepareMessagesForTemplate($session, $result, $session['CONFIG_LANGUAGE_ID']);
-		
+
 		return $messages;
 	}
-	
-	
+
+
 	private static function prepareMessagesForTemplate($session, $history, $language = null)
 	{
 		$language = $language? $language: null;
 		$mess = Loc::loadLanguageFile(__FILE__, $language);
-		
+
 		$userTzOffset = \Bitrix\Im\User::getInstance($session['USER_ID'])->getTzOffset();
-		
+
 		$messages = Array();
 		foreach ($history['message'] as $messageId => $message)
 		{
 			if (empty($message['params']['CONNECTOR_MID']))
 				continue;
-			
+
 			$isYou = $message['senderId'] == $session['USER_ID'];
-			
+
 			if ($message['senderId'] > 0)
 			{
 				if ($isYou)
@@ -394,7 +394,7 @@ class Mail
 				{
 					$authorName = \Bitrix\ImOpenLines\Connector::getOperatorName($session['CONFIG_ID'], $message['senderId']);
 				}
-				
+
 				$authorAvatar = \Bitrix\Im\User::getInstance($message['senderId'])->getAvatar();
 				if ($authorAvatar == '/bitrix/js/im/images/blank.gif')
 				{
@@ -404,7 +404,7 @@ class Mail
 				{
 					$authorAvatar = substr($authorAvatar, 0, 4) != 'http'? \Bitrix\ImOpenLines\Common::getServerAddress().$authorAvatar: $authorAvatar;
 				}
-				
+
 				$systemFlag = 'N';
 			}
 			else
@@ -413,7 +413,7 @@ class Mail
 				$authorAvatar = '';
 				$systemFlag = 'Y';
 			}
-			
+
 			$currentDate = new \Bitrix\Main\Type\DateTime();
 			$date = \Bitrix\Main\Type\DateTime::createFromTimestamp($message['date']);
 			if ($date->format('Ymd') == $currentDate->format('Ymd'))
@@ -424,7 +424,7 @@ class Mail
 			{
 				$messageDate = \FormatDate($mess['IMOL_MAIL_DATETIME_FORMAT'], $message['date']+intval($userTzOffset));
 			}
-			
+
 			if (isset($message['params']['IMOL_VOTE']))
 			{
 				if ($message['params']['IMOL_VOTE'] == 'like')
@@ -443,15 +443,15 @@ class Mail
 			else
 			{
 				$messageText = $message['text'];
-				
+
 				if (isset($message['params']['FILE_ID']))
 				{
 					$messageText .= ' ['.$mess['IMOL_MAIL_FILE'].']';
-					
+
 					$messageText = trim($messageText);
 				}
 			}
-			
+
 			$messages[$messageId] = Array(
 				'NAME' => $authorName,
 				'AVATAR' => $authorAvatar,
@@ -461,10 +461,10 @@ class Mail
 				'SYSTEM' => $systemFlag,
 			);
 		}
-		
+
 		return $messages;
 	}
-	
+
 	public static function installEventsAgent()
 	{
 		$orm = \Bitrix\Main\Mail\Internal\EventTypeTable::getList(array(
@@ -473,12 +473,12 @@ class Mail
 				'=EVENT_NAME' => Array('IMOL_HISTORY_LOG', 'IMOL_OPERATOR_ANSWER')
 			)
 		));
-		
+
 		if(!$orm->fetch())
 		{
 			include($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/imopenlines/install/events/set_events.php");
 		}
-		
+
 		return "";
 	}
 }

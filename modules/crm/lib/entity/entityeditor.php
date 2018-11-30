@@ -6,6 +6,33 @@ use Bitrix\Crm;
 
 class EntityEditor
 {
+	/** @var \CCrmPerms|null */
+	protected static $userPermissions = null;
+	protected static $allowedTypesMap = array(
+		'integer' => true,
+		'double' => true,
+		'char' => true,
+		'string' => true,
+		'date' => true,
+		'datetime' => true,
+		'user' => true,
+		'location' => true,
+		'crm_status' => true,
+		'crm_currency' => true,
+		'crm_lead' => true,
+		'crm_company' => true,
+		'crm_contact' => true,
+		'crm_quote' => true
+	);
+
+	protected static function getUserPermissions()
+	{
+		if(self::$userPermissions === null)
+		{
+			self::$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
+		}
+		return self::$userPermissions;
+	}
 	/**
 	 * Prepare Multifield Data for save in Destination Entity.
 	 * @param array $data Source Multifield Data.
@@ -86,25 +113,87 @@ class EntityEditor
 		}
 	}
 
-	public static function mapRequestData(array $fieldInfos, array &$entityData, array &$userFields)
+	protected static function setDataField($typeName, $name, $value, array &$entityData,  array &$userFields)
 	{
-		$typeMap = array(
-			'integer' => true,
-			'double' => true,
-			'char' => true,
-			'string' => true,
-			'date' => true,
-			'datetime' => true,
-			'user' => true,
-			'location' => true,
-			'crm_status' => true,
-			'crm_currency' => true,
-			'crm_lead' => true,
-			'crm_company' => true,
-			'crm_contact' => true,
-			'crm_quote' => true
-		);
+		if(!isset(self::$allowedTypesMap[$typeName]))
+		{
+			return false;
+		}
 
+		if($typeName === 'crm_lead' ||
+			$typeName === 'crm_company' ||
+			$typeName === 'crm_contact' ||
+			$typeName === 'crm_quote'
+		)
+		{
+			$entityTypeID = \CCrmOwnerType::ResolveID(substr($typeName, 4));
+			if($entityTypeID === \CCrmOwnerType::Undefined)
+			{
+				return false;
+			}
+
+			$value = (int)$value;
+			if(!Crm\Security\EntityAuthorization::checkReadPermission($entityTypeID, $value, self::getUserPermissions()))
+			{
+				return false;
+			}
+		}
+		elseif($typeName === 'integer' || $typeName === 'user')
+		{
+			$value = (int)$value;
+		}
+		elseif($typeName === 'double')
+		{
+			$value = (double)$value;
+		}
+		elseif($typeName === 'date' || $typeName === 'datetime')
+		{
+			$format = $typeName === 'date' ? Main\Type\Date::getFormat() : Main\Type\DateTime::getFormat();
+			$time = Main\Type\DateTime::tryParse($value, $format);
+			if(!$time)
+			{
+				return false;
+			}
+			$value = $time->format($format);
+		}
+
+		if(strpos($name, 'UF_') !== 0)
+		{
+			//System Field
+			$entityData[$name] = $value;
+			return true;
+		}
+		if(isset($userFields[$name]))
+		{
+			//User Field (it uses custom initialization scheme).
+			$userFields[$name]['VALUE'] = $value;
+			return true;
+		}
+		return false;
+	}
+
+	public static function mapData(array $fieldInfos, array &$entityData,  array &$userFields, array $data)
+	{
+		foreach($data as $k => $v)
+		{
+			if(!isset($fieldInfos[$k]))
+			{
+				continue;
+			}
+
+			$info = $fieldInfos[$k];
+			$attributes = isset($info['ATTRIBUTES']) ? $info['ATTRIBUTES']: array();
+			if(!empty($attributes) && in_array(\CCrmFieldInfoAttr::ReadOnly, $attributes, true))
+			{
+				continue;
+			}
+
+			self::setDataField(isset($info['TYPE']) ? $info['TYPE']: 'string', $k, $v, $entityData, $userFields);
+		}
+	}
+	public static function mapRequestData(array $fieldInfos, array &$entityData,  array &$userFields)
+	{
+		$results = array();
 		/** @var \CCrmPerms $userPermissions */
 		$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
 		/** @var Main\HttpRequest $request */
@@ -119,12 +208,6 @@ class EntityEditor
 			}
 
 			$info = $fieldInfos[$k];
-			$typeName = isset($info['TYPE']) ? $info['TYPE']: 'string';
-			if(!isset($typeMap[$typeName]))
-			{
-				continue;
-			}
-
 			$attributes = isset($info['ATTRIBUTES']) ? $info['ATTRIBUTES']: array();
 			if(!empty($attributes) && in_array(\CCrmFieldInfoAttr::ReadOnly, $attributes, true))
 			{
@@ -141,53 +224,13 @@ class EntityEditor
 				$v = strip_tags($v);
 			}
 
-			if($typeName === 'crm_lead' ||
-				$typeName === 'crm_company' ||
-				$typeName === 'crm_contact' ||
-				$typeName === 'crm_quote'
-			)
+			$typeName = isset($info['TYPE']) ? $info['TYPE']: 'string';
+			if(self::setDataField($typeName, $k, $v, $entityData, $userFields))
 			{
-				$entityTypeID = \CCrmOwnerType::ResolveID(substr($typeName, 4));
-				if($entityTypeID === \CCrmOwnerType::Undefined)
-				{
-					continue;
-				}
-
-				$v = (int)$v;
-				if(!Crm\Security\EntityAuthorization::checkReadPermission($entityTypeID, $v, $userPermissions))
-				{
-					continue;
-				}
-			}
-			elseif($typeName === 'integer' || $typeName === 'user')
-			{
-				$v = (int)$v;
-			}
-			elseif($typeName === 'double')
-			{
-				$v = (double)$v;
-			}
-			elseif($typeName === 'date' || $typeName === 'datetime')
-			{
-				$format = $typeName === 'date' ? Main\Type\Date::getFormat() : Main\Type\DateTime::getFormat();
-				$time = Main\Type\DateTime::tryParse($v, $format);
-				if(!$time)
-				{
-					continue;
-				}
-				$v = $time->format($format);
-			}
-
-			if(strpos($k, 'UF_') !== 0)
-			{
-				//System Field
-				$entityData[$k] = $v;
-			}
-			elseif(isset($userFields[$k]))
-			{
-				//User Field (it uses custom initialization scheme).
-				$userFields[$k]['VALUE'] = $v;
+				$results[$k] = $v;
 			}
 		}
+
+		return $results;
 	}
 }

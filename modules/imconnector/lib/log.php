@@ -18,6 +18,7 @@ class Log
 	 * @param string $title The header of each record of the log.
 	 * @return bool
 	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 */
 	public static function write($data, $prefix = 'debug', $title = '')
 	{

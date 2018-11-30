@@ -4,15 +4,19 @@ namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
 use Bitrix\Crm\Discount;
 use Bitrix\Crm\Integration\DocumentGenerator\Value\Money;
+use Bitrix\Crm\Integration\DocumentGeneratorManager;
 use Bitrix\DocumentGenerator\DataProvider\HashDataProvider;
 use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Value;
+use Bitrix\Iblock\ElementTable;
+use Bitrix\Main\Type\DateTime;
 
 class Product extends HashDataProvider
 {
 	protected $properties;
 	protected $propertyIDs;
 	protected $propertiesLoaded = false;
+	protected $propertyValues = [];
 
 	public function __construct($data, array $options = [])
 	{
@@ -192,35 +196,6 @@ class Product extends HashDataProvider
 	}
 
 	/**
-	 * @return array
-	 */
-	protected function getMoneyFields()
-	{
-		static $fields = null;
-		if($fields === null)
-		{
-			$fields = [
-				'PRICE' => 'PRICE',
-				'PRICE_EXCLUSIVE' => 'PRICE_EXCLUSIVE',
-				'PRICE_EXCLUSIVE_SUM' => 'PRICE_EXCLUSIVE_SUM',
-				'PRICE_NETTO' => 'PRICE_NETTO',
-				'PRICE_NETTO_SUM' => 'PRICE_NETTO_SUM',
-				'PRICE_BRUTTO' => 'PRICE_BRUTTO',
-				'PRICE_BRUTTO_SUM' => 'PRICE_BRUTTO_SUM',
-				'DISCOUNT_SUM' => 'DISCOUNT_SUM',
-				'DISCOUNT_TOTAL' => 'DISCOUNT_TOTAL',
-				'PRICE_SUM' => 'PRICE_SUM',
-				'PRICE_RAW' => 'PRICE_RAW',
-				'PRICE_RAW_SUM' => 'PRICE_RAW_SUM',
-				'PRICE_RAW_NETTO' => 'PRICE_RAW_NETTO',
-				'PRICE_RAW_NETTO_SUM' => 'PRICE_RAW_NETTO_SUM',
-			];
-		}
-
-		return $fields;
-	}
-
-	/**
 	 * @param string $placeholder
 	 * @return float
 	 */
@@ -310,7 +285,7 @@ class Product extends HashDataProvider
 		if($this->properties === null)
 		{
 			$this->properties = [];
-			$propertyTypes = $this->getPrintablePropertyTypes();
+			$crmOwnerTypeProvidersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
 
 			$catalogId = \CCrmCatalog::GetDefaultID();
 			if(!$catalogId)
@@ -320,23 +295,84 @@ class Product extends HashDataProvider
 
 			foreach($this->loadProperties() as $property)
 			{
-				if(!isset($propertyTypes[$property['PROPERTY_TYPE']]))
+				if(!$this->isPropertyPrintable($property))
 				{
 					continue;
 				}
-				$this->propertyIDs[] = $property['ID'];
-				$code = $property['ID'];
-				$this->properties['PROPERTY_'.$code] = [
+				$field = [
 					'TITLE' => $property['NAME'],
 					'VALUE' => [$this, 'getPropertyValue'],
 				];
+				if($property['PROPERTY_TYPE'] == 'F')
+				{
+					$field['TYPE'] = static::FIELD_TYPE_IMAGE;
+				}
+				elseif($property['PROPERTY_TYPE'] == 'S')
+				{
+					if($property['USER_TYPE'] == 'HTML')
+					{
+						$field['TYPE'] = static::FIELD_TYPE_TEXT;
+					}
+					elseif($property['USER_TYPE'] == 'Date' || $property['USER_TYPE'] == 'DateTime')
+					{
+						$field['TYPE'] = static::FIELD_TYPE_DATE;
+					}
+					elseif($property['USER_TYPE'] == 'Money')
+					{
+						$field['TYPE'] = Money::class;
+					}
+					elseif($property['USER_TYPE'] == 'employee')
+					{
+						$field['PROVIDER'] = \Bitrix\DocumentGenerator\DataProvider\User::class;
+						$field['OPTIONS'] = [
+							'FORMATTED_NAME_FORMAT' => [
+								'format' => CrmEntityDataProvider::getNameFormat(),
+							]
+						];
+					}
+					elseif($property['USER_TYPE'] == 'ECrm')
+					{
+						$provider = null;
+						$entityTypes = [];
+						if($property['USER_TYPE_SETTINGS']['LEAD'] == 'Y')
+						{
+							$entityTypes[] = \CCrmOwnerType::Lead;
+						}
+						if($property['USER_TYPE_SETTINGS']['CONTACT'] == 'Y')
+						{
+							$entityTypes[] = \CCrmOwnerType::Contact;
+						}
+						if($property['USER_TYPE_SETTINGS']['COMPANY'] == 'Y')
+						{
+							$entityTypes[] = \CCrmOwnerType::Company;
+						}
+						if($property['USER_TYPE_SETTINGS']['DEAL'] == 'Y')
+						{
+							$entityTypes[] = \CCrmOwnerType::Deal;
+						}
+						if(count($entityTypes) > 1)
+						{
+							continue;
+						}
+						$ownerTypeId = $entityTypes[0];
+						if(isset($crmOwnerTypeProvidersMap[$ownerTypeId]))
+						{
+							$provider = $crmOwnerTypeProvidersMap[$ownerTypeId];
+						}
+						if($provider)
+						{
+							$field['PROVIDER'] = $provider;
+							$field['OPTIONS']['isLightMode'] = true;
+						}
+					}
+				}
+				$this->propertyIDs[] = $property['ID'];
+				$code = $property['ID'];
+				$this->properties['PROPERTY_'.$code] = $field;
 				if($property['CODE'])
 				{
 					$code = $property['CODE'];
-					$this->properties['PROPERTY_'.$code] = [
-						'TITLE' => $property['NAME'],
-						'VALUE' => [$this, 'getPropertyValue'],
-					];
+					$this->properties['PROPERTY_'.$code] = $field;
 				}
 			}
 		}
@@ -360,11 +396,10 @@ class Product extends HashDataProvider
 				return $properties;
 			}
 
-			$propertyTypes = $this->getPrintablePropertyTypes();
 			$query = \CIBlock::GetProperties($catalogId, ['SORT' => 'ASC'], ['ACTIVE' => 'Y']);
 			while($property = $query->Fetch())
 			{
-				if(!isset($propertyTypes[$property['PROPERTY_TYPE']]))
+				if(!$this->isPropertyPrintable($property))
 				{
 					continue;
 				}
@@ -383,6 +418,7 @@ class Product extends HashDataProvider
 		if($this->propertiesLoaded === false)
 		{
 			$this->propertiesLoaded = true;
+			$linkedProducts = [];
 			if(!$this->data['PRODUCT_ID'])
 			{
 				return;
@@ -410,35 +446,123 @@ class Product extends HashDataProvider
 			);
 			while($property = $propertyResult->Fetch())
 			{
-				$code = $property['ID'];
-				if(isset($this->data['PROPERTY_'.$code]) && !empty($this->data['PROPERTY_'.$code]))
-				{
-					$this->data['PROPERTY_'.$code] .= ', ';
-				}
-				else
-				{
-					$this->data['PROPERTY_'.$code] = '';
-				}
-				if($property['PROPERTY_TYPE'] === 'F')
-				{
-					$property['VALUE'] = \CFile::GetPath($property['VALUE']);
-				}
-				$this->data['PROPERTY_'.$code] .= $property['VALUE'];
+				$codes = [$property['ID']];
 				if($property['CODE'])
 				{
-					$code = $property['CODE'];
-					if(isset($this->data['PROPERTY_'.$code]) && !empty($this->data['PROPERTY_'.$code]))
+					$codes[] = $property['CODE'];
+				}
+				$value = $property['VALUE'];
+				$separator = ', ';
+				if($property['PROPERTY_TYPE'] === 'F')
+				{
+					if($property['MULTIPLE'] == 'Y' && isset($this->propertyValues['PROPERTY_'.$codes[0]]) && !empty($this->propertyValues['PROPERTY_'.$codes[0]]))
 					{
-						$this->data['PROPERTY_'.$code] .= ', ';
+						// use the first value if there are more than one
+						continue;
+					}
+					$value = \CFile::GetPath($value);
+				}
+				elseif($property['PROPERTY_TYPE'] === 'S')
+				{
+					if($property['USER_TYPE'] == 'HTML')
+					{
+						$value = $value['TEXT'];
+						$separator = '<br />';
+					}
+					elseif($property['USER_TYPE'] == 'Date')
+					{
+						$value = new Value\DateTime($value);
+					}
+					elseif($property['USER_TYPE'] == 'DateTime')
+					{
+						$value = new Value\DateTime($value, ['format' => DateTime::getFormat(DataProviderManager::getInstance()->getCulture())]);
+					}
+					elseif($property['USER_TYPE'] == 'Money')
+					{
+						list($value, $currency) = explode('|', $value);
+						$value = new Money($value, ['CURRENCY_ID' => $currency]);
+					}
+					elseif($property['USER_TYPE'] == 'employee' || $property['USER_TYPE'] == 'ECrm')
+					{
+						if($property['MULTIPLE'] == 'Y' && isset($this->propertyValues['PROPERTY_'.$codes[0]]) && !empty($this->propertyValues['PROPERTY_'.$codes[0]]))
+						{
+							// use the first value if there are more than one
+							continue;
+						}
+					}
+				}
+				elseif($property['PROPERTY_TYPE'] == 'L')
+				{
+					$value = $this->getPropertyEnumValue($property['ID'], $value);
+				}
+				elseif($property['PROPERTY_TYPE'] == 'E')
+				{
+					$linkedProducts['ids'][] = $value;
+					foreach($codes as $code)
+					{
+						$linkedProducts['codes'][$value][] = $code;
+					}
+					continue;
+				}
+				foreach($codes as $code)
+				{
+					if(isset($this->propertyValues['PROPERTY_'.$code]) && !empty($this->propertyValues['PROPERTY_'.$code]))
+					{
+						$this->propertyValues['PROPERTY_'.$code] .= $separator;
 					}
 					else
 					{
-						$this->data['PROPERTY_'.$code] = '';
+						$this->propertyValues['PROPERTY_'.$code] = '';
 					}
-					$this->data['PROPERTY_'.$code] .= $property['VALUE'];
+					$this->propertyValues['PROPERTY_'.$code] .= $value;
+				}
+			}
+			if(!empty($linkedProducts))
+			{
+				$items = ElementTable::getList(['filter' => [
+					'@ID' => array_values($linkedProducts['ids']),
+					'ACTIVE' => 'Y',
+				], 'select' => [
+					'NAME', 'ID'
+				],
+				]);
+				while($item = $items->fetch())
+				{
+					foreach($linkedProducts['codes'][$item['ID']] as $code)
+					{
+						if(isset($this->propertyValues['PROPERTY_'.$code]) && !empty($this->propertyValues['PROPERTY_'.$code]))
+						{
+							$this->propertyValues['PROPERTY_'.$code] .= ', ';
+						}
+						else
+						{
+							$this->propertyValues['PROPERTY_'.$code] = '';
+						}
+						$this->propertyValues['PROPERTY_'.$code] .= $item['NAME'];
+					}
 				}
 			}
 		}
+	}
+
+	/**
+	 * @param int $propertyId
+	 * @param int $valueId
+	 * @return mixed
+	 */
+	protected function getPropertyEnumValue($propertyId, $valueId)
+	{
+		static $propertyEnums = [];
+		if(!isset($propertyEnums[$propertyId]))
+		{
+			$enums = \CIBlockPropertyEnum::GetList([], ['IBLOCK_ID' => \CCrmCatalog::GetDefaultID(), 'PROPERTY_ID' => $propertyId]);
+			while($enum = $enums->Fetch())
+			{
+				$propertyEnums[$propertyId][$enum['ID']] = $enum['VALUE'];
+			}
+		}
+
+		return $propertyEnums[$propertyId][$valueId];
 	}
 
 	/**
@@ -448,15 +572,21 @@ class Product extends HashDataProvider
 	public function getPropertyValue($code)
 	{
 		$this->loadPropertyValues();
-		return $this->data[$code];
+		return $this->propertyValues[$code];
 	}
 
-	/**
-	 * @return array
-	 */
-	protected function getPrintablePropertyTypes()
+	protected function isPropertyPrintable(array $property)
 	{
-		return ['S' => 'S', 'N' => 'N', 'F' => 'F'];
+		if($property['PROPERTY_TYPE'] == 'S' && isset($property['USER_TYPE']) && !empty($property['USER_TYPE']))
+		{
+			return in_array($property['USER_TYPE'], [
+				'HTML', 'Date', 'DateTime', 'Money', 'employee', 'ECrm', 'Sequence',
+			]);
+		}
+
+		return in_array($property['PROPERTY_TYPE'], [
+			'S', 'N', 'F', 'L', 'E',
+		]);
 	}
 
 	/**
@@ -472,18 +602,5 @@ class Product extends HashDataProvider
 		{
 			return $this->data['PRICE_EXCLUSIVE'];
 		}
-	}
-
-	/**
-	 * @param float $value
-	 * @return Money
-	 */
-	protected function toMoney($value)
-	{
-		if($value instanceof Money)
-		{
-			return $value;
-		}
-		return new Money($value, ['CURRENCY_ID' => $this->data['CURRENCY_ID'], 'NO_SIGN' => true, 'WITH_ZEROS' => false]);
 	}
 }

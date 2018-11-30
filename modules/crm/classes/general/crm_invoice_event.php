@@ -204,7 +204,12 @@ class CCrmInvoiceEventFormat extends CSaleOrderChangeFormat
 			{
 				if ($param == "PERSON_TYPE_ID")
 				{
-					$res = CSalePersonType::GetByID($value);
+					$dbRes = \Bitrix\Crm\Invoice\PersonType::getList([
+						'filter' => [
+							'=ID' => $value
+						]
+					]);
+					$res = $dbRes->fetch();
 					$value = "\"".$res["NAME"]."\"";
 					if ($res["CODE"] === 'CRM_CONTACT')
 						$value = '"'.GetMessage('CRM_PERSON_TYPE_CONTACT').'"';

@@ -3511,21 +3511,21 @@ class CAllCrmLead
 			$statusesSuccess = array();
 			$statusesFailed = array();
 			$statusesFinished = array();
-			foreach (self::$LEAD_STATUSES as $statuInfo)
+			foreach (self::$LEAD_STATUSES as $statusInfo)
 			{
-				if (!$bFinished && $statuInfo['STATUS_ID'] === 'CONVERTED')
+				if (!$bFinished && $statusInfo['STATUS_ID'] === 'CONVERTED')
 				{
-					$statusesSuccess[] = $statuInfo['STATUS_ID'];
+					$statusesSuccess[] = $statusInfo['STATUS_ID'];
 					$bFinished = true;
 				}
-				if (!$bFailed && $statuInfo['STATUS_ID'] === 'JUNK')
+				if (!$bFailed && $statusInfo['STATUS_ID'] === 'JUNK')
 					$bFailed = true;
 				if ($bFinished)
-					$statusesFinished[] = $statuInfo['STATUS_ID'];
+					$statusesFinished[] = $statusInfo['STATUS_ID'];
 				else
-					$statusesWork[] = $statuInfo['STATUS_ID'];
+					$statusesWork[] = $statusInfo['STATUS_ID'];
 				if ($bFailed)
-					$statusesFailed[] = $statuInfo['STATUS_ID'];
+					$statusesFailed[] = $statusInfo['STATUS_ID'];
 			}
 			self::$LEAD_STATUSES_BY_GROUP = array(
 				'WORK' => $statusesWork,
@@ -3933,13 +3933,11 @@ class CAllCrmLead
 		global $DB;
 		$DB->Query("UPDATE b_crm_lead SET CONTACT_ID = NULL WHERE CONTACT_ID = {$contactID}", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
 	}
-
 	public static function ProcessCompanyDeletion($companyID)
 	{
 		global $DB;
 		$DB->Query("UPDATE b_crm_lead SET COMPANY_ID = NULL WHERE COMPANY_ID = {$companyID}", false, 'FILE: '.__FILE__.'<br /> LINE: '.__LINE__);
 	}
-
 	public static function ProcessStatusModification(array $fields)
 	{
 		$entityID = isset($fields['ENTITY_ID']) ? $fields['ENTITY_ID'] : '';
@@ -3964,6 +3962,11 @@ class CAllCrmLead
 		{
 			Crm\Attribute\FieldAttributeManager::processPhaseDeletion($statusID, \CCrmOwnerType::Lead, '');
 		}
+	}
+
+	public static function GetSubsidiaryEntities($ID)
+	{
+		return Crm\Entity\Lead::getSubsidiaryEntities($ID);
 	}
 
 	public static function GetCustomerType($ID)

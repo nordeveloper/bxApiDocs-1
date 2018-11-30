@@ -239,11 +239,18 @@ class CCrmInvoiceRestService extends IRestService
 				elseif (substr($fName, 12, 4) === '.[].')
 				{
 					$subName = substr($fName, 16);
-					$fields['PRODUCT_ROWS']['definition']['row'][$subName] = self::makeFieldInfo($fInfo);
+					$fieldInfo = self::makeFieldInfo($fInfo);
+					$name = \CCrmProductRow::GetFieldCaption($subName);
+					$fieldInfo['title'] = !empty($name) ? $name : $subName;
+					$fields['PRODUCT_ROWS']['definition']['row'][$subName] = $fieldInfo;
 				}
 			}
 			else
+			{
 				$fields[$fName] = self::makeFieldInfo($fInfo);
+				$name = \Bitrix\Crm\InvoiceTable::getFieldCaption($fName);
+				$fields[$fName]['title'] = !empty($name) ? $name : $fName;
+			}
 		}
 
 		// user fields
@@ -2767,6 +2774,8 @@ class CCrmRestVat extends IRestService
 		foreach ($fieldsInfo as $fName => $fInfo)
 		{
 			$fields[$fName] = self::makeFieldInfo($fInfo);
+			$name = \CCrmVat::GetFieldCaption($fName);
+			$fields[$fName]['title'] = !empty($name) ? $name : $fName;
 		}
 
 		return $fields;

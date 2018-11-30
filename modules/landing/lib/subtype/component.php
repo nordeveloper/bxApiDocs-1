@@ -45,7 +45,10 @@ class Component
 			{
 				$manifest['requiredUserAction'] = array(
 					'header' => Loc::getMessage('LANDING_BLOCK_EMPTY_CATLOG_TITLE'),
-					'description' => Loc::getMessage('LANDING_BLOCK_EMPTY_CATLOG_DESC')
+					'description' => Loc::getMessage('LANDING_BLOCK_EMPTY_CATLOG_DESC'),
+					'text' => Loc::getMessage('LANDING_BLOCK_EMPTY_CATLOG_LINK'),
+					'href' => '#page_url_catalog_edit',
+					'className' => 'landing-required-link'
 				);
 			}
 			// add settings link

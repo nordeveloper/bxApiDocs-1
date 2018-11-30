@@ -2,13 +2,18 @@
 
 namespace Bitrix\ImOpenLines;
 
-use Bitrix\Imopenlines\Model\TrackerTable;
-use Bitrix\Main,
-	Bitrix\Main\Localization\Loc;
+use \Bitrix\Main,
+	\Bitrix\Main\Loader,
+	\Bitrix\Main\Localization\Loc,
+	\Bitrix\Main\PhoneNumber\Parser as PhoneParser;
+
 use \Bitrix\Crm\Binding\LeadContactTable,
 	\Bitrix\Crm\Binding\ContactCompanyTable;
 
+use \Bitrix\ImOpenLines\Model\TrackerTable;
+
 Loc::loadMessages(__FILE__);
+Crm::loadMessages();
 
 class Tracker
 {
@@ -23,863 +28,116 @@ class Tracker
 	const MESSAGE_ERROR_CREATE = 'CREATE';
 	const MESSAGE_ERROR_EXTEND = 'EXTEND';
 
-	private $error = null;
+	const ERROR_IMOL_TRACKER_NO_REQUIRED_PARAMETERS = 'ERROR IMOPENLINES TRACKER NO REQUIRED PARAMETERS';
 
-	public function __construct()
+	/* @var Session $session */
+	protected $session;
+
+	/**
+	 * @param Session $session
+	 * @return bool
+	 */
+	public function setSession(Session $session)
 	{
-		$this->error = new Error(null, '', '');
-	}
+		$result = false;
 
-	private function checkMessage($messageText)
-	{
-		$result = Array(
-			'PHONES' => Array(),
-			'EMAILS' => Array(),
-		);
-
-		preg_match_all("/(\+)?([\d\-\(\) ]){6,}/i", $messageText, $matches);
-		if ($matches)
+		if (!empty($session) && $session instanceof Session)
 		{
-			foreach ($matches[0] as $phone)
-			{
-				$phoneNormalize = NormalizePhone(trim($phone), 6);
-				if ($phoneNormalize)
-				{
-					$result['PHONES'][$phoneNormalize] = trim($phone);
-				}
-			}
+			$this->session = $session;
+
+			$result = true;
 		}
 
-		preg_match_all("/[^\s]+@[^\s]+/i", $messageText, $matches);
-		if ($matches)
+		return $result;
+	}
+
+	/**
+	 * @return Session
+	 */
+	public function getSession()
+	{
+		return $this->session;
+	}
+
+	/**
+	 * @param $params
+	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public function message($params)
+	{
+		$result = new Result();
+		$result->setResult(false);
+		$session = $this->getSession();
+
+		if (empty($session))
 		{
-			foreach ($matches[0] as $email)
+			$result->addError(new Error(Loc::getMessage('IMOL_CRM_ERROR_NO_SESSION'), Crm::ERROR_IMOL_NO_SESSION, __METHOD__));
+		}
+
+		if ($result->isSuccess() && Loader::includeModule('crm') && $session->getConfig('CRM') == 'Y')
+		{
+			$messageOriginId = intval($params['ID']);
+			$messageText = self::prepareMessage($params['TEXT']);
+
+			if (isset($params['ID']) && empty($messageOriginId) || strlen($messageText) <= 0)
 			{
-				$email = trim($email);
-				$result['EMAILS'][$email] = $email;
+				$result->addError(new Error(Loc::getMessage('IMOL_TRACKER_ERROR_NO_REQUIRED_PARAMETERS'), self::ERROR_IMOL_TRACKER_NO_REQUIRED_PARAMETERS, __METHOD__));
+			}
+
+			$entitiesSearch = self::checkMessage($messageText);
+			$phones = $entitiesSearch['PHONES'];
+			$emails = $entitiesSearch['EMAILS'];
+
+			if (empty($phones) && empty($emails))
+			{
+				$result->addError(new Error(Loc::getMessage('IMOL_TRACKER_ERROR_NO_REQUIRED_PARAMETERS'), self::ERROR_IMOL_TRACKER_NO_REQUIRED_PARAMETERS, __METHOD__));
+			}
+
+			if ($result->isSuccess())
+			{
+				$crmManager = new Crm($session);
+				$crmFieldsManager = $crmManager->getFields();
+				if (!empty($phones))
+				{
+					$crmFieldsManager->setPhones($phones);
+				}
+
+				if (!empty($emails))
+				{
+					$crmFieldsManager->setEmails($emails);
+				}
+
+				if($session->getConfig('CRM_CREATE') != Config::CRM_CREATE_LEAD)
+				{
+					$crmManager->setSkipCreate();
+				}
+
+				$crmManager->search();
+				$crmFieldsManager->setTitle($session->getChat()->getData('TITLE'));
+
+				$crmManager->registrationChanges();
+				$crmManager->sendCrmImMessages();
 			}
 		}
 
 		return $result;
 	}
 
-	public function message($params)
-	{
-		if (!\Bitrix\Main\Loader::includeModule('crm'))
-			return false;
-
-		/* @var \Bitrix\ImOpenLines\Session $session */
-		$session = $params['SESSION'];
-		if (!($session instanceof \Bitrix\ImOpenLines\Session))
-			return false;
-
-		$messageOriginId = intval($params['MESSAGE']['ID']);
-		$messageText = $this->prepareMessage($params['MESSAGE']['TEXT']);
-
-		if (isset($params['MESSAGE']['ID']) && !$messageOriginId || strlen($messageText) <= 0)
-			return false;
-
-		if ($session->getConfig('CRM') != 'Y')
-			return true;
-
-		$limitRemainder = Limit::getTrackerLimitRemainder();
-		if ($limitRemainder <= 0)
-		{
-			$this->sendLimitMessage(Array(
-				'OPERATOR_ID' => $session->getData('OPERATOR_ID'),
-				'CHAT_ID' => $session->getData('CHAT_ID'),
-				'MESSAGE_TYPE' => self::MESSAGE_ERROR_EXTEND
-			));
-
-			return false;
-		}
-
-		$result = $this->checkMessage($messageText);
-		$phones = $result['PHONES'];
-		$emails = $result['EMAILS'];
-
-		if (empty($phones) && empty($emails))
-		{
-			return false;
-		}
-
-		$crm = new Crm();
-
-		$current = Array();
-		$updateFm = Array();
-		$updateFields = Array();
-		$addLog = Array();
-
-		if (isset($params['CRM']['ENTITY_TYPE']) && isset($params['CRM']['ENTITY_ID']))
-		{
-			$current['ACTION'] = self::ACTION_EXTEND;
-			$current['CRM_ENTITY_TYPE'] = $params['CRM']['ENTITY_TYPE'];
-			$current['CRM_ENTITY_ID'] = $params['CRM']['ENTITY_ID'];
-			if(isset($params['CRM']['CRM_DEAL_ID']))
-			{
-				$current['CRM_DEAL_ID'] = $params['CRM']['DEAL_ID'];
-			}
-			else
-			{
-				$current['CRM_DEAL_ID'] = 0;
-			}
-
-			if (
-				$session->getData('SOURCE') == Connector::TYPE_LIVECHAT &&
-				\Bitrix\Im\User::getInstance($session->getData('USER_ID'))->isConnector() &&
-				\Bitrix\Im\User::getInstance($session->getData('USER_ID'))->getName() == ''
-			)
-			{
-				$current['CHANGE_NAME'] = 'Y';
-			}
-			$communicationType = Crm::getCommunicationType($session->getData('USER_CODE'));
-			$updateFm['IM_'.$communicationType] = 'imol|'.$session->getData('USER_CODE');
-			$addLog['im'] = Array(
-				'ACTION' => $current['ACTION'],
-				'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-				'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-				'FIELD_ID' => 'FM',
-				'FIELD_TYPE' => self::FIELD_IM,
-				'FIELD_VALUE' => $updateFm['IM_'.$communicationType]
-			);
-
-			$session->update(Array(
-				'CRM_CREATE' => 'Y',
-				'CRM' => 'Y',
-				'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-				'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-				'CRM_DEAL_ID' => $current['CRM_DEAL_ID'],
-			));
-
-			$session->chat->setCrmFlag(Array(
-				'ACTIVE' => 'Y',
-				'ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-				'ENTITY_ID' => $current['CRM_ENTITY_ID'],
-				'DEAL_ID' => $current['CRM_DEAL_ID'],
-			));
-		}
-		else if ($session->getData('CRM') == 'Y')
-		{
-			$current['ACTION'] = self::ACTION_EXTEND;
-			$current['CRM_ENTITY_TYPE'] = $session->getData('CRM_ENTITY_TYPE');
-			$current['CRM_ENTITY_ID'] = $session->getData('CRM_ENTITY_ID');
-
-			if($current['CRM_ENTITY_TYPE'] == Crm::ENTITY_LEAD)
-			{
-				$crmData = NULL;
-
-				if(\Bitrix\Crm\Settings\LeadSettings::getCurrent()->isAutoGenRcEnabled())
-				{
-					$crmData = $crm->finds(array('PHONE' => $phones, 'EMAIL' => $emails));
-				}
-
-				if(!empty($crmData) && empty($crmData['DEAL']))
-				{
-					if(!empty($crmData['COMPANY']))
-					{
-						$updateFields['COMPANY_ID'] = $crmData['COMPANY']['ENTITY_ID'];
-
-						$addLog[] = Array(
-							'ACTION' => $current['ACTION'],
-							'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-							'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-							'FIELD_ID' => Crm::FIELDS_COMPANY,
-							'FIELD_VALUE' => $crmData['COMPANY']['ENTITY_ID']
-						);
-					}
-
-					if(!empty($crmData['CONTACT']))
-					{
-						$contactIDs = LeadContactTable::getLeadContactIDs($current['CRM_ENTITY_ID']);
-
-						if(!in_array($crmData['CONTACT']['ENTITY_ID'], $contactIDs))
-						{
-							$contactIDs[] = $crmData['CONTACT']['ENTITY_ID'];
-
-							$addLog[] = Array(
-								'ACTION' => $current['ACTION'],
-								'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-								'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-								'FIELD_ID' => Crm::FIELDS_CONTACT,
-								'FIELD_VALUE' => $crmData['CONTACT']['ENTITY_ID']
-							);
-
-							$updateFields['CONTACT_IDS'] = $contactIDs;
-						}
-					}
-
-					if((!empty($crmData['COMPANY']) || !empty($crmData['CONTACT']['ENTITY_ID'])) && $session->getData('CRM_ACTIVITY_ID'))
-					{
-						$saveBindings = array();
-
-						$bindings = \CAllCrmActivity::GetBindings($session->getData('CRM_ACTIVITY_ID'));
-
-						foreach ($bindings as $key => $value)
-						{
-							unset($bindings[$key]['ID']);
-						}
-
-						if(!empty($crmData['COMPANY']))
-						{
-							$newBinding = array(
-								"OWNER_TYPE_ID" => \CCrmOwnerType::ResolveID($crmData['COMPANY']['ENTITY_TYPE']),
-								"OWNER_ID" => $crmData['COMPANY']['ENTITY_ID']
-							);
-
-							if(!in_array($newBinding, $bindings))
-							{
-								$saveBindings[] = $newBinding;
-
-								$addLog[] = Array(
-									'ACTION' => self::ACTION_EXTEND,
-									'CRM_ENTITY_TYPE' => Crm::ENTITY_ACTIVITY,
-									'CRM_ENTITY_ID' => $session->getData('CRM_ACTIVITY_ID'),
-									'FIELD_ID' => $crmData['COMPANY']['ENTITY_TYPE'],
-									'FIELD_VALUE' => $crmData['COMPANY']['ENTITY_ID']
-								);
-							}
-						}
-
-						if(!empty($crmData['CONTACT']))
-						{
-							$newBinding = array(
-								"OWNER_TYPE_ID" => \CCrmOwnerType::ResolveID($crmData['CONTACT']['ENTITY_TYPE']),
-								"OWNER_ID" => $crmData['CONTACT']['ENTITY_ID']
-							);
-
-							if(!in_array($newBinding, $bindings))
-							{
-								$saveBindings[] = $newBinding;
-
-								$addLog[] = Array(
-									'ACTION' => self::ACTION_EXTEND,
-									'CRM_ENTITY_TYPE' => Crm::ENTITY_ACTIVITY,
-									'CRM_ENTITY_ID' => $session->getData('CRM_ACTIVITY_ID'),
-									'FIELD_ID' => $crmData['CONTACT']['ENTITY_TYPE'],
-									'FIELD_VALUE' => $crmData['CONTACT']['ENTITY_ID']
-								);
-							}
-						}
-
-						if(!empty($saveBindings))
-						{
-							\CAllCrmActivity::SaveBindings($session->getData('CRM_ACTIVITY_ID'), array_merge($saveBindings, $bindings));
-						}
-					}
-				}
-				elseif($crmData['DEAL'])
-				{
-					$current['CRM_ENTITY_TYPE'] = $crmData['PRIMARY']['ENTITY_TYPE'];
-					$current['CRM_ENTITY_ID'] = $crmData['PRIMARY']['ENTITY_ID'];
-					$current['CRM_BINDINGS'] = $crmData['PRIMARY']['BINDINGS'];
-					$current['CRM_DEAL_ID'] = $crmData['DEAL']['ENTITY_ID'];
-
-					$session->update(Array(
-						'CRM_CREATE' => 'Y',
-						'CRM' => 'Y',
-						'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-						'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-						'CRM_DEAL_ID' => $current['CRM_DEAL_ID'],
-					));
-
-					$session->chat->setCrmFlag(Array(
-						'ACTIVE' => 'Y',
-						'ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-						'ENTITY_ID' => $current['CRM_ENTITY_ID'],
-						'DEAL_ID' => $current['CRM_DEAL_ID'],
-					));
-
-					$crm->updateActivity(Array(
-						'ID' => $session->getData('CRM_ACTIVITY_ID'),
-						'UPDATE' => Array(
-							'OWNER_TYPE_ID' => $current['CRM_ENTITY_TYPE'],
-							'OWNER_ID' => $current['CRM_ENTITY_ID'],
-							'BINDINGS' => $current['CRM_BINDINGS'],
-						)
-					));
-
-					$communicationType = Crm::getCommunicationType($session->getData('USER_CODE'));
-					$updateFm['IM_'.$communicationType] = 'imol|'.$session->getData('USER_CODE');
-					$addLog['im'] = Array(
-						'ACTION' => $current['ACTION'],
-						'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-						'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-						'FIELD_ID' => self::FIELD_ID_FM,
-						'FIELD_TYPE' => self::FIELD_IM,
-						'FIELD_VALUE' => $updateFm['IM_'.$communicationType]
-					);
-				}
-			}
-		}
-		else
-		{
-			$crmData = false;
-
-			$saveBindings = array();
-
-			$crmDataSet = $crm->finds(array('PHONE' => $phones, 'EMAIL' => $emails));
-
-			if(!$crmDataSet['CAN_ADD_LEAD'])
-			{
-				if(!empty($crmDataSet['LEAD']))
-				{
-					$crmData = $crmDataSet['LEAD'];
-				}
-				elseif(!empty($crmDataSet['RETURN_CUSTOMER_LEAD']))
-				{
-					$crmData = $crmDataSet['RETURN_CUSTOMER_LEAD'];
-				}
-				else
-				{
-					$crmData = $crmDataSet['PRIMARY'];
-				}
-			}
-
-			if((!empty($crmDataSet['COMPANY']) || !empty($crmDataSet['CONTACT'])) && \Bitrix\Crm\Settings\LeadSettings::getCurrent()->isAutoGenRcEnabled())
-			{
-				if(!empty($crmDataSet['COMPANY']))
-				{
-					$updateFields['COMPANY_ID'] = $crmDataSet['COMPANY']['ENTITY_ID'];
-				}
-
-				if(!empty($crmDataSet['CONTACT']))
-				{
-					$updateFields['CONTACT_IDS'][] = $crmDataSet['CONTACT']['ENTITY_ID'];
-				}
-
-				$saveBindings = $updateFields['PRIMARY']['BINDINGS'];
-			}
-
-			if ($crmData)
-			{
-				$current['ACTION'] = self::ACTION_EXTEND;
-				$current['CRM_ENTITY_TYPE'] = $crmData['ENTITY_TYPE'];
-				$current['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
-
-				if (
-					$session->getData('SOURCE') == Connector::TYPE_LIVECHAT &&
-					\Bitrix\Im\User::getInstance($session->getData('USER_ID'))->isConnector() &&
-					\Bitrix\Im\User::getInstance($session->getData('USER_ID'))->getName() == ''
-				)
-				{
-					$current['CHANGE_NAME'] = 'Y';
-				}
-				$communicationType = Crm::getCommunicationType($session->getData('USER_CODE'));
-				$updateFm['IM_'.$communicationType] = 'imol|'.$session->getData('USER_CODE');
-				$addLog['im'] = Array(
-					'ACTION' => $current['ACTION'],
-					'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-					'FIELD_ID' => self::FIELD_ID_FM,
-					'FIELD_TYPE' => self::FIELD_IM,
-					'FIELD_VALUE' => $updateFm['IM_'.$communicationType]
-				);
-
-				$current['CRM_BINDINGS'][] = array(
-					'OWNER_ID' => $current['CRM_ENTITY_ID'],
-					'OWNER_TYPE_ID' => \CCrmOwnerType::ResolveID($current['CRM_ENTITY_TYPE'])
-				);
-			}
-			else
-			{
-				$crmData = $crm->registerLead(array(
-					'CONFIG_ID' => $session->getData('CONFIG_ID'),
-					'USER_CODE' => $session->getData('USER_CODE'),
-					'USER_ID' => $session->getData('USER_ID'),
-					'TITLE' => $session->chat->getData('TITLE'),
-					'OPERATOR_ID' => $session->getData('OPERATOR_ID'),
-					//'SKIP_FIND' => 'Y',
-					'SKIP_CREATE' => 'N'
-				));
-
-				$current['CRM_BINDINGS'] = $crmData['BINDINGS'];
-				$current['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
-				$current['CRM_ENTITY_TYPE'] = $crmData['ENTITY_TYPE'];
-				$current['ACTION'] = $crmData['LEAD_CREATE'] == 'Y'? self::ACTION_CREATE: self::ACTION_EXTEND;
-			}
-
-			if(!empty($saveBindings) && !empty($current['CRM_BINDINGS']))
-			{
-				$current['CRM_BINDINGS'] = \Bitrix\Crm\Activity\BindingSelector::sortBindings(array_merge($current['CRM_BINDINGS'], $saveBindings));
-			}
-
-			$updateSession = Array(
-				'CRM_CREATE' => 'Y',
-				'CRM' => 'Y',
-				'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-				'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-			);
-
-			if ($session->getData('CRM_ACTIVITY_ID'))
-			{
-				if (
-					$session->getData('CRM_ENTITY_TYPE') != $current['CRM_ENTITY_TYPE']
-					|| $session->getData('CRM_ENTITY_ID') !=  $current['CRM_ENTITY_ID']
-				)
-				{
-					$crm->updateActivity(Array(
-						'ID' => $session->getData('CRM_ACTIVITY_ID'),
-						'UPDATE' => Array(
-							'OWNER_TYPE_ID' => $current['CRM_ENTITY_TYPE'],
-							'OWNER_ID' => $current['CRM_ENTITY_ID'],
-							'BINDINGS' => $current['CRM_BINDINGS'],
-						)
-					));
-				}
-			}
-			else
-			{
-				$current['CRM_ACTIVITY_ID'] = $crm->addActivity(Array(
-					'TITLE' => $session->chat->getData('TITLE'),
-					'MODE' => $session->getData('MODE'),
-					'USER_CODE' => $session->getData('USER_CODE'),
-					'SESSION_ID' => $session->getData('SESSION_ID'),
-					'COMPLETED' => 'N',
-					'DATE_CREATE' => new \Bitrix\Main\Type\DateTime(),
-					'AUTHOR_ID' => $session->getData('OPERATOR_ID'),
-					'RESPONSIBLE_ID' => $session->getData('OPERATOR_ID'),
-					'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-					'CRM_BINDINGS' => $current['CRM_BINDINGS'],
-					'ANSWERED' => $session->getData('ANSWERED') == 'Y'? 'Y': 'N',
-				));
-
-				$crm->executeAutomation($current['CRM_BINDINGS'], array(
-					'CONFIG_ID' => $session->getData('CONFIG_ID')
-				));
-
-				$updateSession['CRM_ACTIVITY_ID'] = $current['CRM_ACTIVITY_ID'];
-			}
-
-			if ($crmData && $crmData['LEAD_CREATE'] == 'Y' && $crmData['ENTITY_TYPE'] == Crm::ENTITY_LEAD && !\Bitrix\Crm\Settings\LeadSettings::isEnabled())
-			{
-				$leadData = Crm::get('LEAD', $crmData['ENTITY_ID']);
-
-				$current['COMPANY_ID'] = $leadData['COMPANY_ID'];
-				$current['CONTACT_ID'] = $leadData['CONTACT_ID'];
-
-				$dealData = Crm::getDealForLead($crmData['ENTITY_ID']);
-
-				$updateSession['CRM_DEAL_ID'] = $current['CRM_DEAL_ID'] = $dealData['ID'];
-			}
-
-			$session->update($updateSession);
-			$session->chat->setCrmFlag(Array(
-				'ACTIVE' => 'Y',
-				'ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-				'ENTITY_ID' => $current['CRM_ENTITY_ID'],
-				'DEAL_ID' => $current['CRM_DEAL_ID'],
-			));
-		}
-
-		$entityData = $crm->get($current['CRM_ENTITY_TYPE'], $current['CRM_ENTITY_ID'], true);
-		if (!$entityData)
-		{
-			return false;
-		}
-
-		if ($current['CHANGE_NAME'] == 'Y' && $entityData['NAME'] && $entityData['LAST_NAME'])
-		{
-			$user = new \CUser();
-			$user->Update($session->getData('USER_ID'), Array(
-				'NAME' => $entityData['NAME'],
-				'LAST_NAME' => $entityData['LAST_NAME'],
-			));
-
-			$relations = \CIMChat::GetRelationById($session->getData('CHAT_ID'));
-			\Bitrix\Pull\Event::add(array_keys($relations), Array(
-				'module_id' => 'im',
-				'command' => 'updateUser',
-				'params' => Array(
-					'user' => \Bitrix\Im\User::getInstance($session->getData('USER_ID'))->getFields()
-				),
-				'extra' => method_exists('\Bitrix\Im\Common', 'getPullExtra') ?
-					\Bitrix\Im\Common::getPullExtra() :
-					Array(
-						'im_revision' => IM_REVISION,
-						'im_revision_mobile' => IM_REVISION_MOBILE,
-					),
-			));
-		}
-
-
-		if (!empty($entityData['FM']['IM']) && !empty($updateFm))
-		{
-			foreach ($updateFm as $key => $updateCode)
-			{
-				foreach ($entityData['FM']['IM'] as $type)
-				{
-					foreach ($type as $code)
-					{
-						if (trim($updateCode) == trim($code))
-						{
-							unset($updateFm[$key]);
-							unset($addLog['im']);
-						}
-					}
-				}
-			}
-		}
-		if (!empty($entityData['FM']['PHONE']))
-		{
-			foreach ($entityData['FM']['PHONE'] as $fmPhones)
-			{
-				foreach ($fmPhones as $phone)
-				{
-					$phone = NormalizePhone($phone, 6);
-					if (isset($phones[$phone]))
-					{
-						unset($phones[$phone]);
-					}
-				}
-			}
-		}
-		if (!empty($entityData['FM']['EMAIL']))
-		{
-			foreach ($entityData['FM']['EMAIL'] as $fmEmails)
-			{
-				foreach ($fmEmails as $email)
-				{
-					$email = trim($email);
-					if (isset($emails[$email]))
-					{
-						unset($emails[$email]);
-					}
-				}
-			}
-		}
-
-		if (!empty($phones))
-		{
-			$updateFm['PHONE_WORK'] = implode(';', $phones);
-			foreach ($phones as $phone)
-			{
-				$addLog[] = Array(
-					'ACTION' => $current['ACTION'],
-					'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-					'FIELD_ID' => self::FIELD_ID_FM,
-					'FIELD_TYPE' => self::FIELD_PHONE,
-					'FIELD_VALUE' => $phone
-				);
-			}
-		}
-		if (!empty($emails))
-		{
-			$updateFm['EMAIL_WORK'] = implode(';', $emails);
-			foreach ($emails as $email)
-			{
-				$addLog[] = Array(
-					'ACTION' => $current['ACTION'],
-					'CRM_ENTITY_TYPE' => $current['CRM_ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $current['CRM_ENTITY_ID'],
-					'FIELD_ID' => self::FIELD_ID_FM,
-					'FIELD_TYPE' => self::FIELD_EMAIL,
-					'FIELD_VALUE' => $email
-				);
-			}
-		}
-
-		if (!empty($updateFm) || !empty($updateFields))
-		{
-			$crm->update(
-				$current['CRM_ENTITY_TYPE'],
-				$current['CRM_ENTITY_ID'],
-				array_merge($updateFields, $updateFm)
-			);
-		}
-
-		if(\Bitrix\Crm\Settings\LeadSettings::isEnabled())
-		{
-			$attach = $crm->getEntityCard($current['CRM_ENTITY_TYPE'], $current['CRM_ENTITY_ID']);
-			if ($current['ACTION'] == self::ACTION_CREATE)
-			{
-				$message =  Loc::getMessage('IMOL_TRACKER_'.$current['CRM_ENTITY_TYPE'].'_ADD');
-				$keyboard = new \Bitrix\Im\Bot\Keyboard();
-				$keyboard->addButton(Array(
-					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
-					"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
-					"DISPLAY" => "LINE",
-					"CONTEXT" => "DESKTOP",
-				));
-				$keyboard->addButton(Array(
-					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
-					"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
-					"DISPLAY" => "LINE",
-				));
-			}
-			else
-			{
-				$message =  Loc::getMessage('IMOL_TRACKER_'.$current['CRM_ENTITY_TYPE'].'_EXTEND');
-				$keyboard = new \Bitrix\Im\Bot\Keyboard();
-				$keyboard->addButton(Array(
-					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
-					"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
-					"DISPLAY" => "LINE",
-					"CONTEXT" => "DESKTOP",
-				));
-				$keyboard->addButton(Array(
-					"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
-					"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
-					"DISPLAY" => "LINE",
-				));
-			}
-
-			$messageId = 0;
-			if ($message)
-			{
-				if ($params['UPDATE_ID'])
-				{
-					$messageId = $params['UPDATE_ID'];
-
-					\CIMMessenger::DisableMessageCheck();
-					\CIMMessageParam::Set($messageId, Array('ATTACH' => $attach));
-					\CIMMessenger::Update($messageId, $message, true, false);
-					\CIMMessenger::EnableMessageCheck();
-				}
-				else
-				{
-					$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
-
-					$messageId = Im::addMessage(Array(
-						"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-						"MESSAGE" => '[b]'.$message.'[/b]',
-						"SYSTEM" => 'Y',
-						"ATTACH" => $attach,
-						"KEYBOARD" => $keyboard,
-						"RECENT_ADD" => $userViewChat? 'Y': 'N'
-					));
-				}
-			}
-
-			if (!empty($updateFm) || !empty($updateFields) && !empty($keyboard))
-			{
-				foreach ($addLog as $log)
-				{
-					TrackerTable::add(Array(
-						'SESSION_ID' => $session->getData('ID'),
-						'CHAT_ID' => $session->getData('CHAT_ID'),
-						'MESSAGE_ID' => $messageId,
-						'MESSAGE_ORIGIN_ID' => $messageOriginId,
-						'USER_ID' => $session->getData('USER_ID'),
-						'ACTION' => $log['ACTION'],
-						'CRM_ENTITY_TYPE' => $log['CRM_ENTITY_TYPE'],
-						'CRM_ENTITY_ID' => $log['CRM_ENTITY_ID'],
-						'FIELD_ID' => $log['FIELD_ID'],
-						'FIELD_TYPE' => $log['FIELD_TYPE'],
-						'FIELD_VALUE' => $log['FIELD_VALUE'],
-					));
-				}
-			}
-		}
-		else
-		{
-			$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
-
-			if(!empty($current['COMPANY_ID']))
-			{
-				Im::addMessage(Array(
-					"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-					"MESSAGE" => '[b]'.Loc::getMessage('IMOL_TRACKER_SESSION_COMPANY').'[/b]',
-					"SYSTEM" => 'Y',
-					"ATTACH" => $crm->getEntityCard(Crm::ENTITY_COMPANY, $current['COMPANY_ID']),
-					"RECENT_ADD" => $userViewChat? 'Y': 'N'
-				));
-			}
-
-			if(!empty($current['CONTACT_ID']))
-			{
-				Im::addMessage(Array(
-					"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-					"MESSAGE" => '[b]'.Loc::getMessage('IMOL_TRACKER_SESSION_CONTACT').'[/b]',
-					"SYSTEM" => 'Y',
-					"ATTACH" => $crm->getEntityCard(Crm::ENTITY_CONTACT, $current['CONTACT_ID']),
-					"RECENT_ADD" => $userViewChat? 'Y': 'N'
-				));
-			}
-
-			if(!empty($current['CRM_DEAL_ID']))
-			{
-				Im::addMessage(Array(
-					"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-					"MESSAGE" => '[b]'.Loc::getMessage('IMOL_TRACKER_SESSION_DEAL').'[/b]',
-					"SYSTEM" => 'Y',
-					"ATTACH" => $crm->getEntityCard(Crm::ENTITY_DEAL, $current['CRM_DEAL_ID']),
-					"RECENT_ADD" => $userViewChat? 'Y': 'N'
-				));
-			}
-		}
-
-		\Bitrix\Imopenlines\Limit::increaseTracker();
-
-		return true;
-	}
-
-	public function user($params)
-	{
-		if (!\Bitrix\Main\Loader::includeModule('crm'))
-			return false;
-
-		$limitRemainder = Limit::getTrackerLimitRemainder();
-		if ($limitRemainder <= 0)
-		{
-			$this->sendLimitMessage(Array(
-				'CHAT_ID' => $params['CHAT_ID'],
-				'MESSAGE_TYPE' => self::MESSAGE_ERROR_EXTEND
-			));
-
-			return false;
-		}
-
-		$user = \Bitrix\Im\User::getInstance($params['USER_ID']);
-
-		$crm = new Crm();
-		$crmData = $crm->find(Crm::FIND_BY_NAME, Array('NAME' => $user->getName(false), 'LAST_NAME' => $user->getLastName(false)));
-
-		if (!$crmData && $user->getEmail())
-		{
-			$crmData = $crm->find(Crm::FIND_BY_EMAIL, Array('EMAIL' => $user->getEmail()));
-		}
-		if (!$crmData && $user->getPhone())
-		{
-			$crmData = $crm->find(Crm::FIND_BY_PHONE, Array('PHONE' => $user->getPhone()));
-		}
-
-		if ($crmData)
-		{
-			$entityData = $crm->get($crmData['ENTITY_TYPE'], $crmData['ENTITY_ID'], true);
-
-			$keyboard = new \Bitrix\Im\Bot\Keyboard();
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
-				"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-				"CONTEXT" => "DESKTOP",
-			));
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
-				"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-			));
-
-			$userViewChat = \CIMContactList::InRecent($params['OPERATOR_ID'], IM_MESSAGE_OPEN_LINE, $params['SESSION_ID']);
-
-			$messageId = Im::addMessage(Array(
-				"TO_CHAT_ID" => $params['CHAT_ID'],
-				"MESSAGE" => '[b]'.Loc::getMessage('IMOL_TRACKER_'.$crmData['ENTITY_TYPE'].'_EXTEND').'[/b]',
-				"SYSTEM" => 'Y',
-				"ATTACH" => $crm->getEntityCard($crmData['ENTITY_TYPE'], $crmData['ENTITY_ID']),
-				"KEYBOARD" => $keyboard,
-				"RECENT_ADD" => $userViewChat? 'Y': 'N'
-			));
-
-			$result = TrackerTable::add(Array(
-				'SESSION_ID' => intval($params['SESSION_ID']),
-				'CHAT_ID' => $params['CHAT_ID'],
-				'MESSAGE_ID' => $messageId,
-				'USER_ID' => $params['USER_ID'],
-				'ACTION' => self::ACTION_EXTEND,
-				'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
-				'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
-				'FIELD_TYPE' => self::FIELD_IM,
-				'FIELD_VALUE' => 'imol|'.$params['USER_CODE'],
-			));
-			$crmData['CRM_TRACK_ID'] = $result->getId();
-
-			$updateFields = Array();
-
-			$imTypeKey = 'IM_'. Crm::getCommunicationType($params['USER_CODE']);
-			$updateFields[$imTypeKey] = 'imol|'.$params['USER_CODE'];
-
-			if (!empty($entityData['FM']['IM']))
-			{
-				foreach ($entityData['FM']['IM'] as $fmIm)
-				{
-					foreach ($fmIm as $im)
-					{
-						if ($updateFields[$imTypeKey] == $im)
-						{
-							unset($updateFields[$imTypeKey]);
-						}
-					}
-				}
-			}
-
-			if ($user->getEmail())
-			{
-				$updateFields['EMAIL_WORK'] = $user->getEmail();
-				if (!empty($entityData['FM']['EMAIL']))
-				{
-					foreach ($entityData['FM']['EMAIL'] as $fmEmails)
-					{
-						foreach ($fmEmails as $email)
-						{
-							if (trim($updateFields['EMAIL_WORK']) == trim($email))
-							{
-								unset($updateFields['EMAIL_WORK']);
-							}
-						}
-					}
-				}
-			}
-			if ($user->getPhone())
-			{
-				$updateFields['PHONE_MOBILE'] = $user->getPhone();
-				if (!empty($entityData['FM']['PHONE']))
-				{
-					foreach ($entityData['FM']['PHONE'] as $fmPhones)
-					{
-						foreach ($fmPhones as $phone)
-						{
-							if (NormalizePhone($updateFields['PHONE_MOBILE'], 6) == NormalizePhone($phone, 6))
-							{
-								unset($updateFields['PHONE_MOBILE']);
-							}
-						}
-					}
-				}
-			}
-			if ($user->getWebsite())
-			{
-				if (strlen($user->getWebsite()) > 255)
-				{
-					if ($user->getWebsite() != $entityData['SOURCE_DESCRIPTION'])
-					{
-						$entityData['SOURCE_DESCRIPTION'] = $entityData['SOURCE_DESCRIPTION'].' '.$user->getWebsite();
-						$entityData['SOURCE_DESCRIPTION'] = trim($entityData['SOURCE_DESCRIPTION']);
-					}
-				}
-				else
-				{
-					$updateFields['WEB_HOME'] = $user->getWebsite();
-					if (!empty($entityData['FM']['WEB']))
-					{
-						foreach ($entityData['FM']['WEB'] as $fmWeb)
-						{
-							foreach ($fmWeb as $web)
-							{
-								if ($updateFields['WEB_HOME'] == $web)
-								{
-									unset($updateFields['WEB_HOME']);
-								}
-							}
-						}
-					}
-				}
-			}
-
-			$crm->update($crmData['ENTITY_TYPE'], $crmData['ENTITY_ID'], $updateFields);
-			\Bitrix\Imopenlines\Limit::increaseTracker();
-		}
-
-		return $crmData;
-	}
-
+	//OLD
+
+	/**
+	 * @deprecated
+	 */
 	public function cancel($messageId)
 	{
 		$return = false;
 
-		if (\Bitrix\Main\Loader::includeModule('crm'))
+		/*if (\Bitrix\Main\Loader::includeModule('crm'))
 		{
 			$log = Array();
 			$delete = Array();
@@ -931,16 +189,19 @@ class Tracker
 
 				$return = true;
 			}
-		}
+		}*/
 
 		return $return;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	static protected function cancelLeadContactCompany($chatId, $sessionId, $entityType, $params)
 	{
 		$crm = new Crm();
 
-		foreach ($params as $entityId => $entityIdValue)
+		/*foreach ($params as $entityId => $entityIdValue)
 		{
 			foreach ($entityIdValue as $action => $actionValue)
 			{
@@ -948,21 +209,21 @@ class Tracker
 
 				if ($action == self::ACTION_CREATE)
 				{
-					$entityData = $crm->get($entityType, $entityId);
+					$entityData = \Bitrix\ImOpenLines\Crm\Common::get($entityType, $entityId);
 
 					$currentTime = new \Bitrix\Main\Type\DateTime();
 					$entityTime = new \Bitrix\Main\Type\DateTime($entityData['DATE_CREATE']);
 					$entityTime->add('1 DAY');
 					if ($currentTime < $entityTime)
 					{
-						$crm->delete($entityType, $entityId);
+						\Bitrix\ImOpenLines\Crm\Common::delete($entityType, $entityId);
 
 						$chat = new Chat($chatId);
-						$chat->updateFieldData(Chat::FIELD_SESSION, Array(
+						$chat->updateFieldData([Chat::FIELD_SESSION => [
 							'CRM' => 'N',
 							'CRM_ENTITY_TYPE' => Crm::ENTITY_NONE,
 							'CRM_ENTITY_ID' => 0
-						));
+						]]);
 
 						Model\SessionTable::update($sessionId, Array(
 							'CRM' => 'N',
@@ -985,7 +246,7 @@ class Tracker
 							{
 								foreach ($fieldTypeValue as $value)
 								{
-									$crm->deleteMultiField($entityType, $entityId, $fieldType, $value);
+									\Bitrix\ImOpenLines\Crm\Common::deleteMultiField($entityType, $entityId, $fieldType, $value);
 								}
 							}
 						}
@@ -1029,7 +290,7 @@ class Tracker
 
 							if(!empty($updateFields))
 							{
-								$crm->update(
+								\Bitrix\ImOpenLines\Crm\Common::update(
 									$entityType,
 									$entityId,
 									$updateFields
@@ -1039,9 +300,12 @@ class Tracker
 					}
 				}
 			}
-		}
+		}*/
 	}
 
+	/**
+	 * @deprecated
+	 */
 	protected static function cancelActivity($params)
 	{
 		foreach ($params as $entityId => $entityIdValue)
@@ -1088,13 +352,16 @@ class Tracker
 		}
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public function change($messageId, $newEntityType, $newEntityId)
 	{
 		$return = false;
 		$messageId = intval($messageId);
 		$newEntityId = intval($newEntityId);
 
-		if (\Bitrix\Main\Loader::includeModule('crm') && $messageId > 0 && in_array($newEntityType, Array(Crm::ENTITY_COMPANY, Crm::ENTITY_LEAD, Crm::ENTITY_CONTACT)) && $newEntityId > 0)
+		/*if (\Bitrix\Main\Loader::includeModule('crm') && $messageId > 0 && in_array($newEntityType, Array(Crm::ENTITY_COMPANY, Crm::ENTITY_LEAD, Crm::ENTITY_CONTACT)) && $newEntityId > 0)
 		{
 			$log = Array();
 			$delete = Array();
@@ -1181,11 +448,14 @@ class Tracker
 			{
 				$return = false;
 			}
-		}
+		}*/
 
 		return $return;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	static protected function changeLeadContactCompany($entityType, $params)
 	{
 		$crm = new Crm();
@@ -1198,14 +468,14 @@ class Tracker
 
 				if ($action == self::ACTION_CREATE)
 				{
-					$entityData = $crm->get($entityType, $entityId, true);
+					$entityData = \Bitrix\ImOpenLines\Crm\Common::get($entityType, $entityId, true);
 
 					$currentTime = new \Bitrix\Main\Type\DateTime();
 					$entityTime = new \Bitrix\Main\Type\DateTime($entityData['DATE_CREATE']);
 					$entityTime->add('1 DAY');
 					if ($currentTime < $entityTime)
 					{
-						$crm->delete($entityType, $entityId);
+						\Bitrix\ImOpenLines\Crm\Common::delete($entityType, $entityId);
 						$updateCrm = false;
 					}
 				}
@@ -1220,7 +490,7 @@ class Tracker
 							{
 								foreach ($fieldTypeValue as $value)
 								{
-									$crm->deleteMultiField($entityType, $entityId, $fieldType, $value);
+									\Bitrix\ImOpenLines\Crm\Common::deleteMultiField($entityType, $entityId, $fieldType, $value);
 								}
 							}
 						}
@@ -1264,7 +534,7 @@ class Tracker
 
 							if(!empty($updateFields))
 							{
-								$crm->update(
+								\Bitrix\ImOpenLines\Crm\Common::update(
 									$entityType,
 									$entityId,
 									$updateFields
@@ -1277,6 +547,9 @@ class Tracker
 		}
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public function updateLog($params)
 	{
 		$id = intval($params['ID']);
@@ -1309,6 +582,10 @@ class Tracker
 		return true;
 	}
 
+	/**
+	 * @deprecated
+	 * TODO: delete
+	 */
 	public function sendLimitMessage($params)
 	{
 		$chatId = intval($params['CHAT_ID']);
@@ -1346,8 +623,53 @@ class Tracker
 
 		return true;
 	}
+	//END OLD
 
-	private function prepareMessage($text)
+	/**
+	 * TODO: доработать до нормального состояния
+	 * @param $messageText
+	 * @return array
+	 */
+	protected static function checkMessage($messageText)
+	{
+		$result = Array(
+			'PHONES' => Array(),
+			'EMAILS' => Array(),
+		);
+
+		//Phone
+		$phoneParserManager = PhoneParser::getInstance();
+
+		preg_match_all('/' . $phoneParserManager->getValidNumberPattern() . '/i', $messageText, $matchesPhones);
+		if (!empty($matchesPhones[0]))
+		{
+			foreach ($matchesPhones[0] as $phone)
+			{
+				$phoneNumberManager = $phoneParserManager->parse($phone);
+				if($phoneNumberManager->isValid())
+				{
+					$phone = $phoneNumberManager->format();
+
+					$result['PHONES'][$phone] = $phone;
+				}
+			}
+		}
+
+		//Email
+		preg_match_all("/[^\s]+@[^\s]+/i", $messageText, $matchesEmails);
+		if (!empty($matchesEmails[0]))
+		{
+			foreach ($matchesEmails[0] as $email)
+			{
+				$email = trim($email);
+				$result['EMAILS'][$email] = $email;
+			}
+		}
+
+		return $result;
+	}
+
+	protected static function prepareMessage($text)
 	{
 		$textParser = new \CTextParser();
 		$textParser->allow = array("HTML" => "N", "USER" => "N",  "ANCHOR" => "Y", "BIU" => "Y", "IMG" => "Y", "QUOTE" => "N", "CODE" => "N", "FONT" => "N", "LIST" => "N", "SMILES" => "N", "NL2BR" => "Y", "VIDEO" => "N", "TABLE" => "N", "CUT_ANCHOR" => "N", "ALIGN" => "N");
@@ -1367,10 +689,5 @@ class Tracker
 		$text = preg_replace('#\-{54}.+?\-{54}#s', " ", str_replace(array("#BR#"), Array(" "), $text));
 
 		return $text;
-	}
-
-	public function getError()
-	{
-		return $this->error;
 	}
 }

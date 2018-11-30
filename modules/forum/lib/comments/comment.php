@@ -37,7 +37,8 @@ class Comment extends BaseObject
 			"USE_SMILES" => ($params["USE_SMILES"] == "Y" ? "Y" : "N"),
 			"APPROVED" => $this->topic["APPROVED"],
 			"XML_ID" => $this->getEntity()->getXmlId(),
-			"USER_ID" => $this->getUser()->getId()
+			"USER_ID" => $this->getUser()->getId(),
+			"AUX" => isset($params["AUX"]) ? $params["AUX"] : 'N',
 		);
 		$errorCollection = new ErrorCollection();
 		if (strlen($result["POST_MESSAGE"]) <= 0)
@@ -130,7 +131,8 @@ class Comment extends BaseObject
 			"AUTHOR_NAME" => trim($params["AUTHOR_NAME"]),
 			"AUTHOR_EMAIL" => trim($params["AUTHOR_EMAIL"]),
 			"USE_SMILES" => $params["USE_SMILES"],
-			"FILES" => $params["FILES"]
+			"FILES" => $params["FILES"],
+			"AUX" => $params["AUX"]
 		);
 
 		if ($this->prepareFields($params, $this->errorCollection))

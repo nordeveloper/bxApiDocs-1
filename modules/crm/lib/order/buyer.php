@@ -2,6 +2,8 @@
 
 namespace Bitrix\Crm\Order;
 
+use Bitrix\Main\UserTable;
+
 class Buyer
 {
 	const AUTH_ID = 'shop';
@@ -85,5 +87,53 @@ class Buyer
 		}
 
 		return true;
+	}
+
+	/**
+	 * Event handler for buyer editing when api sends password.
+	 * @see \CAllUser::SendPassword
+	 *
+	 * @param $params
+	 */
+	public static function onBeforeUserSendPasswordHandler(&$params)
+	{
+		if (isset($params['LOGIN']) && $params['LOGIN'] !== '')
+		{
+			$filter = [
+				'=LOGIN' => $params['LOGIN'],
+				'=EXTERNAL_AUTH_ID' => self::AUTH_ID
+			];
+		}
+		elseif (isset($params['EMAIL']) && $params['EMAIL'] !== '')
+		{
+			$filter = [
+				'=EMAIL' => $params['EMAIL'],
+				'=EXTERNAL_AUTH_ID' => self::AUTH_ID
+			];
+		}
+
+		if (!empty($filter))
+		{
+			$user = UserTable::getRow([
+				'select' => ['ID'],
+				'filter' => $filter,
+			]);
+
+			if ($user !== null)
+			{
+				$params['EXTERNAL_AUTH_ID'] = self::AUTH_ID;
+			}
+		}
+	}
+
+	/**
+	 * Event handler for buyer editing when api changes password.
+	 * @see \CAllUser::ChangePassword
+	 *
+	 * @param $params
+	 */
+	public static function OnBeforeUserChangePasswordHandler(&$params)
+	{
+		static::onBeforeUserSendPasswordHandler($params);
 	}
 }

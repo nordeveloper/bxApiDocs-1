@@ -30,6 +30,8 @@ class CSalePersonType extends CAllSalePersonType
 			unset($arFilter["LID"]);
 		}
 
+		$arFilter['ENTITY_REGISTRY_TYPE'] = \Bitrix\Sale\Registry::REGISTRY_TYPE_ORDER;
+
 		// FIELDS -->
 		$arFields = array(
 				"ID" => array("FIELD" => "PT.ID", "TYPE" => "int"),
@@ -39,6 +41,7 @@ class CSalePersonType extends CAllSalePersonType
 				"CODE" => array("FIELD" => "PT.CODE", "TYPE" => "string"),
 				"SORT" => array("FIELD" => "PT.SORT", "TYPE" => "int"),
 				"ACTIVE" => array("FIELD" => "PT.ACTIVE", "TYPE" => "char"),
+				"ENTITY_REGISTRY_TYPE" => array("FIELD" => "ENTITY_REGISTRY_TYPE", "TYPE" => "string"),
 			);
 		// <-- FIELDS
 

@@ -32,10 +32,15 @@ abstract class StatusBase
 		{
 			if (!isset($parameters['filter']))
 			{
-				$parameters['filter'] = [];
+				$parameters['filter'] = ['=TYPE' => static::TYPE];
 			}
-
-			$parameters['filter']['=TYPE'] = static::TYPE;
+			else
+			{
+				$parameters['filter'] = [
+					'=TYPE' => static::TYPE,
+					$parameters['filter']
+				];
+			}
 		}
 
 		return StatusTable::getList($parameters);

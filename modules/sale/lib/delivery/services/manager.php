@@ -747,6 +747,7 @@ class Manager
 	public static function update($id, array $fields)
 	{
 		self::initHandlers();
+
 		$res = \Bitrix\Sale\Delivery\Services\Table::update($id, $fields);
 
 		if($res->isSuccess())

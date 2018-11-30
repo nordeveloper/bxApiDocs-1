@@ -48,6 +48,12 @@ class CCrmVat
 		unset($vatRate);
 		return $listItems;
 	}
+
+	public static function GetFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_VAT_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
+	}
 }
 
 ?>

@@ -3272,7 +3272,8 @@ if (Main\Loader::includeModule('sale'))
 			{
 				foreach ($productQuantityList as $amountProductId => $amountValue)
 				{
-					$catalogData = $products[$amountProductId]['CATALOG'];
+					$product = $products[$amountProductId];
+					$catalogData = $product['CATALOG'];
 
 					$catalogReservedQuantity = floatval($catalogData['QUANTITY_RESERVED']);
 					$catalogQuantity = 0;
@@ -3288,7 +3289,12 @@ if (Main\Loader::includeModule('sale'))
 						}
 					}
 
-					if ($amountValue > ($catalogQuantity + $catalogReservedQuantity))
+					if ($product['RESERVED_QUANTITY_LIST'][$product['BASKET_CODE']] > 0)
+					{
+						$catalogQuantity += $catalogReservedQuantity;
+					}
+
+					if ($amountValue > $catalogQuantity)
 					{
 						$result->addError(
 							new Sale\ResultError(

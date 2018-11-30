@@ -65,11 +65,12 @@ class Scenario
 		], $waitResponse);
 	}
 
-	public function sendStartTransfer($userId, $transferCallId, $waitResponse = false)
+	public function sendStartTransfer($userId, $transferCallId, $forwardConfig, $waitResponse = false)
 	{
 		return $this->send([
 			'COMMAND' => static::COMMAND_START_TRANSFER,
 			'TRANSFER_CALL_ID' => $transferCallId,
+			'FORWARD_CONFIG' => $forwardConfig,
 			'OPERATOR_ID' => $userId,
 		], $waitResponse);
 	}

@@ -307,12 +307,16 @@ class Form
 		
 		return $manifest;
 	}
-	
-	
+
+	/**
+	 * Get original domain for web-forms.
+	 * @return string
+	 */
 	public static function getOriginalFormDomain()
 	{
 		$formDomain = '';
-//		if is b24 portal - use just them domain
+
+		// if is b24 portal - use just them domain
 		if (Manager::isB24())
 		{
 			$formDomain = (\CMain::IsHTTPS() ? 'https://' : 'http://') . str_replace(

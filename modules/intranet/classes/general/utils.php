@@ -1810,6 +1810,18 @@ class CIntranetUtils
 		}
 
 		if (
+			\Bitrix\Main\Loader::includeModule("crm")
+			&& preg_match("~^".SITE_DIR."crm/lead/~i", $firstPagePath)
+			&& !\Bitrix\Crm\Settings\LeadSettings::isEnabled()
+		)
+		{
+			if (\Bitrix\Crm\Settings\DealSettings::getCurrent()->getCurrentListViewID() == \Bitrix\Crm\Settings\DealSettings::VIEW_KANBAN)
+				$firstPagePath = SITE_DIR."crm/deal/kanban/";
+			else
+				$firstPagePath = \CCrmOwnerType::GetListUrl(\CCrmOwnerType::Deal);
+		}
+
+		if (
 			empty($firstPagePath)
 			|| preg_match("~^(/(\\?.*)?|/index.php(\\?.*)?)$~i", $firstPagePath)
 			|| preg_match("~^(http|//|/company/personal/mail/)~i", $firstPagePath)
@@ -1851,7 +1863,7 @@ class CIntranetUtils
 		else if (LANGUAGE_ID == "en")
 			$currentDateTimeFormat = ($woYear ? "F j" : "F j, Y");
 		else if (in_array(LANGUAGE_ID, array("sc", "tc", "ja")))
-			$currentDateTimeFormat = ($woYear ? "Fj" : "YFj");
+			$currentDateTimeFormat = ($woYear ? "Fj" : "Y&#24180;Fj");
 
 		if (!$woTime)
 		{
@@ -1862,5 +1874,22 @@ class CIntranetUtils
 		}
 
 		return $currentDateTimeFormat;
+	}
+
+	public static function clearMenuCache()
+	{
+		if (\Bitrix\Main\ModuleManager::isModuleInstalled("bitrix24"))
+		{
+			if (defined("BX_COMP_MANAGED_CACHE"))
+			{
+				global $CACHE_MANAGER;
+				$CACHE_MANAGER->ClearByTag("bitrix24_left_menu");
+			}
+		}
+		else
+		{
+			$GLOBALS["CACHE_MANAGER"]->CleanDir("menu");
+			CBitrixComponent::clearComponentCache("bitrix:menu");
+		}
 	}
 }

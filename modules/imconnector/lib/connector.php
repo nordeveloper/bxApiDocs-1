@@ -6,9 +6,11 @@ use \Bitrix\Main\Loader,
 	\Bitrix\Main\Page\Asset,
 	\Bitrix\Main\Data\Cache,
 	\Bitrix\Main\Config\Option,
+	\Bitrix\Main\Web\Json,
 	\Bitrix\Main\Localization\Loc;
 use \Bitrix\ImOpenLines\Network,
 	\Bitrix\ImOpenLines\LiveChatManager;
+use \Bitrix\ImConnector\Model\InfoConnectorsTable;
 
 Loc::loadMessages(__FILE__);
 Library::loadMessages();
@@ -563,7 +565,7 @@ class Connector
 	 * @param string $id ID open line.
 	 * @return array.
 	 */
-	public static function infoConnectorsLine($id)
+	/*public static function infoConnectorsLine($id)
 	{
 		$result = array();
 		$cache = Cache::createInstance();
@@ -608,6 +610,89 @@ class Connector
 			else
 			{
 				$cache->abortDataCache();
+			}
+		}
+
+		return $result;
+	}*/
+
+	/**
+	 * Returns information about all connected connectors specific open line.
+	 *
+	 * @param $lineId
+	 *
+	 * @return array|mixed
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\LoaderException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function infoConnectorsLine($lineId)
+	{
+		$result = array();
+
+		$info = InfoConnectors::infoConnectorsLine($lineId);
+
+		if (!empty($info['DATA']))
+		{
+			$result = Json::decode($info['DATA']);
+			$expiresTime =  new \Bitrix\Main\Type\DateTime($info['EXPIRES']);
+
+			if ($expiresTime->getTimestamp() < time())
+			{
+				InfoConnectors::addSingleLineUpdateAgent($info['LINE_ID'], Library::LOCAL_AGENT_EXEC_INTERVAL);
+			}
+
+		}
+		else
+		{
+			$infoConnectors = InfoConnectors::addInfoConnectors($lineId);
+
+			if (!empty($infoConnectors))
+			{
+				if ($infoConnectors->isSuccess())
+				{
+					$info = $infoConnectors->getData();
+					$result = Json::decode($info['DATA']);
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Returns information about all connected connectors specific open line from connector server.
+	 *
+	 * @param $lineId
+	 *
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\LoaderException
+	 */
+	public static function getOutputInfoConnectorsLine($lineId)
+	{
+		$result = array();
+		$rawInfo = Output::infoConnectorsLine($lineId);
+		$infoConnectors = $rawInfo->getData();
+
+		if(!empty($infoConnectors))
+		{
+			$connectors = self::getListActiveConnector();
+
+			foreach ($connectors as $idConnector=>$value)
+			{
+				if(!empty($infoConnectors[$idConnector]))
+				{
+					$result[$idConnector] = $infoConnectors[$idConnector];
+					if(empty($result[$idConnector]['name']))
+						$result[$idConnector]['name'] = $value;
+
+					$result[$idConnector]['connector_name'] = $value;
+				}
 			}
 		}
 
@@ -687,6 +772,7 @@ class Connector
 			'telegrambot' => 'telegram',
 			'telegram' => 'telegram',
 			'vkgroup' => 'vk',
+			'vkgrouporder' => 'vk-order',
 			'facebook' => 'fb',
 			'facebookcomments' => 'fb-comments',
 			'facebookmessenger' => 'fb-messenger',

@@ -315,6 +315,7 @@ class Filter
 				$intervalLength = 30;
 			}
 
+			$intervalLength -= 1;
 			$interval = new \DateInterval("P{$intervalLength}D");
 			$interval->invert = 1;
 			$leftBoundary->add($interval);

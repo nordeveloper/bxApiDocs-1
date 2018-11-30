@@ -57,7 +57,7 @@ class HtmlParser extends Parser
 				}
 				else
 				{
-					$source = HtmlFilter::encode($node->getNodeValue());
+					$source = HtmlFilter::encode($node->getNodeValue(), ENT_QUOTES);
 				}
 
 				break;
@@ -462,7 +462,7 @@ class HtmlParser extends Parser
 		else
 		{
 			// Text
-			$cleaned = html_entity_decode($tag, ENT_COMPAT, (defined("BX_UTF") ? "UTF-8" : "ISO-8859-1"));
+			$cleaned = html_entity_decode($tag, ENT_QUOTES, (defined("BX_UTF") ? "UTF-8" : "ISO-8859-1"));
 			$node = $document->createTextNode($cleaned);
 		}
 

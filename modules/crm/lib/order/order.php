@@ -121,8 +121,11 @@ class Order extends Sale\Order
 	{
 		$collection = $this->getContactCompanyCollection();
 
-		/** @var ContactCompanyEntity $entity */
-		$entity = $collection->getPrimaryItemAppropriatedPersonType();
+		$entity = $collection->getPrimaryCompany();
+		if ($entity === null)
+		{
+			$entity = $collection->getPrimaryContact();
+		}
 
 		if ($entity === null)
 		{
@@ -152,6 +155,7 @@ class Order extends Sale\Order
 	/**
 	 * @return Sale\Result
 	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
 	 * @throws Main\NotSupportedException
 	 */
 	protected function onAfterSave()
@@ -300,7 +304,10 @@ class Order extends Sale\Order
 
 		$modifyParams = array(
 			'PREVIOUS_FIELDS' => array('STATUS_ID' => $originalValues['STATUS_ID']),
-			'CURRENT_FIELDS' => array('STATUS_ID' => $this->getField('STATUS_ID')),
+			'CURRENT_FIELDS' => array(
+				'STATUS_ID' => $this->getField('STATUS_ID'),
+				'EMP_STATUS_ID' => $this->getField('EMP_STATUS_ID')
+			),
 		);
 
 		Crm\Timeline\OrderController::getInstance()->onModify($this->getId(), $modifyParams);
@@ -495,6 +502,21 @@ class Order extends Sale\Order
 		}
 
 		return false;
+	}
+
+	/**
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\SystemException
+	 */
+	public function clearChanged()
+	{
+		parent::clearChanged();
+
+		if ($contactCompanyCollection = $this->getContactCompanyCollection())
+		{
+			$contactCompanyCollection->clearChanged();
+		}
 	}
 
 	/**

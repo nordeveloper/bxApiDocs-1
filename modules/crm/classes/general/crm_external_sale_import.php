@@ -236,8 +236,6 @@ class CCrmExternalSaleImport
 			if(!is_array($data) || empty($data))
 			{
 				$data = array(
-					"ACTIVE_TIMESTAMP" => $modificationLabel,
-					"MAX_TIMESTAMP" => $modificationLabel,
 					"DEAL_CREATED" => 0,
 					"DEAL_UPDATED" => 0,
 					"CONTACT_CREATED" => 0,
@@ -248,11 +246,10 @@ class CCrmExternalSaleImport
 				);
 			}
 
-			$modificationLabelTmp = $data['ACTIVE_TIMESTAMP'];
+			$modificationLabelTmp = $modificationLabel;
 			if ($modificationLabelTmp <= 0)
 			{
 				$modificationLabelTmp = time() - $importPeriod * 86400;
-				$data["ACTIVE_TIMESTAMP"] = $data["MAX_TIMESTAMP"] = $modificationLabelTmp;
 			}
 
 			$request = array(
@@ -278,9 +275,8 @@ class CCrmExternalSaleImport
 				return self::SyncStatusError;
 			}
 
-
 			$arErrors = array();
-			$arOrders = $this->ParseOrderData($orderData, $modificationLabel, $arErrors);
+			$arOrders = $this->ParseOrderData($orderData, $modificationLabelTmp, $arErrors);
 
 			if(is_array($arOrders))
 			{
@@ -303,7 +299,7 @@ class CCrmExternalSaleImport
 					CCrmExternalSale::Update(
 						$this->externalSaleId,
 						array(
-							"MODIFICATION_LABEL" => $data["MAX_TIMESTAMP"] > 0 ? $data["MAX_TIMESTAMP"] : time(),
+							"MODIFICATION_LABEL" => $modificationLabelTmp,
 							"LAST_STATUS" => $data["TOTAL"] > 0
 								? sprintf("Success: %d item(s)", $data["TOTAL"]) : "Success: 0 items",
 							"~LAST_STATUS_DATE" => $GLOBALS["DB"]->CurrentTimeFunction(),
@@ -355,7 +351,6 @@ class CCrmExternalSaleImport
 
 				if(empty($this->arError))
 				{
-					$data["MAX_TIMESTAMP"] = $modificationLabel;
 					$data["DEAL_CREATED"] += $this->arImportResult->numberOfCreatedDeals;
 					$data["DEAL_UPDATED"] += $this->arImportResult->numberOfUpdatedDeals;
 
@@ -368,7 +363,7 @@ class CCrmExternalSaleImport
 					$data["TOTAL"] += count($arOrders);
 
 					$arFieldsTmp = array(
-						"MODIFICATION_LABEL" => $modificationLabel,
+						"MODIFICATION_LABEL" => $modificationLabelTmp,
 						"~LAST_STATUS_DATE" => $GLOBALS["DB"]->CurrentTimeFunction()
 					);
 					if (count($arOrders) > 0)

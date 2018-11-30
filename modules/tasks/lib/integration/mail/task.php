@@ -107,13 +107,17 @@ final class Task extends \Bitrix\Tasks\Integration\Mail
 				\Bitrix\Disk\Uf\FileUserType::setValueForAllowEdit("TASKS_TASK", true);
 			}
 
-			$task = \CTaskItem::add(array(
-				'TITLE' => $subject == '' ? Loc::getMessage('TASKS_MAIL_NEW_TASK') : $subject,
-				'DESCRIPTION' => $message,
-				'CREATED_BY' => $userId,
-				'RESPONSIBLE_ID' => $userId,
-				\Bitrix\Tasks\Integration\Disk\UserField::getMainSysUFCode() => $files
-			), $userId);
+			$task = \CTaskItem::add(
+				[
+					'TITLE' => ($subject == ''? Loc::getMessage('TASKS_MAIL_NEW_TASK') : $subject),
+					'DESCRIPTION' => $message,
+					'CREATED_BY' => $userId,
+					'RESPONSIBLE_ID' => $userId,
+					\Bitrix\Tasks\Integration\Disk\UserField::getMainSysUFCode() => $files
+				],
+				$userId,
+				['SPAWNED_BY_AGENT' => true]
+			);
 		}
 		catch(\TasksException $e) // todo: get rid of this annoying catch by making \Bitrix\Tasks\*Exception classes inherited from TasksException (dont forget about code)
 		{

@@ -1003,9 +1003,21 @@ class Options
 			if ($currentPreset)
 			{
 				$request = $this->getRequest();
-				$isApplyFilter = (strtoupper($request->get("apply_filter")) == "Y");
-				$isClearFilter = (strtoupper($request->get("clear_filter")) == "Y");
-				$isWithPreset = (strtoupper($request->get("with_preset")) == "Y");
+				$params = $request->getPost('params');
+				$params = is_array($params) ? $params : [];
+
+				$isApplyFilter = (
+					(strtoupper($request->get("apply_filter")) == "Y") ||
+					(strtoupper($params["apply_filter"]) == "Y")
+				);
+				$isClearFilter = (
+					(strtoupper($request->get("clear_filter")) == "Y") ||
+					(strtoupper($params["clear_filter"]) == "Y")
+				);
+				$isWithPreset = (
+					(strtoupper($request->get("with_preset")) == "Y") ||
+					(strtoupper($params["with_preset"]) == "Y")
+				);
 
 				if (($useRequest && ($isApplyFilter || $isClearFilter) && !$isWithPreset) || $useRequest === false)
 				{

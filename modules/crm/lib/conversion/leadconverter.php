@@ -22,6 +22,8 @@ class LeadConverter extends EntityConverter
 	private static $maps = array();
 	/** @var LeadConversionMapper|null */
 	private $mapper = null;
+	/** @var int */
+	private $conversionTypeID = LeadConversionType::UNDEFINED;
 	/** @var bool */
 	private $isReturnCustomer = false;
 	/** @var bool */
@@ -87,7 +89,7 @@ class LeadConverter extends EntityConverter
 			array('=ID' => $this->entityID, 'CHECK_PERMISSIONS' => 'N'),
 			false,
 			false,
-			array('IS_RETURN_CUSTOMER')
+			array('ID', 'STATUS_ID', 'IS_RETURN_CUSTOMER')
 		);
 
 		$fields = $dbResult->Fetch();
@@ -100,7 +102,9 @@ class LeadConverter extends EntityConverter
 				EntityConversionException::NOT_FOUND
 			);
 		}
+		$this->conversionTypeID = LeadConversionType::resolveByEntityFields($fields);
 		$this->isReturnCustomer = isset($fields['IS_RETURN_CUSTOMER']) &&$fields['IS_RETURN_CUSTOMER'] == 'Y';
+
 		if($this->currentPhase === LeadConversionPhase::INTERMEDIATE)
 		{
 			$this->currentPhase = LeadConversionPhase::COMPANY_CREATION;
@@ -267,6 +271,11 @@ class LeadConverter extends EntityConverter
 			$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);
 			$config = $this->config->getItem($entityTypeID);
 			if(!$config->isActive())
+			{
+				return false;
+			}
+
+			if(!LeadConversionScheme::isTargetTypeSupported($entityTypeID, array('TYPE_ID' => $this->conversionTypeID)))
 			{
 				return false;
 			}

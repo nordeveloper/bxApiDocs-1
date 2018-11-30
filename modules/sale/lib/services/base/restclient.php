@@ -37,7 +37,7 @@ class RestClient
 	protected $accessSettings = null;
 	protected $serviceHost = 'https://saleservices.bitrix.info';
 
-	protected $version = 3;
+	protected $version = 4;
 
 	/**
 	 * Performs call to the REST method and returns decoded results of the call.

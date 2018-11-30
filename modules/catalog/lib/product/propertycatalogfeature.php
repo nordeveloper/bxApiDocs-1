@@ -12,9 +12,15 @@ if (Loader::includeModule('iblock'))
 {
 	class PropertyCatalogFeature extends Iblock\Model\PropertyFeature
 	{
-		const FEATURE_ID_BASKET_PROPERTY = 'IN_BASKET';
-		const FEATURE_ID_OFFER_TREE_PROPERTY = 'OFFER_TREE';
+		const FEATURE_ID_BASKET_PROPERTY = 'IN_BASKET'; // property added to basket
+		const FEATURE_ID_OFFER_TREE_PROPERTY = 'OFFER_TREE'; // property is used to select offers
 
+		/**
+		 * Event handler. Returns catalog feature list for iblock.
+		 *
+		 * @param Main\Event $event		Event data.
+		 * @return Main\EventResult
+		 */
 		public static function handlerPropertyFeatureBuildList(Main\Event $event)
 		{
 			$list = [];
@@ -43,6 +49,22 @@ if (Loader::includeModule('iblock'))
 			return new Main\EventResult(Main\EventResult::SUCCESS, $list);
 		}
 
+		/**
+		 * Unified method to get properties added to basket.
+		 *
+		 * @param int $iblockId			Iblock identifier.
+		 * @param array $parameters		Options
+		 * 	keys are case sensitive:
+		 *		<ul>
+		 * 		<li>CODE	Return symbolic code as identifier (Y/N, default N).
+		 *		</ul>
+		 * @return array|null
+		 * @throws Main\ArgumentException
+		 * @throws Main\ArgumentNullException
+		 * @throws Main\ArgumentOutOfRangeException
+		 * @throws Main\ObjectPropertyException
+		 * @throws Main\SystemException
+		 */
 		public static function getBasketPropertyCodes($iblockId, array $parameters = [])
 		{
 			$iblockId = (int)$iblockId;
@@ -87,7 +109,8 @@ if (Loader::includeModule('iblock'))
 					break;
 				case \CCatalogSku::TYPE_OFFERS:
 					$filter = [
-						'!=PROPERTY.PROPERTY_TYPE' => Iblock\PropertyTable::TYPE_FILE
+						'!=PROPERTY.PROPERTY_TYPE' => Iblock\PropertyTable::TYPE_FILE,
+						'!=ID' => $catalog['SKU_PROPERTY_ID']
 					];
 					break;
 			}
@@ -102,6 +125,22 @@ if (Loader::includeModule('iblock'))
 			return self::getFilteredPropertyCodes($iblockId, $filter, $parameters);
 		}
 
+		/**
+		 * Unified method for obtaining properties used to select offers.
+		 *
+		 * @param int $iblockId			Iblock identifier.
+		 * @param array $parameters		Options
+		 * 	keys are case sensitive:
+		 *		<ul>
+		 * 		<li>CODE	Return symbolic code as identifier (Y/N, default N).
+		 *		</ul>
+		 * @return array|null
+		 * @throws Main\ArgumentException
+		 * @throws Main\ArgumentNullException
+		 * @throws Main\ArgumentOutOfRangeException
+		 * @throws Main\ObjectPropertyException
+		 * @throws Main\SystemException
+		 */
 		public static function getOfferTreePropertyCodes($iblockId, array $parameters = [])
 		{
 			$iblockId = (int)$iblockId;
@@ -138,11 +177,118 @@ if (Loader::includeModule('iblock'))
 			return self::getFilteredPropertyCodes($iblockId, $filter, $parameters);
 		}
 
+		/**
+		 * Getting properties added to basket when feature engine is off.
+		 * Internal method.
+		 *
+		 * @param array $catalog		Catalog description.
+		 * @param array $parameters		Options
+		 * 	keys are case sensitive:
+		 *		<ul>
+		 * 		<li>CODE	Return symbolic code as identifier (Y/N, default N).
+		 *		</ul>
+		 * @return array|null
+		 * @throws Main\ArgumentException
+		 * @throws Main\ObjectPropertyException
+		 * @throws Main\SystemException
+		 */
 		private static function getBasketPropertyByTypes(array $catalog, array $parameters = [])
 		{
-			return null;
+			$result = [];
+
+			$getCode = (isset($parameters['CODE']) && $parameters['CODE'] == 'Y');
+			$filter = [];
+			switch ($catalog['CATALOG_TYPE'])
+			{
+				case \CCatalogSku::TYPE_CATALOG:
+					$filter = [
+						'=IBLOCK_ID' => $catalog['IBLOCK_ID'],
+						[
+							'LOGIC' => 'OR',
+							[
+								'=MULTIPLE' => 'Y',
+								'@PROPERTY_TYPE' => [
+									Iblock\PropertyTable::TYPE_ELEMENT,
+									Iblock\PropertyTable::TYPE_SECTION,
+									Iblock\PropertyTable::TYPE_LIST,
+									Iblock\PropertyTable::TYPE_NUMBER,
+									Iblock\PropertyTable::TYPE_STRING
+								]
+							],
+							[
+								'=MULTIPLE' => 'N',
+								'@PROPERTY_TYPE' => [
+									Iblock\PropertyTable::TYPE_ELEMENT,
+									Iblock\PropertyTable::TYPE_LIST
+								]
+							]
+						]
+					];
+					break;
+				case \CCatalogSku::TYPE_PRODUCT:
+				case \CCatalogSku::TYPE_FULL:
+					$filter = [
+						'=IBLOCK_ID' => $catalog['PRODUCT_IBLOCK_ID'],
+						[
+							'LOGIC' => 'OR',
+							[
+								'=MULTIPLE' => 'Y',
+								'@PROPERTY_TYPE' => [
+									Iblock\PropertyTable::TYPE_ELEMENT,
+									Iblock\PropertyTable::TYPE_SECTION,
+									Iblock\PropertyTable::TYPE_LIST,
+									Iblock\PropertyTable::TYPE_NUMBER,
+									Iblock\PropertyTable::TYPE_STRING
+								]
+							],
+							[
+								'=MULTIPLE' => 'N',
+								'@PROPERTY_TYPE' => [
+									Iblock\PropertyTable::TYPE_ELEMENT,
+									Iblock\PropertyTable::TYPE_LIST
+								]
+							]
+						]
+					];
+					break;
+				case \CCatalogSku::TYPE_OFFERS:
+					$filter = [
+						'=IBLOCK_ID' => $catalog['IBLOCK_ID'],
+						'!=PROPERTY_TYPE' => Iblock\PropertyTable::TYPE_FILE,
+						'!=ID' => $catalog['SKU_PROPERTY_ID']
+					];
+					break;
+			}
+			$filter['=ACTIVE'] = 'Y';
+
+			$iterator = Iblock\PropertyTable::getList([
+				'select' => ['ID', 'CODE', 'SORT'],
+				'filter' => $filter,
+				'order' => ['SORT' => 'ASC', 'ID' => 'ASC']
+			]);
+			while ($row = $iterator->fetch())
+				$result[(int)$row['ID']] = self::getPropertyCode($row, $getCode);
+			unset($row, $iterator);
+			unset($filter, $getCode);
+
+			return (!empty($result) ? array_values($result) : null);
 		}
 
+		/**
+		 * Getting the properties used to select offers when feature engine is off.
+		 * Internal method.
+		 *
+		 * @param array $catalog		Catalog description.
+		 * @param array $parameters		Options
+		 * 	keys are case sensitive:
+		 *		<ul>
+		 * 		<li>CODE	Return symbolic code as identifier (Y/N, default N).
+		 *		</ul>
+		 * @return array|null
+		 * @throws Main\ArgumentException
+		 * @throws Main\ObjectPropertyException
+		 * @throws Main\SystemException
+		 */
 		private static function getOfferTreePropertyByTypes(array $catalog, array $parameters = [])
 		{
 			$result = [];
@@ -180,6 +326,14 @@ if (Loader::includeModule('iblock'))
 			return (!empty($result) ? array_values($result) : null);
 		}
 
+		/**
+		 * Check - can the property be added to the basket.
+		 * Internal method.
+		 *
+		 * @param array $property		Property description.
+		 * @param array $description	Additional description.
+		 * @return bool
+		 */
 		private static function checkBasketProperty(array $property, array $description)
 		{
 			if (!isset($property['IBLOCK_ID']))
@@ -241,6 +395,14 @@ if (Loader::includeModule('iblock'))
 			return true;
 		}
 
+		/**
+		 * Check - can the property be used to select trade offers.
+		 * Internal method.
+		 *
+		 * @param array $property		Property description.
+		 * @param array $description	Additional description.
+		 * @return bool
+		 */
 		private static function checkOfferTreeProperty(array $property, array $description)
 		{
 			if (!isset($property['IBLOCK_ID']))

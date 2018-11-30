@@ -30,12 +30,16 @@ class Property extends PropertyBase
 	{
 		if (!isset($parameters['filter']))
 		{
-			$parameters['filter'] = [];
+			$parameters['filter'] = [
+				'=ENTITY_REGISTRY_TYPE' => static::getRegistryType()
+			];
 		}
-
-		if(!isset($parameters['filter']['ENTITY_REGISTRY_TYPE']))
+		else
 		{
-			$parameters['filter']['=ENTITY_REGISTRY_TYPE'] = static::getRegistryType();
+			$parameters['filter'] = [
+				'=ENTITY_REGISTRY_TYPE' => static::getRegistryType(),
+				$parameters['filter']
+			];
 		}
 
 		return OrderPropsTable::getList($parameters);

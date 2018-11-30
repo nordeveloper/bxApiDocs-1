@@ -5,8 +5,9 @@ use Bitrix\Crm\PhaseSemantics;
 
 class PhaseColorScheme
 {
-	const PROCESS_COLOR = '#00A9DF';
-	const SUCCESS_COLOR = '#9DCF00';
+	const PROCESS_COLORS = array('#39A8EF', '#2FC6F6', '#55D0E0', '#47E4C2', '#FFA900');
+	const PROCESS_COLOR = '#39A8EF';
+	const SUCCESS_COLOR = '#7BD500';
 	const FAILURE_COLOR = '#FF5752';
 
 	/** @var string  */
@@ -37,10 +38,11 @@ class PhaseColorScheme
 	}
 	/**
 	 * Get default element color by semantic ID.
-	 * @param PhaseSemantics $semanticID Semantic ID.
+	 * @param int $semanticID Semantic ID.
+	 * @param array $options.
 	 * @return string
 	 */
-	public static function getDefaultColorBySemantics($semanticID)
+	public static function getDefaultColorBySemantics($semanticID, array $options = null)
 	{
 		if($semanticID === PhaseSemantics::SUCCESS)
 		{
@@ -50,7 +52,18 @@ class PhaseColorScheme
 		{
 			return PhaseColorScheme::FAILURE_COLOR;
 		}
-		return self::PROCESS_COLOR;
+
+		$maxIndex = count(self::PROCESS_COLORS) - 1;
+		$offset = is_array($options) && isset($options['offset']) ? (int)$options['offset'] : -1;
+		if($offset < 0)
+		{
+			$offset = 0;
+		}
+		elseif ($offset > $maxIndex)
+		{
+			$offset %= ($maxIndex + 1);
+		}
+		return self::PROCESS_COLORS[$offset];
 	}
 	/**
 	 * Check if scheme is persistent.
@@ -148,6 +161,16 @@ class PhaseColorScheme
 		$this->internalize($params);
 		return true;
 	}
+
+	/**
+	 * Get Element Names
+	 * @return array
+	 */
+	public function getElementNames()
+	{
+		return array();
+	}
+
 	/**
 	 * Setup scheme by default
 	 * @return void
@@ -155,13 +178,19 @@ class PhaseColorScheme
 	public function setupByDefault()
 	{
 		$this->reset();
+		$names = $this->getElementNames();
+		for($i = 0, $length = count($names); $i < $length; $i++)
+		{
+			$this->addElement(new PhaseColorSchemeElement($names[$i], $this->getDefaultColor($names[$i], $i)));
+		}
 	}
 	/**
 	 * Get default color for element.
 	 * @param string $name Element Name.
+	 * @param int $index Element Index.
 	 * @return string
 	 */
-	public function getDefaultColor($name)
+	public function getDefaultColor($name, $index = -1)
 	{
 		return '';
 	}
@@ -177,9 +206,12 @@ class PhaseColorScheme
 			$this->isPersistent = false;
 		}
 	}
+
 	/**
 	 * Remove scheme from options
+	 * @param $optionName
 	 * @return void
+	 * @throws Main\ArgumentNullException
 	 */
 	protected static function removeByName($optionName)
 	{

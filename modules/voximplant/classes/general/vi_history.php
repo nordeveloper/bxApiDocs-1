@@ -29,8 +29,6 @@ class CVoxImplantHistory
 			return false;
 		}
 
-		$call = VI\Model\CallTable::getByCallId($params['CALL_ID']);
-
 		$statisticRecord = VI\StatisticTable::getByCallId($params['CALL_ID']);
 		if($statisticRecord)
 		{
@@ -38,22 +36,20 @@ class CVoxImplantHistory
 			return false;
 		}
 
-		$config = false;
-		if(is_array($call) && $call['CONFIG_ID'] > 0)
+		$call = VI\Call::load($params['CALL_ID']);
+		if(!$call)
 		{
-			$config = CVoxImplantConfig::GetConfig($call['CONFIG_ID']);
+			$call = static::recreateCall($params);
 		}
-		else if(isset($params['ACCOUNT_SEARCH_ID']))
-		{
-			$config = CVoxImplantConfig::GetConfigBySearchId($params['ACCOUNT_SEARCH_ID']);
-		}
-		$isPortalCall = ($call && $call['PORTAL_USER_ID'] > 0);
+
+		$config = $call->getConfig();
+
 		$arFields = array(
 			"ACCOUNT_ID" =>			$params["ACCOUNT_ID"],
 			"APPLICATION_ID" =>		$params["APPLICATION_ID"],
 			"APPLICATION_NAME" =>	isset($params["APPLICATION_NAME"])?$params["APPLICATION_NAME"]: '-',
 			"INCOMING" =>			$params["INCOMING"],
-			"CALL_START_DATE" =>	$call? $call['DATE_CREATE']: new Bitrix\Main\Type\DateTime(),
+			"CALL_START_DATE" =>	$call->getDateCreate(),
 			"CALL_DURATION" =>		isset($params["CALL_DURATION"])? $params["CALL_DURATION"]: $params["DURATION"],
 			"CALL_STATUS" =>		$params["CALL_STATUS"],
 			"CALL_FAILED_CODE" =>	$params["CALL_FAILED_CODE"],
@@ -63,7 +59,7 @@ class CVoxImplantHistory
 			"CALL_VOTE" =>			intval($params["CALL_VOTE"]),
 			"CALL_ID" =>			$params["CALL_ID"],
 			"CALL_CATEGORY" =>		$params["CALL_CATEGORY"],
-			"SESSION_ID" =>			$call ? $call["SESSION_ID"] : $params["SESSION_ID"],
+			"SESSION_ID" =>			$call->getSessionId(),
 			"TRANSCRIPT_PENDING" => $params['TRANSCRIPT_PENDING'] == 'Y' ? 'Y' : 'N',
 		);
 
@@ -85,90 +81,47 @@ class CVoxImplantHistory
 		if (strlen($params["CALL_LOG"]) > 0)
 			$arFields["CALL_LOG"] = $params["CALL_LOG"];
 
-		if($call && $call['CRM_ENTITY_TYPE'] && $call['CRM_ENTITY_ID'])
-		{
-			$arFields['CRM_ENTITY_TYPE'] = $call['CRM_ENTITY_TYPE'];
-			$arFields['CRM_ENTITY_ID'] = $call['CRM_ENTITY_ID'];
-		}
-		else if($params['CRM_ENTITY_TYPE'] && $params['CRM_ENTITY_ID'])
-		{
-			$arFields['CRM_ENTITY_TYPE'] = $params['CRM_ENTITY_TYPE'];
-			$arFields['CRM_ENTITY_ID'] = $params['CRM_ENTITY_ID'];
-		}
-		else if(!$isPortalCall && $params['PHONE_NUMBER'] != '')
-		{
-			$crmData = CVoxImplantCrmHelper::GetCrmEntity($params['PHONE_NUMBER']);
-			if(is_array($crmData))
-			{
-				$arFields['CRM_ENTITY_TYPE'] = $crmData['ENTITY_TYPE_NAME'];
-				$arFields['CRM_ENTITY_ID'] = $crmData['ENTITY_ID'];
-			}
-		}
-
 		if ($arFields["INCOMING"] == CVoxImplantMain::CALL_INFO)
 		{
 			// infocalls have no responsible
 			$arFields["PORTAL_USER_ID"] = null;
 		}
+		else if ($arFields["CALL_FAILED_CODE"] == 304 && (int)$params["PORTAL_USER_ID"] > 0)
+		{
+			$arFields["PORTAL_USER_ID"] = (int)$params["PORTAL_USER_ID"];
+		}
 		else if (
 			$arFields["CALL_FAILED_CODE"] == 304
-			&& (in_array($arFields["INCOMING"], [CVoxImplantMain::CALL_INCOMING, CVoxImplantMain::CALL_INCOMING_REDIRECT, CVoxImplantMain::CALL_CALLBACK]))
-			&& $arFields['CRM_ENTITY_TYPE']
-			&& $arFields['CRM_ENTITY_ID']
-			&& ($crmResponsibleId = CVoxImplantCrmHelper::getResponsible($arFields['CRM_ENTITY_TYPE'], $arFields['CRM_ENTITY_ID']))
+			&& (in_array($call->getIncoming(), [CVoxImplantMain::CALL_INCOMING, CVoxImplantMain::CALL_INCOMING_REDIRECT, CVoxImplantMain::CALL_CALLBACK]))
+			&& $call->getPrimaryEntityType() != ''
+			&& $call->getPrimaryEntityId() > 0
+			&& ($crmResponsibleId = CVoxImplantCrmHelper::getResponsible($call->getPrimaryEntityType(), $call->getPrimaryEntityId()))
 		)
 		{
 			// missed call should be assigned to a responsible user, if a client is found in CRM
 			$arFields["PORTAL_USER_ID"] = $crmResponsibleId;
 		}
-		else if($call && intval($call["USER_ID"]) > 0)
+		else if($call->getUserId() > 0)
 		{
-			$arFields["PORTAL_USER_ID"] = $call["USER_ID"];
-		}
-		else if (intval($params["PORTAL_USER_ID"]) > 0)
-		{
-			$arFields["PORTAL_USER_ID"] = intval($params["PORTAL_USER_ID"]);
+			$arFields["PORTAL_USER_ID"] = $call->getUserId();
 		}
 		else
 		{
-			$arFields["PORTAL_USER_ID"] = intval(self::detectResponsible($call, $config, $params['PHONE_NUMBER']));
+			$arFields["PORTAL_USER_ID"] = intval(self::detectResponsible($call));
 		}
 
-		// Workaround to register call, somehow missing in b_voximplant_call table.
-		if((!$call || !$call['CRM_LEAD']) && CVoxImplantCrmHelper::shouldCreateLead($arFields, $config) && $arFields['PHONE_NUMBER'] != '')
+		$arFields['COMMENT'] = $call->getComment() ?: null;
+
+		if($call->getPrimaryEntityType() != '' && $call->getPrimaryEntityId() > 0)
 		{
-			$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall(array(
-				'CRM_ENTITY_TYPE' => $arFields['CRM_ENTITY_TYPE'],
-				'CRM_ENTITY_ID' => $arFields['CRM_ENTITY_ID'],
-				'CALLER_ID' => $arFields['PHONE_NUMBER']
-			));
-			$leadId = CVoxImplantCrmHelper::AddLead(
-				array(
-					'USER_ID' => $arFields['PORTAL_USER_ID'],
-					'PHONE_NUMBER' => $arFields['PHONE_NUMBER'],
-					'SEARCH_ID' => $config['SEARCH_ID'],
-					'CRM_SOURCE' => $config['CRM_SOURCE'],
-					'INCOMING' => $arFields['INCOMING']
-				),
-				$entityManager
-			);
-			if($leadId > 0 )
-			{
-				$arFields['CRM_ENTITY_TYPE'] = CCrmOwnerType::LeadName;
-				$arFields['CRM_ENTITY_ID'] = $leadId;
-
-				if(CVoxImplantConfig::GetLeadWorkflowExecution() == CVoxImplantConfig::WORKFLOW_START_IMMEDIATE)
-				{
-					CVoxImplantCrmHelper::StartLeadWorkflow($leadId, [
-						'LINE_NUMBER' => $arFields['PORTAL_NUMBER'],
-						'START_TRIGGER' => ($arFields['INCOMING'] == CVoxImplantMain::CALL_INCOMING)
-					]);
-				}
-			}
+			$arFields['CRM_ENTITY_TYPE'] = $call->getPrimaryEntityType();
+			$arFields['CRM_ENTITY_ID'] = $call->getPrimaryEntityId();
 		}
 
-		if($call && $call['COMMENT'])
-			$arFields['COMMENT'] = $call['COMMENT'];
+		if(\CVoxImplantConfig::GetLeadWorkflowExecution() == \CVoxImplantConfig::WORKFLOW_START_DEFERRED)
+		{
+			\CVoxImplantCrmHelper::StartCallTrigger($call);
+		}
 
 		$insertResult = Bitrix\VoxImplant\StatisticTable::add($arFields);
 		if (!$insertResult)
@@ -183,18 +136,18 @@ class CVoxImplantHistory
 
 		$arFields['ID'] = $insertResult->getId();
 
-		if (!$isPortalCall && (($call && $call['CRM'] == 'Y') || $params['CRM'] == 'Y'))
+		if (!$call->isInternalCall() && $call->isCrmEnabled())
 		{
-			if($call['CRM_ACTIVITY_ID'] && CVoxImplantCrmHelper::shouldAttachCallToActivity($arFields, $call['CRM_ACTIVITY_ID']))
+			if($call->getCrmActivityId() > 0 && CVoxImplantCrmHelper::shouldAttachCallToActivity($arFields, $call->getCrmActivityId()))
 			{
-				CVoxImplantCrmHelper::attachCallToActivity($arFields, $call['CRM_ACTIVITY_ID']);
-				$arFields['CRM_ACTIVITY_ID'] = $call['CRM_ACTIVITY_ID'];
+				CVoxImplantCrmHelper::attachCallToActivity($arFields, $call->getCrmActivityId());
+				$arFields['CRM_ACTIVITY_ID'] = $call->getCrmActivityId();
 			}
 			else
 			{
 				$arFields['CRM_ACTIVITY_ID'] = CVoxImplantCrmHelper::AddCall($arFields, array(
-					'WORKTIME_SKIPPED' => $call['WORKTIME_SKIPPED'],
-					'CRM_BINDINGS' => $call['CRM_BINDINGS']
+					'WORKTIME_SKIPPED' => $call->isWorktimeSkipped() ? 'Y' : 'N',
+					'CRM_BINDINGS' => $call->getCrmBindings()
 				));
 			}
 
@@ -202,7 +155,7 @@ class CVoxImplantHistory
 				'CRM_ACTIVITY_ID' => $arFields['CRM_ACTIVITY_ID']
 			));
 
-			if(isset($arFields['CRM_ENTITY_TYPE']) && isset($arFields['CRM_ENTITY_ID']))
+			if($call->getPrimaryEntityType() != '' && $call->getPrimaryEntityId() > 0)
 			{
 				$viMain = new CVoxImplantMain($arFields["PORTAL_USER_ID"]);
 				$dialogData = $viMain->GetDialogInfo($arFields['PHONE_NUMBER'], '', false);
@@ -211,9 +164,9 @@ class CVoxImplantHistory
 					CVoxImplantMain::UpdateChatInfo(
 						$dialogData['DIALOG_ID'],
 						array(
-							'CRM' => $call['CRM'],
-							'CRM_ENTITY_TYPE' => $arFields['CRM_ENTITY_TYPE'],
-							'CRM_ENTITY_ID' => $arFields['CRM_ENTITY_ID'],
+							'CRM' => $call->isCrmEnabled() ? 'Y' : 'N',
+							'CRM_ENTITY_TYPE' => $call->getPrimaryEntityType(),
+							'CRM_ENTITY_ID' => $call->getPrimaryEntityId(),
 							'PHONE_NUMBER' => $arFields['PHONE_NUMBER']
 						)
 					);
@@ -239,7 +192,7 @@ class CVoxImplantHistory
 
 		if (strlen($params['URL']) > 0)
 		{
-			$attachToCrm = $call['CRM'] == 'Y';
+			$attachToCrm = $call->isCrmEnabled();
 
 			$startDownloadAgent = false;
 
@@ -303,25 +256,30 @@ class CVoxImplantHistory
 			CVoxImplantAccount::SetPayedFlag($params["ACCOUNT_PAYED"]);
 		}
 
-		if($call && $call['CRM_LEAD'] > 0 && CVoxImplantConfig::GetLeadWorkflowExecution() == CVoxImplantConfig::WORKFLOW_START_DEFERRED)
+		if(CVoxImplantConfig::GetLeadWorkflowExecution() == CVoxImplantConfig::WORKFLOW_START_DEFERRED)
 		{
-			CVoxImplantCrmHelper::StartLeadWorkflow($call['CRM_LEAD'], [
-				'LINE_NUMBER' => $arFields['PORTAL_NUMBER'],
-				'START_TRIGGER' => ($arFields['INCOMING'] == CVoxImplantMain::CALL_INCOMING)
-			]);
+			$createdCrmEntities = $call->getCreatedCrmEntities();
+
+			foreach ($createdCrmEntities as $entity)
+			{
+				if($entity['ENTITY_TYPE'] === 'LEAD')
+				{
+					CVoxImplantCrmHelper::StartLeadWorkflow($entity['ENTITY_ID']);
+				}
+			}
 		}
 
-		if($call && $call['CRM_CALL_LIST'])
+		if($call->getCrmCallList() > 0)
 		{
-			CVoxImplantCrmHelper::attachCallToCallList($call['CRM_CALL_LIST'], $arFields);
+			CVoxImplantCrmHelper::attachCallToCallList($call->getCrmCallList(), $arFields);
 		}
 
 		/* repeat missed callback, if neeeded */
-		if($call && $call['INCOMING'] == CVoxImplantMain::CALL_CALLBACK && $params["CALL_FAILED_CODE"] == '304')
+		if($call->getIncoming() == CVoxImplantMain::CALL_CALLBACK && $params["CALL_FAILED_CODE"] == '304')
 		{
-			if(self::shouldRepeatCallback($call, $config))
+			if(self::shouldRepeatCallback($call->toArray(), $config))
 			{
-				self::repeatCallback($call, $config);
+				self::repeatCallback($call->toArray(), $config);
 			}
 		}
 
@@ -597,6 +555,18 @@ class CVoxImplantHistory
 		return true;
 	}
 
+	public static function TransferMessagePSTN($userId, $phoneNumber, $transferPhone)
+	{
+		self::SendMessageToChat(
+			$userId,
+			$phoneNumber,
+			CVoxImplantMain::CALL_INCOMING_REDIRECT,
+			GetMessage('VI_CALL_TRANSFER_PSTN', ['#NUMBER#' => $transferPhone])
+		);
+
+		return true;
+	}
+
 	public static function SendMessageToChat($userId, $phoneNumber, $incomingType, $message, $attach = null)
 	{
 		$ViMain = new CVoxImplantMain($userId);
@@ -861,16 +831,16 @@ class CVoxImplantHistory
 
 	/**
 	 * This function guesses responsible person to assign missed call.
-	 * @param array $call Call fields, as selected from the Bitrix\Voximplant\CallTable.
-	 * @param array $config Line config, as selected from the Bitrix\Voximplant\ConfigTable
+	 * @param VI\Call $call Call fields, as selected from the Bitrix\Voximplant\CallTable.
 	 * @return int|false Id of the responsible, or false if responsible is not found.
 	 */
-	public static function detectResponsible($call, $config, $phoneNumber)
+	public static function detectResponsible(VI\Call $call)
 	{
-		CVoxImplantHistory::WriteToLog($call, "detectResponsible");
-		if(is_array($call) && $call['QUEUE_ID'] > 0)
+		CVoxImplantHistory::WriteToLog($call->toArray(), "detectResponsible");
+		$config = $call->getConfig();
+		if($call->getQueueId() > 0)
 		{
-			$queue = VI\Queue::createWithId($call['QUEUE_ID']);
+			$queue = VI\Queue::createWithId($call->getQueueId());
 			if($queue instanceof VI\Queue)
 			{
 				$queueUser = $queue->getFirstUserId($config['TIMEMAN'] == 'Y');
@@ -882,11 +852,12 @@ class CVoxImplantHistory
 			}
 		}
 
+
 		if(is_array($config) && $config['CRM'] == 'Y' && $config['CRM_FORWARD'] == 'Y')
 		{
-			if(is_array($call) && $call['CRM_ENTITY_TYPE'] != '' && $call['CRM_ENTITY_ID'] > 0)
+			if($call->getPrimaryEntityType() != '' && $call->getPrimaryEntityId() > 0)
 			{
-				$responsibleId = CVoxImplantCrmHelper::getResponsible($call['CRM_ENTITY_TYPE'], $call['CRM_ENTITY_ID']);
+				$responsibleId = CVoxImplantCrmHelper::getResponsible($call->getPrimaryEntityType(), $call->getPrimaryEntityId());
 				if($responsibleId > 0)
 				{
 					return $responsibleId;
@@ -894,7 +865,7 @@ class CVoxImplantHistory
 			}
 			else
 			{
-				$responsibleInfo = CVoxImplantIncoming::getCrmResponsible($phoneNumber, $config['TIMEMAN'] == 'Y');
+				$responsibleInfo = CVoxImplantIncoming::getCrmResponsible($call, $config['TIMEMAN'] == 'Y');
 				if($responsibleInfo && $responsibleInfo['AVAILABLE'] == 'Y')
 				{
 					return $responsibleInfo['USER_ID'];
@@ -961,6 +932,42 @@ class CVoxImplantHistory
 		$callbackParameters['redialAttempt']++;
 
 		return $apiClient->enqueueCallback($call['CALLBACK_PARAMETERS'], time() + $config['CALLBACK_REDIAL_PERIOD']);
+	}
+
+	/**
+	 * Recreates lost call using AddCallHistory request fields
+	 * @param $params
+	 */
+	public static function recreateCall($params)
+	{
+		$config = CVoxImplantConfig::GetConfigBySearchId($params['ACCOUNT_SEARCH_ID']);
+
+		$call = VI\Call::create([
+			'CALL_ID' => $params['CALL_ID'],
+			'CONFIG_ID' => $config['ID'],
+			'DATE_CREATE' => \Bitrix\Main\Type\DateTime::createFromTimestamp($params['CALL_START_DATE']),
+			'INCOMING' => $params['INCOMING'],
+			'CALLER_ID' => $params['PHONE_NUMBER'],
+			'USER_ID' => $params['PORTAL_USER_ID'],
+			'SESSION_ID' => $params['SESSION_ID']
+		]);
+
+		$crmData = CVoxImplantCrmHelper::getCrmEntities($call);
+		$call->updateCrmEntities($crmData);
+		$activityBindings = CVoxImplantCrmHelper::getActivityBindings($call);
+		if(is_array($activityBindings))
+		{
+			$call->updateCrmBindings($activityBindings);
+		}
+
+		CVoxImplantCrmHelper::registerCallInCrm($call);
+
+		if(\CVoxImplantConfig::GetLeadWorkflowExecution() == \CVoxImplantConfig::WORKFLOW_START_IMMEDIATE)
+		{
+			\CVoxImplantCrmHelper::StartCallTrigger($call);
+		}
+
+		return $call;
 	}
 
 	/**

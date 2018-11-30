@@ -2927,7 +2927,7 @@ class CCatalogCondCtrlIBlockFields extends CCatalogCondCtrlComplex
 				'LOGIC' => static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ)),
 				'JS_VALUE' => array(
 					'type' => 'multiDialog',
-					'popup_url' =>  'cat_product_search_dialog.php',
+					'popup_url' => 'cat_product_search_dialog.php',
 					'popup_params' => array(
 						'lang' => LANGUAGE_ID,
 						'caller' => 'discount_rules',
@@ -2949,7 +2949,7 @@ class CCatalogCondCtrlIBlockFields extends CCatalogCondCtrlComplex
 				'LOGIC' => static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ)),
 				'JS_VALUE' => array(
 					'type' => 'popup',
-					'popup_url' =>  '/bitrix/admin/cat_iblock_search.php',
+					'popup_url' => 'cat_iblock_search.php',
 					'popup_params' => array(
 						'lang' => LANGUAGE_ID,
 						'discount' => 'Y'
@@ -2971,7 +2971,7 @@ class CCatalogCondCtrlIBlockFields extends CCatalogCondCtrlComplex
 				'LOGIC' => static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ)),
 				'JS_VALUE' => array(
 					'type' => 'popup',
-					'popup_url' =>  '/bitrix/admin/iblock_section_search.php',
+					'popup_url' => 'iblock_section_search.php',
 					'popup_params' => array(
 						'lang' => LANGUAGE_ID,
 						'discount' => 'Y',
@@ -3558,7 +3558,7 @@ class CCatalogCondCtrlIBlockProps extends CCatalogCondCtrlComplex
 									$arLogic = static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ));
 									$arValue = array(
 										'type' => 'popup',
-										'popup_url' =>  '/bitrix/admin/iblock_element_search.php',
+										'popup_url' => 'iblock_element_search.php',
 										'popup_params' => array(
 											'lang' => LANGUAGE_ID,
 											'IBLOCK_ID' => $arProp['LINK_IBLOCK_ID'],
@@ -3581,7 +3581,7 @@ class CCatalogCondCtrlIBlockProps extends CCatalogCondCtrlComplex
 									$arLogic = static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ));
 									$arValue = array(
 										'type' => 'popup',
-										'popup_url' =>  '/bitrix/admin/iblock_section_search.php',
+										'popup_url' => 'iblock_section_search.php',
 										'popup_params' => $popupParams,
 										'param_id' => 'n'
 									);

@@ -6,6 +6,7 @@ use Bitrix\Crm\Order\ContactCompanyCollection;
 use Bitrix\Main;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\NotImplementedException;
+use Bitrix\Crm\Order\Permissions;
 
 use Bitrix\Crm;
 
@@ -612,5 +613,60 @@ class Order extends \CCrmDocument
 		}
 
 		return parent::isFeatureEnabled($documentType, $feature);
+	}
+
+	public static function CanUserOperateDocument($operation, $userId, $documentId, $arParameters = array())
+	{
+		$arDocumentID = static::GetDocumentInfo($documentId);
+		if (empty($arDocumentID))
+		{
+			throw new \CBPArgumentNullException('documentId');
+		}
+
+		$userPermissions = \CCrmPerms::GetUserPermissions($userId);
+		$result = false;
+
+		if ($arDocumentID['ID'] > 0)
+		{
+			if (
+				$operation == \CBPCanUserOperateOperation::ViewWorkflow
+				||
+				$operation == \CBPCanUserOperateOperation::ReadDocument
+			)
+			{
+				$result = Permissions\Order::checkReadPermission($arDocumentID['ID'], $userPermissions);
+			}
+			else
+			{
+				$result = Permissions\Order::checkUpdatePermission($arDocumentID['ID'], $userPermissions);
+			}
+		}
+
+		return $result;
+	}
+
+	public static function CanUserOperateDocumentType($operation, $userId, $documentType, $arParameters = array())
+	{
+		$userPermissions = \CCrmPerms::GetUserPermissions($userId);
+
+		if (
+			$operation == \CBPCanUserOperateOperation::CreateWorkflow
+			||
+			$operation == \CBPCanUserOperateOperation::CreateAutomation
+		)
+		{
+			return (\CCrmAuthorizationHelper::CheckConfigurationUpdatePermission($userPermissions));
+		}
+
+		if (
+			$operation === \CBPCanUserOperateOperation::ViewWorkflow
+			||
+			$operation === \CBPCanUserOperateOperation::ReadDocument
+		)
+		{
+			return Permissions\Order::checkReadPermission(0, $userPermissions);
+		}
+
+		return Permissions\Order::checkCreatePermission($userPermissions);
 	}
 }

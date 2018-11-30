@@ -8,7 +8,7 @@
 
 namespace Bitrix\Imopenlines\Widget;
 
-use Bitrix\ImOpenLines\Error;
+use Bitrix\ImOpenLines\BasicError;
 use Bitrix\Main\Localization\Loc;
 
 class Config
@@ -92,7 +92,7 @@ class Config
 
 
 	/**
-	 * @return Error
+	 * @return BasicError
 	 */
 	public static function getError()
 	{
@@ -113,13 +113,13 @@ class Config
 	 */
 	private static function setError($method, $code, $msg, $params = Array())
 	{
-		static::$error = new Error($method, $code, $msg, $params);
+		static::$error = new BasicError($method, $code, $msg, $params);
 		return true;
 	}
 
 	private static function clearError()
 	{
-		static::$error = new Error(null, '', '');
+		static::$error = new BasicError(null, '', '');
 		return true;
 	}
 }

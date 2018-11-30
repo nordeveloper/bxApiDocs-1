@@ -199,13 +199,12 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 	/**
 	 * Returns query.
 	 * @param string $indicator Volume indicator class name.
-	 * @return Entity\Query
+	 * @param  array $entityGroupField Fileds for groupping.
+	 * @return Entity\Query|Main\ORM\Query\Query
 	 */
-	public function prepareQuery($indicator = '')
+	public function prepareQuery($indicator = '', $entityGroupField = array())
 	{
 		$query = Crm\ActivityTable::query();
-
-		$query->whereColumn('OWNER_TYPE_ID', '=', 'BINDINGS.OWNER_TYPE_ID');
 
 		if (
 			$indicator == Crm\Volume\Company::class
@@ -215,18 +214,14 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 				'COMPANY',
 				Crm\CompanyTable::class,
 				Entity\Query\Join::on('this.BINDINGS.OWNER_ID', 'ref.ID')->where('this.BINDINGS.OWNER_TYPE_ID', \CCrmOwnerType::Company),
-				array('join_type' => ($indicator == Crm\Volume\Company::class ? 'INNER' : 'LEFT'))
+				array('join_type' => 'INNER')
 			);
-			$query->registerRuntimeField('', $companyRelation);
+			$query->registerRuntimeField($companyRelation);
 
 			/** @global \CDatabase $DB */
 			global $DB;
-			$dayField = new Entity\ExpressionField(
-				'COMPANY_DATE_CREATE_SHORT',
-				$DB->datetimeToDateFunction('%s'),
-				'COMPANY.DATE_CREATE'
-			);
-			$query->registerRuntimeField('', $dayField);
+			$dayField = new Entity\ExpressionField('COMPANY_DATE_CREATE_SHORT', $DB->datetimeToDateFunction('%s'), 'COMPANY.DATE_CREATE');
+			$query->registerRuntimeField($dayField);
 		}
 		elseif (
 			$indicator == Crm\Volume\Contact::class
@@ -236,18 +231,14 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 				'CONTACT',
 				Crm\ContactTable::class,
 				Entity\Query\Join::on('this.BINDINGS.OWNER_ID', 'ref.ID')->where('this.BINDINGS.OWNER_TYPE_ID', \CCrmOwnerType::Contact),
-				array('join_type' => ($indicator == Crm\Volume\Contact::class ? 'INNER' : 'LEFT'))
+				array('join_type' => 'INNER')
 			);
-			$query->registerRuntimeField('', $contactRelation);
+			$query->registerRuntimeField($contactRelation);
 
 			/** @global \CDatabase $DB */
 			global $DB;
-			$dayField = new Entity\ExpressionField(
-				'CONTACT_DATE_CREATE_SHORT',
-				$DB->datetimeToDateFunction('%s'),
-				'CONTACT.DATE_CREATE'
-			);
-			$query->registerRuntimeField('', $dayField);
+			$dayField = new Entity\ExpressionField('CONTACT_DATE_CREATE_SHORT', $DB->datetimeToDateFunction('%s'), 'CONTACT.DATE_CREATE');
+			$query->registerRuntimeField($dayField);
 		}
 		else
 		{
@@ -257,7 +248,7 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 				Entity\Query\Join::on('this.BINDINGS.OWNER_ID', 'ref.ID')->where('this.BINDINGS.OWNER_TYPE_ID', \CCrmOwnerType::Deal),
 				array('join_type' => ($indicator == Crm\Volume\Deal::class ? 'INNER' : 'LEFT'))
 			);
-			$query->registerRuntimeField('', $dealRelation);
+			$query->registerRuntimeField($dealRelation);
 
 			$leadRelation = new Entity\ReferenceField(
 				'LEAD',
@@ -265,7 +256,7 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 				Entity\Query\Join::on('this.BINDINGS.OWNER_ID', 'ref.ID')->where('this.BINDINGS.OWNER_TYPE_ID', \CCrmOwnerType::Lead),
 				array('join_type' => ($indicator == Crm\Volume\Lead::class ? 'INNER' : 'LEFT'))
 			);
-			$query->registerRuntimeField('', $leadRelation);
+			$query->registerRuntimeField($leadRelation);
 
 			$quoteRelation = new Entity\ReferenceField(
 				'QUOTE',
@@ -273,7 +264,7 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 				Entity\Query\Join::on('this.BINDINGS.OWNER_ID', 'ref.ID')->where('this.BINDINGS.OWNER_TYPE_ID', \CCrmOwnerType::Quote),
 				array('join_type' => ($indicator == Crm\Volume\Quote::class ? 'INNER' : 'LEFT'))
 			);
-			$query->registerRuntimeField('', $quoteRelation);
+			$query->registerRuntimeField($quoteRelation);
 
 			// STAGE_SEMANTIC_ID
 			Crm\Volume\Quote::registerStageField($query, 'QUOTE', 'QUOTE_STAGE_SEMANTIC_ID');
@@ -285,16 +276,12 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 				Entity\Query\Join::on('this.BINDINGS.OWNER_ID', 'ref.ID')->where('this.BINDINGS.OWNER_TYPE_ID', \CCrmOwnerType::Invoice),
 				array('join_type' => ($indicator == Crm\Volume\Invoice::class ? 'INNER' : 'LEFT'))
 			);
-			$query->registerRuntimeField('', $invoiceRelation);
+			$query->registerRuntimeField($invoiceRelation);
 
 			/** @global \CDatabase $DB */
 			global $DB;
-			$dayField = new Entity\ExpressionField(
-				'INVOICE_DATE_CREATE_SHORT',
-				$DB->datetimeToDateFunction('%s'),
-				'INVOICE.DATE_INSERT'
-			);
-			$query->registerRuntimeField('', $dayField);
+			$dayField = new Entity\ExpressionField('INVOICE_DATE_CREATE_SHORT', $DB->datetimeToDateFunction('%s'), 'INVOICE.DATE_INSERT');
+			$query->registerRuntimeField($dayField);
 
 			// STAGE_SEMANTIC_ID
 			Crm\Volume\Invoice::registerStageField($query, 'INVOICE', 'INVOICE_STAGE_SEMANTIC_ID');
@@ -314,15 +301,244 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 					'INVOICE_STAGE_SEMANTIC_ID', 'INVOICE_STAGE_SEMANTIC_ID'
 				)
 			);
-			$query->registerRuntimeField('', $stageField);
+			$query->registerRuntimeField($stageField);
 		}
 
 		return $query;
 	}
 
 	/**
+	 * Returns query.
+	 * @param string $indicator Volume indicator class name.
+	 * @param  array $entityGroupField Fileds for groupping.
+	 * @return Entity\Query|Main\ORM\Query\Query
+	 */
+	public function prepareFileQuery($indicator = '', $entityGroupField = array())
+	{
+		/** @global \CDatabase $DB */
+		global $DB;
+
+		$queryBindings = Crm\ActivityBindingTable::query();
+
+		if (
+			$indicator == Crm\Volume\Company::class
+		)
+		{
+			$companyRelation = new Entity\ReferenceField(
+				'COMPANY',
+				Crm\CompanyTable::class,
+				Entity\Query\Join::on('this.OWNER_ID', 'ref.ID')->where('this.OWNER_TYPE_ID', \CCrmOwnerType::Company),
+				array('join_type' => 'INNER')
+			);
+			$queryBindings
+				->registerRuntimeField($companyRelation)
+				->registerRuntimeField(new Entity\ExpressionField('CM_COMPANY_DATE_CREATE_SHORT', 'MAX('.$DB->datetimeToDateFunction('%s').')', 'COMPANY.DATE_CREATE'))
+				->addSelect('CM_COMPANY_DATE_CREATE_SHORT', 'COMPANY_DATE_CREATE_SHORT');
+		}
+		elseif (
+			$indicator == Crm\Volume\Contact::class
+		)
+		{
+			$contactRelation = new Entity\ReferenceField(
+				'CONTACT',
+				Crm\ContactTable::class,
+				Entity\Query\Join::on('this.OWNER_ID', 'ref.ID')->where('this.OWNER_TYPE_ID', \CCrmOwnerType::Contact),
+				array('join_type' => 'INNER')
+			);
+			$queryBindings
+				->registerRuntimeField($contactRelation)
+				->registerRuntimeField(new Entity\ExpressionField('CN_CONTACT_DATE_CREATE_SHORT', 'MAX('.$DB->datetimeToDateFunction('%s').')', 'CONTACT.DATE_CREATE'))
+				->addSelect('CN_CONTACT_DATE_CREATE_SHORT', 'CONTACT_DATE_CREATE_SHORT');
+		}
+		else
+		{
+
+			//----- Deal
+			$dealRelation = new Entity\ReferenceField(
+				'DEAL',
+				Crm\DealTable::class,
+				Entity\Query\Join::on('this.OWNER_ID', 'ref.ID')->where('this.OWNER_TYPE_ID', \CCrmOwnerType::Deal),
+				array('join_type' => ($indicator == Crm\Volume\Deal::class ? 'INNER' : 'LEFT'))
+			);
+			$queryBindings->registerRuntimeField($dealRelation);
+
+			if ($indicator === Crm\Volume\Deal::class)
+			{
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('DEAL_STAGE_SEMANTIC_ID', 'MAX(%s)', 'DEAL.STAGE_SEMANTIC_ID'))
+					->addSelect('DEAL_STAGE_SEMANTIC_ID')
+
+					->registerRuntimeField(new Entity\ExpressionField('DEAL_DATE_CREATE_SHORT', 'MAX(%s)', 'DEAL.DATE_CREATE_SHORT'))
+					->addSelect('DEAL_DATE_CREATE_SHORT');
+			}
+			else
+			{
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('DEAL_STAGE_SEMANTIC_ID', '%s', 'DEAL.STAGE_SEMANTIC_ID'))
+					->registerRuntimeField(new Entity\ExpressionField('DEAL_DATE_CREATE_SHORT', '%s', 'DEAL.DATE_CREATE_SHORT'));
+			}
+
+
+			//----- Lead
+			$leadRelation = new Entity\ReferenceField(
+				'LEAD',
+				Crm\LeadTable::class,
+				Entity\Query\Join::on('this.OWNER_ID', 'ref.ID')->where('this.OWNER_TYPE_ID', \CCrmOwnerType::Lead),
+				array('join_type' => ($indicator == Crm\Volume\Lead::class ? 'INNER' : 'LEFT'))
+			);
+			$queryBindings->registerRuntimeField($leadRelation);
+
+			if ($indicator === Crm\Volume\Lead::class)
+			{
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('LEAD_STATUS_SEMANTIC_ID', 'MAX(%s)', 'LEAD.STATUS_SEMANTIC_ID'))
+					->addSelect('LEAD_STATUS_SEMANTIC_ID')
+
+					->registerRuntimeField(new Entity\ExpressionField('LEAD_DATE_CREATE_SHORT', 'MAX(%s)', 'LEAD.DATE_CREATE_SHORT'))
+					->addSelect('LEAD_DATE_CREATE_SHORT');
+			}
+			else
+			{
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('LEAD_DATE_CREATE_SHORT', '%s', 'LEAD.DATE_CREATE_SHORT'))
+					->registerRuntimeField(new Entity\ExpressionField('LEAD_STATUS_SEMANTIC_ID', '%s', 'LEAD.STATUS_SEMANTIC_ID'));
+			}
+
+
+			//---- Quote
+			$quoteRelation = new Entity\ReferenceField(
+				'QUOTE',
+				Crm\QuoteTable::class,
+				Entity\Query\Join::on('this.OWNER_ID', 'ref.ID')->where('this.OWNER_TYPE_ID', \CCrmOwnerType::Quote),
+				array('join_type' => ($indicator == Crm\Volume\Quote::class ? 'INNER' : 'LEFT'))
+			);
+			$queryBindings->registerRuntimeField($quoteRelation);
+
+			if ($indicator === Crm\Volume\Quote::class)
+			{
+				// QUOTE_STAGE_SEMANTIC_ID
+				Crm\Volume\Quote::registerStageField($queryBindings, 'QUOTE', 'QUOTE_STAGE_SRC');
+
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('QUOTE_STAGE_SEMANTIC_ID', 'MAX(%s)', 'QUOTE_STAGE_SRC'))
+					->addSelect('QUOTE_STAGE_SEMANTIC_ID')
+
+					->registerRuntimeField(new Entity\ExpressionField('QUOTE_DATE_CREATE_SHORT', 'MAX(%s)', 'QUOTE.DATE_CREATE_SHORT'))
+					->addSelect('QUOTE_DATE_CREATE_SHORT');
+			}
+			else
+			{
+				// QUOTE_STAGE_SEMANTIC_ID
+				Crm\Volume\Quote::registerStageField($queryBindings, 'QUOTE', 'QUOTE_STAGE_SEMANTIC_ID');
+
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('QUOTE_DATE_CREATE_SHORT', '%s', 'QUOTE.DATE_CREATE_SHORT'));
+			}
+
+
+			//----- Invoice
+			$invoiceRelation = new Entity\ReferenceField(
+				'INVOICE',
+				Crm\InvoiceTable::class,
+				Entity\Query\Join::on('this.OWNER_ID', 'ref.ID')->where('this.OWNER_TYPE_ID', \CCrmOwnerType::Invoice),
+				array('join_type' => ($indicator == Crm\Volume\Invoice::class ? 'INNER' : 'LEFT'))
+			);
+			$queryBindings->registerRuntimeField($invoiceRelation);
+
+			if ($indicator === Crm\Volume\Invoice::class)
+			{
+				// INVOICE_STAGE_SEMANTIC_ID
+				Crm\Volume\Invoice::registerStageField($queryBindings, 'INVOICE', 'INVOICE_STAGE_SRC');
+
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('INVOICE_STAGE_SEMANTIC_ID', 'MAX(%s)', 'INVOICE_STAGE_SRC'))
+					->addSelect('INVOICE_STAGE_SEMANTIC_ID')
+
+					->registerRuntimeField(new Entity\ExpressionField('INVOICE_DATE_CREATE_SHORT', 'MAX(%s)', 'INVOICE.DATE_INSERT'))
+					->addSelect('INVOICE_DATE_CREATE_SHORT');
+			}
+			else
+			{
+				// INVOICE_STAGE_SEMANTIC_ID
+				Crm\Volume\Invoice::registerStageField($queryBindings, 'INVOICE', 'INVOICE_STAGE_SEMANTIC_ID');
+
+				$queryBindings
+					->registerRuntimeField(new Entity\ExpressionField('INVOICE_DATE_CREATE_SHORT', $DB->datetimeToDateFunction('%s'), 'INVOICE.DATE_INSERT'));
+			}
+
+
+			if ($indicator === Crm\Volume\Activity::class)
+			{
+				// STAGE_SEMANTIC_ID
+				$stageField = new Entity\ExpressionField(
+					'ACT_STAGE_SEMANTIC_ID',
+					'CASE '.
+					' when %s is not null then %s '.
+					' when %s is not null then %s '.
+					' when %s is not null then %s '.
+					' when %s is not null then %s '.
+					'END',
+					array(
+						'DEAL_STAGE_SEMANTIC_ID', 'DEAL_STAGE_SEMANTIC_ID',
+						'LEAD_STATUS_SEMANTIC_ID', 'LEAD_STATUS_SEMANTIC_ID',
+						'QUOTE_STAGE_SEMANTIC_ID', 'QUOTE_STAGE_SEMANTIC_ID',
+						'INVOICE_STAGE_SEMANTIC_ID', 'INVOICE_STAGE_SEMANTIC_ID',
+					)
+				);
+				$queryBindings
+					->registerRuntimeField($stageField)
+					->registerRuntimeField(new Entity\ExpressionField('STAGE_SEMANTIC_ID_MAX', 'MAX(%s)', 'ACT_STAGE_SEMANTIC_ID'))
+					->addSelect('STAGE_SEMANTIC_ID_MAX', 'STAGE_SEMANTIC_ID');
+
+				// DATE_CREATED_SHORT
+				$dateField = new Entity\ExpressionField(
+					'ACT_DATE_CREATE_SHORT',
+					'CASE '.
+					' when %s is not null then %s '.
+					' when %s is not null then %s '.
+					' when %s is not null then %s '.
+					' when %s is not null then %s '.
+					'END',
+					array(
+						'DEAL.DATE_CREATE_SHORT', 'DEAL.DATE_CREATE_SHORT',
+						'LEAD.DATE_CREATE_SHORT', 'LEAD.DATE_CREATE_SHORT',
+						'QUOTE.DATE_CREATE_SHORT', 'QUOTE.DATE_CREATE_SHORT',
+						'INVOICE_DATE_CREATE_SHORT', 'INVOICE_DATE_CREATE_SHORT',
+					)
+				);
+
+				$queryBindings
+					->registerRuntimeField($dateField)
+					->registerRuntimeField(new Entity\ExpressionField('DATE_CREATE_SHORT_MAX', 'MAX(%s)', 'ACT_DATE_CREATE_SHORT'))
+					->addSelect('DATE_CREATE_SHORT_MAX', 'DATE_CREATED_SHORT');
+			}
+		}
+
+		$queryBindings
+			->registerRuntimeField(new Entity\ExpressionField('ACTIVITY_ID_MAX', 'MAX(%s)', 'ACTIVITY_ID'))
+			->addSelect('ACTIVITY_ID_MAX')
+
+			// group by
+			->addGroup('ACTIVITY_ID')
+			// having
+			->registerRuntimeField(new Entity\ExpressionField('CNT', 'COUNT(*)'))
+			->addFilter('>CNT', 0)
+		;
+
+		// filter here
+
+		$subEntityBindings = Main\ORM\Entity::getInstanceByQuery($queryBindings);
+		$bindings = new Main\ORM\Fields\Relations\Reference('BIND', $subEntityBindings, Entity\Query\Join::on('this.ID', 'ref.ACTIVITY_ID_MAX'));
+
+		$query = Crm\ActivityTable::query();
+		$query->registerRuntimeField($bindings);
+
+		return $query;
+	}
+
+	/**
 	 * Setups filter params into query.
-	 * @param Entity\Query $query Query.
+	 * @param Entity\Query|Main\ORM\Query\Query $query Query.
 	 * @return boolean
 	 */
 	public function prepareFilter(Entity\Query $query)
@@ -384,27 +600,63 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 	/**
 	 * Returns query to measure files attached to activity.
 	 * @param string $indicator Volume indicator class name.
-	 * @return Entity\Query
+	 * @param  array $entityGroupField Fileds for groupping.
+	 * @return Entity\Query|Main\ORM\Query\Query
 	 */
-	public function getActivityFileMeasureQuery($indicator = '')
+	public function getActivityFileMeasureQuery($indicator, $entityGroupField = array())
 	{
-		$query = $this->prepareQuery($indicator);
+		$query = $this->prepareFileQuery($indicator, $entityGroupField);
 
 		$this->prepareFilter($query);
 
+		/*
+			// file type
+			$file = new Entity\ReferenceField(
+				'FILE',
+				Main\FileTable::class,
+				Entity\Query\Join::on('this.ELEMENTS.ELEMENT_ID', 'ref.ID')
+								 ->where('this.ELEMENTS.STORAGE_TYPE_ID', Crm\Integration\StorageType::File),
+				array('join_type' => 'LEFT')
+			);
+		*/
 		// file type
-		$file = new Entity\ReferenceField(
-			'FILE',
-			Main\FileTable::class,
-			Entity\Query\Join::on('this.ELEMENTS.ELEMENT_ID', 'ref.ID')
-							 ->where('this.ELEMENTS.STORAGE_TYPE_ID', Crm\Integration\StorageType::File),
-			array('join_type' => 'LEFT')
+		$subQueryFile = Main\FileTable::query();
+		$elementCrmFile = new Entity\ReferenceField(
+			'elem',
+			Crm\ActivityElementTable::class,
+			Entity\Query\Join::on('this.ID', 'ref.ELEMENT_ID')
+							 ->where('ref.STORAGE_TYPE_ID', Crm\Integration\StorageType::File),
+			array('join_type' => 'INNER')
 		);
+		$subQueryFile
+			->registerRuntimeField('', $elementCrmFile)
+
+			->registerRuntimeField('', new Entity\ExpressionField('SIZE', 'MAX(%s)', 'FILE_SIZE'))
+			->addSelect('SIZE')
+
+			->registerRuntimeField('', new Entity\ExpressionField('ACTIVITY_ID', 'MAX(%s)', 'elem.ACTIVITY_ID'))
+			->addSelect('ACTIVITY_ID')
+
+			->registerRuntimeField('', new Entity\ExpressionField('FILE_COUNT', 'COUNT(DISTINCT(%s))', 'elem.ELEMENT_ID'))
+			->addSelect('FILE_COUNT')
+
+			// group by
+			->addGroup('elem.ELEMENT_ID')
+
+			// having count(*) > 0
+			->registerRuntimeField('', new Entity\ExpressionField('CNT', 'COUNT(*)'))
+			->addFilter('>CNT', 0)
+		;
+
+		// file type
+		$subEntityFile = Main\ORM\Entity::getInstanceByQuery($subQueryFile);
+		$file = new Main\ORM\Fields\Relations\Reference('FILE', $subEntityFile, Entity\Query\Join::on('this.ID', 'ref.ACTIVITY_ID'));
 		$query->registerRuntimeField('', $file);
 
 		// disk type
 		if (parent::isModuleAvailable('disk'))
 		{
+			/*
 			$diskFile = new Entity\ReferenceField(
 				'DISK_FILE',
 				Disk\Internals\FileTable::class,
@@ -413,19 +665,52 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 								 ->where('ref.TYPE', '=', \Bitrix\Disk\Internals\ObjectTable::TYPE_FILE),
 				array('join_type' => 'LEFT')
 			);
+			*/
+			$subQueryDisk = Disk\Internals\FileTable::query();
+			$elementCrmDisk = new Entity\ReferenceField(
+				'elem',
+				Crm\ActivityElementTable::class,
+				Entity\Query\Join::on('this.ID', 'ref.ELEMENT_ID')
+								->where('ref.STORAGE_TYPE_ID', Crm\Integration\StorageType::Disk)
+								->where('this.TYPE', '=', \Bitrix\Disk\Internals\ObjectTable::TYPE_FILE),
+				array('join_type' => 'INNER')
+			);
+			$subQueryDisk
+				->registerRuntimeField($elementCrmDisk)
+
+				->registerRuntimeField(new Entity\ExpressionField('DISK_SIZE', 'MAX(%s)', 'SIZE'))
+				->addSelect('DISK_SIZE')
+
+				->registerRuntimeField(new Entity\ExpressionField('ACTIVITY_ID', 'MAX(%s)', 'elem.ACTIVITY_ID'))
+				->addSelect('ACTIVITY_ID')
+
+				->registerRuntimeField(new Entity\ExpressionField('DISK_COUNT', 'COUNT(DISTINCT(%s))', 'elem.ELEMENT_ID'))
+				->addSelect('DISK_COUNT')
+
+				// group by
+				->addGroup('elem.ELEMENT_ID')
+
+				// having count(*) > 0
+				->registerRuntimeField('', new Entity\ExpressionField('CNT', 'COUNT(*)'))
+				->addFilter('>CNT', 0)
+			;
+
+			// disk type
+			$subEntityDisk = Main\ORM\Entity::getInstanceByQuery($subQueryDisk);
+			$diskFile = new Main\ORM\Fields\Relations\Reference('DISK_FILE', $subEntityDisk, Entity\Query\Join::on('this.ID', 'ref.ACTIVITY_ID'));
 			$query->registerRuntimeField('', $diskFile);
 
-			$diskSize = new Entity\ExpressionField('DISK_SIZE', 'SUM(IFNULL(%s, 0))', 'DISK_FILE.SIZE');
-			$diskCount = new Entity\ExpressionField('DISK_COUNT', 'COUNT(DISTINCT %s)', 'DISK_FILE.ID');
+			$diskSize = new Entity\ExpressionField('DISK_SIZE', 'SUM(IFNULL(%s, 0))', 'DISK_FILE.DISK_SIZE');
+			$diskCount = new Entity\ExpressionField('DISK_COUNT', 'SUM(IFNULL(%s, 0))', 'DISK_FILE.DISK_COUNT');
 			$query
-				->registerRuntimeField('', $diskSize)
-				->registerRuntimeField('', $diskCount);
+				->registerRuntimeField($diskSize)
+				->registerRuntimeField($diskCount);
 
-			$fileSize = new Entity\ExpressionField('FILE_SIZE', 'SUM(IFNULL(%s, 0)) + SUM(IFNULL(%s, 0))', array('FILE.FILE_SIZE', 'DISK_FILE.SIZE'));
-			$fileCount = new Entity\ExpressionField('FILE_COUNT', 'COUNT(DISTINCT %s) + COUNT(DISTINCT %s)', array('FILE.ID', 'DISK_FILE.ID'));
+			$fileSize = new Entity\ExpressionField('FILE_SIZE', 'SUM(IFNULL(%s, 0)) + SUM(IFNULL(%s, 0))', array('FILE.SIZE', 'DISK_FILE.DISK_SIZE'));
+			$fileCount = new Entity\ExpressionField('FILE_COUNT', 'SUM(IFNULL(%s, 0)) + SUM(IFNULL(%s, 0))', array('FILE.FILE_COUNT', 'DISK_FILE.DISK_COUNT'));
 			$query
-				->registerRuntimeField('', $fileSize)
-				->registerRuntimeField('', $fileCount);
+				->registerRuntimeField($fileSize)
+				->registerRuntimeField($fileCount);
 
 			$query
 				->addSelect('FILE_SIZE')
@@ -435,12 +720,12 @@ class Activity extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\V
 		}
 		else
 		{
-			$fileSize = new Entity\ExpressionField('FILE_SIZE', 'SUM(IFNULL(%s, 0))', 'FILE.FILE_SIZE');
-			$fileCount = new Entity\ExpressionField('FILE_COUNT', 'COUNT(DISTINCT %s)', 'FILE.ID');
+			$fileSize = new Entity\ExpressionField('FILE_SIZE', 'SUM(IFNULL(%s, 0))', 'FILE.SIZE');
+			$fileCount = new Entity\ExpressionField('FILE_COUNT', 'SUM(IFNULL(%s, 0))', 'FILE.FILE_COUNT');
 			$query
-				->registerRuntimeField('', $fileSize)
+				->registerRuntimeField($fileSize)
 				->addSelect('FILE_SIZE')
-				->registerRuntimeField('', $fileCount)
+				->registerRuntimeField($fileCount)
 				->addSelect('FILE_COUNT');
 		}
 

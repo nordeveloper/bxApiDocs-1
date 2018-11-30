@@ -1,6 +1,6 @@
 <?
-use Bitrix\Main\Localization\Loc;
-use Bitrix\Highloadblock as HL;
+use Bitrix\Main\Localization\Loc,
+	Bitrix\Highloadblock as HL;
 
 Loc::loadMessages(__FILE__);
 
@@ -83,13 +83,39 @@ class CIBlockPropertyDirectory
 			if (isset($arProperty["USER_TYPE_SETTINGS"]["TABLE_NAME"]))
 				$directoryTableName = (string)$arProperty["USER_TYPE_SETTINGS"]['TABLE_NAME'];
 		}
-		return array(
-			"size" =>  $size,
-			"width" => $width,
-			"group" => $group,
-			"multiple" => $multiple,
-			"TABLE_NAME" => $directoryTableName,
+
+		$extendedSettings = false;
+		$result = array(
+			'size' =>  $size,
+			'width' => $width,
+			'group' => $group,
+			'multiple' => $multiple,
+			'TABLE_NAME' => $directoryTableName
 		);
+		$defaultValue = '';
+		if ($directoryTableName !== '')
+		{
+			$iterator = HL\HighloadBlockTable::getList([
+				'select' => ['ID'],
+				'filter' => ['=TABLE_NAME' => $directoryTableName]
+			]);
+			$row = $iterator->fetch();
+			if (!empty($row))
+			{
+				$defaultValue = self::getDefaultXmlId($row['ID']);
+				if ($defaultValue !== null)
+					$extendedSettings = true;
+			}
+			unset($row, $iterator);
+		}
+
+		if (!$extendedSettings)
+			return $result;
+
+		$arProperty['USER_TYPE_SETTINGS'] = $result;
+		$arProperty['DEFAULT_VALUE'] = $defaultValue;
+
+		return $arProperty;
 	}
 
 	/**
@@ -106,11 +132,15 @@ class CIBlockPropertyDirectory
 		if (isset($arProperty['IBLOCK_ID']))
 			$iblockID = (int)$arProperty['IBLOCK_ID'];
 		CJSCore::Init(array('translit'));
-		$settings = CIBlockPropertyDirectory::PrepareSettings($arProperty);
+		$settings = static::PrepareSettings($arProperty);
+		if (isset($settings['USER_TYPE_SETTINGS']))
+			$settings = $settings['USER_TYPE_SETTINGS'];
 		$arPropertyFields = array(
-			"HIDE" => array("ROW_COUNT", "COL_COUNT", "MULTIPLE_CNT", "DEFAULT_VALUE", "WITH_DESCRIPTION"),
+			'HIDE' => ['ROW_COUNT', 'COL_COUNT', 'MULTIPLE_CNT', 'DEFAULT_VALUE', 'WITH_DESCRIPTION'],
+			'SET' => ['DEFAULT_VALUE' => '']
 		);
 
+		$directory = [];
 		$cellOption = '<option value="-1"'.('' == $settings["TABLE_NAME"] ? ' selected' : '').'>'.Loc::getMessage('HIBLOCK_PROP_DIRECTORY_NEW_DIRECTORY').'</option>';
 
 		$rsData = HL\HighloadBlockTable::getList(array(
@@ -119,6 +149,11 @@ class CIBlockPropertyDirectory
 		));
 		while($arData = $rsData->fetch())
 		{
+			if ($settings['TABLE_NAME'] == $arData['TABLE_NAME'])
+			{
+				$directory = $arData;
+				unset($directory['NAME_LANG']);
+			}
 			$arData['NAME_LANG'] = (string)$arData['NAME_LANG'];
 			$hlblockTitle = ($arData['NAME_LANG'] != '' ? $arData['NAME_LANG'] : $arData['NAME']).' ('.$arData["TABLE_NAME"].')';
 			$selected = ($settings["TABLE_NAME"] == $arData['TABLE_NAME']) ? ' selected' : '';
@@ -126,6 +161,15 @@ class CIBlockPropertyDirectory
 			unset($hlblockTitle);
 		}
 		unset($arData, $rsData);
+
+		if (!empty($directory))
+		{
+			$defaultValue = self::getDefaultXmlId($directory);
+			if ($defaultValue !== null)
+				$arPropertyFields['SET']['DEFAULT_VALUE'] = $defaultValue;
+			unset($defaultValue);
+		}
+		unset($directory);
 
 		$tablePrefix = self::TABLE_PREFIX;
 		$selectDir = Loc::getMessage("HIBLOCK_PROP_DIRECTORY_SELECT_DIR");
@@ -832,6 +876,53 @@ HIBSELECT;
 				unset($oneValue, $row);
 			}
 		}
+		return $result;
+	}
+
+	/**
+	 * @param mixed $identifier
+	 * @return string|null
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getDefaultXmlId($identifier)
+	{
+		$result = null;
+		$entity = HL\HighloadBlockTable::compileEntity($identifier);
+		$fields = $entity->getFields();
+		if (isset($fields['UF_DEF']) && isset($fields['UF_XML_ID']))
+		{
+			$entityClassName = $entity->getDataClass();
+
+			$select = ['ID', 'UF_XML_ID'];
+			$order = [];
+			if (isset($fields['UF_SORT']))
+			{
+				$select[] = 'UF_SORT';
+				$order['UF_SORT'] = 'ASC';
+			}
+			if (isset($fields['UF_NAME']))
+			{
+				$select[] = 'UF_NAME';
+				$order['UF_NAME'] = 'ASC';
+			}
+			$order['ID'] = 'ASC';
+
+			$iterator = $entityClassName::getList([
+				'select' => $select,
+				'filter' => ['=UF_DEF' => 1],
+				'order' => $order,
+				'limit' => 1
+			]);
+			$row = $iterator->fetch();
+			if (!empty($row))
+				$result = $row['UF_XML_ID'];
+			unset($row, $iterator);
+			unset($entityClassName);
+		}
+		unset($fields, $entity);
+
 		return $result;
 	}
 }

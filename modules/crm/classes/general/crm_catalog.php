@@ -114,6 +114,12 @@ class CAllCrmCatalog
 		return $catalogId;
 	}
 
+	public static function GetFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_CATALOG_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
+	}
+
 	public static function GetFieldsInfo()
 	{
 		if(!self::$FIELD_INFOS)
@@ -137,7 +143,7 @@ class CAllCrmCatalog
 		}
 
 		return self::$FIELD_INFOS;
-		}
+	}
 
 	public static function Add($arFields)
 	{

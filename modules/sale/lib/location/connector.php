@@ -255,17 +255,24 @@ abstract class Connector extends Entity\DataManager
 		{
 			// low-level drop
 			$dbConnection = Main\HttpApplication::getConnection();
-			$dbConnection->query('
+			$typeField = static::getTypeField();
+
+			$sql ='
 				delete 
 					from 
 						'.static::getTableName().' 
 					where 
-						'.static::getLinkField().' = \''.$dbConnection->getSqlHelper()->forSql($entityPrimary).'\'
-						AND (
-							'.static::getTypeField().' = \''.static::DB_LOCATION_FLAG.'\' 
-							OR '.static::getTypeField().' = \''.static::DB_GROUP_FLAG.'\'
-						)
-			');
+						'.static::getLinkField().' = \''.$dbConnection->getSqlHelper()->forSql($entityPrimary).'\'';
+
+			if(strlen($typeField) > 0)
+			{
+				$sql .= '	AND (
+					'.$typeField.' = \''.static::DB_LOCATION_FLAG.'\' 
+					OR '.$typeField.' = \''.static::DB_GROUP_FLAG.'\'
+					)';
+			}
+
+			$dbConnection->query($sql);
 		}
 		else
 		{

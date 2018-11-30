@@ -120,6 +120,9 @@ class MailMessageTable extends Entity\DataManager
 			'SEARCH_CONTENT' => array(
 				'data_type' => 'string',
 			),
+			'INDEX_VERSION' => array(
+				'data_type' => 'integer',
+			),
 			new DatetimeField('READ_CONFIRMED'),
 			new TextField('OPTIONS',[
 				'serialized' => true,

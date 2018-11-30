@@ -99,12 +99,12 @@ class Template extends Base
 	}
 
 	/**
-	 * @see \Bitrix\DocumentGenerator\Controller\Template::getListAction()
+	 * @see \Bitrix\DocumentGenerator\Controller\Template::listAction()
 	 * @param array $select
 	 * @param array|null $order
 	 * @param array|null $filter
 	 * @param PageNavigation|null $pageNavigation
-	 * @return array
+	 * @return Page
 	 */
 	public function listAction(array $select = ['*'], array $filter = null, array $order = null, PageNavigation $pageNavigation = null)
 	{
@@ -130,26 +130,13 @@ class Template extends Base
 			$filter['provider.provider'] = str_ireplace(array_keys($providersMap), $filterMap, $filter['entityTypeId']);
 			unset($filter['entityTypeId']);
 		}
+		/** @var Page $result */
 		$result = $this->proxyAction('listAction', [$select, $order, $filter, $pageNavigation]);
-		if($result instanceof Page)
-		{
-			$templates = $result->offsetGet('templates');
-		}
-		else
-		{
-			$templates = $result['templates'];
-		}
-		foreach($templates as &$template)
+		$templates = $result->getItems();
+		foreach($templates as $key => &$template)
 		{
 			$template = $this->prepareTemplateData($template);
-		}
-		if($result instanceof Page)
-		{
-			$result->offsetSet('templates', $templates);
-		}
-		else
-		{
-			$result = ['templates' => $templates];
+			$result->offsetSet($key, $template);
 		}
 		return $result;
 	}
@@ -198,26 +185,15 @@ class Template extends Base
 			return null;
 		}
 		$fields['fileId'] = $fileId;
-		$fileId['moduleId'] = static::MODULE_ID;
+		$fields['moduleId'] = static::MODULE_ID;
 
 		$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
-		$fields['entityTypeId'] = str_ireplace(array_keys($providersMap), array_values($providersMap), $fields['entityTypeId']);
+		$fields['providers'] = str_ireplace(array_keys($providersMap), array_values($providersMap), $fields['entityTypeId']);
 
-		$controller = $this->getDocumentGeneratorController();
-		if(method_exists($controller, 'updateAction'))
-		{
-			$result = $this->proxyAction('addAction', [$fields]);
-		}
-		else
-		{
-			$result = $this->proxyAction('addAction', [$fields['name'], $fields['fileId'], $fields['numeratorId'], $fields['region'], $fields['entityTypeId'], $fields['users'], null, $fields['moduleId'], '', $fields['active'], $fields['withStamps']]);
-		}
+		$result = $this->proxyAction('addAction', [$fields]);
 		if(is_array($result))
 		{
-			if(isset($result['template']['links']['download']))
-			{
-				$result['template']['links']['download'] = $this->getTemplateDownloadUrl($result['template']['id']);
-			}
+			$result['template'] = $this->prepareTemplateData($result['template']);
 		}
 		else
 		{
@@ -260,30 +236,17 @@ class Template extends Base
 			$fileId = $template->FILE_ID;
 		}
 		$fileId['moduleId'] = static::MODULE_ID;
+		$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
+		if(isset($fields['entityTypeId']) && is_array($fields['entityTypeId']))
+		{
+			$fields['providers'] = str_ireplace(array_keys($providersMap), array_values($providersMap), $fields['entityTypeId']);
+		}
 
-		$controller = $this->getDocumentGeneratorController();
-		if(method_exists($controller, 'updateAction'))
-		{
-			$result = $this->proxyAction('updateAction', [$template, $fields]);
-		}
-		else
-		{
-			$name = isset($fields['name']) ? $fields['name'] : $template->NAME;
-			$numeratorId = isset($fields['numeratorId']) ? $fields['numeratorId'] : $template->NUMERATOR_ID;
-			$region = isset($fields['region']) ? $fields['region'] : $template->REGION;
-			$providers = isset($fields['providers']) ? $fields['providers'] : $template->getDataProviders();
-			$users = isset($fields['users']) ? $fields['users'] : $template->getUsers();
-			$active = isset($fields['active']) ? $fields['active'] : $template->ACTIVE;
-			$withStamps = isset($fields['withStamps']) ? $fields['withStamps'] : $template->WITH_STAMPS;
-			$result = $this->proxyAction('addAction', [$name, $fields['fileId'], $numeratorId, $region, $providers, $users, $template->ID, static::MODULE_ID, '', $active, $withStamps]);
-		}
+		$result = $this->proxyAction('updateAction', [$template, $fields]);
 
 		if(is_array($result))
 		{
-			if(isset($result['template']['links']['download']))
-			{
-				$result['template']['links']['download'] = $this->getTemplateDownloadUrl($result['template']['id']);
-			}
+			$result['template'] = $this->prepareTemplateData($result['template']);
 		}
 		elseif($fileContent)
 		{
@@ -316,7 +279,15 @@ class Template extends Base
 			$data['entityTypeId'] = str_ireplace(array_values($providersMap), array_keys($providersMap), $providers);
 			unset($data['providers']);
 		}
-		$data['links']['download'] = $this->getTemplateDownloadUrl($data['id']);
+		$data['download'] = $this->getTemplateDownloadUrl($data['id']);
+		if(isset($data['fileId']))
+		{
+			unset($data['fileId']);
+		}
+		if(isset($data['bodyType']))
+		{
+			unset($data['bodyType']);
+		}
 
 		return $data;
 	}

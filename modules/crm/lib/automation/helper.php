@@ -20,16 +20,24 @@ class Helper
 		return static::$isBizprocEnabled;
 	}
 
-	public static function getNavigationBarItems($entityTypeId)
+	public static function getNavigationBarItems($entityTypeId, $categoryId = 0)
 	{
+		$categoryId = max(0, $categoryId);
 		if (Factory::isAutomationAvailable($entityTypeId))
 		{
+			$url = '/crm/'.strtolower(\CCrmOwnerType::ResolveName($entityTypeId)).'/automation/'.$categoryId.'/';
+			if ($entityTypeId === \CCrmOwnerType::Order)
+			{
+				//TODO: crazy shop
+				$url = '/shop/orders/automation/0/';
+			}
+
 			return [
 				[
 					'id' => 'automation',
 					'name' => Loc::getMessage('CRM_AUTOMATION_HELPER_ROBOT_TITLE'),
 					'active' => false,
-					'url' => '/crm/configs/automation/'.\CCrmOwnerType::ResolveName($entityTypeId).'/0/'
+					'url' => $url
 				]
 			];
 		}

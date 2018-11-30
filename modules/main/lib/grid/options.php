@@ -276,7 +276,7 @@ class Options extends \CGridOptions
 	{
 		$currentOptions = $this->getCurrentOptions();
 
-		if (!is_string($currentOptions["columns"]) && $currentOptions["columns"] !== "")
+		if (is_string($currentOptions["columns"]) && $currentOptions["columns"] !== "")
 		{
 			return explode(",", $currentOptions["columns"]);
 		}

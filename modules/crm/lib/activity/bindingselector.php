@@ -68,6 +68,7 @@ class BindingSelector
 		return $list;
 	}
 
+
 	/**
 	 * Constructor.
 	 *
@@ -269,12 +270,36 @@ class BindingSelector
 			}
 		}
 
+		// append deal if it was set by setEntity
+		if (!$isDealAdded && $selector->getDealId())
+		{
+			$list[] = array(
+				'OWNER_TYPE_ID' => \CCrmOwnerType::Deal,
+				'OWNER_ID' => $selector->getDealId()
+			);
+
+			$isDealAdded = true;
+		}
+
+		// append rc-lead if it was set by setEntity
 		if (!$isReturnCustomerLeadAdded && !$isDealAdded && $selector->getReturnCustomerLeadId())
 		{
 			$list[] = array(
 				'OWNER_TYPE_ID' => \CCrmOwnerType::Lead,
 				'OWNER_ID' => $selector->getReturnCustomerLeadId()
 			);
+		}
+
+		// append orders if it was set by setEntity
+		if (!$isOrdersAdded && !empty($selector->getOrders()))
+		{
+			foreach ($selector->getOrders() as $orderId)
+			{
+				$list[] = array(
+					'OWNER_TYPE_ID' => \CCrmOwnerType::Order,
+					'OWNER_ID' => $orderId
+				);
+			}
 		}
 
 		return self::sortBindings($list);

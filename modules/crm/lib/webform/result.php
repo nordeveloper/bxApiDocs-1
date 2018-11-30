@@ -310,6 +310,19 @@ class Result extends Model
 			$displayedValues = '';
 			foreach ($values as $value)
 			{
+				switch ($field['type'])
+				{
+					case Internals\FieldTable::TYPE_ENUM_CHECKBOX:
+						if (in_array($value, ['Y', 'N']))
+						{
+							EntityFieldProvider::getBooleanFieldItems();
+							$value = Loc::getMessage('CRM_WEBFORM_FIELD_PROVIDER_' . (
+								$value === 'Y' ? 'YES' : 'NO'
+							));
+						}
+						break;
+				}
+
 				$displayedValues .= str_replace(
 					array('%value%'),
 					array($value),

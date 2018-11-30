@@ -365,6 +365,16 @@ class CCrmEvent
 			}
 		}
 
+		if(is_array($arGroupBy) && empty($arGroupBy))
+		{
+			//HACK: push join to b_crm_event_relations if it is query of count for permissions check.
+			if(!isset($arFilter['__JOINS']))
+			{
+				$arFilter['__JOINS'] = array();
+			}
+			$arFilter['__JOINS'][] = array('SQL' => 'INNER JOIN b_crm_event_relations CER ON CE.ID = CER.EVENT_ID');
+		}
+
 		global $DBType;
 		$lb = new CCrmEntityListBuilder(
 			$DBType,

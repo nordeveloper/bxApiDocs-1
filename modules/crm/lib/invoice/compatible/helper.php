@@ -369,8 +369,12 @@ class Helper
 
 		if (is_set($fields, "PERSON_TYPE_ID"))
 		{
-			$personType = new \CSalePersonType();
-			if (!($arPersonType = $personType->GetByID($fields["PERSON_TYPE_ID"])))
+			$dbRes = Crm\Invoice\PersonType::getList([
+				'filter' => [
+					'=ID' => $fields["PERSON_TYPE_ID"]
+				]
+			]);
+			if (!$dbRes->fetch())
 			{
 				$APPLICATION->ThrowException(
 					Loc::getMessage(
@@ -380,7 +384,6 @@ class Helper
 				);
 				return false;
 			}
-			unset($personType);
 		}
 
 		if (is_set($fields, "PAY_SYSTEM_ID") && IntVal($fields["PAY_SYSTEM_ID"]) > 0)

@@ -412,9 +412,9 @@ class OrderController extends EntityController
 			$authorID = (int)$fields['CREATED_BY'];
 		}
 
-		if(isset($fields['CREATED_BY']))
+		if(isset($fields['EMP_STATUS_ID']))
 		{
-			$authorID = (int)$fields['CREATED_BY'];
+			$authorID = (int)$fields['EMP_STATUS_ID'];
 		}
 
 		if($authorID <= 0)

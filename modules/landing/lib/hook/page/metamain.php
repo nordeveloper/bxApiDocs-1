@@ -75,7 +75,7 @@ class MetaMain extends \Bitrix\Landing\Hook\Page
 		$keywords = trim($this->fields['KEYWORDS']);
 		if ($title != '')
 		{
-			\Bitrix\Landing\Manager::getApplication()->setTitle($title);
+			Manager::setPageTitle($title);
 		}
 		if ($description != '')
 		{

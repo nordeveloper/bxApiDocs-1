@@ -12,16 +12,9 @@ class CCrmViewHelper
 	private static $DEAL_STAGES = null;
 	private static $LEAD_STATUSES = null;
 	private static $QUOTE_STATUSES = null;
-	private static $ORDER_STATUSES = null;
 	private static $INVOICE_STATUSES = null;
+	private static $ORDER_STATUSES = null;
 	private static $ORDER_SHIPMENT_STATUSES = null;
-
-	private static $ENABLE_DEAL_STAGE_COLORS = array();
-	private static $ENABLE_LEAD_STATUS_COLORS = null;
-	private static $ENABLE_QUOTE_STATUS_COLORS = null;
-	private static $ENABLE_INVOICE_STATUS_COLORS = null;
-	private static $ENABLE_ORDER_STATUS_COLORS = null;
-	private static $ENABLE_ORDER_SHIPMENT_STATUS_COLORS = null;
 
 	private static $USER_INFO_PROVIDER_MESSAGES_REGISTRED = false;
 
@@ -1861,20 +1854,12 @@ class CCrmViewHelper
 
 		self::$DEAL_STAGES[$categoryID] = CCrmDeal::GetStages($categoryID);
 		$scheme = Bitrix\Crm\Color\DealStageColorScheme::getByCategory($categoryID);
-		if(!$scheme->isPersistent())
+		foreach(self::$DEAL_STAGES[$categoryID] as $k => $v)
 		{
-			self::$ENABLE_DEAL_STAGE_COLORS[$categoryID] = false;
-		}
-		else
-		{
-			self::$ENABLE_DEAL_STAGE_COLORS[$categoryID] = true;
-			foreach(self::$DEAL_STAGES[$categoryID] as $k => $v)
+			$element = $scheme->getElementByName($k);
+			if($element !== null)
 			{
-				$element = $scheme->getElementByName($k);
-				if($element !== null)
-				{
-					self::$DEAL_STAGES[$categoryID][$k]['COLOR'] = $element->getColor();
-				}
+				self::$DEAL_STAGES[$categoryID][$k]['COLOR'] = $element->getColor();
 			}
 		}
 
@@ -1882,17 +1867,7 @@ class CCrmViewHelper
 	}
 	public static function AreDealStageColorsEnabled($categoryID = 0)
 	{
-		if(!is_int($categoryID))
-		{
-			$categoryID = (int)$categoryID;
-		}
-		$categoryID = max($categoryID, 0);
-
-		if(!isset(self::$ENABLE_DEAL_STAGE_COLORS[$categoryID]))
-		{
-			self::$ENABLE_DEAL_STAGE_COLORS[$categoryID] = Bitrix\Crm\Color\DealStageColorScheme::getByCategory($categoryID)->isPersistent();
-		}
-		return self::$ENABLE_DEAL_STAGE_COLORS[$categoryID];
+		return true;
 	}
 	public static function PrepareDealStageExtraParams(array &$infos, $categoryID = -1)
 	{
@@ -1978,11 +1953,7 @@ class CCrmViewHelper
 	}
 	public static function AreLeadStatusColorsEnabled()
 	{
-		if(self::$ENABLE_LEAD_STATUS_COLORS === null)
-		{
-			self::$ENABLE_LEAD_STATUS_COLORS = Bitrix\Crm\Color\LeadStatusColorScheme::getCurrent()->isPersistent();
-		}
-		return self::$ENABLE_LEAD_STATUS_COLORS;
+		return true;
 	}
 	public static function PrepareLeadStatusInfoExtraParams(array &$infos)
 	{
@@ -2017,24 +1988,15 @@ class CCrmViewHelper
 		self::$LEAD_STATUSES = CCrmLead::GetStatuses();
 
 		$scheme = Bitrix\Crm\Color\LeadStatusColorScheme::getCurrent();
-		if(!$scheme->isPersistent())
+		foreach(self::$LEAD_STATUSES as $ID => &$item)
 		{
-			self::$ENABLE_LEAD_STATUS_COLORS = false;
-		}
-		else
-		{
-			self::$ENABLE_LEAD_STATUS_COLORS = true;
-			foreach(self::$LEAD_STATUSES as $ID => &$item)
+			$element = $scheme->getElementByName($ID);
+			if($element !== null)
 			{
-				$element = $scheme->getElementByName($ID);
-				if($element !== null)
-				{
-					$item['COLOR'] = $element->getColor();
-				}
+				$item['COLOR'] = $element->getColor();
 			}
-			unset($item);
 		}
-
+		unset($item);
 		return self::$LEAD_STATUSES;
 	}
 	public static function RenderLeadStatusSettings()
@@ -2100,24 +2062,16 @@ class CCrmViewHelper
 
 		self::$INVOICE_STATUSES = CCrmStatus::GetStatus('INVOICE_STATUS');
 
-		$enableCustomColors = false;
-		$colors = unserialize(COption::GetOptionString('crm', 'CONFIG_STATUS_INVOICE_STATUS'));
-		if(!empty($colors))
+		$scheme = Bitrix\Crm\Color\InvoiceStatusColorScheme::getCurrent();
+		foreach(self::$INVOICE_STATUSES as $ID => &$item)
 		{
-			foreach(self::$INVOICE_STATUSES as $ID => &$item)
+			$element = $scheme->getElementByName($ID);
+			if($element !== null)
 			{
-				if(isset($colors[$ID]) && isset($colors[$ID]['COLOR']) && $colors[$ID]['COLOR'] !== '')
-				{
-					$item['COLOR'] = $colors[$ID]['COLOR'];
-					if(!$enableCustomColors)
-					{
-						$enableCustomColors = true;
-					}
-				}
+				$item['COLOR'] = $element->getColor();
 			}
-			unset($item);
 		}
-		self::$ENABLE_INVOICE_STATUS_COLORS = $enableCustomColors;
+		unset($item);
 		return self::$INVOICE_STATUSES;
 	}
 	public static function RenderInvoiceStatusSettings()
@@ -2316,33 +2270,7 @@ class CCrmViewHelper
 			}
 		}
 
-		$enableCustomColors = false;
-		if($entityTypeName === $leadTypeName)
-		{
-			$enableCustomColors = self::AreLeadStatusColorsEnabled();
-		}
-		elseif($entityTypeName === $dealTypeName)
-		{
-			$enableCustomColors = isset(self::$ENABLE_DEAL_STAGE_COLORS[$categoryID])
-				? self::$ENABLE_DEAL_STAGE_COLORS[$categoryID] : false;
-		}
-		elseif($entityTypeName === $quoteTypeName)
-		{
-			$enableCustomColors = self::$ENABLE_QUOTE_STATUS_COLORS;
-		}
-		elseif($entityTypeName === $invoiceTypeName)
-		{
-			$enableCustomColors = self::$ENABLE_INVOICE_STATUS_COLORS;
-		}
-		elseif($entityTypeName === $orderTypeName)
-		{
-			$enableCustomColors = self::$ENABLE_ORDER_STATUS_COLORS;
-		}
-		elseif($entityTypeName === $orderShipmentTypeName)
-		{
-			$enableCustomColors = self::$ENABLE_ORDER_SHIPMENT_STATUS_COLORS;
-		}
-
+		$enableCustomColors = true;
 		if(!is_array($infos) || empty($infos))
 		{
 			return '';
@@ -2768,23 +2696,15 @@ class CCrmViewHelper
 		self::$QUOTE_STATUSES = CCrmQuote::GetStatuses();
 
 		$scheme = Bitrix\Crm\Color\QuoteStatusColorScheme::getCurrent();
-		if(!$scheme->isPersistent())
+		foreach(self::$QUOTE_STATUSES as $ID => &$item)
 		{
-			self::$ENABLE_QUOTE_STATUS_COLORS = false;
-		}
-		else
-		{
-			self::$ENABLE_QUOTE_STATUS_COLORS = true;
-			foreach(self::$QUOTE_STATUSES as $ID => &$item)
+			$element = $scheme->getElementByName($ID);
+			if($element !== null)
 			{
-				$element = $scheme->getElementByName($ID);
-				if($element !== null)
-				{
-					$item['COLOR'] = $element->getColor();
-				}
+				$item['COLOR'] = $element->getColor();
 			}
-			unset($item);
 		}
+		unset($item);
 
 		return self::$QUOTE_STATUSES;
 	}
@@ -2797,24 +2717,16 @@ class CCrmViewHelper
 
 		self::$ORDER_STATUSES = \Bitrix\Crm\Order\OrderStatus::getListInCrmFormat();
 
-		$enableCustomColors = false;
-		$colors = unserialize(COption::GetOptionString('crm', 'CONFIG_STATUS_ORDER_STATUS'));
-		if(!empty($colors))
+		$scheme = Bitrix\Crm\Color\OrderStatusColorScheme::getCurrent();
+		foreach(self::$ORDER_STATUSES as $ID => &$item)
 		{
-			foreach(self::$ORDER_STATUSES as $ID => &$item)
+			$element = $scheme->getElementByName($ID);
+			if($element !== null)
 			{
-				if(isset($colors[$ID]) && isset($colors[$ID]['COLOR']) && $colors[$ID]['COLOR'] !== '')
-				{
-					$item['COLOR'] = $colors[$ID]['COLOR'];
-					if(!$enableCustomColors)
-					{
-						$enableCustomColors = true;
-					}
-				}
+				$item['COLOR'] = $element->getColor();
 			}
-			unset($item);
 		}
-		self::$ENABLE_ORDER_STATUS_COLORS = $enableCustomColors;
+		unset($item);
 		return self::$ORDER_STATUSES;
 	}
 	protected static function PrepareOrderShipmentStatuses()
@@ -2826,24 +2738,16 @@ class CCrmViewHelper
 
 		self::$ORDER_SHIPMENT_STATUSES = \Bitrix\Crm\Order\DeliveryStatus::getListInCrmFormat();
 
-		$enableCustomColors = false;
-		$colors = unserialize(COption::GetOptionString('crm', 'CONFIG_STATUS_ORDER_SHIPMENT_STATUS'));
-		if(!empty($colors))
+		$scheme = Bitrix\Crm\Color\OrderShipmentStatusColorScheme::getCurrent();
+		foreach(self::$ORDER_SHIPMENT_STATUSES as $ID => &$item)
 		{
-			foreach(self::$ORDER_SHIPMENT_STATUSES as $ID => &$item)
+			$element = $scheme->getElementByName($ID);
+			if($element !== null)
 			{
-				if(isset($colors[$ID]) && isset($colors[$ID]['COLOR']) && $colors[$ID]['COLOR'] !== '')
-				{
-					$item['COLOR'] = $colors[$ID]['COLOR'];
-					if(!$enableCustomColors)
-					{
-						$enableCustomColors = true;
-					}
-				}
+				$item['COLOR'] = $element->getColor();
 			}
-			unset($item);
 		}
-		self::$ENABLE_ORDER_SHIPMENT_STATUS_COLORS = $enableCustomColors;
+		unset($item);
 		return self::$ORDER_SHIPMENT_STATUSES;
 	}
 

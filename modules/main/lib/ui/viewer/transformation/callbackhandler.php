@@ -2,6 +2,7 @@
 
 namespace Bitrix\Main\UI\Viewer\Transformation;
 
+use Bitrix\Main\Event;
 use Bitrix\Main\Loader;
 use Bitrix\Main\UI\Viewer\FilePreviewTable;
 use Bitrix\Main\Web\MimeType;
@@ -105,14 +106,18 @@ if (Loader::includeModule('transformer'))
 						]);
 					}
 
-					self::sendNotifyForCurrentUserAboutTransformation($params['fileId']);
+					self::sendNotifyAboutTransformation($params['fileId']);
 				}
 			}
+
+			(new Event('main', 'onFileTransformationComplete', [
+				'fileId' => $params['fileId'],
+			]))->send();
 
 			return true;
 		}
 
-		protected static function sendNotifyForCurrentUserAboutTransformation($fileId)
+		protected static function sendNotifyAboutTransformation($fileId)
 		{
 			if (Loader::includeModule('pull'))
 			{

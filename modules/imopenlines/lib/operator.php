@@ -25,18 +25,18 @@ class Operator
 		$pullLoad = \Bitrix\Main\Loader::includeModule('pull');
 		if ($imLoad && $pullLoad)
 		{
-			$this->error = new Error(null, '', '');
+			$this->error = new BasicError(null, '', '');
 			$this->moduleLoad = true;
 		}
 		else
 		{
 			if (!$imLoad)
 			{
-				$this->error = new Error(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_OPERATOR_ERROR_IM_LOAD'));
+				$this->error = new BasicError(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_OPERATOR_ERROR_IM_LOAD'));
 			}
 			elseif (!$pullLoad)
 			{
-				$this->error = new Error(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_OPERATOR_ERROR_PULL_LOAD'));
+				$this->error = new BasicError(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_OPERATOR_ERROR_PULL_LOAD'));
 			}
 		}
 
@@ -60,7 +60,7 @@ class Operator
 
 		if ($this->chatId <= 0)
 		{
-			$this->error = new Error(__METHOD__, 'CHAT_ID', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_ID'));
+			$this->error = new BasicError(__METHOD__, 'CHAT_ID', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_ID'));
 
 			return Array(
 				'RESULT' => false
@@ -68,7 +68,7 @@ class Operator
 		}
 		if ($this->userId <= 0)
 		{
-			$this->error = new Error(__METHOD__, 'USER_ID', Loc::getMessage('IMOL_OPERATOR_ERROR_USER_ID'));
+			$this->error = new BasicError(__METHOD__, 'USER_ID', Loc::getMessage('IMOL_OPERATOR_ERROR_USER_ID'));
 
 			return Array(
 				'RESULT' => false
@@ -87,7 +87,7 @@ class Operator
 		{
 			if ($relation["ENTITY_TYPE"] != "LINES")
 			{
-				$this->error = new Error(__METHOD__, 'CHAT_TYPE', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_TYPE'));
+				$this->error = new BasicError(__METHOD__, 'CHAT_TYPE', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_TYPE'));
 
 				return Array(
 					'RESULT' => false
@@ -101,12 +101,12 @@ class Operator
 			{
 				if($chat['TYPE'] == IM_MESSAGE_OPEN_LINE)
 				{
-					$parsedUserCode = Session::parseUserCode($chat['ENTITY_ID']);
+					$parsedUserCode = Session\Common::parseUserCode($chat['ENTITY_ID']);
 					$lineId = $parsedUserCode['CONFIG_ID'];
 					$fieldData = explode("|", $chat['ENTITY_DATA_1']);
 					if(!\Bitrix\ImOpenLines\Config::canJoin($lineId, ($fieldData[0] == 'Y'? $fieldData[1]: null), ($fieldData[0] == 'Y'? $fieldData[2]: null)))
 					{
-						$this->error = new Error(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
+						$this->error = new BasicError(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
 
 						return Array(
 							'RESULT' => false
@@ -115,7 +115,7 @@ class Operator
 				}
 				else
 				{
-					$this->error = new Error(__METHOD__, 'CHAT_TYPE', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_TYPE'));
+					$this->error = new BasicError(__METHOD__, 'CHAT_TYPE', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_TYPE'));
 
 					return Array(
 						'RESULT' => false
@@ -124,7 +124,7 @@ class Operator
 			}
 			else
 			{
-				$this->error = new Error(__METHOD__, 'CHAT_ID', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_ID'));
+				$this->error = new BasicError(__METHOD__, 'CHAT_ID', Loc::getMessage('IMOL_OPERATOR_ERROR_CHAT_ID'));
 
 				return Array(
 					'RESULT' => false
@@ -275,7 +275,7 @@ class Operator
 		$result = $chat->createLead();
 		if ($result)
 		{
-			$this->error = new Error(__METHOD__, 'CREATE_ERROR', 'CREATE_ERROR');
+			$this->error = new BasicError(__METHOD__, 'CREATE_ERROR', 'CREATE_ERROR');
 		}
 
 		return $result;
@@ -293,6 +293,9 @@ class Operator
 		return $chat->cancel($messageId);
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public function changeCrmEntity($messageId, $entityType, $entityId)
 	{
 		$access = $this->checkAccess();
@@ -331,14 +334,29 @@ class Operator
 		));
 		if ($result)
 		{
-			$parsedUserCode = Session::parseUserCode($userCode);
+			$parsedUserCode = Session\Common::parseUserCode($userCode);
 			$lineId = $parsedUserCode['CONFIG_ID'];
 			if ($chat->getData('AUTHOR_ID') != $this->userId)
 			{
 				$sessionField = $chat->getFieldData(Chat::FIELD_SESSION);
-				if (!\Bitrix\ImOpenLines\Config::canJoin($lineId, $sessionField['CRM_ENTITY_TYPE'], $sessionField['CRM_ENTITY_ID']))
+				$sessionCrmField = $chat->getFieldData(Chat::FIELD_CRM);
+				$result = false;
+				if(empty($sessionCrmField))
 				{
-					$result = false;
+					if (\Bitrix\ImOpenLines\Config::canJoin($lineId, $sessionField['CRM_ENTITY_TYPE'], $sessionField['CRM_ENTITY_ID']))
+					{
+						$result = true;
+					}
+				}
+				else
+				{
+					foreach ($sessionCrmField as $crmEntityType => $crmEntityId)
+					{
+						if (\Bitrix\ImOpenLines\Config::canJoin($lineId, $crmEntityType, $crmEntityId))
+						{
+							$result = true;
+						}
+					}
 				}
 			}
 		}
@@ -349,7 +367,7 @@ class Operator
 		}
 		else
 		{
-			$this->error = new Error(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
+			$this->error = new BasicError(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
 			return false;
 		}
 	}
@@ -389,12 +407,20 @@ class Operator
 		return true;
 	}
 
+	/**
+	 * @param $messageId
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public function saveToQuickAnswers($messageId)
 	{
 		$message = \CIMMessenger::GetById($messageId);
 		if($message)
 		{
-			$lineId = Session::getConfigIdByChatId($this->chatId);
+			$lineId = Session\Common::getConfigIdByChatId($this->chatId);
 			if($lineId > 0)
 			{
 				$listsDataManager = new ListsDataManager($lineId);
@@ -425,7 +451,7 @@ class Operator
 			}
 		}
 
-		$this->error = new Error(__METHOD__, 'CANT_SAVE_QUICK_ANSWER', Loc::getMessage('IMOL_OPERATOR_ERROR_CANT_SAVE_QUICK_ANSWER'));
+		$this->error = new BasicError(__METHOD__, 'CANT_SAVE_QUICK_ANSWER', Loc::getMessage('IMOL_OPERATOR_ERROR_CANT_SAVE_QUICK_ANSWER'));
 		return false;
 	}
 
@@ -475,7 +501,7 @@ class Operator
 		$sessionId = intval($sessionId);
 		if ($sessionId <= 0)
 		{
-			$this->error = new Error(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
+			$this->error = new BasicError(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
 			return false;
 		}
 
@@ -483,7 +509,7 @@ class Operator
 		$session = $orm->fetch();
 		if (!$session)
 		{
-			$this->error = new Error(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
+			$this->error = new BasicError(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
 			return false;
 		}
 
@@ -495,10 +521,10 @@ class Operator
 				$permission->getPermission(Permissions::ENTITY_HISTORY, Permissions::ACTION_VIEW)
 			);
 			if (is_array($allowedUserIds) && !in_array($session['OPERATOR_ID'], $allowedUserIds) &&
-				!Crm::hasAccessToEntity($session['CRM_ENTITY_TYPE'], $session['CRM_ENTITY_ID'])
+				\Bitrix\ImOpenLines\Crm\Common::hasAccessToEntitiesBindingActivity($session['CRM_ACTIVITY_ID'])->getResult() == false
 			)
 			{
-				$this->error = new Error(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
+				$this->error = new BasicError(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
 				return false;
 			}
 		}
@@ -517,7 +543,7 @@ class Operator
 		}
 		else
 		{
-			$this->error = new Error(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
+			$this->error = new BasicError(__METHOD__, 'ACCESS_DENIED', Loc::getMessage('IMOL_OPERATOR_ERROR_ACCESS_DENIED'));
 			return false;
 		}
 

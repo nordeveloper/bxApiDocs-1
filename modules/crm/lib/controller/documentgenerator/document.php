@@ -9,6 +9,7 @@ use Bitrix\Main\Engine\Response\DataType\ContentUri;
 use Bitrix\Main\Engine\Response\DataType\Page;
 use Bitrix\Main\Engine\UrlManager;
 use Bitrix\Main\Error;
+use Bitrix\Main\HttpResponse;
 use Bitrix\Main\Result;
 use Bitrix\Main\UI\PageNavigation;
 
@@ -117,7 +118,7 @@ class Document extends Base
 	 * @param array|null $order
 	 * @param array|null $filter
 	 * @param PageNavigation|null $pageNavigation
-	 * @return \Bitrix\Main\Result
+	 * @return Page
 	 */
 	public function listAction(array $select = ['*'], array $order = null, array $filter = null, PageNavigation $pageNavigation = null)
 	{
@@ -151,28 +152,13 @@ class Document extends Base
 				unset($filter['entityId']);
 			}
 		}
+		/** @var Page $result */
 		$result = $this->proxyAction('listAction', [$select, $order, $filter, $pageNavigation]);
-		if($result instanceof Page)
-		{
-			$documents = $result->offsetGet('documents');
-		}
-		else
-		{
-			$documents = $result;
-		}
-
-		foreach($documents as &$document)
+		$documents = $result->getItems();
+		foreach($documents as $key => &$document)
 		{
 			$document = $this->prepareDocumentData($document);
-		}
-
-		if($result instanceof Page)
-		{
-			$result->offsetSet('documents', $documents);
-		}
-		else
-		{
-			$result = $documents;
+			$result->offsetSet($key, $document);
 		}
 
 		return $result;
@@ -343,22 +329,61 @@ class Document extends Base
 	}
 
 	/**
+	 * @see \Bitrix\DocumentGenerator\Controller\Document::showPdfAction()
+	 *
+	 * @param \Bitrix\DocumentGenerator\Document $document
+	 * @param string $print
+	 * @param int $width
+	 * @param int $height
+	 * @return HttpResponse|array
+	 */
+	public function showPdfAction(\Bitrix\DocumentGenerator\Document $document, $print = 'n', $width = 700, $height = 900)
+	{
+		$response = new HttpResponse();
+		if($document->PDF_ID > 0)
+		{
+			global $APPLICATION;
+			ob_start();
+			$APPLICATION->IncludeComponent(
+				'bitrix:pdf.viewer',
+				'',
+				[
+					'PATH' => $this->getDocumentFileLink($document->ID, 'getPdf', $document->getUpdateTime()->getTimestamp()),
+					'IFRAME' => ($print === 'y' ? 'Y' : 'N'),
+					'PRINT' => ($print === 'y' ? 'Y' : 'N'),
+					'TITLE' => $document->getTitle(),
+					'WIDTH' => $width,
+					'HEIGHT' => $height,
+				]
+			);
+			$response->setContent(ob_get_contents());
+			ob_end_clean();
+		}
+		else
+		{
+			$this->errorCollection[] = new Error('No pdf for this document');
+		}
+		if($print === 'y')
+		{
+			return $response;
+		}
+		else
+		{
+			return [
+				'html' => $response->getContent(),
+			];
+		}
+	}
+
+	/**
 	 * @param array $data
 	 * @return array
 	 */
 	protected function prepareDocumentData(array $data)
 	{
-		$data['links'] = [
-			'download' => $this->getDocumentFileLink($data['id'], 'download', $data['updateTime']),
-			'image' => $this->getDocumentFileLink($data['id'], 'getImage', $data['updateTime']),
-			'pdf' => $this->getDocumentFileLink($data['id'], 'getPdf', $data['updateTime']),
-			'public' => $data['publicUrl'],
-		];
-		unset($data['imageUrl']);
-		unset($data['pdfUrl']);
-		unset($data['printUrl']);
-		unset($data['downloadUrl']);
-		unset($data['publicUrl']);
+		$data['imageUrl'] = $this->getDocumentFileLink($data['id'], 'getImage', $data['updateTime']);
+		$data['pdfUrl'] = $this->getDocumentFileLink($data['id'], 'getPdf', $data['updateTime']);
+		$data['downloadUrl'] = $this->getDocumentFileLink($data['id'], 'download', $data['updateTime']);
 		if(isset($data['value']))
 		{
 			$data['entityId'] = $data['value'];
@@ -369,6 +394,10 @@ class Document extends Base
 			$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
 			$data['entityTypeId'] = str_ireplace(array_values($providersMap), array_keys($providersMap), $data['provider']);
 			unset($data['provider']);
+		}
+		if(isset($data['printUrl']))
+		{
+			unset($data['printUrl']);
 		}
 
 		return $data;

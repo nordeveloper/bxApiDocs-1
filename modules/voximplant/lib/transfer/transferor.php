@@ -6,6 +6,7 @@ use Bitrix\Main\ArgumentException;
 use Bitrix\Main\Error;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Voximplant\Call;
+use Bitrix\Voximplant\ConfigTable;
 use Bitrix\Voximplant\Model\CallTable;
 use Bitrix\Voximplant\Model\CallUserTable;
 use Bitrix\Voximplant\Result;
@@ -31,15 +32,30 @@ class Transferor
 			return $result->addError(new Error('Parent call is not found'));
 		}
 
+		$parentConfig = $parentCall->getConfig();
+		$transferLineId = $parentConfig['ID'];
+		if($parentConfig['FORWARD_LINE'] != \CVoxImplantConfig::FORWARD_LINE_DEFAULT)
+		{
+			$row = ConfigTable::getRow([
+				'filter' => [
+					'=SEARCH_ID' => $parentConfig['FORWARD_LINE']
+				]
+			]);
+			if($row)
+			{
+				$transferLineId = $row['ID'];
+			}
+		}
+
 		$transferCall = Call::create([
 			'CALL_ID' => static::createCallId(),
 			'PARENT_CALL_ID' => $parentCallId,
-			'CONFIG_ID' => $parentCall->getConfig()['ID'],
+			'CONFIG_ID' => $transferLineId,
 			'USER_ID' => $userId,
 			'INCOMING' => \CVoxImplantMain::CALL_OUTGOING,
 			'CALLER_ID' => static::createCallerId($targetType, $targetId),
 			'ACCESS_URL' => $parentCall->getAccessUrl(),
-			'STATUS' => CallTable::STATUS_CONNECTING,
+			'STATUS' => CallTable::STATUS_WAITING,
 			'DATE_CREATE' => new DateTime()
 		]);
 
@@ -49,7 +65,7 @@ class Transferor
 
 		$transferCall->addUsers([$userId], CallUserTable::ROLE_CALLER, CallUserTable::STATUS_CONNECTED);
 
-		$transferCall->getScenario()->sendStartTransfer($userId, $transferCall->getCallId());
+		$transferCall->getScenario()->sendStartTransfer($userId, $transferCall->getCallId(), \CVoxImplantConfig::GetBriefConfig(['ID' => $transferLineId]));
 		return $result;
 	}
 
@@ -142,9 +158,9 @@ class Transferor
 			if ($parentCall->isCrmEnabled())
 			{
 				$config = $parentCall->getConfig();
-				if (isset($config['CRM_TRANSFER_CHANGE']) && $config['CRM_TRANSFER_CHANGE'] == 'Y' && $parentCall->getCrmLead() > 0)
+				if (isset($config['CRM_TRANSFER_CHANGE']) && $config['CRM_TRANSFER_CHANGE'] == 'Y')
 				{
-					\CVoxImplantCrmHelper::UpdateLead($parentCall->getCrmLead(), Array('ASSIGNED_BY_ID' => $newUserId));
+					\CVoxImplantCrmHelper::updateCrmEntities($parentCall->getCreatedCrmEntities(), ['ASSIGNED_BY_ID' => $newUserId]);
 				}
 			}
 
@@ -185,7 +201,7 @@ class Transferor
 		}
 		else if($targetType == Target::PSTN)
 		{
-			return $targetId;
+			return \CVoxImplantPhone::Normalize($targetId);
 		}
 		else
 		{
@@ -211,32 +227,43 @@ class Transferor
 			return;
 		}
 
-		$toUserId = $secondCall->getPortalUserId();
-		\CVoxImplantHistory::TransferMessage($firstCall->getUserId(), $toUserId, $firstCall->getCallerId());
+		// in SIP protocol, the transferor and the transferee are not determined and the order of the calls depends on the phone model.
+		if($firstCall->getId() > $secondCall->getId())
+		{
+			// swap first and second call
+			$temp = $secondCall;
+			$secondCall = $firstCall;
+			$firstCall = $temp;
+		}
 
 		$firstCall->removeUsers([$initiatorUserId]);
 		$secondCall->removeUsers([$initiatorUserId]);
 
-		if(!$firstCall->isInternalCall() && !$secondCall->isInternalCall())
+		if($secondCall->isInternalCall())
 		{
-			// both calls are external, nothing to do
-			return;
-		}
-		if($firstCall->isInternalCall() && $secondCall->isInternalCall())
-		{
-			// both calls are internal, nothing to do
-			return;
-		}
-		if($firstCall->isInternalCall())
-		{
-			$toUserId = $firstCall->getPortalUserId();
-			static::updateCrmData($secondCall, $firstCall, $toUserId);
+			$toUserId = $secondCall->getPortalUserId();
+			\CVoxImplantHistory::TransferMessage($initiatorUserId, $toUserId, $firstCall->getCallerId());
+			if(!$firstCall->isInternalCall())
+			{
+				static::updateCrmData($firstCall, $secondCall, $toUserId);
+			}
 		}
 		else
 		{
-			//second call is internal call
-			$toUserId = $secondCall->getPortalUserId();
-			static::updateCrmData($firstCall, $secondCall, $toUserId);
+			// trying to guess second user by his mobile number
+
+			if($toUserId = \CVoxImplantUser::GetByPhone($secondCall->getCallerId()))
+			{
+				\CVoxImplantHistory::TransferMessage($initiatorUserId, $toUserId, $firstCall->getCallerId(), $secondCall->getCallerId());
+				if(!$firstCall->isInternalCall())
+				{
+					static::updateCrmData($firstCall, $secondCall, $toUserId);
+				}
+			}
+			else
+			{
+				\CVoxImplantHistory::TransferMessagePSTN($initiatorUserId, $firstCall->getCallerId(), $secondCall->getCallerId());
+			}
 		}
 	}
 
@@ -246,17 +273,17 @@ class Transferor
 
 		$internalCall->update([
 			'CRM' => $clientCall->isCrmEnabled() ? 'Y' : 'N',
-			'CRM_ENTITY_TYPE' => $clientCall->getCrmEntityType(),
-			'CRM_ENTITY_ID' => $clientCall->getCrmEntityId(),
 			'CRM_ACTIVITY_ID' => $clientCall->getCrmActivityId()
 		]);
+
+		$internalCall->updateCrmEntities($clientCall->getCrmEntities());
 
 		if($clientCall->isCrmEnabled())
 		{
 			$config = $clientCall->getConfig();
-			if (isset($config['CRM_TRANSFER_CHANGE']) && $config['CRM_TRANSFER_CHANGE'] == 'Y' && $clientCall->getCrmLead() > 0 && $newUserId)
+			if (isset($config['CRM_TRANSFER_CHANGE']) && $config['CRM_TRANSFER_CHANGE'] == 'Y' && $newUserId)
 			{
-				\CVoxImplantCrmHelper::UpdateLead($clientCall->getCrmLead(), ['ASSIGNED_BY_ID' => $newUserId]);
+				\CVoxImplantCrmHelper::updateCrmEntities($clientCall->getCreatedCrmEntities(), ['ASSIGNED_BY_ID' => $newUserId]);
 			}
 		}
 

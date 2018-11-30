@@ -448,15 +448,26 @@ class CCrmEMail
 		if (!empty($mailbox['OPTIONS']['flags']) && is_array($mailbox['OPTIONS']['flags']))
 		{
 			$publicBindings = in_array('crm_public_bind', $mailbox['OPTIONS']['flags']);
-			$denyNewEntityIn = in_array('crm_deny_new_lead', $mailbox['OPTIONS']['flags']);
-			$denyNewEntityIn = $denyNewEntityIn || in_array('crm_deny_entity_in', $mailbox['OPTIONS']['flags']);
-			$denyNewEntityOut = in_array('crm_deny_new_lead', $mailbox['OPTIONS']['flags']);
-			$denyNewEntityOut = $denyNewEntityOut || in_array('crm_deny_entity_out', $mailbox['OPTIONS']['flags']);
 			$denyNewContact = in_array('crm_deny_new_contact', $mailbox['OPTIONS']['flags']);
+
+			if (!$isForced)
+			{
+				$denyNewEntityIn = in_array('crm_deny_new_lead', $mailbox['OPTIONS']['flags']);
+				$denyNewEntityIn = $denyNewEntityIn || in_array('crm_deny_entity_in', $mailbox['OPTIONS']['flags']);
+				$denyNewEntityOut = in_array('crm_deny_new_lead', $mailbox['OPTIONS']['flags']);
+				$denyNewEntityOut = $denyNewEntityOut || in_array('crm_deny_entity_out', $mailbox['OPTIONS']['flags']);
+			}
 		}
 
 		$isIncome = empty($msgFields['IS_OUTCOME']);
+		$isTrash = !empty($msgFields['IS_TRASH']);
+		$isSpam = !empty($msgFields['IS_SPAM']);
 		$isUnseen = empty($msgFields['IS_SEEN']);
+
+		if (!$isForced and $isTrash || $isSpam)
+		{
+			return false;
+		}
 
 		$userId = 0;
 
@@ -512,7 +523,7 @@ class CCrmEMail
 
 		$emailFacility = new Bitrix\Crm\Activity\EmailFacility();
 
-		if ($isIncome && preg_match('/\nX-EVENT_NAME:/i', $msgFields['HEADER']))
+		if (!$isForced && $isIncome && preg_match('/\nX-EVENT_NAME:/i', $msgFields['HEADER']))
 		{
 			$defaultEmailFrom = \Bitrix\Main\Config\Option::get('main', 'email_from', 'admin@'.$GLOBALS['SERVER_NAME']);
 			$defaultEmailFrom = strtolower(trim($defaultEmailFrom));
@@ -523,6 +534,8 @@ class CCrmEMail
 					return false;
 			}
 		}
+
+		// @TODO: killmail
 
 		if (!empty($msgId))
 		{
@@ -540,19 +553,16 @@ class CCrmEMail
 				)->fetch();
 				if ($matchActivity && strtolower($matchActivity['URN']) == strtolower($matches[1]))
 				{
-					if ($matchActivity['UF_MAIL_MESSAGE'] != $messageId)
-					{
-						\CCrmActivity::update(
-							$matchActivity['ID'],
-							array(
-								'UF_MAIL_MESSAGE' => $messageId,
-							),
-							false,
-							false
-						);
-					}
+					\CCrmActivity::update(
+						$matchActivity['ID'],
+						array(
+							'UF_MAIL_MESSAGE' => $messageId,
+						),
+						false,
+						false
+					);
 
-					return false;
+					return true;
 				}
 			}
 		}
@@ -759,6 +769,8 @@ class CCrmEMail
 					break;
 			}
 
+			// @TODO: converted lead
+
 			if (!empty($owner))
 			{
 				$ownerTypeId = $targetActivity['OWNER_TYPE_ID'];
@@ -809,6 +821,7 @@ class CCrmEMail
 				}
 			}
 
+			$ranking->setModifiedList($list);
 			$ranking->setRankedList($list);
 		};
 
@@ -827,6 +840,7 @@ class CCrmEMail
 			$commAddress = $filteredAddress;
 
 			$facility = new \Bitrix\Crm\EntityManageFacility();
+			$facility->setDirection($isIncome ? $facility::DIRECTION_INCOMING : $facility::DIRECTION_OUTGOING);
 
 			if ($isForced)
 			{
@@ -838,43 +852,22 @@ class CCrmEMail
 			$commAddress = array();
 			foreach ($filteredAddress as $item)
 			{
-				$itemFacility = new \Bitrix\Crm\EntityManageFacility();
-				$itemFacility->getSelector()->appendEmailCriterion($item->getEmail());
+				$itemSelector = new \Bitrix\Crm\Integrity\ActualEntitySelector();
+				$itemSelector->appendEmailCriterion($item->getEmail());
 
 				if (!$publicBindings)
 				{
-					$itemFacility->getSelector()->getRanking()->addModifier($rankingModifier);
+					$itemSelector->getRanking()->addModifier($rankingModifier);
 				}
 
 				if ($isForced)
 				{
-					$itemFacility->getSelector()->disableExclusionChecking();
+					$itemSelector->disableExclusionChecking();
 				}
 
-				$itemFacility->getSelector()->search();
+				$itemSelector->search();
 
-				// @TODO: fix ActualEntitySelector
-				if (!$publicBindings && $itemFacility->getSelector()->getLeadId() > 0)
-				{
-					$checkedLead = \CCrmLead::getListEx(
-						array(),
-						array(
-							'ID' => $itemFacility->getSelector()->getLeadId(),
-							'ASSIGNED_BY_ID' => $respQueue,
-							'CHECK_PERMISSIONS' => 'N',
-						),
-						false,
-						false,
-						array('ID')
-					)->fetch();
-
-					if (empty($checkedLead))
-					{
-						$itemFacility->getSelector()->set('leadId', null);
-					}
-				}
-
-				if ($itemFacility->getSelector()->hasExclusions())
+				if ($itemSelector->hasExclusions())
 				{
 					if ($isIncome)
 					{
@@ -886,16 +879,16 @@ class CCrmEMail
 					}
 				}
 
-				if (empty($firstFacility))
+				if (empty($firstSelector))
 				{
-					$firstFacility = $itemFacility;
+					$firstSelector = $itemSelector;
 				}
 
-				if ($itemFacility->getSelector()->hasEntities())
+				if ($itemSelector->hasEntities())
 				{
-					if (empty($facility))
+					if (empty($selector))
 					{
-						$facility = $itemFacility;
+						$selector = $itemSelector;
 						array_unshift($commAddress, $item);
 					}
 				}
@@ -905,14 +898,14 @@ class CCrmEMail
 				}
 			}
 
-			if (empty($facility))
+			if (empty($selector))
 			{
-				if (empty($firstFacility))
+				if (empty($firstSelector))
 				{
 					return false;
 				}
 
-				$facility = $firstFacility;
+				$selector = $firstSelector;
 			}
 			else
 			{
@@ -921,6 +914,9 @@ class CCrmEMail
 					$commAddress = array();
 				}
 			}
+
+			$facility = new \Bitrix\Crm\EntityManageFacility($selector);
+			$facility->setDirection($isIncome ? $facility::DIRECTION_INCOMING : $facility::DIRECTION_OUTGOING);
 
 			$emailFacility->setBindings($facility->getActivityBindings());
 
@@ -956,7 +952,11 @@ class CCrmEMail
 			}
 		}
 
-		if ($facility->canAddEntity($newEntityTypeId))
+		if (!empty($emailFacility->getBindings()))
+		{
+			$userId = $emailFacility->getOwnerResponsibleId();
+		}
+		else if ($facility->canAddEntity($newEntityTypeId))
 		{
 			$luckyOne = \Bitrix\Main\Config\Option::get('crm', 'last_resp_' . $mailboxId, -1) + 1;
 			if ($luckyOne > count($respQueue) - 1)
@@ -968,42 +968,36 @@ class CCrmEMail
 
 			$userId = $respQueue[$luckyOne];
 		}
-		else if (!empty($emailFacility->getBindings()))
-		{
-			$userId = $emailFacility->getOwnerResponsibleId();
-		}
 		else
 		{
 			return false;
 		}
 
-		if (\CCrmOwnerType::Contact == $newEntityTypeId)
+		$contactFields = array(
+			'TYPE_ID' => 'CLIENT',
+		);
+
+		$leadFields = array(
+			'OPENED' => 'Y',
+		);
+
+		if (trim($msgFields['SUBJECT']))
 		{
-			$entityFields = array(
-				'TYPE_ID' => 'CLIENT',
-			);
+			$leadFields['TITLE'] = trim($msgFields['SUBJECT']);
 		}
 		else
 		{
-			$entityFields = array(
-				'COMMENTS'      => htmlspecialcharsbx($subject),
-				'OPENED'        => 'Y',
-				'ORIGINATOR_ID' => 'email-tracker',
-				'ORIGIN_ID'     => $mailboxId,
+			$leadFields['TITLE'] = getMessage(
+				($isIncome ? 'CRM_MAIL_LEAD_FROM_EMAIL_TITLE' : 'CRM_MAIL_LEAD_FROM_USER_EMAIL_TITLE'),
+				array('%SENDER%' => $replyTo ?: $from)
 			);
-
-			if (trim($msgFields['SUBJECT']))
-			{
-				$entityFields['TITLE'] = trim($msgFields['SUBJECT']);
-			}
-			else
-			{
-				$entityFields['TITLE'] = getMessage(
-					($isIncome ? 'CRM_MAIL_LEAD_FROM_EMAIL_TITLE' : 'CRM_MAIL_LEAD_FROM_USER_EMAIL_TITLE'),
-					array('%SENDER%' => $replyTo ?: $from)
-				);
-			}
 		}
+
+		$entityFields = array(
+			'COMMENTS' => htmlspecialcharsbx($subject),
+			'ORIGINATOR_ID' => 'email-tracker',
+			'ORIGIN_ID' => $mailboxId,
+		);
 
 		$sourceList = \CCrmStatus::getStatusList('SOURCE');
 		$sourceId   = $mailbox['OPTIONS']['crm_lead_source'];
@@ -1044,9 +1038,16 @@ class CCrmEMail
 			}
 		}
 
+		$entitiesFields = array(
+			\CCrmOwnerType::Lead => $leadFields + $entityFields,
+			\CCrmOwnerType::Contact => $contactFields + $entityFields,
+		);
+
+		// @TODO: update lead
+
 		$facility->registerTouch(
 			$newEntityTypeId,
-			$entityFields,
+			$entitiesFields,
 			true,
 			array(
 				'CURRENT_USER' => $userId,
@@ -1057,16 +1058,19 @@ class CCrmEMail
 
 		if ($facility->getRegisteredId() > 0)
 		{
-			$emailFacility->setOwner($facility->getRegisteredTypeId(), $facility->getRegisteredId());
+			$emailFacility->setBindings($facility->getActivityBindings(), true);
+
+			$channelTrackerParams = array(
+				'ORIGIN_ID' => sprintf('%u|%u', $mailbox['USER_ID'], $mailbox['ID'])
+			);
 
 			if ($facility->getRegisteredTypeId() == \CCrmOwnerType::Lead)
 			{
-				Channel\EmailTracker::getInstance()->registerLead(
-					$facility->getRegisteredId(),
-					array(
-						'ORIGIN_ID' => sprintf('%u|%u', $mailbox['USER_ID'], $mailbox['ID'])
-					)
-				);
+				Channel\EmailTracker::getInstance()->registerLead($facility->getRegisteredId(), $channelTrackerParams);
+			}
+			else if ($facility->getRegisteredTypeId() == \CCrmOwnerType::Deal)
+			{
+				Channel\EmailTracker::getInstance()->registerDeal($facility->getRegisteredId(), $channelTrackerParams);
 			}
 		}
 
@@ -2791,6 +2795,7 @@ class CCrmEMail
 					break;
 
 				\CCrmActivity::update($activity['ID'], array(
+					'EDITOR_ID' => $activity['RESPONSIBLE_ID'],
 					'COMPLETED' => $seen ? 'Y' : 'N',
 				), false);
 

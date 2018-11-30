@@ -8,7 +8,6 @@ use \Bitrix\Landing\Site;
 use \Bitrix\Landing\Domain;
 use \Bitrix\Main\SystemException;
 use \Bitrix\Main\Loader;
-use \Bitrix\Main\ModuleManager;
 
 Loc::loadMessages(__FILE__);
 
@@ -383,7 +382,7 @@ class SiteTable extends Entity\DataManager
 			array_key_exists('DOMAIN_ID', $fields) &&
 			(
 				preg_replace('/[\d]/', '', trim($fields['DOMAIN_ID'])) != '' ||
-				ModuleManager::isModuleInstalled('bitrix24')
+				Manager::isB24()
 			)
 		)
 		{
@@ -822,10 +821,9 @@ class SiteTable extends Entity\DataManager
 			{
 				try
 				{
+					// now external domains always are active
 					$siteController::activateDomain(
-						$row['DOMAIN_NAME'],
-						($row['ACTIVE'] == 'Y' && $row['DELETED'] == 'N')
-						? 'Y' : 'N'
+						$row['DOMAIN_NAME']
 					);
 				}
 				catch (\Bitrix\Main\SystemException $ex)

@@ -103,6 +103,7 @@ class MetaOg extends \Bitrix\Landing\Hook\Page
 				{
 					if (is_array($val))
 					{
+						$val['SRC'] = Manager::getUrlFromFile($val['SRC']);
 						$output .=
 							'<meta name="og:image" content="' . str_replace(' ', '%20', \htmlspecialcharsbx($val['SRC'])) . '" />' .
 							'<meta name="og:image:width" content="' . $val['WIDTH'] . '" />' .

@@ -7,13 +7,12 @@
  */
 namespace Bitrix\Crm;
 
-use Bitrix\Main\DB;
-use Bitrix\Main\Entity;
+use Bitrix\Main;
 use Bitrix\Main\Localization\Loc;
 
 Loc::loadMessages(__FILE__);
 
-class DealTable extends Entity\DataManager
+class DealTable extends Main\ORM\Data\DataManager
 {
 	public static function getTableName()
 	{
@@ -276,7 +275,7 @@ class DealTable extends Entity\DataManager
 				'data_type' => 'ExternalSale',
 				'reference' => array('=this.ORIGINATOR_ID' => 'ref.ID')
 			),
-			new Entity\StringField('LOCATION_ID'),
+			new Main\Entity\StringField('LOCATION_ID'),
 		);
 	}
 }

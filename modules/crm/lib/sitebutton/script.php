@@ -367,10 +367,7 @@ class Script
 			}
 
 			$content = self::getFileContents($resource['path']);
-			if ($resource['pathToIcons'])
-			{
-				$content = str_replace('images/service/', ResourceManager::getServerAddress() . $resource['pathToIcons'] . 'images/service/', $content);
-			}
+			$content = str_replace('/bitrix/js/ui/icons/images/service/', ResourceManager::getServerAddress() . '/bitrix/js/ui/icons/images/service/', $content);
 
 			$resources[$resource['path']] = array(
 				'name' => $resource['name'],

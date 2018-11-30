@@ -2733,10 +2733,10 @@ class CIMMessenger
 		$businessUsers = false;
 		if (CModule::IncludeModule('imopenlines'))
 		{
-			$crmPath['LEAD'] = \Bitrix\ImOpenLines\Crm::getLink('LEAD');
-			$crmPath['CONTACT'] = \Bitrix\ImOpenLines\Crm::getLink('CONTACT');
-			$crmPath['COMPANY'] = \Bitrix\ImOpenLines\Crm::getLink('COMPANY');
-			$crmPath['DEAL'] = \Bitrix\ImOpenLines\Crm::getLink('DEAL');
+			$crmPath['LEAD'] = \Bitrix\ImOpenLines\Crm\Common::getLink('LEAD');
+			$crmPath['CONTACT'] = \Bitrix\ImOpenLines\Crm\Common::getLink('CONTACT');
+			$crmPath['COMPANY'] = \Bitrix\ImOpenLines\Crm\Common::getLink('COMPANY');
+			$crmPath['DEAL'] = \Bitrix\ImOpenLines\Crm\Common::getLink('DEAL');
 
 			$businessUsers = \Bitrix\Imopenlines\Limit::getLicenseUsersLimit();
 
@@ -2905,10 +2905,10 @@ class CIMMessenger
 		$businessUsers = false;
 		if (CModule::IncludeModule('imopenlines'))
 		{
-			$crmPath['LEAD'] = \Bitrix\ImOpenLines\Crm::getLink('LEAD');
-			$crmPath['CONTACT'] = \Bitrix\ImOpenLines\Crm::getLink('CONTACT');
-			$crmPath['COMPANY'] = \Bitrix\ImOpenLines\Crm::getLink('COMPANY');
-			$crmPath['DEAL'] = \Bitrix\ImOpenLines\Crm::getLink('DEAL');
+			$crmPath['LEAD'] = \Bitrix\ImOpenLines\Crm\Common::getLink('LEAD');
+			$crmPath['CONTACT'] = \Bitrix\ImOpenLines\Crm\Common::getLink('CONTACT');
+			$crmPath['COMPANY'] = \Bitrix\ImOpenLines\Crm\Common::getLink('COMPANY');
+			$crmPath['DEAL'] = \Bitrix\ImOpenLines\Crm\Common::getLink('DEAL');
 
 			$businessUsers = \Bitrix\Imopenlines\Limit::getLicenseUsersLimit();
 
@@ -3049,10 +3049,10 @@ class CIMMessenger
 		$businessUsers = false;
 		if (CModule::IncludeModule('imopenlines'))
 		{
-			$crmPath['LEAD'] = \Bitrix\ImOpenLines\Crm::getLink('LEAD');
-			$crmPath['CONTACT'] = \Bitrix\ImOpenLines\Crm::getLink('CONTACT');
-			$crmPath['COMPANY'] = \Bitrix\ImOpenLines\Crm::getLink('COMPANY');
-			$crmPath['DEAL'] = \Bitrix\ImOpenLines\Crm::getLink('DEAL');
+			$crmPath['LEAD'] = \Bitrix\ImOpenLines\Crm\Common::getLink('LEAD');
+			$crmPath['CONTACT'] = \Bitrix\ImOpenLines\Crm\Common::getLink('CONTACT');
+			$crmPath['COMPANY'] = \Bitrix\ImOpenLines\Crm\Common::getLink('COMPANY');
+			$crmPath['DEAL'] = \Bitrix\ImOpenLines\Crm\Common::getLink('DEAL');
 
 			$businessUsers = \Bitrix\Imopenlines\Limit::getLicenseUsersLimit();
 

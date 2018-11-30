@@ -27,8 +27,6 @@ Loc::loadMessages(__FILE__);
 class InvoiceRoundTable extends Main\Entity\DataManager
 {
 	const ENTITY_TYPE_BASKET_ITEM = 0x0001;
-	/** @deprecated */
-	const ENTITY_TYPE_BASKET = self::ENTITY_TYPE_BASKET_ITEM;
 
 	/**
 	 * Returns DB table name for entity.

@@ -3,7 +3,7 @@ class CVoxImplantHttp
 {
 	const TYPE_BITRIX24 = 'B24';
 	const TYPE_CP = 'CP';
-	const VERSION = 16;
+	const VERSION = 17;
 
 	private $controllerUrl = 'https://telephony.bitrix.info/telephony/portal.php';
 	private $licenceCode = '';
@@ -806,8 +806,15 @@ class CVoxImplantHttp
 
 	private function Query($command, $params = array())
 	{
-		if (strlen($command) <= 0 || !is_array($params))
+		if(\Bitrix\Voximplant\Limits::isRestOnly())
+		{
 			return false;
+		}
+
+		if (strlen($command) <= 0 || !is_array($params))
+		{
+			return false;
+		}
 
 		$params['BX_COMMAND'] = $command;
 		$params['BX_LICENCE'] = $this->licenceCode;
@@ -869,52 +876,11 @@ class CVoxImplantHttp
 		}
 	}
 
-	public static function CheckDirectRequest($params)
+	public static function CheckDirectRequest()
 	{
-		if(strlen($params["HASH"]) <= 0)
-		{
-			return false;
-		}
+		$rawRequest = \Bitrix\Main\Context::getCurrent()->getRequest()->getInput();
 
-		$hash = $params["HASH"];
-		unset($params["HASH"]);
-
-		$string = "";
-		$paramsExeption = array("PARAMS", "SCENARIO_VERSION", "SCENARIO_NAME", "DIRECTION", "CALL_DIRECTION", "CALL_FAILED_REASON", "CALL_FAILED_CODE", "ACCESS_URL");
-
-		foreach($params as $k => $v)
-		{
-			if(!in_array($k, $paramsExeption))
-			{
-				if(is_array($v))
-				{
-					foreach ($v as $index => $valueElement)
-					{
-						if(strlen($string) > 0)
-							$string .= "&";
-
-						$string .= $k . "[" . $index . "]=" . $valueElement;
-					}
-				}
-				else
-				{
-					if(strlen($string) > 0)
-						$string .= "&";
-
-					$string .= $k."=".$v;
-				}
-			}
-		}
-		$string .= "|".self::GetPortalSign();
-
-		if(md5($string) == $hash)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		return md5($rawRequest . "|" . self::GetPortalSign());
 	}
 	
 	public static function GetPortalSign()

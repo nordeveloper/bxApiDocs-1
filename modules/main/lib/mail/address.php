@@ -33,21 +33,25 @@ class Address
 
 	/**
 	 * Address constructor.
-	 *
-	 * @param string|null $address Address.
+	 * @param null $address
+	 * @param array $options - possible keys are:
+	 * 		checkingPunycode - converting domain with non-latin symbols into punycode before validation
 	 */
-	public function __construct($address = null, $checkingPunycode = false)
+	public function __construct($address = null, $options = [])
 	{
-		$this->setCheckingPunycode($checkingPunycode);
+		if (array_key_exists('checkingPunycode', $options))
+		{
+			$this->setCheckingPunycode($options['checkingPunycode']);
+		}
 		if ($address)
 		{
 			$this->set($address);
 		}
 	}
 
-	public function setCheckingPunycode($checkingPunycode = true)
+	public function setCheckingPunycode($checkingPunycode)
 	{
-		$this->checkingPunycode = $checkingPunycode;
+		$this->checkingPunycode = (bool)$checkingPunycode;
 	}
 
 	/**
@@ -214,20 +218,38 @@ class Address
 
 	private function checkMail($email)
 	{
-		if (!$this->checkingPunycode)
+		if (check_email($email, true))
 		{
-			return check_email($email, true);
+			return true;
 		}
-		if (count(explode("@", $email)) === 2)
+		if ($this->checkingPunycode)
 		{
-			$domainPart = array_pop(explode("@", $email));
+			$addressWithPunycodeDomain = $this->convertAddressToPunycode($email);
+			if ($addressWithPunycodeDomain)
+			{
+				return check_email($addressWithPunycodeDomain, true);
+			}
+		}
+
+		return false;
+	}
+
+	/** Converts domain part to punycode
+	 * @param $email
+	 * @return bool|string
+	 */
+	private function convertAddressToPunycode($email)
+	{
+		if (count(explode('@', $email)) === 2)
+		{
+			$domainPart = array_pop(explode('@', $email));
 			if ($domainPart)
 			{
-				$emailAddressName = array_shift(explode("@", $email));
+				$emailAddressName = array_shift(explode('@', $email));
 				$encoder = new \CBXPunycode();
 				if ($encodedDomain = $encoder->encode($domainPart))
 				{
-					return check_email($emailAddressName . '@' . $encodedDomain);
+					return $emailAddressName . '@' . $encodedDomain;
 				}
 			}
 		}

@@ -289,8 +289,6 @@ abstract class PropertyValueBase extends Internals\CollectableEntity
 
 		$this->callEventOnPropertyValueEntitySaved();
 
-		$this->clearChanged();
-
 		return $result;
 	}
 

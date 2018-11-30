@@ -315,7 +315,7 @@ class Router
 			}
 			else
 			{
-				$lastNode = new Voicemail('User '. $userId .' have no phone number in the profile');
+				$lastNode = new Voicemail($userId, 'User '. $userId .' have no phone number in the profile');
 			}
 		}
 		else if($skipRule == \CVoxImplantIncoming::RULE_QUEUE)
@@ -324,7 +324,7 @@ class Router
 		}
 		else if($skipRule == \CVoxImplantIncoming::RULE_VOICEMAIL)
 		{
-			$lastNode = new Voicemail('Call skipped by rule voicemail. Connect type is ' . $connectType);;
+			$lastNode = new Voicemail($userId, 'Call skipped by rule voicemail. Connect type is ' . $connectType);;
 		}
 		else
 		{
@@ -465,9 +465,13 @@ class Router
 				$this->call->updateUserId($firstUserId);
 			}
 
-			if(!$this->call->getCrmLead() && \CVoxImplantCrmHelper::shouldCreateLead($this->call->toArray(), $this->call->getConfig()))
+			if(\CVoxImplantCrmHelper::shouldCreateLead($this->call))
 			{
 				\CVoxImplantCrmHelper::registerCallInCrm($this->call);
+				if(\CVoxImplantConfig::GetLeadWorkflowExecution() == \CVoxImplantConfig::WORKFLOW_START_IMMEDIATE)
+				{
+					\CVoxImplantCrmHelper::StartCallTrigger($this->call, true);
+				}
 			}
 		}
 	}

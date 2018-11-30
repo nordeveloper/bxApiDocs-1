@@ -2074,6 +2074,22 @@ class CAllCrmActivity
 		}
 		return $result;
 	}
+	public static function GetSubsidiaryEntityBindingMap($ownerTypeID, $ownerID)
+	{
+		$map = array();
+		if($ownerTypeID === CCrmOwnerType::Lead)
+		{
+			$entityInfos = Crm\Entity\Lead::getSubsidiaryEntities($ownerID);
+			foreach($entityInfos as $entityInfo)
+			{
+				$map["{$entityInfo['ENTITY_TYPE_ID']}_{$entityInfo['ENTITY_ID']}"] = array(
+					'OWNER_TYPE_ID' => $entityInfo['ENTITY_TYPE_ID'],
+					'OWNER_ID' => $entityInfo['ENTITY_ID']
+				);
+			}
+		}
+		return $map;
+	}
 
 	public static function PrepareBindingChanges(array $origin, array $current, array &$added, array &$removed)
 	{
@@ -6638,6 +6654,7 @@ class CAllCrmActivity
 			$fields['DESCRIPTION_RAW'] = substr($fields['DESCRIPTION_RAW'], 0, $limit);
 		}
 	}
+
 }
 
 class CCrmActivityType

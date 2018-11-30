@@ -119,7 +119,7 @@ class WebForm extends Base
 		}
 		$fieldTemplate = '
 			<label class="crm-task-list-form-container" for="">
-				<span class="crm-task-list-form-name">%caption%%required%:</span>
+				<span class="crm-task-list-form-name" title="%caption%">%caption%%required%:</span>
 				<span class="crm-task-list-form-field">%values%</span>
 			</label>
 		';

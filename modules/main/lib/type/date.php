@@ -109,6 +109,21 @@ class Date
 		return $this;
 	}
 
+	/**
+	 * Sets the current date of the DateTime object to a different date.
+	 * @param int $year
+	 * @param int $month
+	 * @param int $day
+	 * 
+	 * @return $this
+	 */
+	public function setDate($year, $month, $day)
+	{
+		$this->value->setDate($year, $month, $day);
+
+		return $this;
+	}
+
 	private function tryToCreateIntervalByDesignators($interval)
 	{
 		if (!is_string($interval) || strpos($interval, ' ') !== false)

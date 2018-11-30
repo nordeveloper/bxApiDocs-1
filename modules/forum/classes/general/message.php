@@ -119,7 +119,17 @@ class CAllForumMessage
 			}
 			else
 			{
-				$bDeduplication = ($arForum['DEDUPLICATION'] === 'Y');
+				if (
+					isset($arFields['AUX'])
+					&& $arFields['AUX'] == 'Y'
+				)
+				{
+					$bDeduplication = false;
+				}
+				else
+				{
+					$bDeduplication = ($arForum['DEDUPLICATION'] === 'Y');
+				}
 			}
 		}
 

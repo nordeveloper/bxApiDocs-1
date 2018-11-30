@@ -49,6 +49,11 @@ final class ExportOneCCRM extends CSaleExport
 		return new \Bitrix\Crm\Invoice\EntityMarker();
 	}
 
+	static protected function getPersonType()
+	{
+		return \Bitrix\Crm\Invoice\PersonType::class;
+	}
+
     static public function normalizeExternalCode($xml)
 	{
 		static $sales = null;
@@ -126,7 +131,6 @@ final class ExportOneCCRM extends CSaleExport
 
 }
 
-//class CAllSaleExport
 class CSaleExport
 {
 	const DEFAULT_VERSION = 2.05;
@@ -195,6 +199,11 @@ class CSaleExport
     static protected function getEntityMarker()
     {
 		return new \Bitrix\Sale\EntityMarker();
+    }
+
+    static protected function getPersonType()
+    {
+		return \Bitrix\Sale\PersonType::class;
     }
 
     static protected function getUserTimeStapmX(array $arOrder)
@@ -3226,8 +3235,14 @@ class CSaleExport
 
 		if (is_set($arFields, "PERSON_TYPE_ID"))
 		{
-			$arResult = CSalePersonType::GetByID($arFields["PERSON_TYPE_ID"]);
-			if (!$arResult)
+			/** @var \Bitrix\Sale\PersonType $personType */
+			$personType = static::getPersonType();
+			$dbRes = $personType::getList([
+				'filter' => [
+					'=ID' => $arFields["PERSON_TYPE_ID"]
+				]
+			]);
+			if (!$dbRes->fetch())
 			{
 				$GLOBALS["APPLICATION"]->ThrowException(str_replace("#ID#", $arFields["PERSON_TYPE_ID"], GetMessage("SALE_EXPORT_ERROR_PERSON_TYPE_ID")), "ERROR_NO_PERSON_TYPE_ID");
 				return false;

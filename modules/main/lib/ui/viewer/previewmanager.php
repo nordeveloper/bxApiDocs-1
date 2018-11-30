@@ -9,6 +9,7 @@ use Bitrix\Main\EventResult;
 use Bitrix\Main\HttpRequest;
 use Bitrix\Main\Loader;
 use Bitrix\Main\SystemException;
+use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\UI\Viewer\Transformation\TransformerManager;
 use Bitrix\Main\Web\Uri;
 use Bitrix\Main\Security;
@@ -22,10 +23,13 @@ final class PreviewManager
 	const HEADER_TO_RESIZE_IMAGE             = 'BX-Viewer-image';
 	const HEADER_TO_GET_SOURCE               = 'BX-Viewer-src';
 	const HEADER_TO_RUN_FORCE_TRANSFORMATION = 'BX-Viewer-force-transformation';
+	const HEADER_TO_CHECK_TRANSFORMATION     = 'BX-Viewer-check-transformation';
 
 	/** @var TransformerManager  */
 	private $transformer;
 	private $rendererList = [];
+	private static $disableCatchingViewByUser = false;
+
 	/**
 	 * @var HttpRequest
 	 */
@@ -91,8 +95,28 @@ final class PreviewManager
 		$this->rendererList = array_merge($default, $additionalList);
 	}
 
+	public static function disableCatchingViewByUser()
+	{
+		self::$disableCatchingViewByUser = true;
+	}
+
+	public static function enableCatchingViewByUser()
+	{
+		self::$disableCatchingViewByUser = false;
+	}
+
+	public static function isDisabledCatchingViewByUser()
+	{
+		 return (bool)self::$disableCatchingViewByUser;
+	}
+
 	public function isInternalRequest($file, $options)
 	{
+		if (self::isDisabledCatchingViewByUser())
+		{
+			return false;
+		}
+
 		if (!is_array($file) || empty($file['ID']))
 		{
 			return false;
@@ -123,6 +147,11 @@ final class PreviewManager
 			return true;
 		}
 
+		if ($this->httpRequest->getHeader(self::HEADER_TO_CHECK_TRANSFORMATION))
+		{
+			return true;
+		}
+
 		if ($this->httpRequest->getHeader(self::HEADER_TO_RESIZE_IMAGE))
 		{
 			return true;
@@ -133,41 +162,57 @@ final class PreviewManager
 
 	public function processViewByUserRequest($file, $options)
 	{
+		self::disableCatchingViewByUser();
+
 		if ($this->httpRequest->get(self::GET_KEY_TO_SEND_PREVIEW_CONTENT))
 		{
-			$this->sendPreviewContent($file, $options);
+			$response = $this->sendPreviewContent($file, $options);
 		}
 		elseif ($this->httpRequest->get(self::GET_KEY_TO_SHOW_IMAGE))
 		{
-			$this->showImage($file, $options);
+			$response = $this->showImage($file, $options);
 		}
 		elseif ($this->httpRequest->getHeader(self::HEADER_TO_RUN_FORCE_TRANSFORMATION))
 		{
-			$this->sendPreview($file, true);
+			$response = $this->sendPreview($file, true);
+		}
+		elseif ($this->httpRequest->getHeader(self::HEADER_TO_CHECK_TRANSFORMATION))
+		{
+			$response = $this->checkTransformation($file);
 		}
 		elseif ($this->httpRequest->getHeader(self::HEADER_TO_SEND_PREVIEW))
 		{
-			$this->sendPreview($file);
+			$response = $this->sendPreview($file);
 		}
 		elseif ($this->httpRequest->getHeader(self::HEADER_TO_RESIZE_IMAGE))
 		{
-			$this->sendResizedImage($file);
+			$response = $this->sendResizedImage($file);
+		}
+
+		if ($response instanceof \Bitrix\Main\Response)
+		{
+			Application::getInstance()->end(0, $response);
 		}
 	}
 
 	protected function sendPreviewContent($file, $options)
 	{
 		$possiblePreviewFileId = $this->unsignFileId($this->httpRequest->get(self::GET_KEY_TO_SEND_PREVIEW_CONTENT));
-		$filePreview = $this->getFilePreviewEntryByFileId($file);
+		$filePreview = $this->getFilePreviewEntryByFileId($file['ID']);
 		if (!$filePreview || empty($filePreview['PREVIEW_ID']) || $filePreview['PREVIEW_ID'] != $possiblePreviewFileId)
 		{
-			return;
+			return null;
 		}
-		//get name for preview file
-		\CFile::viewByUser($filePreview['PREVIEW_ID'], [
-			'prevent_work_with_preview' => true,
-			'attachment_name' => $file['ORIGINAL_NAME'],
+
+		FilePreviewTable::update($filePreview['ID'], [
+			'TOUCHED_AT' => new DateTime(),
 		]);
+
+		//get name for preview file
+		return Response\BFile::createByFileId(
+			$filePreview['PREVIEW_ID'],
+			$file['ORIGINAL_NAME']
+		);
 	}
 
 	protected function showImage($file, $options)
@@ -184,12 +229,12 @@ final class PreviewManager
 	protected function sendResizedImage($file)
 	{
 		$fileView = $this->getByImage($file['ID'], $this->getSourceUri());
-		if ($fileView)
+		if (!$fileView)
 		{
-			$fileView->render();
-
-			Application::getInstance()->terminate();
+			return null;
 		}
+
+		return $fileView->render();
 	}
 
 	protected function prepareRenderParameters($file)
@@ -224,10 +269,15 @@ final class PreviewManager
 		];
 	}
 
+	protected function checkTransformation($file)
+	{
+		return new Response\AjaxJson([
+			'transformation' => (bool)$this->getViewFileData($file),
+		]);
+	}
+
 	protected function sendPreview($file, $forceTransformation = false)
 	{
-		$response = Response\AjaxJson::createError();
-
 		$render = $this->buildRenderByFile(
 			$file['ORIGINAL_NAME'],
 			$file['CONTENT_TYPE'],
@@ -255,24 +305,22 @@ final class PreviewManager
 				if ($generatePreview->isSuccess())
 				{
 					$render = null;
-					$response = Response\AjaxJson::createSuccess($generatePreview->getData());
+					return Response\AjaxJson::createSuccess($generatePreview->getData());
 				}
-				else
-				{
-					$response = Response\AjaxJson::createError($generatePreview->getErrorCollection());
-				}
+
+				return Response\AjaxJson::createError($generatePreview->getErrorCollection());
 			}
 		}
 
 		if ($render)
 		{
-			$response = Response\AjaxJson::createSuccess([
+			return Response\AjaxJson::createSuccess([
 				'html' => $render->render(),
 				'data' => $render->getData(),
 			]);
 		}
 
-		Application::getInstance()->end(0, $response);
+		return Response\AjaxJson::createError();
 	}
 
 	public function generatePreview($fileId)
@@ -418,6 +466,8 @@ final class PreviewManager
 	 */
 	protected function getFileData($fileId, $cacheCleaned = false)
 	{
+		$fileId = (int)$fileId;
+
 		$fileData = \CFile::getByID($fileId)->fetch();
 		if ($fileData === false && !$cacheCleaned)
 		{

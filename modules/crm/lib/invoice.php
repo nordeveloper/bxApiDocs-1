@@ -270,4 +270,10 @@ class InvoiceTable extends Entity\DataManager
 			$payment->setField("PAY_SYSTEM_NAME", $paysystem['NAME']);
 		}
 	}
+
+	public static function getFieldCaption($fieldName)
+	{
+		$result = Loc::getMessage("CRM_INVOICE_ENTITY_{$fieldName}_FIELD");
+		return is_string($result) ? $result : '';
+	}
 }

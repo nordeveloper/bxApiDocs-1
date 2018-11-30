@@ -180,13 +180,18 @@ class CAdminPage
 
 	public function ShowScript()
 	{
+		/** @global CMain $APPLICATION */
+		global $APPLICATION;
+
+		$APPLICATION->AddHeadScript('/bitrix/js/main/utils.js');
+		$APPLICATION->AddHeadScript('/bitrix/js/main/hot_keys.js');
+
+		$APPLICATION->SetAdditionalCSS('/bitrix/panel/main/hot_keys.css');
+
 		if ($this->publicMode)
 		{
 			return '';
 		}
-
-		/** @global CMain $APPLICATION */
-		global $APPLICATION;
 
 		//PHP-depended variables
 		$aUserOpt = CUserOptions::GetOption("global", "settings");
@@ -224,14 +229,10 @@ var phpVars = {
 
 		CJSCore::Init(array('admin_sidepanel'));
 
-		$APPLICATION->AddHeadScript('/bitrix/js/main/utils.js');
 		$APPLICATION->AddHeadScript('/bitrix/js/main/admin_tools.js');
 		$APPLICATION->AddHeadScript('/bitrix/js/main/popup_menu.js');
 		$APPLICATION->AddHeadScript('/bitrix/js/main/admin_search.js');
-		$APPLICATION->AddHeadScript('/bitrix/js/main/hot_keys.js');
 		$APPLICATION->AddHeadScript('/bitrix/js/main/admin_sidepanel.js');
-
-		$APPLICATION->SetAdditionalCSS('/bitrix/panel/main/hot_keys.css');
 
 		return $s;
 	}

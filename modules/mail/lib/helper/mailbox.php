@@ -332,7 +332,7 @@ abstract class Mailbox
 				'Bitrix\Mail\Helper::syncOutgoingAgent(%u);',
 				$this->mailbox['ID']
 			),
-			'mail'
+			'mail', 'N', 60
 		);
 	}
 
@@ -389,6 +389,7 @@ abstract class Mailbox
 				'select' => array(
 					'*',
 					'__' => 'MESSAGE.*',
+					'UPLOAD_STAGE' => 'UPLOAD_QUEUE.SYNC_STAGE',
 				),
 				'filter' => array(
 					'>=UPLOAD_QUEUE.SYNC_STAGE' => 0,
@@ -414,9 +415,10 @@ abstract class Mailbox
 		global $DB;
 
 		$lockSql = sprintf(
-			"UPDATE b_mail_message_upload_queue SET SYNC_LOCK = %u, SYNC_STAGE = 1
+			"UPDATE b_mail_message_upload_queue SET SYNC_LOCK = %u, SYNC_STAGE = %u
 				WHERE ID = '%s' AND MAILBOX_ID = %u AND SYNC_LOCK < %u",
 			$syncLock = time(),
+			max(1, $excerpt['UPLOAD_STAGE']),
 			$DB->forSql($excerpt['ID']),
 			$excerpt['MAILBOX_ID'],
 			$syncLock - static::SYNC_TIMEOUT
@@ -531,21 +533,31 @@ abstract class Mailbox
 		$context->setCategory(Main\Mail\Context::CAT_EXTERNAL);
 		$context->setPriority(Main\Mail\Context::PRIORITY_NORMAL);
 
-		Main\Mail\Mail::send(array_merge(
-			$outgoingParams,
-			array(
-				'TRACK_READ' => array(
-					'MODULE_ID' => 'mail',
-					'FIELDS'    => array('msgid' => $excerpt['__MSG_ID']),
-					'URL_PAGE' => '/pub/mail/read.php',
-				),
-				//'TRACK_CLICK' => array(
-				//	'MODULE_ID' => 'mail',
-				//	'FIELDS'    => array('msgid' => $excerpt['__MSG_ID']),
-				//),
-				'CONTEXT' => $context,
-			)
-		));
+		if ($excerpt['UPLOAD_STAGE'] < 2)
+		{
+			$success = Main\Mail\Mail::send(array_merge(
+				$outgoingParams,
+				array(
+					'TRACK_READ' => array(
+						'MODULE_ID' => 'mail',
+						'FIELDS'    => array('msgid' => $excerpt['__MSG_ID']),
+						'URL_PAGE' => '/pub/mail/read.php',
+					),
+					//'TRACK_CLICK' => array(
+					//	'MODULE_ID' => 'mail',
+					//	'FIELDS'    => array('msgid' => $excerpt['__MSG_ID']),
+					//),
+					'CONTEXT' => $context,
+				)
+			));
+
+			if (!$success)
+			{
+				// @TODO: to limit attempts
+
+				return false;
+			}
+		}
 
 		$needUpload = empty($this->mailbox['OPTIONS']['deny_upload_outcome']);
 
@@ -557,6 +569,16 @@ abstract class Mailbox
 
 		if ($needUpload)
 		{
+			Mail\Internals\MessageUploadQueueTable::update(
+				array(
+					'ID' => $excerpt['ID'],
+					'MAILBOX_ID' => $excerpt['MAILBOX_ID'],
+				),
+				array(
+					'SYNC_STAGE' => 2,
+				)
+			);
+
 			class_exists('Bitrix\Mail\Helper');
 
 			$message = new Mail\DummyMail(array_merge(
@@ -687,7 +709,10 @@ abstract class Mailbox
 			}
 
 			$item = $DB->query(sprintf(
-				'SELECT MAX(RIGHT_MARGIN) AS I FROM b_mail_message WHERE MAILBOX_ID = %u',
+				'SELECT GREATEST(M1, M2) AS I FROM (SELECT
+					(SELECT RIGHT_MARGIN FROM b_mail_message WHERE MAILBOX_ID = %1$u AND RIGHT_MARGIN > 0 ORDER BY LEFT_MARGIN ASC LIMIT 1) M1,
+					(SELECT RIGHT_MARGIN FROM b_mail_message WHERE MAILBOX_ID = %1$u AND RIGHT_MARGIN > 0 ORDER BY LEFT_MARGIN DESC LIMIT 1) M2
+				) M',
 				$this->mailbox['ID']
 			))->fetch();
 

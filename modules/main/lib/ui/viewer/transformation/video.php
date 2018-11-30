@@ -12,6 +12,7 @@ class Video extends Transformation
 	public static function getInputContentTypes()
 	{
 		return [
+			'video/avi',
 			'video/mp4',
 			'video/webm',
 			'video/ogg',

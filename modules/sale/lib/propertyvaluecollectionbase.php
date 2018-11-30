@@ -550,7 +550,12 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 		{
 			$this->callEventOnBeforeSalePropertyValueDeleted($v);
 
-			static::deleteInternal($k);
+			$r = self::delete($v);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+			}
+
 
 			$this->callEventOnSalePropertyValueDeleted($v);
 		}
@@ -617,7 +622,7 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 			$itemsFromDbList = static::getList(
 				array(
 					"filter" => array("ORDER_ID" => $this->getOrder()->getId()),
-					"select" => array("ID", "NAME", "CODE", "VALUE")
+					"select" => array("ID", "NAME", "CODE", "VALUE", "ORDER_PROPS_ID")
 				)
 			);
 			while ($itemsFromDbItem = $itemsFromDbList->fetch())
@@ -659,11 +664,10 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	/**
 	 * @internal
 	 *
-	 * Delete order properties.
-	 *
 	 * @param $idOrder
 	 * @return Result
-	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
 	 */
 	public static function deleteNoDemand($idOrder)
 	{
@@ -671,18 +675,50 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 
 		$propertiesDataList = static::getList(
 			array(
-				"filter" => array("=ORDER_ID" => $idOrder),
-				"select" => array("ID")
+				"filter" => array('=ORDER_ID' => $idOrder),
+				"select" => array('ID', 'ORDER_PROPS_ID')
 			)
 		);
 
-		while ($property = $propertiesDataList->fetch())
+		while ($propertyValue = $propertiesDataList->fetch())
 		{
-			$r = static::deleteInternal($property['ID']);
+			$r = self::delete($propertyValue);
 			if (!$r->isSuccess())
 			{
 				$result->addErrors($r->getErrors());
 			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param $value
+	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
+	 */
+	private static function delete(array $value)
+	{
+		$result = new Result();
+
+		$r = static::deleteInternal($value['ID']);
+
+		if ($r->isSuccess())
+		{
+			$registry = Registry::getInstance(static::getRegistryType());
+
+			$propertyClass = $registry->getPropertyClassName();
+			/** @var PropertyBase $property */
+			$property = $propertyClass::getObjectById($value['ORDER_PROPS_ID']);
+			if ($property)
+			{
+				$property->onValueDelete($value['VALUE']);
+			}
+		}
+		else
+		{
+			$result->addErrors($r->getErrors());
 		}
 
 		return $result;

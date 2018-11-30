@@ -65,8 +65,8 @@ class Signaling
 			"config" => \CVoxImplantConfig::getConfigForPopup($call->getCallId()),
 			"CRM" => ($call->isCrmEnabled() ? \CVoxImplantCrmHelper::GetDataForPopup($call->getCallId(), $call->getCallerId()) : false),
 			"showCrmCard" => ($call->isCrmEnabled() && !$call->isInternalCall()),
-			"crmEntityType" => $call->getCrmEntityType(),
-			"crmEntityId" => $call->getCrmEntityId(),
+			"crmEntityType" => $call->getPrimaryEntityType(),
+			"crmEntityId" => $call->getPrimaryEntityId(),
 			"isCallback" => ($call->getIncoming() == \CVoxImplantMain::CALL_CALLBACK),
 			"isTransfer" => $isTransfer
 		);
@@ -154,8 +154,8 @@ class Signaling
 				"CRM" => $crmData,
 
 				"showCrmCard" => $this->call->isCrmEnabled(),
-				"crmEntityType" => $this->call->getCrmEntityType(),
-				"crmEntityId" => $this->call->getCrmEntityId(),
+				"crmEntityType" => $this->call->getPrimaryEntityType(),
+				"crmEntityId" => $this->call->getPrimaryEntityId(),
 				"crmActivityId" => $this->call->getCrmActivityId(),
 				"crmActivityEditUrl" => \CVoxImplantCrmHelper::getActivityEditUrl($this->call->getCrmActivityId()),
 			);
@@ -173,8 +173,8 @@ class Signaling
 			"callerId" => $newCallerId,
 			"CRM" => $crmData,
 			"showCrmCard" => $this->call->isCrmEnabled(),
-			"crmEntityType" => $this->call->getCrmEntityType(),
-			"crmEntityId" => $this->call->getCrmEntityId(),
+			"crmEntityType" => $this->call->getPrimaryEntityType(),
+			"crmEntityId" => $this->call->getPrimaryEntityId(),
 		]);
 	}
 

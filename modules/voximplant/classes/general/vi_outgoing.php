@@ -129,7 +129,7 @@ class CVoxImplantOutgoing
 					'CRM' => $params['CRM'],
 					'USER_ID' => $params['USER_ID'],
 					'CALLER_ID' => $params['PHONE_NUMBER'],
-					'STATUS' => VI\Model\CallTable::STATUS_CONNECTING,
+					'STATUS' => VI\Model\CallTable::STATUS_WAITING,
 					'ACCESS_URL' => $params['ACCESS_URL'],
 					'PORTAL_NUMBER' => $config['SEARCH_ID'],
 				];
@@ -168,8 +168,6 @@ class CVoxImplantOutgoing
 				'CALL_ID' => $params['CALL_ID'],
 				'SESSION_ID' => (int)$params['SESSION_ID'],
 				'CRM' => $params['CRM'],
-				'CRM_ENTITY_TYPE' => ($params['CRM_ENTITY_TYPE'] ? $params['CRM_ENTITY_TYPE'] : null),
-				'CRM_ENTITY_ID' => ($params['CRM_ENTITY_ID'] ? $params['CRM_ENTITY_ID'] : null),
 				'CRM_ACTIVITY_ID' => ($params['CRM_ACTIVITY_ID'] ? $params['CRM_ACTIVITY_ID'] : null),
 				'CRM_CALL_LIST' => ($params['CRM_CALL_LIST'] ? $params['CRM_CALL_LIST'] : null),
 				'CRM_BINDINGS' => ($params['CRM_BINDINGS'] ? $params['CRM_BINDINGS'] : array()),
@@ -183,6 +181,17 @@ class CVoxImplantOutgoing
 		}
 		$call->addUsers([$params['USER_ID']], VI\Model\CallUserTable::ROLE_CALLER, VI\Model\CallUserTable::STATUS_CONNECTED);
 
+		if($params['CRM_ENTITY_TYPE'] != '' && $params['CRM_ENTITY_ID'] > 0)
+		{
+			$entity = [
+				'ENTITY_TYPE' => $params['CRM_ENTITY_TYPE'],
+				'ENTITY_ID' => $params['CRM_ENTITY_ID'],
+				'IS_PRIMARY' => 'Y',
+				'IS_CREATED' => 'N'
+			];
+			$call->updateCrmEntities([$entity]);
+		}
+
 		$router = new VI\Routing\Router($call);
 		$firstAction = $router->getNextAction();
 
@@ -195,17 +204,20 @@ class CVoxImplantOutgoing
 
 		if (!$call->isInternalCall() && $call->isCrmEnabled())
 		{
-			if($call->getCrmEntityType() && $call->getCrmEntityId())
+			if($call->getPrimaryEntityType() && $call->getPrimaryEntityId())
 			{
 				//nop
 			}
 			else
 			{
-				$crmData = CVoxImplantCrmHelper::GetCrmEntity($call->getCallerId());
-				if(is_array($crmData))
-				{
-					$call->setCrmEntity($crmData['ENTITY_TYPE_NAME'], $crmData['ENTITY_ID']);
-				}
+				$crmEntities = CVoxImplantCrmHelper::getCrmEntities($call);
+				$call->updateCrmEntities($crmEntities);
+			}
+
+			$activityBindings = CVoxImplantCrmHelper::getActivityBindings($call);
+			if(is_array($activityBindings))
+			{
+				$call->updateCrmBindings($activityBindings);
 			}
 
 			CVoxImplantCrmHelper::registerCallInCrm($call);
@@ -302,10 +314,10 @@ class CVoxImplantOutgoing
 		$push = Array();
 		if ($params['COMMAND'] == 'outgoing')
 		{
-			$call = CallTable::getByCallId($params['CALL_ID']);
+			$call = VI\Call::load($params['CALL_ID']);
 
 			$config = Array(
-				"callId" => $params['CALL_ID'],
+				"callId" => $call->getCallId(),
 				"callDevice" => $params['CALL_DEVICE'] == 'PHONE'? 'PHONE': 'WEBRTC',
 				"phoneNumber" => $params['PHONE_NUMBER'],
 				"portalCall" => $params['PORTAL_CALL'] == 'Y'? true: false,
@@ -319,11 +331,9 @@ class CVoxImplantOutgoing
 
 			if(!$config['portalCall'])
 			{
-				$config["showCrmCard"] = ($call['CRM'] == 'Y');
-				$config["crmEntityType"] = $call['CRM_ENTITY_TYPE'];
-				$config["crmEntityId"] = $call['CRM_ENTITY_ID'];
-				$config["crmActivityId"] = $call['CRM_ACTIVITY_ID'];
-				$config["crmActivityEditUrl"] = CVoxImplantCrmHelper::getActivityEditUrl($call['CRM_ACTIVITY_ID']);
+				$config["showCrmCard"] = ($call->isCrmEnabled());
+				$config["crmEntityType"] = $call->getPrimaryEntityType();
+				$config["crmEntityId"] = $call->getPrimaryEntityId();
 			}
 
 			$push['send_immediately'] = 'Y';
@@ -395,20 +405,10 @@ class CVoxImplantOutgoing
 			'INCOMING' => CVoxImplantMain::CALL_OUTGOING,
 			'CALLER_ID' => $phoneNormalized,
 			'ACCESS_URL' => $result->access_url,
-			'STATUS' => VI\Model\CallTable::STATUS_CONNECTING,
+			'STATUS' => VI\Model\CallTable::STATUS_WAITING,
 			'DATE_CREATE' => new FieldType\DateTime(),
 		);
 
-		if(isset($params['ENTITY_TYPE']) && isset($params['ENTITY_ID']) && strpos($params['ENTITY_TYPE'], 'CRM_') === 0)
-		{
-			$callFields['CRM_ENTITY_TYPE'] = substr($params['ENTITY_TYPE'], 4);
-			$callFields['CRM_ENTITY_ID'] = $params['ENTITY_ID'];
-		}
-		if(isset($params['ENTITY_TYPE_NAME']) && isset($params['ENTITY_ID']))
-		{
-			$callFields['CRM_ENTITY_TYPE'] = $params['ENTITY_TYPE_NAME'];
-			$callFields['CRM_ENTITY_ID'] = $params['ENTITY_ID'];
-		}
 		if(isset($params['SRC_ACTIVITY_ID']))
 		{
 			$callFields['CRM_ACTIVITY_ID'] = $params['SRC_ACTIVITY_ID'];
@@ -420,6 +420,27 @@ class CVoxImplantOutgoing
 
 		$call = VI\Call::create($callFields);
 		$call->addUsers([$userId], VI\Model\CallUserTable::ROLE_CALLEE, VI\Model\CallUserTable::STATUS_INVITING);
+
+		$crmEntities = [];
+		if(isset($params['ENTITY_TYPE']) && isset($params['ENTITY_ID']) && strpos($params['ENTITY_TYPE'], 'CRM_') === 0)
+		{
+			$crmEntities[] = [
+				'ENTITY_TYPE' => substr($params['ENTITY_TYPE'], 4),
+				'ENTITY_ID' => $params['ENTITY_ID'],
+				'IS_PRIMARY' => 'Y',
+				'IS_CREATED' => 'N'
+			];
+		}
+		if(isset($params['ENTITY_TYPE_NAME']) && isset($params['ENTITY_ID']))
+		{
+			$crmEntities[] = [
+				'ENTITY_TYPE' => $params['ENTITY_TYPE_NAME'],
+				'ENTITY_ID' => $params['ENTITY_ID'],
+				'IS_PRIMARY' => 'Y',
+				'IS_CREATED' => 'N'
+			];
+		}
+		$call->updateCrmEntities($crmEntities);
 
 		return array(
 			'USER_ID' => $userId,

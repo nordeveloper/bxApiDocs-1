@@ -2,6 +2,7 @@
 
 namespace Bitrix\Main\Mail;
 
+use Bitrix\Main;
 use Bitrix\Main\Engine\CurrentUser;
 use Bitrix\Main\Mail\Internal\SenderTable;
 
@@ -31,6 +32,7 @@ class Sender
 		if (empty($fields['IS_CONFIRMED']))
 		{
 			$mailEventFields = array(
+				'DEFAULT_EMAIL_FROM' => $fields['EMAIL'],
 				'EMAIL_TO' => $fields['EMAIL'],
 				'MESSAGE_SUBJECT' => getMessage('MAIN_MAIL_CONFIRM_MESSAGE_SUBJECT'),
 				'CONFIRM_CODE' => strtoupper($fields['OPTIONS']['confirm_code']),
@@ -38,8 +40,6 @@ class Sender
 
 			if (!empty($fields['OPTIONS']['smtp']))
 			{
-				$mailEventFields['DEFAULT_EMAIL_FROM'] = $fields['EMAIL'];
-
 				\Bitrix\Main\EventManager::getInstance()->addEventHandlerCompatible(
 					'main',
 					'OnBeforeEventSend',
@@ -267,6 +267,141 @@ class Sender
 				}
 			}
 		}
+	}
+
+	public static function prepareUserMailboxes($userId = null)
+	{
+		global $USER;
+
+		static $mailboxes = array();
+
+		if (!($userId > 0))
+		{
+			if (is_object($USER) && $USER->isAuthorized())
+			{
+				$userId = $USER->getId();
+			}
+		}
+
+		if (!($userId > 0))
+		{
+			return array();
+		}
+
+		if (array_key_exists($userId, $mailboxes))
+		{
+			return $mailboxes[$userId];
+		}
+
+		$mailboxes[$userId] = array();
+
+		if (is_object($USER) && $USER->isAuthorized() && $USER->getId() == $userId)
+		{
+			$userData = array(
+				'ID' => $USER->getId(),
+				'TITLE' => $USER->getParam("TITLE"),
+				'NAME' => $USER->getFirstName(),
+				'SECOND_NAME' => $USER->getSecondName(),
+				'LAST_NAME' => $USER->getLastName(),
+				'LOGIN' => $USER->getLogin(),
+				'EMAIL' => $USER->getEmail(),
+			);
+
+			$isAdmin = in_array(1, $USER->getUserGroupArray());
+		}
+		else
+		{
+			$userData = Main\UserTable::getList(array(
+				'select' => array('ID', 'TITLE', 'NAME', 'SECOND_NAME', 'LAST_NAME', 'LOGIN', 'EMAIL'),
+				'filter' => array('=ID' => $userId),
+			))->fetch();
+
+			$isAdmin = in_array(1, \CUser::getUserGroup($userId));
+		}
+
+		$userNameFormated = \CUser::formatName(\CSite::getNameFormat(), $userData, true, false);
+
+		if (\CModule::includeModule('mail'))
+		{
+			foreach (\Bitrix\Mail\MailboxTable::getUserMailboxes($userId) as $mailbox)
+			{
+				if (!empty($mailbox['EMAIL']))
+				{
+					$mailboxName = trim($mailbox['USERNAME']) ?: trim($mailbox['OPTIONS']['name']) ?: $userNameFormated;
+
+					$key = hash('crc32b', strtolower($mailboxName) . $mailbox['EMAIL']);
+					$mailboxes[$userId][$key] = array(
+						'name'  => $mailboxName,
+						'email' => $mailbox['EMAIL'],
+					);
+				}
+			}
+		}
+
+		// @TODO: query
+		$crmAddress = new Address(Main\Config\Option::get('crm', 'mail', ''));
+		if ($crmAddress->validate())
+		{
+			$key = hash('crc32b', strtolower($userNameFormated) . $crmAddress->getEmail());
+
+			$mailboxes[$userId][$key] = array(
+				'name'  => $crmAddress->getName() ?: $userNameFormated,
+				'email' => $crmAddress->getEmail(),
+			);
+		}
+
+		$userAddress = new Address($userData['EMAIL']);
+		if ($userAddress->validate())
+		{
+			$key = hash('crc32b', strtolower($userNameFormated) . $userAddress->getEmail());
+
+			$mailboxes[$userId][$key] = array(
+				'name'  => $userNameFormated,
+				'email' => $userAddress->getEmail(),
+			);
+		}
+
+		$res = SenderTable::getList(array(
+			'filter' => array(
+				'IS_CONFIRMED' => true,
+				array(
+					'LOGIC' => 'OR',
+					'=USER_ID' => $userId,
+					'IS_PUBLIC' => true,
+				),
+			),
+			'order' => array(
+				'ID' => 'ASC',
+			),
+		));
+		while ($item = $res->fetch())
+		{
+			$item['NAME']  = trim($item['NAME']) ?: $userNameFormated;
+			$item['EMAIL'] = strtolower($item['EMAIL']);
+			$key = hash('crc32b', strtolower($item['NAME']) . $item['EMAIL']);
+
+			if (!isset($mailboxes[$userId][$key]))
+			{
+				$mailboxes[$userId][$key] = array(
+					'id' => $item['ID'],
+					'name' => $item['NAME'],
+					'email' => $item['EMAIL'],
+					'can_delete' => $userId == $item['USER_ID'] || $item['IS_PUBLIC'] && $isAdmin,
+				);
+			}
+		}
+
+		foreach ($mailboxes[$userId] as $key => $item)
+		{
+			$mailboxes[$userId][$key]['formated'] = sprintf(
+				$item['name'] ? '%s <%s>' : '%s%s',
+				$item['name'], $item['email']
+			);
+		}
+
+		$mailboxes[$userId] = array_values($mailboxes[$userId]);
+
+		return $mailboxes[$userId];
 	}
 
 }

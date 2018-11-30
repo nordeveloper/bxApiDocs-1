@@ -242,7 +242,7 @@ class Binder
 		}
 
 		if (
-			stripos($exception->getMessage(), 'must be an instance of') === false &&
+			stripos($exception->getMessage(), 'must be an instance of') === false ||
 			stripos($exception->getMessage(), 'null given') === false
 		)
 		{
@@ -252,7 +252,8 @@ class Binder
 		$message = $this->extractParameterClassName($exception->getMessage());
 
 		throw new ObjectNotFoundException(
-			"Could not find value for class {{$message}} to build auto wired argument"
+			"Could not find value for class {{$message}} to build auto wired argument",
+			$exception
 		);
 	}
 

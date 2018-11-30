@@ -5,6 +5,7 @@ namespace Bitrix\Main\UI\Viewer;
 use Bitrix\Main\Entity\DataManager;
 use Bitrix\Main\Entity;
 use Bitrix\Main\FileTable;
+use Bitrix\Main\Type\Date;
 use Bitrix\Main\Type\DateTime;
 
 final class FilePreviewTable extends DataManager
@@ -56,5 +57,39 @@ final class FilePreviewTable extends DataManager
 				['join_type' => 'LEFT']
 			),
 		];
+	}
+
+	public static function deleteOld($dayToDeath = 22, $portion = 20)
+	{
+		$deathTime = new Date();
+		$deathTime->add("-{$dayToDeath} day");
+
+		$query = self::query();
+		$filter = $query::filter()
+			->logic('or')
+				->whereNull('TOUCHED_AT')
+				->where('TOUCHED_AT', '<', $deathTime)
+		;
+
+		$files = self::getList([
+			'select' => ['ID', 'PREVIEW_IMAGE_ID', 'PREVIEW_ID'],
+			'filter' => $filter,
+			'limit' => $portion,
+		]);
+
+		foreach ($files as $file)
+		{
+			\CFile::delete($file['PREVIEW_ID']);
+			\CFile::delete($file['PREVIEW_IMAGE_ID']);
+
+			self::delete($file['ID']);
+		}
+	}
+
+	public static function deleteOldAgent($dayToDeath = 22, $portion = 20)
+	{
+		self::deleteOld($dayToDeath, $portion);
+
+		return "\\Bitrix\\Main\\UI\\Viewer\\FilePreviewTable::deleteOldAgent({$dayToDeath}, {$portion});";
 	}
 }

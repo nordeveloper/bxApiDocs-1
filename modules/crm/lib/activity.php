@@ -275,4 +275,10 @@ class ActivityTable extends Entity\DataManager
 			)
 		);
 	}
+
+	public static function getFieldCaption($fieldName)
+	{
+		$result = Loc::getMessage("CRM_ACTIVITY_ENTITY_{$fieldName}_FIELD");
+		return is_string($result) ? $result : '';
+	}
 }

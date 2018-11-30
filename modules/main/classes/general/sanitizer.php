@@ -424,6 +424,7 @@
 					break;
 
 				case 'style':
+					$attrValue = str_replace('&quot;', '',  $attrValue);
 					$valid = !preg_match("#(behavior|expression|position|javascript)#i".BX_UTF_PCRE_MODIFIER, $attrValue) && !preg_match("#[^\\/\\w\\s)(!%,:\\.;\\-\\#\\']#i".BX_UTF_PCRE_MODIFIER, $attrValue)
 							? true : false;
 					break;
@@ -450,6 +451,22 @@
 			}
 
 			return $valid;
+		}
+
+		protected function encodeAttributeValue(array $attr)
+		{
+			if (!$this->bHtmlSpecChars)
+			{
+				return $attr[3];
+			}
+
+			$flags = ENT_QUOTES;
+			if ($attr[1] === 'style' && $attr[2] === '"')
+			{
+				$flags = ENT_COMPAT;
+			}
+
+			return htmlspecialchars($attr[3], $flags, LANG_CHARSET, $this->bDoubleEncode);
 		}
 
 		/**
@@ -693,14 +710,7 @@
 
 									if($this->IsValidAttr($arTagAttr))
 									{
-										if($this->bHtmlSpecChars)
-										{
-											$attr[$attrOne] = htmlspecialchars($arTagAttr[3], ENT_QUOTES, LANG_CHARSET, $this->bDoubleEncode);
-										}
-										else
-										{
-											$attr[$attrOne] = $arTagAttr[3];
-										}
+										$attr[$attrOne] = $this->encodeAttributeValue($arTagAttr);
 									}
 								}
 							}

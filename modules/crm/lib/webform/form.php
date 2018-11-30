@@ -1218,11 +1218,6 @@ class Form
 			return true;
 		}
 
-		if(\CBitrix24::IsDemoLicense())
-		{
-			return true;
-		}
-
 		return \CBitrix24::IsLicensePaid();
 	}
 

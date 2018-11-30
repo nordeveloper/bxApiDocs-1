@@ -521,7 +521,20 @@ class CTasks
 					}
 				}
 
+				// Timezone hack http://jabber.bx/view.php?id=105626
+				$disabled = !\CTimeZone::enabled();
+
+				if ($disabled)
+				{
+					\CTimeZone::enable();
+				}
+
 				$ID = $DB->Add("b_tasks", $arFields, array("DESCRIPTION"), "tasks");
+
+				if ($disabled)
+				{
+					\CTimeZone::disable();
+				}
 
 				$arFields["ACCOMPLICES"] = (array) $arFields["ACCOMPLICES"];
 				$arFields["AUDITORS"] = (array) $arFields["AUDITORS"];

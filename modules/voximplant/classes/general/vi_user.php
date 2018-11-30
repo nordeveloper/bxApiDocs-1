@@ -299,6 +299,13 @@ class CVoxImplantUser
 			$USER_FIELD_MANAGER->Update("USER", $userId, Array('UF_VI_PASSWORD' => $arUser['UF_VI_PASSWORD']));
 		}
 		$viAccount = new CVoxImplantAccount();
+		$callServer = $viAccount->GetCallServer();
+
+		if(!$callServer)
+		{
+			return $result->addError(new \Bitrix\Main\Error(GetMessage('VI_ERROR_COULD_NOT_CREATE_ACCOUNT')));
+		}
+
 		$result->setData(array(
 			'server' => str_replace('voximplant.com', 'bitrixphone.com', $viAccount->GetCallServer()),
 			'login' => 'user'.$userId,

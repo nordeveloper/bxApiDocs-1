@@ -184,46 +184,58 @@ class OrmAnnotateCommand extends Command
 
 	protected function getDirsToScan($inputModules, InputInterface $input, OutputInterface $output)
 	{
-		$basePath = Application::getDocumentRoot().Application::getPersonalRoot().'/modules/';
+		$basePaths = [
+			Application::getDocumentRoot().Application::getPersonalRoot().'/modules/',
+			Application::getDocumentRoot().'/local/modules/'
+		];
 
-		$moduleList = [];
 		$dirs = [];
 
-		foreach (new \DirectoryIterator($basePath) as $item)
+		foreach ($basePaths as $basePath)
 		{
-			if($item->isDir() && !$item->isDot())
-			{
-				$moduleList[] = $item->getFilename();
-			}
-		}
-
-		// filter for input modules
-		if (!empty($inputModules))
-		{
-			$moduleList = array_intersect($moduleList, $inputModules);
-		}
-
-		foreach ($moduleList as $moduleName)
-		{
-			// filter for installed modules
-			if (!Loader::includeModule($moduleName))
+			if (!file_exists($basePath))
 			{
 				continue;
 			}
 
-			$libDir = $basePath.$moduleName.'/lib';
-			if (is_dir($libDir) && is_readable($libDir))
+			$moduleList = [];
+
+			foreach (new \DirectoryIterator($basePath) as $item)
 			{
-				$dirs[] = $libDir;
+				if($item->isDir() && !$item->isDot())
+				{
+					$moduleList[] = $item->getFilename();
+				}
 			}
 
-			$libDir = $basePath.$moduleName.'/dev/lib';
-			if (is_dir($libDir) && is_readable($libDir))
+			// filter for input modules
+			if (!empty($inputModules))
 			{
-				$dirs[] = $libDir;
+				$moduleList = array_intersect($moduleList, $inputModules);
 			}
 
-			$this->modulesScanned[] = $moduleName;
+			foreach ($moduleList as $moduleName)
+			{
+				// filter for installed modules
+				if (!Loader::includeModule($moduleName))
+				{
+					continue;
+				}
+
+				$libDir = $basePath.$moduleName.'/lib';
+				if (is_dir($libDir) && is_readable($libDir))
+				{
+					$dirs[] = $libDir;
+				}
+
+				$libDir = $basePath.$moduleName.'/dev/lib';
+				if (is_dir($libDir) && is_readable($libDir))
+				{
+					$dirs[] = $libDir;
+				}
+
+				$this->modulesScanned[] = $moduleName;
+			}
 		}
 
 		return $dirs;
@@ -574,6 +586,11 @@ class OrmAnnotateCommand extends Command
 
 	public static function annotateReference(Reference $field)
 	{
+		if (!static::tryToFindEntity($field->getRefEntityName()))
+		{
+			return [[], []];
+		}
+
 		$objectClass = $field->getEntity()->getObjectClass();
 		$dataType = $field->getRefEntity()->getObjectClass();
 
@@ -600,6 +617,11 @@ class OrmAnnotateCommand extends Command
 
 	public static function annotateOneToMany(OneToMany $field)
 	{
+		if (!static::tryToFindEntity($field->getRefEntityName()))
+		{
+			return [[], []];
+		}
+
 		$objectClass = $field->getEntity()->getObjectClass();
 		$collectionDataType = $field->getRefEntity()->getCollectionClass();
 		$objectDataType = $field->getRefEntity()->getObjectClass();
@@ -629,6 +651,11 @@ class OrmAnnotateCommand extends Command
 
 	public static function annotateManyToMany(ManyToMany $field)
 	{
+		if (!static::tryToFindEntity($field->getRefEntityName()))
+		{
+			return [[], []];
+		}
+
 		$objectClass = $field->getEntity()->getObjectClass();
 		$collectionDataType = $field->getRefEntity()->getCollectionClass();
 		$objectDataType = $field->getRefEntity()->getObjectClass();
@@ -654,6 +681,35 @@ class OrmAnnotateCommand extends Command
 		$collectionCode[] = "\t * @method fill{$uName}()";
 
 		return [$objectCode, $collectionCode];
+	}
+
+	public static function tryToFindEntity($entityClass)
+	{
+		$entityClass = Entity::normalizeEntityClass($entityClass);
+
+		if (!class_exists($entityClass))
+		{
+			// try to find remote entity
+			$classParts = array_values(array_filter(
+				explode('\\', strtolower($entityClass))
+			));
+
+			if ($classParts[0] == 'bitrix')
+			{
+				$moduleName = $classParts[1];
+			}
+			else
+			{
+				$moduleName = $classParts[0].'.'.$classParts[1];
+			}
+
+			if (!Loader::includeModule($moduleName) || !class_exists($entityClass))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	protected static function getFieldNameCamelCase($fieldName)

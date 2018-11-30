@@ -24,6 +24,22 @@ class CIEmployeeProperty
 		if (strlen(trim($strHTMLControlName["FORM_NAME"])) <= 0)
 			$strHTMLControlName["FORM_NAME"] = "form_element";
 
+		global $adminSidePanelHelper;
+		if (!is_object($adminSidePanelHelper))
+		{
+			require_once($_SERVER["DOCUMENT_ROOT"].BX_ROOT."/modules/main/interface/admin_lib.php");
+			$adminSidePanelHelper = new CAdminSidePanelHelper();
+		}
+
+		if ($adminSidePanelHelper->isPublicSidePanel())
+		{
+			$titleUserId = $USER->GetID();
+		}
+		else
+		{
+			$titleUserId = '<a title="'.CUtil::JSEscape(GetMessage("MAIN_EDIT_USER_PROFILE")).'" class="tablebodylink" href="/bitrix/admin/user_edit.php?ID='.$USER->GetID().'&lang='.LANGUAGE_ID.'">'.$USER->GetID().'</a>';
+		}
+
 		ob_start();
 		?>
 <input type="text" name="<?echo htmlspecialcharsbx($strHTMLControlName["VALUE"])?>" id="<?echo $name_x?>" value="<?echo intval($value['VALUE']) > 0 ? intval($value['VALUE']) : ''?>" size="3" class="typeinput" />&nbsp;&nbsp;<?
@@ -52,7 +68,7 @@ function Ch<?=$name_x?>()
 				}
 				else
 				{
-					DV_<?=$name_x?>.innerHTML = '[<a title="<?echo CUtil::JSEscape(GetMessage("MAIN_EDIT_USER_PROFILE"))?>" class="tablebodylink" href="/bitrix/admin/user_edit.php?ID=<?echo $USER->GetID()?>&lang=<?echo LANG?>"><?echo $USER->GetID()?></a>] (<?echo CUtil::JSEscape(htmlspecialcharsbx($USER->GetLogin()))?>) <? echo CUtil::JSEscape(htmlspecialcharsbx($USER->GetFirstName().' '.$USER->GetLastName()))?>';
+					DV_<?=$name_x?>.innerHTML = '[<?=$titleUserId?>] (<?echo CUtil::JSEscape(htmlspecialcharsbx($USER->GetLogin()))?>) <? echo CUtil::JSEscape(htmlspecialcharsbx($USER->GetFirstName().' '.$USER->GetLastName()))?>';
 				}
 			}
 
@@ -80,7 +96,16 @@ Ch<?=$name_x?>();
 		$arUser = CIEmployeeProperty::_GetUserArray($value["VALUE"]);
 		if($arUser)
 		{
-			return "[<a title='".GetMessage("MAIN_EDIT_USER_PROFILE")."' href='user_edit.php?ID=".$arUser["ID"]."&lang=".LANG."'>".$arUser["ID"]."</a>] (".htmlspecialcharsbx($arUser["LOGIN"]).") ".htmlspecialcharsbx($arUser["NAME"])." ".htmlspecialcharsbx($arUser["LAST_NAME"]);
+			if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1)
+			{
+				$titleUserId = $arUser["ID"];
+			}
+			else
+			{
+				$titleUserId = "<a title='".GetMessage("MAIN_EDIT_USER_PROFILE")."' href='user_edit.php?ID=".$arUser["ID"]."&lang=".LANG."'>".$arUser["ID"]."</a>";
+			}
+
+			return "[".$titleUserId."] (".htmlspecialcharsbx($arUser["LOGIN"]).") ".htmlspecialcharsbx($arUser["NAME"])." ".htmlspecialcharsbx($arUser["LAST_NAME"]);
 		}
 		else
 		{

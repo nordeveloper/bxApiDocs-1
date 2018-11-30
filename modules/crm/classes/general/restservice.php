@@ -6,6 +6,7 @@ if(!CModule::IncludeModule('rest'))
 
 
 use Bitrix\Main;
+use Bitrix\Main\Localization\Loc;
 use Bitrix\Rest\AccessException;
 use Bitrix\Rest\RestException;
 use Bitrix\Rest\UserFieldProxy;
@@ -31,6 +32,8 @@ use Bitrix\Crm\Binding\DealContactTable;
 use Bitrix\Crm\Binding\QuoteContactTable;
 use Bitrix\Crm\Binding\ContactCompanyTable;
 use Bitrix\Crm\Security\EntityAuthorization;
+
+Loc::loadMessages(__FILE__);
 
 final class CCrmRestService extends IRestService
 {
@@ -706,6 +709,11 @@ class CCrmRestHelper
 				$field['title'] = isset($fieldInfo['NAME']) ? $fieldInfo['NAME'] : '';
 				if ($field['propertyType'] === 'L')
 					$field['values'] = isset($fieldInfo['VALUES']) ? $fieldInfo['VALUES'] : array();
+			}
+
+			if (empty($field['title']))
+			{
+				$field['title'] = isset($fieldInfo['CAPTION']) && strlen($fieldInfo['CAPTION']) > 0 ? $fieldInfo['CAPTION'] : $fieldID;
 			}
 
 			if(isset($fieldInfo['LABELS']) && is_array($fieldInfo['LABELS']))
@@ -2998,11 +3006,13 @@ class CCrmEnumerationRestProxy extends CCrmRestProxyBase
 			$this->FIELDS_INFO = array(
 				'ID' => array(
 					'TYPE' => 'int',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly),
+					'CAPTION' => Loc::getMessage('CRM_REST_FIELD_ID')
 				),
 				'NAME' => array(
 					'TYPE' => 'string',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly),
+					'CAPTION' => Loc::getMessage('CRM_REST_FIELD_NAME')
 				),
 			);
 		}
@@ -3091,14 +3101,22 @@ class CCrmMultiFieldRestProxy extends CCrmRestProxyBase
 			$this->FIELDS_INFO = array(
 				'ID' => array(
 					'TYPE' => 'int',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly),
+					'CAPTION' => Loc::getMessage('CRM_REST_FIELD_ID')
 				),
 				'TYPE_ID' => array(
 					'TYPE' => 'string',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly),
+					'CAPTION' => Loc::getMessage('CRM_REST_MULTIFIELD_FIELD_TYPE_ID')
 				),
-				'VALUE' => array('TYPE' => 'string'),
-				'VALUE_TYPE' => array('TYPE' => 'string')
+				'VALUE' => array(
+					'TYPE' => 'string',
+					'CAPTION' => Loc::getMessage('CRM_REST_MULTIFIELD_FIELD_VALUE')
+				),
+				'VALUE_TYPE' => array(
+					'TYPE' => 'string',
+					'CAPTION' => Loc::getMessage('CRM_REST_MULTIFIELD_FIELD_VALUE_TYPE')
+				)
 			);
 		}
 		return $this->FIELDS_INFO;
@@ -3116,6 +3134,10 @@ class CCrmCatalogRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmCatalog::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = CCrmCatalog::GetFieldCaption($code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -3176,6 +3198,10 @@ class CCrmProductRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmProduct::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = CCrmProduct::GetFieldCaption($code);
+			}
 			$this->preparePropertyFieldsInfo($this->FIELDS_INFO);
 		}
 		return $this->FIELDS_INFO;
@@ -3818,6 +3844,11 @@ class CCrmProductPropertyRestProxy extends CCrmRestProxyBase
 					'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple)
 				)
 			);
+
+			foreach ($this->FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = $this->getFieldCaption($code);
+			}
 		}
 
 		return $this->FIELDS_INFO;
@@ -3881,7 +3912,11 @@ class CCrmProductPropertyRestProxy extends CCrmRestProxyBase
 
 		return self::prepareFields($fieldsInfo);
 	}
-
+	protected function getFieldCaption($fieldName)
+	{
+		$result = Loc::getMessage("CRM_REST_PRODUCT_PROPERTY_FIELD_".$fieldName);
+		return is_string($result) ? $result : '';
+	}
 	protected function getEnumerationFieldsInfo()
 	{
 		if(!$this->ENUMERATION_FIELDS_INFO)
@@ -3893,6 +3928,10 @@ class CCrmProductPropertyRestProxy extends CCrmRestProxyBase
 				'SORT' => array('TYPE' => 'integer'),
 				'DEF' => array('TYPE' => 'char')
 			);
+			foreach ($this->ENUMERATION_FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = $this->getFieldCaption($code);
+			}
 		}
 
 		return self::prepareFields($this->ENUMERATION_FIELDS_INFO);
@@ -4381,6 +4420,10 @@ class CCrmProductSectionRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmProductSection::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = CCrmProductSection::GetFieldCaption($code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -4516,6 +4559,10 @@ class CCrmProductRowRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmProductRow::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = CCrmProductRow::GetFieldCaption($code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -4752,6 +4799,10 @@ class CCrmLeadRestProxy extends CCrmRestProxyBase
 		{
 			$this->FIELDS_INFO = CCrmLead::GetFieldsInfo();
 			self::prepareMultiFieldsInfo($this->FIELDS_INFO);
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = CCrmLead::GetFieldCaption($code);
+			}
 			self::prepareUserFieldsInfo($this->FIELDS_INFO, CCrmLead::$sUFEntityID);
 		}
 		return $this->FIELDS_INFO;
@@ -5113,6 +5164,10 @@ class CCrmDealRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmDeal::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = CCrmDeal::GetFieldCaption($code);
+			}
 			self::prepareUserFieldsInfo($this->FIELDS_INFO, CCrmDeal::$sUFEntityID);
 		}
 		return $this->FIELDS_INFO;
@@ -5511,6 +5566,10 @@ class CCrmDealCategoryProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = DealCategory::getFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code=>&$field)
+			{
+				$field['CAPTION'] = DealCategory::getFieldCaption($code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -5697,6 +5756,10 @@ class CCrmCompanyRestProxy extends CCrmRestProxyBase
 		{
 			$this->FIELDS_INFO = CCrmCompany::GetFieldsInfo();
 			self::prepareMultiFieldsInfo($this->FIELDS_INFO);
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = CCrmCompany::GetFieldCaption($code);
+			}
 			self::prepareUserFieldsInfo($this->FIELDS_INFO, CCrmCompany::$sUFEntityID);
 		}
 		return $this->FIELDS_INFO;
@@ -5974,6 +6037,10 @@ class CCrmContactRestProxy extends CCrmRestProxyBase
 		{
 			$this->FIELDS_INFO = CCrmContact::GetFieldsInfo();
 			self::prepareMultiFieldsInfo($this->FIELDS_INFO);
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = CCrmContact::GetFieldCaption($code);
+			}
 			self::prepareUserFieldsInfo($this->FIELDS_INFO, CCrmContact::$sUFEntityID);
 		}
 		return $this->FIELDS_INFO;
@@ -6235,9 +6302,15 @@ class CCrmCurrencyRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmCurrency::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = CCrmCurrency::GetFieldCaption($code);
+			}
+
 			$this->FIELDS_INFO['LANG'] = array(
 				'TYPE' => 'currency_localization',
-				'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple)
+				'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple),
+				'CAPTION' => Loc::getMessage("CRM_REST_CURRENCY_FIELD_LANG")
 			);
 		}
 		return $this->FIELDS_INFO;
@@ -6247,6 +6320,10 @@ class CCrmCurrencyRestProxy extends CCrmRestProxyBase
 		if(!$this->LOC_FIELDS_INFO)
 		{
 			$this->LOC_FIELDS_INFO = CCrmCurrency::GetCurrencyLocalizationFieldsInfo();
+			foreach ($this->LOC_FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = CCrmCurrency::GetFieldCaption($code);
+			}
 		}
 		return $this->LOC_FIELDS_INFO;
 	}
@@ -6495,6 +6572,10 @@ class CCrmStatusRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmStatus::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code=>&$field)
+			{
+				$field['CAPTION'] = CCrmStatus::getFieldCaption($code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -6867,6 +6948,10 @@ class CCrmStatusInvoiceRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmStatusInvoice::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code=>&$field)
+			{
+				$field['CAPTION'] = CCrmStatus::getFieldCaption($code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -7043,9 +7128,20 @@ class CCrmActivityRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmActivity::GetFieldsInfo();
+			$this->FIELDS_INFO['BINDINGS'] = array(
+				'TYPE' => 'crm_activity_binding',
+				'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple, CCrmFieldInfoAttr::ReadOnly)
+			);
+
+			foreach ($this->FIELDS_INFO as $code=>&$field)
+			{
+				$field['CAPTION'] = \Bitrix\Crm\ActivityTable::getFieldCaption($code);
+			}
+
 			$this->FIELDS_INFO['COMMUNICATIONS'] = array(
 				'TYPE' => 'crm_activity_communication',
-				'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple, CCrmFieldInfoAttr::Required)
+				'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple, CCrmFieldInfoAttr::Required),
+				'CAPTION' => Loc::getMessage('CRM_REST_ACTIVITY_FIELD_COMMUNICATIONS')
 			);
 
 			$storageTypeID =  CCrmActivity::GetDefaultStorageTypeID();
@@ -7055,23 +7151,22 @@ class CCrmActivityRestProxy extends CCrmRestProxyBase
 					'TYPE' => 'diskfile',
 					'ALIAS' => 'WEBDAV_ELEMENTS',
 					'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple),
+					'CAPTION' => Loc::getMessage('CRM_REST_ACTIVITY_FIELD_FILES')
 				);
 				$this->FIELDS_INFO['WEBDAV_ELEMENTS'] = array(
 					'TYPE' => 'diskfile',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::Deprecated, CCrmFieldInfoAttr::Multiple)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::Deprecated, CCrmFieldInfoAttr::Multiple),
+					'CAPTION' => Loc::getMessage('CRM_REST_ACTIVITY_FIELD_WEBDAV_ELEMENTS')
 				);
 			}
 			else
 			{
 				$this->FIELDS_INFO['WEBDAV_ELEMENTS'] = array(
 					'TYPE' => 'webdav',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple),
+					'CAPTION' => Loc::getMessage('CRM_REST_ACTIVITY_FIELD_WEBDAV_ELEMENTS')
 				);
 			}
-			$this->FIELDS_INFO['BINDINGS'] = array(
-				'TYPE' => 'crm_activity_binding',
-				'ATTRIBUTES' => array(CCrmFieldInfoAttr::Multiple, CCrmFieldInfoAttr::ReadOnly)
-			);
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -7080,6 +7175,10 @@ class CCrmActivityRestProxy extends CCrmRestProxyBase
 		if(!$this->COMM_FIELDS_INFO)
 		{
 			$this->COMM_FIELDS_INFO = CCrmActivity::GetCommunicationFieldsInfo();
+			foreach ($this->COMM_FIELDS_INFO as $code=>&$field)
+			{
+				$field['CAPTION'] = \Bitrix\Crm\ActivityTable::getFieldCaption($code);
+			}
 		}
 		return $this->COMM_FIELDS_INFO;
 	}
@@ -7968,15 +8067,22 @@ class CCrmEntityBindingProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = array(
-				'SORT' => array('TYPE' => 'integer'),
-				'IS_PRIMARY' => array('TYPE' => 'char')
+				'SORT' => array(
+					'TYPE' => 'integer',
+					'CAPTION' => Loc::getMessage('CRM_REST_ENTITY_BINDING_FIELD_SORT')
+				),
+				'IS_PRIMARY' => array(
+					'TYPE' => 'char',
+					'CAPTION' => Loc::getMessage('CRM_REST_ENTITY_BINDING_FIELD_IS_PRIMARY')
+				)
 			);
 			$entityFieldName = EntityBinding::resolveEntityFieldName($this->entityTypeID);
 			if($entityFieldName !== '')
 			{
 				$this->FIELDS_INFO[$entityFieldName] = array(
 					'TYPE' => 'integer',
-					'ATTRIBUTES' => array(\CCrmFieldInfoAttr::Required)
+					'ATTRIBUTES' => array(\CCrmFieldInfoAttr::Required),
+					'CAPTION' => \CCrmOwnerType::GetDescription($this->entityTypeID)
 				);
 			}
 			else
@@ -9111,6 +9217,10 @@ class CCrmQuoteRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = CCrmQuote::GetFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = CCrmQuote::GetFieldCaption($code);
+			}
 			self::prepareUserFieldsInfo($this->FIELDS_INFO, CCrmQuote::$sUFEntityID);
 		}
 		return $this->FIELDS_INFO;
@@ -9505,6 +9615,10 @@ class CCrmRequisitePresetRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = EntityPreset::getFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = EntityPreset::getFieldCaption($code);
+			}
 		}
 
 		return $this->FIELDS_INFO;
@@ -9769,6 +9883,10 @@ class CCrmRequisitePresetFieldRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = EntityPreset::getSettingsFieldsRestInfo();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = EntityPreset::getFieldCaption($code);
+			}
 		}
 
 		return $this->FIELDS_INFO;
@@ -10278,6 +10396,11 @@ class CCrmRequisiteRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = EntityRequisite::getFieldsInfo();
+			$titles = EntityRequisite::getSingleInstance()->getFieldsTitles();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = $titles[$code];
+			}
 			self::prepareUserFieldsInfo($this->FIELDS_INFO, EntityRequisite::$sUFEntityID);
 		}
 		return $this->FIELDS_INFO;
@@ -10601,6 +10724,11 @@ class CCrmRequisiteBankDetailRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = EntityBankDetail::getFieldsInfo();
+			$titles = EntityBankDetail::getSingleInstance()->getFieldsTitles();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = $titles[$code];
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -10819,6 +10947,10 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = Requisite\EntityLink::getFieldsInfo();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = Requisite\EntityLink::getFieldCaption($code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -11075,6 +11207,11 @@ class CCrmAddressRestProxy extends CCrmRestProxyBase
 		if(!$this->FIELDS_INFO)
 		{
 			$this->FIELDS_INFO = EntityAddress::getFieldsInfo();
+			$labels = EntityAddress::getLabels();
+			foreach ($this->FIELDS_INFO as $code => &$field)
+			{
+				$field['CAPTION'] = $labels[$code];
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -11917,11 +12054,13 @@ class CCrmPersonTypeRestProxy extends CCrmRestProxyBase
 			$this->FIELDS_INFO = array(
 				'ID' => array(
 					'TYPE' => 'integer',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly),
+					'CAPTION' => Loc::getMessage('CRM_REST_FIELD_ID')
 				),
 				'NAME' => array(
 					'TYPE' => 'string',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly),
+					'CAPTION' => Loc::getMessage('CRM_REST_FIELD_NAME')
 				)
 			);
 		}
@@ -11980,10 +12119,14 @@ class CCrmPersonTypeRestProxy extends CCrmRestProxyBase
 		}
 		unset($defaultSite, $siteIterator);
 
-		$filter['LID'] = $siteId;
+		$filter['=PERSON_TYPE_SITE.SITE_ID'] = $siteId;
 
-		$res = CSalePersonType::GetList($order, $filter, false, $navigation, $select);
-		while($personType = $res->Fetch())
+		$dbRes = \Bitrix\Crm\Invoice\PersonType::getList([
+			'select' => $select,
+			'filter' => $filter,
+			'order' => $order
+		]);
+		while($personType = $dbRes->fetch())
 		{
 			if ($personType['CODE'] === 'CRM_CONTACT' || $personType['CODE'] === 'CRM_COMPANY')
 			{
@@ -12049,6 +12192,11 @@ class CCrmPaySystemRestProxy extends CCrmRestProxyBase
 					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
 				),
 			);
+
+			foreach ($this->FIELDS_INFO  as $code=>&$field)
+			{
+				$field['CAPTION'] = Loc::getMessage("CRM_REST_PAY_SYSTEM_FIELD_".$code);
+			}
 		}
 		return $this->FIELDS_INFO;
 	}
@@ -12221,7 +12369,12 @@ class CCrmMeasureRestProxy extends CCrmRestProxyBase
 	 */
 	protected function getFieldsInfo()
 	{
-		return Bitrix\Crm\Measure::getFieldsInfo();
+		$fields = Bitrix\Crm\Measure::getFieldsInfo();
+		foreach ($fields as $code=>&$field)
+		{
+			$field['CAPTION'] = Bitrix\Crm\Measure::getFieldCaption($code);
+		}
+		return $fields;
 	}
 
 	protected function innerAdd(&$fields, &$errors, array $params = null)

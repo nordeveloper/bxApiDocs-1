@@ -196,7 +196,8 @@ class Bitrix24Manager
 	{
 		if(ModuleManager::isModuleInstalled('bitrix24')
 			&& Loader::includeModule('bitrix24')
-			&& method_exists('CBitrix24', 'initLicenseInfoPopupJS'))
+			&& method_exists('CBitrix24', 'initLicenseInfoPopupJS')
+		)
 		{
 			\CBitrix24::initLicenseInfoPopupJS();
 

@@ -19,6 +19,14 @@ class Bitrix24
 		return \CBitrix24::getAllAdminId();
 	}
 
+	public static function getLicensePrefix()
+	{
+		if(!Loader::includeModule('bitrix24'))
+			return false;
+
+		return \CBitrix24::getLicensePrefix();
+	}
+
 	/**
 	 * Returns true if portal's email is confirmed (or there is no need to confirm it)
 	 */

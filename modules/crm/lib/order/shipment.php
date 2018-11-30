@@ -92,12 +92,17 @@ class Shipment extends Sale\Shipment
 	 */
 	private function addTimelineEntryOnStatusModify()
 	{
+		global $USER;
+
 		$fields = $this->getFields();
 		$originalValues  = $fields->getOriginalValues();
 
 		$modifyParams = array(
 			'PREVIOUS_FIELDS' => array('STATUS_ID' => $originalValues['STATUS_ID']),
-			'CURRENT_FIELDS' => array('STATUS_ID' => $this->getField('STATUS_ID')),
+			'CURRENT_FIELDS' => [
+				'STATUS_ID' => $this->getField('STATUS_ID'),
+				'MODIFY_BY' => (is_object($USER)) ? intval($USER->GetID()) : $fields['RESPONSIBLE_ID']
+			],
 			'ORDER_ID' => $fields['ORDER_ID']
 		);
 

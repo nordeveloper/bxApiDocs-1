@@ -1205,16 +1205,18 @@ class OrderBasket
 
 	protected function getPropsList($iblockId, $skuPropertyId = 0)
 	{
-		$arResult = array();
+		if (self::$catalogIncluded === null)
+			self::$catalogIncluded = Main\Loader::includeModule('catalog');
+		if (!self::$catalogIncluded)
+			return [];
+
+		$propertyIds = Catalog\Product\PropertyCatalogFeature::getOfferTreePropertyCodes($iblockId);
+		if ($propertyIds === null)
+			return [];
+		$arResult = [];
 		$filter = array(
+			'@ID' => $propertyIds,
 			'=IBLOCK_ID' => $iblockId,
-			'=ACTIVE' => 'Y',
-			'@PROPERTY_TYPE' => array(
-				Iblock\PropertyTable::TYPE_STRING,
-				Iblock\PropertyTable::TYPE_LIST,
-				Iblock\PropertyTable::TYPE_ELEMENT
-			),
-			'=MULTIPLE' => 'N'
 		);
 		if ($skuPropertyId > 0)
 			$filter['!=ID'] = $skuPropertyId;
@@ -1229,8 +1231,6 @@ class OrderBasket
 		while ($row = $iterator->fetch())
 		{
 			$row['USER_TYPE'] = (string)$row['USER_TYPE'];
-			if ($row['PROPERTY_TYPE'] == Iblock\PropertyTable::TYPE_STRING && $row['USER_TYPE'] != 'directory')
-				continue;
 			$row['~NAME'] = $row['NAME'];
 			$row['NAME'] = htmlspecialcharsEx($row['NAME']);
 			$row['PROPERTY_USER_TYPE'] = ($row['USER_TYPE'] != '' ? \CIBlockProperty::getUserType($row['USER_TYPE']) : array());

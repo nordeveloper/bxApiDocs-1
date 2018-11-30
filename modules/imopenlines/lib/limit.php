@@ -77,6 +77,10 @@ class Limit
 		return !in_array(\CBitrix24::getLicenseType(), Array('project', 'tf'));
 	}
 
+	/**
+	 * @deprecated
+	 * TODO: delete
+	 */
 	public static function getTrackerLimit()
 	{
 		if(!ModuleManager::isModuleInstalled('bitrix24'))
@@ -94,6 +98,10 @@ class Limit
 		return (int)Option::get('imopenlines', self::OPTION_TRACKER_LIMIT);
 	}
 
+	/**
+	 * @deprecated
+	 * TODO: delete
+	 */
 	public static function getTrackerLimitRemainder()
 	{
 		$limit = self::getTrackerLimit();
@@ -117,6 +125,10 @@ class Limit
 		return $limit - $counter;
 	}
 
+	/**
+	 * @deprecated
+	 * TODO: delete
+	 */
 	public static function increaseTracker()
 	{
 		$limit = self::getTrackerLimit();

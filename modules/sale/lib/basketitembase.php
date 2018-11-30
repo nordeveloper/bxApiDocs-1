@@ -1181,8 +1181,6 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 
 		$this->callEventOnBasketItemEntitySaved();
 
-		$this->clearChanged();
-
 		return $result;
 	}
 

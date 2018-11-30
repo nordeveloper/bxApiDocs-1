@@ -1237,6 +1237,13 @@ class DealCategory
 		}
 	}
 
+	public static function getFieldCaption($fieldName)
+	{
+		self::includeLangFile();
+		$result = GetMessage("CRM_DEAL_CATEGORY_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
+	}
+
 	/**
 	 * Include class language file.
 	 * @return void

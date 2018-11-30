@@ -43,13 +43,13 @@ final class Router
 		if ($this->action && is_string($this->action) && !$this->component)
 		{
 			list($this->vendor, $this->action) = $this->resolveVendor($this->action);
-			list($module, $this->action) = $this->resolveModuleAndModule($this->action);
+			list($module, $this->action) = $this->resolveModuleAndAction($this->action);
 
 			$this->module = $this->refineModuleName($this->vendor, $module);
 		}
 	}
 
-	private function resolveModuleAndModule($action)
+	private function resolveModuleAndAction($action)
 	{
 		$actionParts = explode('.', $action);
 		$module = array_shift($actionParts);

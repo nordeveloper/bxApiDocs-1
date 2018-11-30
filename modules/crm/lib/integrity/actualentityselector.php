@@ -8,6 +8,8 @@ use Bitrix\Crm\Exclusion;
 use Bitrix\Crm\Communication;
 use Bitrix\Crm\ContactTable;
 use Bitrix\Crm\LeadTable;
+use Bitrix\Crm\DealTable;
+use Bitrix\Crm\Entity\Identificator;
 
 /**
  * Class ActualEntitySelector
@@ -236,7 +238,8 @@ class ActualEntitySelector
 	 */
 	public function __construct(array $criteria = array())
 	{
-		$this->isAutoUsingFinishedLeadEnabled = LeadSettings::getCurrent()->isAutoUsingFinishedLeadEnabled();
+		$this->isAutoUsingFinishedLeadEnabled = LeadSettings::getCurrent()->isAutoUsingFinishedLeadEnabled()
+			&& LeadSettings::getCurrent()->isEnabled();
 		$this->initialEntities = $this->entities;
 		$this->setCriteria($criteria);
 		$this->search();
@@ -466,14 +469,67 @@ class ActualEntitySelector
 	/**
 	 * Set actual entity instead of using duplicate search.
 	 *
+	 * @param Identificator\ComplexCollection $entities Entities.
+	 * @param bool $skipRanking Skip ranking.
+	 * @return $this
+	 */
+	public function setEntities(Identificator\ComplexCollection $entities, $skipRanking = false)
+	{
+		$list = [];
+		foreach ($entities as $entity)
+		{
+			switch ($entity->getTypeId() )
+			{
+				case \CCrmOwnerType::Order:
+					if (!isset($list[\CCrmOwnerType::Order]))
+					{
+						$list[\CCrmOwnerType::Order] = [];
+					}
+					$list[\CCrmOwnerType::Order][] = $entity->getId();
+					break;
+
+				default:
+					$this->setEntity($entity->getTypeId(), $entity->getId(), $skipRanking);
+					break;
+			}
+		}
+
+		foreach ($list as $typeId => $ids)
+		{
+			$this->setEntity($typeId, $ids, $skipRanking);
+		}
+
+		return $this;
+	}
+
+	/**
+	 * Set actual entity instead of using duplicate search.
+	 *
 	 * @param integer $entityTypeId Entity type ID.
-	 * @param integer $entityId Entity ID.
+	 * @param integer|integer[] $entityId Entity ID.
 	 * @param bool $skipRanking Skip ranking.
 	 * @return $this
 	 */
 	public function setEntity($entityTypeId, $entityId, $skipRanking = false)
 	{
-		$entityId = $entityId ? (int) $entityId : null;
+		if (is_array($entityId))
+		{
+			switch ($entityTypeId)
+			{
+				case \CCrmOwnerType::Order:
+					$entityId = is_array($entityId) ? $entityId : [$entityId];
+					$entityId = array_filter($entityId, 'is_numeric');
+					$entityId = array_map('intval', $entityId);
+					$entityId = empty($entityId) ? null : $entityId;
+					break;
+
+				default:
+					$entityId = current($entityId);
+					$entityId = $entityId ? (int) $entityId : null;
+					break;
+			}
+		}
+
 		foreach($this->entities as $index => $entity)
 		{
 			if (!isset($entity['IS_PRIMARY']) || !$entity['IS_PRIMARY'])
@@ -513,6 +569,24 @@ class ActualEntitySelector
 				}
 
 				$skipRanking = true;
+			}
+			elseif ($entityTypeId == \CCrmOwnerType::Deal)
+			{
+				$dealRow = DealTable::getRow([
+					'select' => ['ID', 'CONTACT_ID', 'COMPANY_ID'],
+					'filter' => ['=ID' => $entityId]
+				]);
+				if ($dealRow)
+				{
+					if ($dealRow['CONTACT_ID'])
+					{
+						$this->setEntity(\CCrmOwnerType::Contact, $dealRow['CONTACT_ID'], true);
+					}
+					if ($dealRow['COMPANY_ID'])
+					{
+						$this->setEntity(\CCrmOwnerType::Company, $dealRow['COMPANY_ID'], true);
+					}
+				}
 			}
 
 			$entity['ID'] = $entityId;
@@ -715,12 +789,12 @@ class ActualEntitySelector
 		if ($contactId)
 		{
 			$contactDb = ContactTable::getList(array(
-				'select' => array('COMPANY_ID'),
-				'filter' => array('=ID' => $contactId)
+				'select' => ['COMPANY_ID'],
+				'filter' => ['=ID' => $contactId]
 			));
 			if (($contact = $contactDb->fetch()) && $contact['COMPANY_ID'])
 			{
-				$this->set('contactCompanyId', $contact['COMPANY_ID']);
+				$this->set('contactCompanyId', (int) $contact['COMPANY_ID']);
 			}
 		}
 	}
@@ -731,7 +805,13 @@ class ActualEntitySelector
 		$leadId = $ranking->getEntityId();
 		if (!$leadId && $this->isAutoUsingFinishedLeadEnabled)
 		{
-			$leadId = current($this->getRankableList(\CCrmOwnerType::Lead));
+			$list = $ranking->getModifiedList();
+			if (!is_array($list))
+			{
+				$list = $this->getRankableList(\CCrmOwnerType::Lead);
+			}
+
+			$leadId = empty($list) ? null : current($list);
 		}
 
 		if ($leadId)

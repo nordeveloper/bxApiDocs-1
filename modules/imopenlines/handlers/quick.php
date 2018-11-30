@@ -54,7 +54,7 @@ if(!isset($_SERVER['HTTP_REFERER']) || empty($_SERVER['HTTP_REFERER']) || strpos
 	die();
 }
 
-$parsedUserCode = \Bitrix\ImOpenLines\Session::parseUserCode($getRequest['DIALOG_ENTITY_ID']);
+$parsedUserCode = \Bitrix\ImOpenLines\Session\Common::parseUserCode($getRequest['DIALOG_ENTITY_ID']);
 $params['IMOP_ID'] = $parsedUserCode['CONFIG_ID'];
 
 $APPLICATION->IncludeComponent("bitrix:imopenlines.iframe.quick", ".default", $params, false, Array("HIDE_ICONS" => "Y"));

@@ -440,8 +440,34 @@ class CForumMessage extends CAllForumMessage
 			$strSqlSearch = "";
 		}
 
-		$strSql =
-			"SELECT FM.ID,
+		if (isset($arAddParams['SEARCH_MODE']) && $arAddParams['SEARCH_MODE'] == 'Y')
+		{
+			$select = "*";
+
+			if (is_array($arAddParams['FORCE_SELECT']))
+			{
+				$select = implode(', ', $arAddParams['FORCE_SELECT']);
+			}
+
+			$additionalJoins = "
+				LEFT JOIN b_forum_topic FT ON FT.ID = FM.TOPIC_ID 
+				INNER JOIN b_tasks T ON T.FORUM_TOPIC_ID = FT.ID";
+
+			$strSqlSearch .= "
+				AND MATCH (FM.POST_MESSAGE) AGAINST ('(+" . $arFilter['POST_MESSAGE'] . "*)' IN BOOLEAN MODE)
+				AND T.ZOMBIE = 'N'";
+
+			$accessSql = '';
+			$access = \Bitrix\Tasks\Internals\RunTime\Task::getAccessCheckSql($arAddParams);
+
+			if($access['sql'] != '')
+			{
+				$accessSql = "\n\n/*access BEGIN*/\n INNER JOIN (" . $access['sql'] . ") TASKS_ACCESS on T.ID = TASKS_ACCESS.TASK_ID\n/*access END*/\n\n";
+			}
+		}
+		else
+		{
+			$select = "FM.ID,
 				FM.AUTHOR_ID, FM.AUTHOR_NAME, FM.AUTHOR_EMAIL, FM.AUTHOR_IP,
 				FM.USE_SMILES, FM.POST_MESSAGE, FM.POST_MESSAGE_HTML, FM.POST_MESSAGE_FILTER,
 				FM.FORUM_ID, FM.TOPIC_ID, FM.NEW_TOPIC,
@@ -450,16 +476,25 @@ class CForumMessage extends CAllForumMessage
 				FM.EDITOR_ID, FM.EDITOR_NAME, FM.EDITOR_EMAIL, FM.EDIT_REASON,
 				FU.SHOW_NAME, U.LOGIN, U.NAME, U.SECOND_NAME, U.LAST_NAME, U.PERSONAL_PHOTO,
 				".$DB->DateToCharFunction("FM.EDIT_DATE", "FULL")." as EDIT_DATE, FM.PARAM1, FM.PARAM2, FM.HTML, FM.MAIL_HEADER".
-				$obUserFieldsSql->GetSelect().
-				(!empty($arAddParams["sNameTemplate"]) ?
-					",\n\t".CForumUser::GetFormattedNameFieldsForSelect(array_merge(
-						$arAddParams, array(
-						"sUserTablePrefix" => "U.",
-						"sForumUserTablePrefix" => "FU.",
-						"sFieldName" => "AUTHOR_NAME_FRMT")), false) : "")."
-			FROM b_forum_message FM
+					$obUserFieldsSql->GetSelect().
+					(!empty($arAddParams["sNameTemplate"]) ?
+						",\n\t".CForumUser::GetFormattedNameFieldsForSelect(array_merge(
+							$arAddParams, array(
+							"sUserTablePrefix" => "U.",
+							"sForumUserTablePrefix" => "FU.",
+							"sFieldName" => "AUTHOR_NAME_FRMT")), false) : "");
+
+			$additionalJoins = "";
+			$accessSql = "";
+		}
+
+		$strSql =
+			"SELECT " . $select . "
+			FROM b_forum_message FM" . "
 				LEFT JOIN b_forum_user FU ON (FM.AUTHOR_ID = FU.USER_ID)
 				LEFT JOIN b_user U ON (FM.AUTHOR_ID = U.ID)".
+				$additionalJoins.
+				$accessSql.
 				$strSqlUserFieldJoin."
 			WHERE 1 = 1 ".$strSqlSearch."
 			".$strSqlOrder;

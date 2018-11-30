@@ -35,6 +35,33 @@ if($_SERVER["REQUEST_METHOD"]=="POST" && strlen($_POST["action"]) > 0 && check_b
 		__CrmShowEndJsonResonse(array('error' => GetMessage("CRM_TYPE_RIGHTS_ERROR")));
 	}
 
+	if ($_POST["action"] == "setConverterConfig")
+	{
+		$config = [
+			'items' => [\CCrmOwnerType::Deal],
+			'dealCategoryId' => isset($_POST['dealCategoryId'])? (int)$_POST['dealCategoryId'] : 0,
+			'completeActivities' => (isset($_POST['completeActivities']) && $_POST['completeActivities'] === 'Y')
+		];
+
+		if (isset($_POST['createContact']) && $_POST['createContact'] === 'Y')
+		{
+			$config['items'][] = \CCrmOwnerType::Contact;
+		}
+		if (isset($_POST['createCompany']) && $_POST['createCompany'] === 'Y')
+		{
+			$config['items'][] = \CCrmOwnerType::Company;
+		}
+
+		if (count($config['items']) === 1)
+		{
+			$config['items'][] = \CCrmOwnerType::Contact;
+		}
+
+		\Bitrix\Crm\Settings\LeadSettings::getCurrent()->setFreeModeConverterConfig($config);
+
+		__CrmShowEndJsonResonse(array('success' => "Y"));
+	}
+
 	\Bitrix\Main\Config\Option::set('crm', 'crm_lead_enabled_show', "N");
 
 	if ($_POST["action"] == "popupClose")
@@ -76,5 +103,3 @@ $APPLICATION->IncludeComponent(
 	"",
 	array()
 );
-
-?>

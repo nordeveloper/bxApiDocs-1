@@ -3,6 +3,7 @@ namespace Bitrix\Crm\Automation\Trigger;
 
 use Bitrix\Crm\Automation\Factory;
 use Bitrix\Crm\EntityManageFacility;
+use Bitrix\Crm\Settings\LeadSettings;
 use Bitrix\Main;
 
 if (!Main\Loader::includeModule('bizproc'))
@@ -47,6 +48,11 @@ class BaseTrigger extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 
 			if (Factory::isSupported($entityTypeId))
 			{
+				if ($entityTypeId === \CCrmOwnerType::Lead && !LeadSettings::isEnabled())
+				{
+					continue;
+				}
+
 				$automationTarget = Factory::getTarget($entityTypeId, $entityId);
 
 				$trigger = new static();

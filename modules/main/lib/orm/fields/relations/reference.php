@@ -126,14 +126,6 @@ class Reference extends Relation
 		return parent::validateValue($value, $primary, $row, $result);
 	}
 
-	/**
-	 * @return string
-	 */
-	public function getRefEntityName()
-	{
-		return $this->refEntityName;
-	}
-
 	public function getDataType()
 	{
 		return $this->refEntityName;

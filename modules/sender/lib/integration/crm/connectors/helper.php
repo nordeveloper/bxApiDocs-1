@@ -661,8 +661,8 @@ class Helper
 					$row['CRM_ENTITY_TYPE_ID'],
 					$row['CRM_ENTITY_ID'],
 					$crmRow['TITLE'],
-					$crmRow['IS_RETURN_CUSTOMER'] === 'Y' ? Loc::getMessage('SENDER_INTEGRATION_CRM_CONNECTOR_LEAD_FIELD_RC_LEAD') : null,
-					self::getCrmStatusName('SOURCE', $crmRow['SOURCE_ID'])
+					self::getCrmStatusName('SOURCE', $crmRow['SOURCE_ID']),
+					$crmRow['IS_RETURN_CUSTOMER'] === 'Y' ? Loc::getMessage('SENDER_INTEGRATION_CRM_CONNECTOR_LEAD_FIELD_RC_LEAD') : null
 				);
 				break;
 		}

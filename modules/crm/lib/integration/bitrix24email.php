@@ -34,7 +34,7 @@ class Bitrix24Email
 	{
 		self::includeLangFile();
 		return self::isSignatureEnabled()
-			? GetMessage('CRM_B24_EMAIL_SIGNATURE_ENABLED')
+			? GetMessage('CRM_B24_EMAIL_SIGNATURE_ENABLED_2')
 			: GetMessage('CRM_B24_EMAIL_SIGNATURE_DISABLED');
 	}
 	public static function addSignature(&$message, $contentType = 0)

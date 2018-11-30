@@ -61,6 +61,11 @@ class CCrmStatus
 		}
 		return self::$FIELD_INFOS;
 	}
+	public static function GetFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_STATUS_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
+	}
 	public static function GetEntityTypes()
 	{
 		$arEntityType = array(

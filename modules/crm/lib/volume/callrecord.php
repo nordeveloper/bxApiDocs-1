@@ -242,18 +242,19 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 	 */
 	public function measureFiles()
 	{
-		$activityQuery = $this->prepareQuery();
+		$entityGroupField = array(
+			'DATE_CREATE' => 'DATE_CREATED_SHORT',
+			'STAGE_SEMANTIC' => 'STAGE_SEMANTIC_ID',
+		);
+
+		$activityQuery = $this->prepareQuery($entityGroupField);
 
 		// only call records
 		//$activityQuery->where('TYPE_ID', '=', \CCrmActivityType::Call);
 
-		$entityGroupField = array(
-			'DATE_CREATE' => 'DATE_CREATED_SHORT',
-			'STAGE_SEMANTIC_ID' => 'STAGE_SEMANTIC_ID',
-		);
-
 		foreach ($entityGroupField as $alias => $field)
 		{
+			$field = 'BIND.'. str_replace('.', '_', $field);
 			$activityQuery->addSelect($field, $alias);
 			$activityQuery->addGroup($field);
 		}
@@ -267,7 +268,7 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 					'".static::getIndicatorId()."' as INDICATOR_TYPE,
 					'".$this->getOwner()."' as OWNER_ID,
 					DATE_CREATE,
-					STAGE_SEMANTIC_ID, 
+					STAGE_SEMANTIC, 
 					SUM(FILE_SIZE) as FILE_SIZE,
 					SUM(FILE_COUNT) as FILE_COUNT,
 					SUM(DISK_SIZE) as DISK_SIZE,
@@ -278,7 +279,7 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 				) src
 				GROUP BY
 					DATE_CREATE,
-					STAGE_SEMANTIC_ID
+					STAGE_SEMANTIC
 			";
 
 			Crm\VolumeTable::updateFromSelect(
@@ -293,7 +294,7 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 					'INDICATOR_TYPE' => 'INDICATOR_TYPE',
 					'OWNER_ID' => 'OWNER_ID',
 					'DATE_CREATE' => 'DATE_CREATE',
-					'STAGE_SEMANTIC_ID' => 'STAGE_SEMANTIC_ID',
+					'STAGE_SEMANTIC_ID' => 'STAGE_SEMANTIC',
 				)
 			);
 		}
@@ -402,15 +403,15 @@ class Callrecord extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm
 
 	/**
 	 * Returns query.
-	 *
+	 * @param  array $entityGroupField Fileds for groupping.
 	 * @return Entity\Query
 	 */
-	public function prepareQuery()
+	public function prepareQuery($entityGroupField = array())
 	{
 		$this->activityFiles = new Crm\Volume\Activity();
 		$this->activityFiles->setFilter($this->getFilter());
 
-		$query = $this->activityFiles->getActivityFileMeasureQuery();
+		$query = $this->activityFiles->getActivityFileMeasureQuery(Crm\Volume\Activity::className(), $entityGroupField);
 
 		// only call records
 		$query->where('TYPE_ID', '=', \CCrmActivityType::Call);

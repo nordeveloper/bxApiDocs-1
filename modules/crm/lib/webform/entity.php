@@ -9,6 +9,7 @@ namespace Bitrix\Crm\WebForm;
 
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Crm\UtmTable;
+use Bitrix\Crm\Settings\LeadSettings;
 
 Loc::loadMessages(__FILE__);
 
@@ -26,25 +27,6 @@ class Entity
 	public static function getMap($entityTypeName = null)
 	{
 		$entityTypeMap =  array(
-			\CCrmOwnerType::LeadName => array(
-				'CLASS_NAME' => 'CCrmLead',
-				'DUPLICATE_CHECK' => array(
-					'CHECKER_CLASS_NAME' => '\Bitrix\Crm\Integrity\LeadDuplicateChecker',
-					'MERGER_CLASS_NAME' => '\Bitrix\Crm\Merger\LeadMerger',
-				),
-				'HAS_MULTI_FIELDS' => true,
-				'FIELD_AUTO_FILL_TEMPLATE' => array(
-					'TITLE' => array(
-						'TEMPLATE' => Loc::getMessage('CRM_WEBFORM_ENTITY_FIELD_NAME_TEMPLATE'),
-					),
-					'OPENED' => array(
-						'TEMPLATE' => 'Y'
-					),
-					'SOURCE_ID' => array(
-						'TEMPLATE' => 'WEBFORM'
-					)
-				)
-			),
 			\CCrmOwnerType::DealName => array(
 				'CLASS_NAME' => 'CCrmDeal',
 				'FIELD_AUTO_FILL_TEMPLATE' => array(
@@ -113,11 +95,42 @@ class Entity
 						'TEMPLATE' => Loc::getMessage('CRM_WEBFORM_ENTITY_FIELD_NAME_TEMPLATE'),
 					),
 					'STATUS_ID' => array(
-						'TEMPLATE' => 1,
+						'TEMPLATE' => \CAllCrmInvoice::getDefaultStatusId(),
 					),
 				)
 			),
 		);
+
+		$entityTypeMapLead = [
+			\CCrmOwnerType::LeadName => array(
+				'CLASS_NAME' => 'CCrmLead',
+				'DUPLICATE_CHECK' => array(
+					'CHECKER_CLASS_NAME' => '\Bitrix\Crm\Integrity\LeadDuplicateChecker',
+					'MERGER_CLASS_NAME' => '\Bitrix\Crm\Merger\LeadMerger',
+				),
+				'HAS_MULTI_FIELDS' => true,
+				'FIELD_AUTO_FILL_TEMPLATE' => array(
+					'TITLE' => array(
+						'TEMPLATE' => Loc::getMessage('CRM_WEBFORM_ENTITY_FIELD_NAME_TEMPLATE'),
+					),
+					'OPENED' => array(
+						'TEMPLATE' => 'Y'
+					),
+					'SOURCE_ID' => array(
+						'TEMPLATE' => 'WEBFORM'
+					)
+				)
+			),
+		];
+
+		if (LeadSettings::isEnabled())
+		{
+			$entityTypeMap = $entityTypeMapLead + $entityTypeMap;
+		}
+		else
+		{
+			$entityTypeMap = $entityTypeMap + $entityTypeMapLead;
+		}
 
 		if($entityTypeName)
 		{
@@ -234,40 +247,6 @@ class Entity
 		// ATTENTION!!! SCHEME ORDER IS IMPORTANT FOR getSchemesByInvoice
 		// ATTENTION!!! ENTITY ORDER IS IMPORTANT FOR SYNCHRONIZATION
 		$schemes = array(
-			self::ENUM_ENTITY_SCHEME_LEAD => array(
-				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED'),
-				'ENTITIES' => array(
-					\CCrmOwnerType::LeadName
-				),
-				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED_DESC')
-			),
-			self::ENUM_ENTITY_SCHEME_LEAD_INVOICE => array(
-				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED'),
-				'ENTITIES' => array(
-					\CCrmOwnerType::InvoiceName,
-					\CCrmOwnerType::LeadName,
-					\CCrmOwnerType::CompanyName,
-					\CCrmOwnerType::ContactName
-				),
-				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED_INVOICE_DESC')
-			),
-			self::ENUM_ENTITY_SCHEME_CONTACT => array(
-				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT'),
-				'ENTITIES' => array(
-					\CCrmOwnerType::CompanyName,
-					\CCrmOwnerType::ContactName,
-				),
-				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT_DESC')
-			),
-			self::ENUM_ENTITY_SCHEME_CONTACT_INVOICE => array(
-				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT'),
-				'ENTITIES' => array(
-					\CCrmOwnerType::InvoiceName,
-					\CCrmOwnerType::CompanyName,
-					\CCrmOwnerType::ContactName,
-				),
-				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT_INVOICE_DESC')
-			),
 			self::ENUM_ENTITY_SCHEME_DEAL => array(
 				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_DEAL'),
 				'ENTITIES' => array(
@@ -286,6 +265,23 @@ class Entity
 					\CCrmOwnerType::ContactName,
 				),
 				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_DEAL_INVOICE_DESC')
+			),
+			self::ENUM_ENTITY_SCHEME_CONTACT => array(
+				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT'),
+				'ENTITIES' => array(
+					\CCrmOwnerType::CompanyName,
+					\CCrmOwnerType::ContactName,
+				),
+				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT_DESC')
+			),
+			self::ENUM_ENTITY_SCHEME_CONTACT_INVOICE => array(
+				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT'),
+				'ENTITIES' => array(
+					\CCrmOwnerType::InvoiceName,
+					\CCrmOwnerType::CompanyName,
+					\CCrmOwnerType::ContactName,
+				),
+				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_CLIENT_INVOICE_DESC')
 			),
 			self::ENUM_ENTITY_SCHEME_QUOTE => array(
 				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_QUOTE'),
@@ -307,6 +303,35 @@ class Entity
 				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_QUOTE_INVOICE_DESC')
 			),
 		);
+
+		$leadSchemes = [
+			self::ENUM_ENTITY_SCHEME_LEAD => array(
+				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED'),
+				'ENTITIES' => array(
+					\CCrmOwnerType::LeadName
+				),
+				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED_DESC')
+			),
+			self::ENUM_ENTITY_SCHEME_LEAD_INVOICE => array(
+				'NAME' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED'),
+				'ENTITIES' => array(
+					\CCrmOwnerType::InvoiceName,
+					\CCrmOwnerType::LeadName,
+					\CCrmOwnerType::CompanyName,
+					\CCrmOwnerType::ContactName
+				),
+				'DESCRIPTION' => Loc::getMessage('CRM_WEBFORM_ENTITY_SCHEME_LEED_INVOICE_DESC')
+			),
+		];
+
+		if (LeadSettings::isEnabled())
+		{
+			$schemes = $leadSchemes + $schemes;
+		}
+		else
+		{
+			$schemes = $schemes + $leadSchemes;
+		}
 
 		if($schemeId)
 		{

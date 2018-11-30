@@ -10,26 +10,60 @@ $GLOBALS["SALE_PERSON_TYPE_LIST_CACHE"] = Array();
 
 class CAllSalePersonType
 {
-	static function DoProcessOrder(&$arOrder, $personTypeId, &$arErrors)
+	static function DoProcessOrder(&$arOrder, $personTypeId, &$arErrors, $arOptions)
 	{
 		$personTypeId = intval($personTypeId);
 
+		if (isset($arOptions['ORDER'])
+			&& $arOptions['ORDER'] instanceof \Bitrix\Sale\Order
+		)
+		{
+			$registry = \Bitrix\Sale\Registry::getInstance($arOptions['ORDER']::getRegistryType());
+			$personType = $registry->getPersonTypeClassName();
+		}
+		else
+		{
+			$personType = \Bitrix\Sale\PersonType::class;
+		}
+
 		if ($personTypeId > 0)
 		{
-			$dbPersonType = CSalePersonType::GetList(array(), array("ID" => $personTypeId, "LID" => $arOrder["SITE_ID"], "ACTIVE" => "Y"));
-			if ($arPersonType = $dbPersonType->Fetch())
+			/** @var Bitrix\Main\DB\Result $dbPersonType */
+			$dbPersonType = $personType::getList([
+				'filter' => ['=ID' => $personTypeId]
+			]);
+			if ($arPersonType = $dbPersonType->fetch())
+			{
 				$arOrder["PERSON_TYPE_ID"] = $arPersonType["ID"];
+			}
 			else
+			{
 				$arErrors[] = array("CODE" => "PERSON_TYPE_ID", "TEXT" => GetMessage('SKGP_PERSON_TYPE_NOT_FOUND'));
+			}
 
 			return;
 		}
 
-		$dbPersonType = CSalePersonType::GetList(array("SORT" => "ASC", "NAME" => "ASC"), array("LID" => $arOrder["SITE_ID"], "ACTIVE" => "Y"));
+		/** @var Bitrix\Main\DB\Result $dbPersonType */
+		$dbPersonType = $personType::getList([
+			'filter' => [
+				"=PERSON_TYPE_SITE.SITE_ID" => $arOrder["SITE_ID"],
+				"=ACTIVE" => "Y"
+			],
+			'order' => [
+				'SORT' => 'ASC',
+				'NAME' => 'ASC'
+			] 
+		]);
+
 		if ($arPersonType = $dbPersonType->Fetch())
+		{
 			$arOrder["PERSON_TYPE_ID"] = $arPersonType["ID"];
+		}
 		else
+		{
 			$arErrors[] = array("CODE" => "PERSON_TYPE_ID", "TEXT" => GetMessage('SKGP_PERSON_TYPE_EMPTY'));
+		}
 	}
 
 	function GetByID($ID)

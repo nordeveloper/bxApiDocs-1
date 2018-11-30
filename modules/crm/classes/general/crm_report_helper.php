@@ -1077,6 +1077,22 @@ class CCrmReportHelper extends CCrmReportHelperBase
 
 	public static function setRuntimeFields(\Bitrix\Main\Entity\Base $entity, $sqlTimeInterval)
 	{
+		$entity->addField(array(
+			'data_type' => 'string',
+			'expression' => array(
+				'CONCAT(\'DEAL_STAGE\', CASE WHEN %s = 0 THEN \'\' ELSE CONCAT(\'_\',%s) END)',
+				'CATEGORY_ID', 'CATEGORY_ID'
+			)
+		), '_STAGE_ENTITY_ID');
+
+		$entity->addField(array(
+			'data_type' => 'Status',
+			'reference' => array(
+				'=this.STAGE_ID' => 'ref.STATUS_ID',
+				'=this._STAGE_ENTITY_ID' => 'ref.ENTITY_ID'
+			)
+		), '_STAGE_BY_CAT');
+
 		self::appendDateTimeUserFieldsAsShort($entity);
 		self::appendTextUserFieldsAsTrimmed($entity);
 	}
@@ -1131,6 +1147,7 @@ class CCrmReportHelper extends CCrmReportHelperBase
 			'OPPORTUNITY_ACCOUNT' => 'float',
 			'RECEIVED_AMOUNT' => 'float',
 			'LOST_AMOUNT' => 'float',
+			'CATEGORY_ID' => 'string',
 			'ProductRow:DEAL_OWNER.SUM_ACCOUNT' => 'float',
 			'ProductRow:DEAL_OWNER.PRICE_ACCOUNT' => 'float',
 			'COMPANY_BY.REVENUE' => 'float'
@@ -1246,7 +1263,7 @@ class CCrmReportHelper extends CCrmReportHelperBase
 		// We are trying to adhere user defined sort rules.
 		if(isset($order['STAGE_ID']))
 		{
-			$select['CRM_DEAL_STAGE_BY_SORT'] = 'STAGE_BY.SORT';
+			$select['CRM_DEAL_STAGE_BY_SORT'] = '_STAGE_BY_CAT.SORT';
 			$order['CRM_DEAL_STAGE_BY_SORT'] = $order['STAGE_ID'];
 			unset($order['STAGE_ID']);
 		}
@@ -3571,13 +3588,13 @@ class CCrmProductReportHelper extends CCrmReportHelperBase
 		if($addClause === false)
 		{
 			// access dinied
-			$filter = array($filter, '=DEAL_OWNER.ID' => '0');
+			$filter = array($filter, '=OWNER_ID' => '0');
 		}
 		elseif(!empty($addClause))
 		{
 			global $DB;
 			// HACK: add escape chars for ORM
-			$addClause = str_replace('crm_product_row_deal_owner.ID', $DB->escL.'crm_product_row_deal_owner'.$DB->escR.'.ID', $addClause);
+			$addClause = str_replace('crm_product_row_deal_owner.ID', '`crm_product_row`.`OWNER_ID`', $addClause);
 
 			$filter = array($filter,
 				'=IS_ALLOWED' => '1'
@@ -3587,12 +3604,6 @@ class CCrmProductReportHelper extends CCrmReportHelperBase
 				'data_type' => 'integer',
 				'expression' => array('CASE WHEN '.$addClause.' THEN 1 ELSE 0 END')
 			);
-
-			// Strongly required for permision check.
-			if(!isset($select['CRM_PRODUCT_ROW_DEAL_OWNER_ID']))
-			{
-				$select['CRM_PRODUCT_ROW_DEAL_OWNER_ID'] = 'DEAL_OWNER.ID';
-			}
 		}
 
 		if(!isset($select['CRM_PRODUCT_ROW_IBLOCK_ELEMENT_ID']))

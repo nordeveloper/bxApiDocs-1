@@ -29,10 +29,16 @@ class CIntranetEventHandlers
 	{
 		if ($arFields['RESULT'] && isset($arFields['ACTIVE']))
 		{
-			$dbRes = CIBlockElement::GetList(array(), array(
-				'IBLOCK_ID' => COption::GetOptionInt('intranet', 'iblock_state_history'),
-				'PROPERTY_USER' => $arFields['ID'],
-			));
+			$dbRes = \CIBlockElement::getList(
+				array(),
+				array(
+					'IBLOCK_ID' => (int) \Bitrix\Main\Config\Option::get('intranet', 'iblock_state_history'),
+					'PROPERTY_USER' => $arFields['ID'],
+				),
+				false,
+				false,
+				array('ID', 'IBLOCK_ID')
+			);
 			while ($arRes = $dbRes->Fetch())
 			{
 				CIBlockElement::SetPropertyValues($arRes['ID'], $arRes['IBLOCK_ID'], $arFields['ACTIVE'], 'USER_ACTIVE');
@@ -41,10 +47,15 @@ class CIntranetEventHandlers
 			if ($arFields['ACTIVE'] == 'N')
 			{
 				$obs = new CIBlockSection();
-				$dbRes = $obs->GetList(array(), array(
-					'IBLOCK_ID' => COption::GetOptionInt('intranet', 'iblock_structure'),
-					'UF_HEAD' => $arFields['ID'],
-				));
+				$dbRes = $obs->getList(
+					array(),
+					array(
+						'IBLOCK_ID' => (int) \Bitrix\Main\Config\Option::get('intranet', 'iblock_structure'),
+						'UF_HEAD' => $arFields['ID'],
+					),
+					false,
+					array('ID')
+				);
 				while ($arSection = $dbRes->Fetch())
 				{
 					$obs->Update($arSection['ID'], array('UF_HEAD' => null));
@@ -544,6 +555,7 @@ class CIntranetEventHandlers
 
 		if (
 			CModule::IncludeModule("socialnetwork")
+			&& CModule::IncludeModule("forum")
 			&& in_array($arFields["FORUM_ID"], $arIBlockForum)
 			&& array_key_exists("PARAM2", $arFields)
 			&& intval($arFields["PARAM2"]) > 0
@@ -566,7 +578,7 @@ class CIntranetEventHandlers
 			{
 				$arForum = CForumNew::GetByID($arFields["FORUM_ID"]);
 
-				$parser = new textParser(LANGUAGE_ID); // second parameter - path to smile!
+				$parser = new forumTextParser(LANGUAGE_ID);
 				$parser->image_params["width"] = false;
 				$parser->image_params["height"] = false;
 
@@ -1159,7 +1171,7 @@ class CIntranetEventHandlers
 		\Bitrix\Intranet\Internals\UserToDepartmentTable::deleteByUserId($user);
 	}
 
-	function OnFillSocNetAllowedSubscribeEntityTypes(&$arSocNetAllowedSubscribeEntityTypes)
+	public static function OnFillSocNetAllowedSubscribeEntityTypes(&$arSocNetAllowedSubscribeEntityTypes)
 	{
 		define("SONET_SUBSCRIBE_ENTITY_NEWS", "N");
 		$arSocNetAllowedSubscribeEntityTypes[] = SONET_SUBSCRIBE_ENTITY_NEWS;
@@ -1179,7 +1191,7 @@ class CIntranetEventHandlers
 		);
 	}
 
-	function OnFillSocNetLogEvents(&$arSocNetLogEvents)
+	public static function OnFillSocNetLogEvents(&$arSocNetLogEvents)
 	{
 		$arSocNetLogEvents["news"] = array(
 			"ENTITIES" =>	array(

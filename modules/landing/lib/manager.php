@@ -158,6 +158,24 @@ class Manager
 	}
 
 	/**
+	 * Set page title.
+	 * @param string $title Page title.
+	 * @return void
+	 */
+	public static function setPageTitle($title)
+	{
+		static $application = null;
+
+		if ($application === null)
+		{
+			$application = self::getApplication();
+		}
+
+		$application->setTitle($title);
+		$application->setPageProperty('title', $title);
+	}
+
+	/**
 	 * Create system dir for publication sites.
 	 * @param string $basePath Publication physical dir.
 	 * @return void
@@ -543,7 +561,6 @@ class Manager
 			$httpClient->setTimeout(5);
 			$httpClient->setStreamTimeout(5);
 			$urlComponents = parse_url($file);
-			$dimensionDelta = 10;// delta for resize
 
 			// detect tmp file name
 			if ($urlComponents && $urlComponents['path'] != '')
@@ -608,8 +625,6 @@ class Manager
 				isset($params['height'])
 			)
 			{
-				$params['width'] += intval($params['width'] / 100 * $dimensionDelta);
-				$params['height'] += intval($params['height'] / 100 * $dimensionDelta);
 				\CFile::resizeImage(
 					$file,
 					$params,
@@ -619,6 +634,7 @@ class Manager
 			}
 			// save
 			$module = 'landing';
+			$file['name'] = preg_replace('/[\s]+/s', '_', $file['name']);
 			$file['MODULE_ID'] = $module;
 			$file = \CFile::saveFile($file, $module);
 			if ($file)
@@ -627,6 +643,11 @@ class Manager
 			}
 			if ($file)
 			{
+				$file['SRC'] = str_replace(
+					'%',
+					'%25',
+					$file['SRC']
+				);
 				return $file;
 			}
 		}
@@ -989,7 +1010,15 @@ class Manager
 		if ($sanitizer)
 		{
 			// bad value exists
-			if ($sanitizer->process($value))
+			if (is_array($value))
+			{
+				foreach ($value as &$val)
+				{
+					$val = self::sanitize($val, $bad, $splitter);
+				}
+				unset($val);
+			}
+			else if ($sanitizer->process($value))
 			{
 				$bad = true;
 				$value = $sanitizer->getFilteredValue();

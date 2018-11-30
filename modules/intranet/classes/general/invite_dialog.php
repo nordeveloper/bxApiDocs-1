@@ -271,6 +271,7 @@ class CIntranetInviteDialog
 					{
 						$event->SendImmediate("BITRIX24_USER_INVITATION", $siteIdByDepartmentId, array(
 							"EMAIL_FROM" => $USER->GetEmail(),
+							"USER_ID_FROM" => $USER->GetID(),
 							"EMAIL_TO" => $arUser["EMAIL"],
 							"LINK" => self::getInviteLink($arUser, $siteIdByDepartmentId),
 							"USER_TEXT" => $messageText
@@ -279,6 +280,7 @@ class CIntranetInviteDialog
 					else
 					{
 						$event->SendImmediate("INTRANET_USER_INVITATION", $siteIdByDepartmentId, array(
+							"USER_ID_FROM" => $USER->GetID(),
 							"EMAIL_TO" => $arUser["EMAIL"],
 							"LINK" => self::getInviteLink($arUser, $siteIdByDepartmentId),
 							"USER_TEXT" => $messageText
@@ -877,6 +879,7 @@ class CIntranetInviteDialog
 		{
 			$event->SendImmediate("BITRIX24_USER_INVITATION", $siteIdByDepartmentId, array(
 				"EMAIL_FROM" => $USER->GetEmail(),
+				"USER_ID_FROM" => $USER->GetID(),
 				"EMAIL_TO" => $arUser["EMAIL"],
 				"LINK" => self::getInviteLink($arUser, $siteIdByDepartmentId),
 				"USER_TEXT" => $messageText,
@@ -886,6 +889,7 @@ class CIntranetInviteDialog
 		{
 			$event->SendImmediate("INTRANET_USER_INVITATION", $siteIdByDepartmentId, array(
 				"EMAIL_TO" => $arUser["EMAIL"],
+				"USER_ID_FROM" => $USER->GetID(),
 				"LINK" => self::getInviteLink($arUser, $siteIdByDepartmentId),
 				"USER_TEXT" => $messageText,
 			));
@@ -1435,6 +1439,7 @@ class CIntranetInviteDialog
 			{
 				$event->SendImmediate("BITRIX24_USER_INVITATION", $arParams["SITE_ID"], array(
 					"EMAIL_FROM" => $USER->GetEmail(),
+					"USER_ID_FROM" => $USER->GetID(),
 					"EMAIL_TO" => $arUser["EMAIL"],
 					"LINK" => self::getInviteLink($arUser, $siteIdToSend),
 					"USER_TEXT" => $messageText
@@ -1444,6 +1449,7 @@ class CIntranetInviteDialog
 			{
 				$event->SendImmediate("INTRANET_USER_INVITATION", $arParams["SITE_ID"], array(
 					"EMAIL_TO" => $arUser["EMAIL"],
+					"USER_ID_FROM" => $USER->GetID(),
 					"LINK" => self::getInviteLink($arUser, $siteIdToSend),
 					"USER_TEXT" => $messageText
 				));

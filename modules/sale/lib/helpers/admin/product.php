@@ -452,13 +452,34 @@ class Product
 
 		foreach($this->groupByIblock as $iblockId => $elIds)
 		{
-			\CIBlockElement::GetPropertyValuesArray(
-				$this->resultData,
-				$iblockId,
-				array(
-					'ID' => $elIds,
-					'IBLOCK_ID' => $iblockId
-			));
+			$exists = false;
+			foreach ($elIds as $oneId)
+			{
+				if (isset($this->resultData[$oneId]))
+				{
+					$exists = true;
+					break;
+				}
+			}
+			if ($exists)
+			{
+				\CIBlockElement::GetPropertyValuesArray(
+					$this->resultData,
+					$iblockId,
+					array(
+						'ID' => $elIds,
+						'IBLOCK_ID' => $iblockId
+					),
+					array(),
+					array(
+						'PROPERTY_FIELDS' => array(
+							'ID', 'IBLOCK_ID', 'NAME', 'CODE', 'PROPERTY_TYPE',
+							'MULTIPLE', 'LINK_IBLOCK_ID',
+							'USER_TYPE', 'USER_TYPE_SETTINGS'
+						)
+					)
+				);
+			}
 		}
 
 		foreach($this->resultData as $elId => $elData)

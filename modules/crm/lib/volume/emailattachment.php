@@ -237,18 +237,19 @@ class EmailAttachment extends Crm\Volume\Base implements Crm\Volume\IVolumeClear
 	 */
 	public function measureFiles()
 	{
-		$activityQuery = $this->prepareQuery();
+		$entityGroupField = array(
+			'DATE_CREATE' => 'DATE_CREATED_SHORT',
+			'STAGE_SEMANTIC' => 'STAGE_SEMANTIC_ID',
+		);
+
+		$activityQuery = $this->prepareQuery($entityGroupField);
 
 		// only email attachments
 		//$activityQuery->where('TYPE_ID', '=', \CCrmActivityType::Email);
 
-		$entityGroupField = array(
-			'DATE_CREATE' => 'DATE_CREATED_SHORT',
-			'STAGE_SEMANTIC_ID' => 'STAGE_SEMANTIC_ID',
-		);
-
 		foreach ($entityGroupField as $alias => $field)
 		{
+			$field = 'BIND.'. str_replace('.', '_', $field);
 			$activityQuery->addSelect($field, $alias);
 			$activityQuery->addGroup($field);
 		}
@@ -262,7 +263,7 @@ class EmailAttachment extends Crm\Volume\Base implements Crm\Volume\IVolumeClear
 					'".static::getIndicatorId()."' as INDICATOR_TYPE,
 					'".$this->getOwner()."' as OWNER_ID,
 					DATE_CREATE,
-					STAGE_SEMANTIC_ID, 
+					STAGE_SEMANTIC, 
 					SUM(FILE_SIZE) as FILE_SIZE,
 					SUM(FILE_COUNT) as FILE_COUNT,
 					SUM(DISK_SIZE) as DISK_SIZE,
@@ -273,7 +274,7 @@ class EmailAttachment extends Crm\Volume\Base implements Crm\Volume\IVolumeClear
 				) src
 				GROUP BY
 					DATE_CREATE,
-					STAGE_SEMANTIC_ID
+					STAGE_SEMANTIC
 			";
 
 			Crm\VolumeTable::updateFromSelect(
@@ -288,7 +289,7 @@ class EmailAttachment extends Crm\Volume\Base implements Crm\Volume\IVolumeClear
 					'INDICATOR_TYPE' => 'INDICATOR_TYPE',
 					'OWNER_ID' => 'OWNER_ID',
 					'DATE_CREATE' => 'DATE_CREATE',
-					'STAGE_SEMANTIC_ID' => 'STAGE_SEMANTIC_ID',
+					'STAGE_SEMANTIC_ID' => 'STAGE_SEMANTIC',
 				)
 			);
 		}
@@ -397,15 +398,15 @@ class EmailAttachment extends Crm\Volume\Base implements Crm\Volume\IVolumeClear
 
 	/**
 	 * Returns query.
-	 *
+	 * @param  array $entityGroupField Fileds for groupping.
 	 * @return Entity\Query
 	 */
-	public function prepareQuery()
+	public function prepareQuery($entityGroupField = array())
 	{
 		$this->activityFiles = new Crm\Volume\Activity();
 		$this->activityFiles->setFilter($this->getFilter());
 
-		$query = $this->activityFiles->getActivityFileMeasureQuery();
+		$query = $this->activityFiles->getActivityFileMeasureQuery(Crm\Volume\Activity::className(), $entityGroupField);
 
 		// only email attatchment
 		$query->where('TYPE_ID', '=', \CCrmActivityType::Email);

@@ -8,6 +8,7 @@ use Bitrix\Crm\Merger;
 use Bitrix\Crm\Automation;
 use Bitrix\Crm\Binding;
 use Bitrix\Crm\Settings\LeadSettings;
+use Bitrix\Crm\Entity\Identificator;
 
 /**
  * Class EntityManageFacility
@@ -48,8 +49,8 @@ class EntityManageFacility
 	protected $registeredId = null;
 	/** @var null|int  */
 	protected $registeredTypeId = null;
-	/** @var bool  */
-	protected $isRCLeadAdded = false;
+	/** @var Identificator\ComplexCollection  */
+	protected $registeredEntities;
 
 	/** @var int  */
 	protected $updateClientMode = self::UPDATE_MODE_MERGE;
@@ -59,6 +60,8 @@ class EntityManageFacility
 	protected $isAutomationRun = true;
 	/** @var bool  */
 	protected $isAutoGenRcEnabled = true;
+	/** @var bool  */
+	protected $isLeadEnabled = true;
 
 	/**
 	 * Create by fields and type.
@@ -129,6 +132,8 @@ class EntityManageFacility
 
 		$this->setUpdateClientMode(self::UPDATE_MODE_MERGE);
 		$this->isAutoGenRcEnabled = LeadSettings::getCurrent()->isAutoGenRcEnabled();
+		$this->isLeadEnabled = LeadSettings::getCurrent()->isEnabled();
+		$this->registeredEntities = new Identificator\ComplexCollection();
 	}
 
 	/**
@@ -166,6 +171,22 @@ class EntityManageFacility
 	}
 
 	/**
+	 * Get bindings collection.
+	 *
+	 * @return Identificator\ComplexCollection
+	 */
+	public function getBindingCollection()
+	{
+		$collection = new Identificator\ComplexCollection();
+		foreach ($this->getActivityBindings() as $binding)
+		{
+			$collection->addIdentificator($binding['OWNER_TYPE_ID'], $binding['OWNER_ID']);
+		}
+
+		return $collection;
+	}
+
+	/**
 	 * Get bindings.
 	 *
 	 * @return array
@@ -177,6 +198,7 @@ class EntityManageFacility
 			$this->bindings = BindingSelector::findBindings($this->selector);
 		}
 
+		$needResort = false;
 		$bindings = $this->bindings;
 		if ($this->registeredId)
 		{
@@ -185,6 +207,20 @@ class EntityManageFacility
 				'OWNER_ID' => $this->registeredId
 			);
 
+			$needResort = true;
+		}
+		foreach ($this->registeredEntities->toArray() as $entity)
+		{
+			$bindings[] = array(
+				'OWNER_TYPE_ID' => $entity->getTypeId(),
+				'OWNER_ID' => $entity->getId()
+			);
+
+			$needResort = true;
+		}
+
+		if ($needResort)
+		{
 			$bindings = BindingSelector::sortBindings($bindings);
 		}
 
@@ -208,6 +244,16 @@ class EntityManageFacility
 	public function getRegisteredTypeId()
 	{
 		return $this->registeredTypeId;
+	}
+
+	/**
+	 * Get registered entities.
+	 *
+	 * @return Identificator\ComplexCollection
+	 */
+	public function getRegisteredEntities()
+	{
+		return $this->registeredEntities;
 	}
 
 	/**
@@ -248,32 +294,88 @@ class EntityManageFacility
 
 	/**
 	 * Add entity if it need. Update client fields if it need.
+	 * 1. Type of added entity may be different from the passed parameter.
+	 * It depends on the settings: direction, lead free mode.
+	 * 2. Entity may not be created.
+	 * It depends on: RC leads mode, finding actual entities.
 	 *
-	 * @param int $entityTypeId Entity Type Id.
-	 * @param array $fields Fields.
-	 * @param bool $updateSearch is update search needed.
-	 * @param array $options Options.
-	 * @return int|null
+	 * @param int $entityTypeId Entity type Id.
+	 * @param array $fields Fields for entity adding.
+	 * @param bool $updateSearch Enable updating search of entity after adding.
+	 * @param array $options Options of entity adding.
+	 * @return bool
 	 * @throws ArgumentException When try to use unsupported entity type id.
+	 * @throws ArgumentException When Fields for entity type not found.
 	 */
 	public function registerTouch($entityTypeId, array &$fields, $updateSearch = true, $options = array())
 	{
+		// if 'lead free mode' and not outgoing event, then create lead only
+		$preferredEntityTypeId = $entityTypeId;
+		$probableEntityTypeId = \CCrmOwnerType::Lead;
+		if (!$this->isLeadEnabled && $this->direction !== self::DIRECTION_OUTGOING)
+		{
+			if (in_array($entityTypeId, [\CCrmOwnerType::Contact, \CCrmOwnerType::Company]))
+			{
+				$entityTypeId = $probableEntityTypeId;
+			}
+		}
+
+		// get fields from fields by type ID.
+		$fieldKeys = array_keys($fields);
+		if (array_filter($fieldKeys, 'is_integer') === $fieldKeys)
+		{
+			if (empty($fields[$preferredEntityTypeId]))
+			{
+				throw new ArgumentException("Empty fields for preferred Entity Type Id: {$preferredEntityTypeId}");
+			}
+			if (empty($fields[$probableEntityTypeId]))
+			{
+				throw new ArgumentException("Empty fields for probable Entity Type Id: {$probableEntityTypeId}");
+			}
+			$fields = $fields[$entityTypeId];
+		}
+
+		// executing
 		switch ($entityTypeId)
 		{
 			case \CCrmOwnerType::Lead:
+				// preparing fields if entity type ID was changed
+				switch ($preferredEntityTypeId)
+				{
+					case \CCrmOwnerType::Contact:
+						if (empty($fields['TITLE']) && !empty($fields['NAME']))
+						{
+							$fields['TITLE'] = $fields['NAME'];
+						}
+						break;
+
+					case \CCrmOwnerType::Company:
+						if (empty($fields['COMPANY_TITLE']) && !empty($fields['TITLE']))
+						{
+							$fields['COMPANY_TITLE'] = $fields['TITLE'];
+						}
+						break;
+				}
 				$this->registerLead($fields, $updateSearch, $options);
 				break;
+
+			case \CCrmOwnerType::Deal:
+				$this->registerDeal($fields, $updateSearch, $options);
+				break;
+
 			case \CCrmOwnerType::Contact:
 				$this->registerContact($fields, $updateSearch, $options);
 				break;
+
 			case \CCrmOwnerType::Company:
 				$this->registerCompany($fields, $updateSearch, $options);
 				break;
+
 			default:
 				throw new ArgumentException("Unsupported Entity Type Id: {$entityTypeId}");
 		}
 
-		return $this->registeredId;
+		return !empty($this->registeredId);
 	}
 
 	/**
@@ -282,7 +384,7 @@ class EntityManageFacility
 	 * @param array $fields Fields.
 	 * @param bool $updateSearch is update search needed.
 	 * @param array $options Options.
-	 * @return int|null
+	 * @return bool
 	 */
 	public function registerLead(array &$fields, $updateSearch = true, $options = array())
 	{
@@ -292,6 +394,20 @@ class EntityManageFacility
 		if ($this->canAddLead())
 		{
 			$this->registeredId = $this->addLead($fields, $updateSearch, $options);
+			$complex = $this->convertLead($this->registeredId);
+			if ($complex)
+			{
+				$this->registeredTypeId = $complex->getTypeId();
+				$this->registeredId = $complex->getId();
+			}
+			else
+			{
+				$this->registeredEntities->addIdentificator(
+					$this->registeredTypeId,
+					$this->registeredId,
+					true
+				);
+			}
 		}
 		elseif ($this->canUpdate())
 		{
@@ -303,7 +419,7 @@ class EntityManageFacility
 			$this->runAutomation();
 		}
 
-		return $this->registeredId;
+		return !empty($this->registeredId);
 	}
 
 	/**
@@ -312,7 +428,7 @@ class EntityManageFacility
 	 * @param array $fields Fields.
 	 * @param bool $updateSearch is update search needed.
 	 * @param array $options Options.
-	 * @return int|null
+	 * @return bool
 	 */
 	public function registerCompany(array &$fields, $updateSearch = true, $options = array())
 	{
@@ -328,6 +444,11 @@ class EntityManageFacility
 
 			$company = new \CCrmCompany(false);
 			$this->registeredId = $company->add($fields, $updateSearch, $options);
+			$this->registeredEntities->addIdentificator(
+				$this->registeredTypeId,
+				$this->registeredId,
+				true
+			);
 			if (!$this->registeredId)
 			{
 				$this->errors[] = $company->LAST_ERROR;
@@ -343,7 +464,7 @@ class EntityManageFacility
 			$this->runAutomation();
 		}
 
-		return $this->registeredId;
+		return !empty($this->registeredId);
 	}
 
 	/**
@@ -352,7 +473,7 @@ class EntityManageFacility
 	 * @param array $fields Fields.
 	 * @param bool $updateSearch is update search needed.
 	 * @param array $options Options.
-	 * @return int|null
+	 * @return bool
 	 */
 	public function registerContact(array &$fields, $updateSearch = true, $options = array())
 	{
@@ -363,6 +484,11 @@ class EntityManageFacility
 		{
 			$contact = new \CCrmContact(false);
 			$this->registeredId = $contact->add($fields, $updateSearch, $options);
+			$this->registeredEntities->addIdentificator(
+				$this->registeredTypeId,
+				$this->registeredId,
+				true
+			);
 			if (!$this->registeredId)
 			{
 				$this->errors[] = $contact->LAST_ERROR;
@@ -378,7 +504,7 @@ class EntityManageFacility
 			$this->runAutomation();
 		}
 
-		return $this->registeredId;
+		return !empty($this->registeredId);
 	}
 
 	/**
@@ -397,6 +523,11 @@ class EntityManageFacility
 		if ($this->canAddDeal())
 		{
 			$this->registeredId = $this->addDeal($fields, $updateSearch, $options);
+			$this->registeredEntities->addIdentificator(
+				$this->registeredTypeId,
+				$this->registeredId,
+				true
+			);
 		}
 
 		if ($this->isAutomationRun)
@@ -479,8 +610,8 @@ class EntityManageFacility
 			return false;
 		}
 
-		//  return false if rc lead gen disabled
-		if (!$this->isAutoGenRcEnabled)
+		//  return false if rc lead gen disabled and leads enabled
+		if (!$this->isAutoGenRcEnabled && $this->isLeadEnabled)
 		{
 			return false;
 		}
@@ -565,7 +696,14 @@ class EntityManageFacility
 			case \CCrmOwnerType::Lead:
 				return $this->canAddLead();
 			case \CCrmOwnerType::Contact:
-				return $this->canAddContact();
+				if ($this->isLeadEnabled || $this->direction === self::DIRECTION_OUTGOING)
+				{
+					return $this->canAddContact();
+				}
+				else
+				{
+					return $this->canAddLead();
+				}
 			case \CCrmOwnerType::Company:
 				return $this->canAddCompany();
 			case \CCrmOwnerType::Deal:
@@ -632,16 +770,13 @@ class EntityManageFacility
 
 		$lead = new \CCrmLead(false);
 		$leadId = $lead->add($fields, $updateSearch, $options);
-		if ($leadId)
-		{
-			$this->isRCLeadAdded = $isRCLeadAdded;
-		}
-		else
+		if (!$leadId)
 		{
 			$this->errors[] = $lead->LAST_ERROR;
+			return $leadId;
 		}
 
-		if ($leadId && $this->isRCLeadAdded)
+		if ($isRCLeadAdded)
 		{
 			$this->updateClientFields($updateClientFields);
 		}
@@ -722,10 +857,13 @@ class EntityManageFacility
 			);
 
 			// run automation
-			Automation\Factory::runOnAdd(
-				$this->registeredTypeId,
-				$this->registeredId
-			);
+			if (!$this->isEntityTypeConvertible($this->registeredTypeId))
+			{
+				Automation\Factory::runOnAdd(
+					$this->registeredTypeId,
+					$this->registeredId
+				);
+			}
 		}
 		elseif ($this->canUpdate() && $this->getPrimaryId() && $this->getPrimaryTypeId())
 		{
@@ -783,7 +921,7 @@ class EntityManageFacility
 	 *
 	 * @param int $mode Mode.
 	 * @return $this
-	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws ArgumentException
 	 */
 	public function setUpdateClientMode($mode)
 	{
@@ -811,7 +949,7 @@ class EntityManageFacility
 	 *
 	 * @param int $mode Mode.
 	 * @return $this
-	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws ArgumentException
 	 */
 	public function setRegisterMode($mode)
 	{
@@ -1062,6 +1200,7 @@ class EntityManageFacility
 
 	}
 
+
 	protected function getUserId(array $fields = [])
 	{
 		if (!empty($fields) && !empty($fields['ASSIGNED_BY_ID']))
@@ -1122,5 +1261,58 @@ class EntityManageFacility
 				unset($targetFields[$typeCode]);
 			}
 		}
+	}
+
+	/**
+	 * Run lead conversion at disabled lead mode.
+	 * Collect created entities.
+	 * Return converted deal.
+	 *
+	 * @param int $leadId Lead ID.
+	 * @return Identificator\Complex|null
+	 */
+	public function convertLead($leadId)
+	{
+		$entityTypeId = \CCrmOwnerType::Lead;
+		if (!$leadId || !$this->isEntityTypeConvertible($entityTypeId))
+		{
+			return null;
+		}
+
+		$result = Automation\Factory::runOnAdd($entityTypeId, $leadId)->getConversionResult();
+		if (!$result)
+		{
+			return null;
+		}
+
+		// set founded entities to selector
+		foreach ($result->getBoundEntities() as $entity)
+		{
+			$this->getSelector()->setEntity($entity->getTypeId(), $entity->getId());
+		}
+
+		// set created entities to registered entities and to selector
+		foreach ($result->getCreatedEntities() as $entity)
+		{
+			$this->registeredEntities->setComplex($entity, true);
+			$this->getSelector()->setEntity($entity->getTypeId(), $entity->getId());
+		}
+
+		return $result->getCreatedEntities()->getComplexByTypeId(\CCrmOwnerType::Deal);
+	}
+
+	/**
+	 * Return true if registered entity is convertible.
+	 *
+	 * @param int $entityTypeId Entity type ID.
+	 * @return bool
+	 */
+	protected function isEntityTypeConvertible($entityTypeId = \CCrmOwnerType::Undefined)
+	{
+		return (
+			!$this->isLeadEnabled
+			&&
+			$entityTypeId === \CCrmOwnerType::Lead
+		);
 	}
 }

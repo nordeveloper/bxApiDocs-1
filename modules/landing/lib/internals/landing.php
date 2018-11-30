@@ -542,6 +542,7 @@ class LandingTable extends Entity\DataManager
 
 		if (isset($primary['ID']))
 		{
+			\Bitrix\Landing\File::deleteFromLanding($primary['ID']);
 			\Bitrix\Landing\Syspage::deleteForLanding($primary['ID']);
 			\Bitrix\Landing\Hook::deleteForLanding($primary['ID']);
 			\Bitrix\Landing\TemplateRef::deleteArea($primary['ID']);

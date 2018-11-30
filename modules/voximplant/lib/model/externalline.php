@@ -23,7 +23,7 @@ class ExternalLineTable extends Entity\DataManager
 		return array(
 			new Entity\IntegerField('ID', array(
 				'primary' => true,
-				'auto_complete' => true
+				'autocomplete' => true
 			)),
 			new Entity\StringField('NUMBER'),
 			new Entity\StringField('NAME'),

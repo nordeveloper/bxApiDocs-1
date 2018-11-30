@@ -42,6 +42,9 @@ class Help
 		),
 		'DOMAIN_EDIT' => array(
 			'ru' => '6624333'
+		),
+		'GMAP_EDIT' => array(
+			'ru' => '8203739'
 		)
 	);
 

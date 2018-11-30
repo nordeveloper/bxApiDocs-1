@@ -1844,6 +1844,43 @@ class CIMChat
 		return true;
 	}
 
+	public static function SetChatParams($chatId, $params)
+	{
+		$update = [];
+		if (isset($params['ENTITY_TYPE']))
+			$update['ENTITY_TYPE'] = $params['ENTITY_TYPE'];
+
+		if (isset($params['ENTITY_ID']))
+			$update['ENTITY_ID'] = $params['ENTITY_ID'];
+
+		if (isset($params['ENTITY_DATA_1']))
+			$update['ENTITY_DATA_1'] = $params['ENTITY_DATA_1'];
+
+		if (isset($params['ENTITY_DATA_2']))
+			$update['ENTITY_DATA_2'] = $params['ENTITY_DATA_2'];
+
+		if (isset($params['ENTITY_DATA_3']))
+			$update['ENTITY_DATA_3'] = $params['ENTITY_DATA_3'];
+
+		\Bitrix\Im\Model\ChatTable::update($chatId, $update);
+
+		if (CModule::IncludeModule('pull'))
+		{
+			$arRelation = self::GetRelationById($chatId);
+			\Bitrix\Pull\Event::add(array_keys($arRelation), Array(
+				'module_id' => 'im',
+				'command' => 'chatUpdateParams',
+				'params' => Array(
+					'chatId' => $chatId,
+					'params' => $update
+				),
+				'extra' => \Bitrix\Im\Common::getPullExtra()
+			));
+		}
+
+		return true;
+	}
+
 	public function SetManager($chatId, $userId, $isManager = true, $checkPermission = true)
 	{
 		return $this->SetManagers($chatId, Array($userId => $isManager), $checkPermission);
@@ -2983,6 +3020,18 @@ class CIMChat
 			self::index($chatId);
 		}
 
+		if (!empty($chatEntityType))
+		{
+			$eventCode = str_replace('_', '', ucfirst(ucwords(strtolower($chatEntityType), '_')));
+			foreach(GetModuleEvents("im", "OnChatUserAddEntityType".$eventCode, true) as $arEvent)
+			{
+				ExecuteModuleEventEx($arEvent, array([
+					'CHAT_ID' => $chatId,
+					'NEW_USERS' => $arUserId,
+				]));
+			}
+		}
+
 		return true;
 	}
 
@@ -3220,6 +3269,18 @@ class CIMChat
 			self::index($chatId);
 		}
 
+		if (!empty($chatEntityType))
+		{
+			$eventCode = str_replace('_', '', ucfirst(ucwords(strtolower($chatEntityType), '_')));
+			foreach(GetModuleEvents("im", "OnChatUserDeleteEntityType".$eventCode, true) as $arEvent)
+			{
+				ExecuteModuleEventEx($arEvent, array([
+					'CHAT_ID' => $chatId,
+					'USER_ID' => $userId,
+				]));
+			}
+		}
+
 		return true;
 
 	}
@@ -3349,7 +3410,7 @@ class CIMChat
 			$path = COption::GetOptionString("socialnetwork", "workgroups_page", "/workgroups/", SITE_ID);
 			$path = $path.'group/#ID#/';
 
-			self::$entityOption['SONET_GROUP'] = Array('AVATAR' => false, 'RENAME' => false, 'EXTEND' => false, 'LEAVE' => false, 'PATH' => $path, 'PATH_TITLE' => GetMessage('IM_PATH_TITLE_SONET'));
+			self::$entityOption['SONET_GROUP'] = Array('AVATAR' => false, 'RENAME' => false, 'EXTEND' => false, 'LEAVE' => false, 'LEAVE_OWNER' => false, 'PATH' => $path, 'PATH_TITLE' => GetMessage('IM_PATH_TITLE_SONET'));
 		}
 
 		if (CModule::IncludeModule('tasks'))
@@ -3357,7 +3418,12 @@ class CIMChat
 			$path = CTasksTools::GetOptionPathTaskUserEntry(SITE_ID, "/company/personal/user/#user_id#/tasks/task/view/#task_id#/");
 			$path = str_replace(Array('#user_id#', '#task_id#'), Array($USER->GetId(), '#ID#'), $path);
 
-			self::$entityOption['TASKS'] = Array('AVATAR' => false, 'RENAME' => false, 'EXTEND' => false, 'LEAVE' => false, 'PATH' => $path, 'PATH_TITLE' => GetMessage('IM_PATH_TITLE_TASKS'));
+			self::$entityOption['TASKS'] = Array('AVATAR' => false, 'RENAME' => false, 'EXTEND' => false, 'LEAVE' => false, 'LEAVE_OWNER' => false, 'PATH' => $path, 'PATH_TITLE' => GetMessage('IM_PATH_TITLE_TASKS'));
+		}
+
+		if (CModule::IncludeModule('crm'))
+		{
+			self::$entityOption['CRM'] = Array('AVATAR' => false, 'RENAME' => false, 'EXTEND' => true, 'LEAVE' => true, 'LEAVE_OWNER' => false, 'PATH' => '', 'PATH_TITLE' => '');
 		}
 
 		return self::$entityOption;
@@ -3384,6 +3450,71 @@ class CIMChat
 		}
 
 		return $chatId;
+	}
+
+	public static function GetCrmChatId($code)
+	{
+		if (!CModule::IncludeModule('crm'))
+			return false;
+
+		list($entityType, $entityId) = explode('|', $code);
+
+		global $USER;
+
+		$chatId = \Bitrix\Crm\Integration\Im\Chat::joinChat(Array(
+			'ENTITY_TYPE' => $entityType,
+			'ENTITY_ID' => $entityId,
+			'USER_ID' => $USER->GetId()
+		));
+
+		return $chatId;
+	}
+
+	public static function DeleteEntityChat($entityType, $entityId)
+	{
+		$entityType = trim($entityType);
+		$entityId = trim($entityId);
+
+		if (empty($entityType) || empty($entityId))
+		{
+			return false;
+		}
+
+		$chatData = \Bitrix\Im\Model\ChatTable::getList(Array(
+			'select' => ['ID', 'DISK_FOLDER_ID'],
+			'filter' => [
+				'=ENTITY_TYPE' => $entityType,
+				'=ENTITY_ID' => $entityId,
+			],
+		))->fetch();
+		if (!$chatData)
+		{
+			return false;
+		}
+
+		global $DB;
+
+		self::hide($chatData['ID']);
+
+		$strSQL = "DELETE FROM b_im_chat WHERE ID = ".$chatData['ID'];
+		$DB->Query($strSQL, true, "File: ".__FILE__."<br>Line: ".__LINE__);
+
+		$strSQL = "DELETE FROM b_im_relation WHERE CHAT_ID = ".$chatData['ID'];
+		$DB->Query($strSQL, true, "File: ".__FILE__."<br>Line: ".__LINE__);
+
+		$strSQL = "DELETE FROM b_im_message WHERE CHAT_ID = ".$chatData['ID'];
+		$DB->Query($strSQL, true, "File: ".__FILE__."<br>Line: ".__LINE__);
+
+		if ($chatData['DISK_FOLDER_ID'])
+		{
+			$folderModel = \Bitrix\Disk\Folder::getById($chatData['DISK_FOLDER_ID']);
+			if ($folderModel)
+			{
+				$folderModel->deleteTree(\Bitrix\Disk\SystemUser::SYSTEM_USER_ID);
+			}
+		}
+
+		return true;
 	}
 
 	public static function hide($chatId)

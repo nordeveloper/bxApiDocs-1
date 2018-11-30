@@ -69,7 +69,9 @@ abstract class OrderBase extends Internals\Entity
 	const SALE_ORDER_CALC_TYPE_REFRESH = 'R';
 
 	/**
-	 * @param array $fields				Data.
+	 * OrderBase constructor.
+	 * @param array $fields
+	 * @throws Main\ArgumentNullException
 	 */
 	protected function __construct(array $fields = array())
 	{
@@ -88,6 +90,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return internal index of order
+	 *
 	 * @return int
 	 */
 	public function getInternalId()
@@ -103,26 +107,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * @return array
-	 */
-	public static function getSettableFields()
-	{
-		$result = array(
-			"LID", "PERSON_TYPE_ID", "CANCELED", "DATE_CANCELED",
-			"EMP_CANCELED_ID", "REASON_CANCELED", "STATUS_ID", "DATE_STATUS", "EMP_STATUS_ID",  "DEDUCTED",
-			"MARKED", "DATE_MARKED", "EMP_MARKED_ID", "REASON_MARKED",
-			"PRICE", "DISCOUNT_VALUE",
-			"DATE_INSERT", "DATE_UPDATE", "USER_DESCRIPTION", "ADDITIONAL_INFO", "COMMENTS", "TAX_VALUE",
-			"STAT_GID", "RECURRING_ID", "LOCKED_BY",
-			"DATE_LOCK", "RECOUNT_FLAG", "AFFILIATE_ID", "DELIVERY_DOC_NUM", "DELIVERY_DOC_DATE", "UPDATED_1C",
-			"STORE_ID", "ORDER_TOPIC", "RESPONSIBLE_ID", "DATE_BILL", "DATE_PAY_BEFORE", "ACCOUNT_NUMBER",
-			"XML_ID", "ID_1C", "VERSION_1C", "VERSION", "EXTERNAL_ORDER", "COMPANY_ID",
-		);
-
-		return array_merge($result, static::getCalculatedFields());
-	}
-
-	/**
+	 * Return field names that can set in \Bitrix\Sale\OrderBase::setField
+	 *
 	 * @return array
 	 */
 	public static function getAvailableFields()
@@ -143,6 +129,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return virtual field names
+	 *
 	 * @return array
 	 */
 	public static function getCalculatedFields()
@@ -176,8 +164,9 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @param array $fields
+	 * @return mixed
+	 * @throws Main\ArgumentException
 	 * @throws Main\NotImplementedException
-	 * @return Order
 	 */
 	private static function createOrderObject(array $fields = array())
 	{
@@ -188,6 +177,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return registry type of class
+	 *
 	 * @throws Main\NotImplementedException
 	 */
 	public static function getRegistryType()
@@ -196,6 +187,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Create \Bitrix\Sale\OrderBase object
+	 *
 	 * @param $siteId
 	 * @param null $userId
 	 * @param null $currency
@@ -230,6 +223,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Load order object by id
+	 *
 	 * @param $id
 	 * @return null|static
 	 * @throws Main\ArgumentNullException
@@ -254,9 +249,12 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return object order list satisfying filter
+	 *
 	 * @param array $parameters
 	 * @return array|null
-	 * @internal param array $filter
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
 	 */
 	public static function loadByFilter(array $parameters)
 	{
@@ -300,9 +298,13 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * @param string $value
-	 * @return null|static
+	 * Load object order by account number
+	 *
+	 * @param $value
+	 * @return mixed|null
+	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
+	 * @throws Main\NotImplementedException
 	 */
 	public static function loadByAccountNumber($value)
 	{
@@ -334,21 +336,15 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Append basket to order and refresh it
+	 *
 	 * @param BasketBase $basket
 	 * @return Result
 	 * @throws Main\NotSupportedException
 	 */
 	public function setBasket(BasketBase $basket)
 	{
-		if ($this->getId())
-		{
-			throw new Main\NotSupportedException();
-		}
-
-		$result = new Result();
-
-		$basket->setOrder($this);
-		$this->basketCollection = $basket;
+		$result = self::appendBasket($basket);
 
 		if (!$this->isMathActionOnly())
 		{
@@ -365,6 +361,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Append basket to order
+	 *
 	 * @param BasketBase $basket
 	 *
 	 * @return Result
@@ -397,7 +395,7 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * Return basket exists.
+	 * Check basket for emptiness
 	 *
 	 * @return bool
 	 */
@@ -409,7 +407,11 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * @return BasketBase
+	 * Load basket appended to order
+	 *
+	 * @return BasketBase|null
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
 	 */
 	protected function loadBasket()
 	{
@@ -426,6 +428,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Set value with call events on field modify
+	 *
 	 * @param $name
 	 * @param $value
 	 * @return Result
@@ -470,6 +474,8 @@ abstract class OrderBase extends Internals\Entity
 	/**
 	 * @internal
 	 *
+	 * Set value without call events on field modify
+	 *
 	 * @param $name
 	 * @param $value
 	 * @throws Main\ArgumentOutOfRangeException
@@ -511,6 +517,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return field value
+	 *
 	 * @param $name
 	 * @return null|string
 	 */
@@ -526,6 +534,8 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @internal
+	 *
+	 * Init field
 	 *
 	 * @param $name
 	 * @param $value
@@ -548,6 +558,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return collection of order properties
+	 *
 	 * @return PropertyValueCollectionBase
 	 * @throws Main\ArgumentException
 	 * @throws Main\NotImplementedException
@@ -566,8 +578,10 @@ abstract class OrderBase extends Internals\Entity
 	 * @return PropertyValueCollectionBase
 	 * @throws Main\ArgumentException
 	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
-	public function loadPropertyCollection()
+	protected function loadPropertyCollection()
 	{
 		$registry = Registry::getInstance(static::getRegistryType());
 		/** @var PropertyValueCollectionBase $propertyCollectionClassName */
@@ -577,7 +591,7 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * Modify property value collection.
+	 * @internal
 	 *
 	 * @param string $action Action.
 	 * @param PropertyValueBase $property Property.
@@ -592,7 +606,7 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * Full refresh order data.
+	 * Full order refresh
 	 *
 	 * @param array $select
 	 * @return Result
@@ -656,6 +670,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return order id
+	 *
 	 * @return int
 	 */
 	public function getId()
@@ -664,6 +680,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return person type id of order
+	 *
 	 * @return int
 	 */
 	public function getPersonTypeId()
@@ -672,6 +690,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Set person type id of order
+	 *
 	 * @param $personTypeId
 	 *
 	 * @return Result
@@ -682,6 +702,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return order price
+	 *
 	 * @return float
 	 */
 	public function getPrice()
@@ -690,6 +712,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return paid sum
+	 *
 	 * @return float
 	 */
 	public function getSumPaid()
@@ -730,7 +754,6 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 *
 	 * @return Result
 	 * @throws Main\ObjectNotFoundException
 	 */
@@ -797,6 +820,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return discount price
+	 *
 	 * @return float
 	 */
 	public function getDiscountPrice()
@@ -805,6 +830,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return currency
+	 *
 	 * @return string
 	 */
 	public function getCurrency()
@@ -813,6 +840,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return user id
+	 *
 	 * @return int
 	 */
 	public function getUserId()
@@ -821,6 +850,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return site id
+	 *
 	 * @return null|string
 	 */
 	public function getSiteId()
@@ -829,6 +860,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE if VAT is used. Else return FALSE
+	 *
 	 * @return bool
 	 */
 	public function isUsedVat()
@@ -843,6 +876,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return order vat rate
+	 *
 	 * @return mixed|null
 	 */
 	public function getVatRate()
@@ -857,6 +892,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return order vat sum
+	 *
 	 * @return float
 	 */
 	public function getVatSum()
@@ -871,6 +908,7 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE if order has problems. Else return FALSE
 	 * @return null|string
 	 */
 	public function isMarked()
@@ -879,6 +917,7 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Clear VAT info
 	 * @throws Main\ArgumentOutOfRangeException
 	 */
 	protected function resetVat()
@@ -892,6 +931,8 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @internal
+	 *
+	 * Recalculate VAT
 	 */
 	public function refreshVat()
 	{
@@ -907,6 +948,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Calculate VAT
+	 *
 	 * @return array
 	 */
 	protected function calculateVat()
@@ -956,6 +999,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE if order is deducted. Else return FALSE
+	 *
 	 * @return string
 	 */
 	public function isShipped()
@@ -964,6 +1009,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE if order is external. Else return FALSE
+	 *
 	 * @return bool
 	 */
 	public function isExternal()
@@ -1014,6 +1061,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Save order
+	 *
 	 * @return Result
 	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentOutOfRangeException
@@ -1456,6 +1505,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Set VAT sum
+	 *
 	 * @param $price
 	 */
 	public function setVatSum($price)
@@ -1464,6 +1515,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Set VAT delivery sum
+	 *
 	 * @param $price
 	 */
 	public function setVatDelivery($price)
@@ -1472,6 +1525,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return date order insert
+	 *
 	 * @return mixed
 	 */
 	public function getDateInsert()
@@ -1480,6 +1535,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return value: OrderBase::SALE_ORDER_CALC_TYPE_REFRESH, OrderBase::SALE_ORDER_CALC_TYPE_CHANGE, OrderBase::SALE_ORDER_CALC_TYPE_NEW
+	 *
 	 * @return null|string
 	 */
 	public function getCalculateType()
@@ -1777,6 +1834,9 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @internal
+	 *
+	 * Return TRUE if order is new. Else return FALSE
+	 *
 	 * @return null|bool
 	 */
 	public function isNew()
@@ -1796,6 +1856,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE if order is changed. Else return FALSE
+	 *
 	 * @return bool
 	 */
 	public function isChanged()
@@ -1827,6 +1889,9 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @internal
+	 *
+	 * Reset flag of order change
+	 *
 	 * @return void
 	 */
 	public function clearChanged()
@@ -1846,6 +1911,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE, if this order is cloned. Else return FALSE
+	 *
 	 * @return bool
 	 */
 	public function isClone()
@@ -1854,6 +1921,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE, if order is payed. Else return FALSE
+	 *
 	 * @return bool
 	 */
 	public function isPaid()
@@ -1862,6 +1931,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE, if order is allowed delivery. Else return FALSE
+	 *
 	 * @return bool
 	 */
 	public function isAllowDelivery()
@@ -1870,6 +1941,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE, if order is canceled. Else return FALSE
+	 *
 	 * @return bool
 	 */
 	public function isCanceled()
@@ -1878,6 +1951,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return order hash
+	 *
 	 * @return mixed
 	 */
 	public function getHash()
@@ -1894,6 +1969,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Verify object to correctness
+	 *
 	 * @return Result
 	 */
 	public function verify()
@@ -1923,6 +2000,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Get order information
+	 *
 	 * @param array $parameters
 	 * @throws Main\NotImplementedException
 	 * @return Main\DB\Result
@@ -1933,6 +2012,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return tax location
+	 *
 	 * @return null|string
 	 */
 	public function getTaxLocation()
@@ -1953,6 +2034,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return TRUE if calculations are based on current values. Data from the provider is not requested. Else return false
+	 *
 	 * @return bool
 	 */
 	public function isMathActionOnly()
@@ -1969,6 +2052,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Reset order flags: \Bitrix\Sale\OrderBase::$isStartField, \Bitrix\Sale\OrderBase::$isMeaningfulField
+	 *
 	 * @return void
 	 */
 	public function clearStartField()
@@ -2002,6 +2087,9 @@ abstract class OrderBase extends Internals\Entity
 
 	/**
 	 * @internal
+	 *
+	 * Set TRUE if calculations should be held on current values. Data from the provider is not requested
+	 *
 	 * @param bool $value
 	 */
 	public function setMathActionOnly($value = false)
@@ -2014,9 +2102,9 @@ abstract class OrderBase extends Internals\Entity
 	 *
 	 * Delete order without demands.
 	 *
-	 * @param int $id				Order id.
+	 * @param $id
 	 * @return Result
-	 * @throws Main\ArgumentNullException
+	 * @throws Main\NotImplementedException
 	 */
 	public static function deleteNoDemand($id)
 	{
@@ -2046,7 +2134,7 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
-	 * Delete order.
+	 * Delete order
 	 *
 	 * @param int $id				Order id.
 	 * @return Result
@@ -2228,6 +2316,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return discount object
+	 *
 	 * @return Discount
 	 */
 	public function getDiscount()
@@ -2585,6 +2675,8 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Create order clone
+	 *
 	 * @return OrderBase
 	 * @throws Main\ArgumentException
 	 * @throws Main\NotImplementedException
@@ -2687,10 +2779,22 @@ abstract class OrderBase extends Internals\Entity
 	}
 
 	/**
+	 * Return user field id
+	 *
 	 * @return null
 	 */
 	public static function getUfId()
 	{
 		return null;
+	}
+
+	/**
+	 * @deprecated Use \Bitrix\Sale\OrderBase::getAvailableFields instead
+	 *
+	 * @return array
+	 */
+	public static function getSettableFields()
+	{
+		return static::getAvailableFields();
 	}
 }

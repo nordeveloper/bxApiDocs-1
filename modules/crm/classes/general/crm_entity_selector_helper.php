@@ -84,6 +84,11 @@ class CCrmEntitySelectorHelper
 			if ($bEntityEditorFormat && $bEntityPrefixEnabled)
 				$result['id'] = 'C_'.$result['id'];
 
+			if(!$isHidden && !CCrmContact::CheckReadPermission($entityID))
+			{
+				$isHidden = true;
+			}
+
 			if($isHidden)
 			{
 				$result[$titleKey] = GetMessage('CRM_ENT_SEL_HLP_HIDDEN_CONTACT');
@@ -96,7 +101,7 @@ class CCrmEntitySelectorHelper
 
 				$obRes = CCrmContact::GetListEx(
 					array(),
-					array('=ID'=> $entityID),
+					array('=ID'=> $entityID, 'CHECK_PERMISSIONS' => 'N'),
 					false,
 					false,
 					array('HONORIFIC', 'NAME', 'SECOND_NAME', 'LAST_NAME', 'COMPANY_TITLE', 'POST', 'PHOTO', 'TYPE_ID')
@@ -197,6 +202,11 @@ class CCrmEntitySelectorHelper
 			if ($bEntityEditorFormat && $bEntityPrefixEnabled)
 				$result['id'] = 'CO_'.$result['id'];
 
+			if(!$isHidden && !CCrmCompany::CheckReadPermission($entityID))
+			{
+				$isHidden = true;
+			}
+
 			if($isHidden)
 			{
 				$result[$titleKey] = GetMessage('CRM_ENT_SEL_HLP_HIDDEN_COMPANY');
@@ -211,7 +221,7 @@ class CCrmEntitySelectorHelper
 
 				$obRes = CCrmCompany::GetListEx(
 					array(),
-					array('=ID'=> $entityID),
+					array('=ID'=> $entityID, 'CHECK_PERMISSIONS' => 'N'),
 					false,
 					false,
 					array('TITLE', 'COMPANY_TYPE', 'INDUSTRY', 'LOGO')
@@ -278,7 +288,7 @@ class CCrmEntitySelectorHelper
 				// requisites
 				if ($requireRequisiteData)
 					$result[$advancedInfoKey][$requisiteDataKey] = self::PrepareRequisiteData(
-						CCrmOwnerType::Company, $entityID, array('VIEW_DATA_ONLY' => true, 'VIEW_ALL' => true)
+						CCrmOwnerType::Company, $entityID, array('VIEW_DATA_ONLY' => true)
 					);
 			}
 		}
@@ -867,8 +877,6 @@ class CCrmEntitySelectorHelper
 			&& ($options['COPY_MODE'] === true || $options['COPY_MODE'] === 'Y'));
 		$viewDataOnly = (isset($options['VIEW_DATA_ONLY'])
 			&& ($options['VIEW_DATA_ONLY'] === true || $options['VIEW_DATA_ONLY'] === 'Y'));
-		$viewAll = (isset($options['VIEW_ALL'])
-			&& ($options['VIEW_ALL'] === true || $options['VIEW_ALL'] === 'Y'));
 
 		$result = array();
 
@@ -1012,7 +1020,6 @@ class CCrmEntitySelectorHelper
 						}
 						unset($fName, $fValue);
 
-						$presetFieldsInShortList = array();
 						$presetFieldsIndex = array();
 						$presetFieldsSort = array(
 							'ID' => array(),
@@ -1028,9 +1035,6 @@ class CCrmEntitySelectorHelper
 								{
 									if (isset($fieldInfo['FIELD_NAME']))
 									{
-										if (isset($fieldInfo['IN_SHORT_LIST']) && $fieldInfo['IN_SHORT_LIST'] === 'Y')
-											$presetFieldsInShortList[] = $fieldInfo['FIELD_NAME'];
-
 										$presetFieldsSort['ID'][] = isset($fieldInfo['ID']) ? (int)$fieldInfo['ID'] : 0;
 										$presetFieldsSort['SORT'][] = isset($fieldInfo['SORT']) ? (int)$fieldInfo['SORT'] : 0;
 										$presetFieldsSort['FIELD_NAME'][] = $fieldInfo['FIELD_NAME'];
@@ -1090,13 +1094,10 @@ class CCrmEntitySelectorHelper
 							$viewDataFields = &$dataFields;
 						}
 
-						$fieldsInView = $viewAll ? $fieldsAllowed : array_intersect($presetFieldsInShortList, $fieldsAllowed);
-						unset($presetFieldsInShortList);
-
 						$requisiteData = array();
 						if (!$viewDataOnly)
 							$requisiteData['fields'] = $dataFields;
-						$requisiteData['viewData'] = $requisite->prepareViewData($viewDataFields, $fieldsInView);
+						$requisiteData['viewData'] = $requisite->prepareViewData($viewDataFields, $fieldsAllowed);
 						if ($bankDetailCountryId <= 0)
 							$bankDetailCountryId = \Bitrix\Crm\EntityPreset::getCurrentCountryId();
 						$bankDetailsData = self::PrepareBankDetailsData(

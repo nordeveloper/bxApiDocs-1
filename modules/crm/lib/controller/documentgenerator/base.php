@@ -45,6 +45,18 @@ abstract class Base extends Controller
 				return 'id';
 			}
 		);
+
+		Binder::registerParameterDependsOnName(
+			\Bitrix\Main\Numerator\Numerator::class,
+			function($className, $id)
+			{
+				/** @var \Bitrix\Main\Numerator\Numerator $className */
+				return $className::load($id);
+			}, function()
+			{
+				return 'id';
+			}
+		);
 	}
 
 	/**
@@ -82,7 +94,7 @@ abstract class Base extends Controller
 	protected function proxyAction($action, array $arguments = [])
 	{
 		$controller = $this->getDocumentGeneratorController();
-		$controller->setScope(static::SCOPE_REST);
+		$controller->setScope($this->getScope());
 		/** @var Result $result */
 		$result = call_user_func_array([$controller, $action], $arguments);
 		$this->errorCollection->add($controller->getErrors());

@@ -362,39 +362,36 @@ class Block
 					if (!empty($components))
 					{
 						// fix for security waf
-						$manifest = $blocks[$block]->getManifest();
-						static $postlist = null;
-						if ($postlist === null)
+						if (!$blocks[$block]->getRepoId())
 						{
-							$context = \Bitrix\Main\Application::getInstance()->getContext();
-							$postlist = $context->getRequest()->getPostList();
-						}
-						foreach ($components as $selector => &$attrs)
-						{
-							if (
-								isset($manifest['nodes'][$selector]['waf_ignore']) &&
-								$manifest['nodes'][$selector]['waf_ignore']
-							)
+							$manifest = $blocks[$block]->getManifest();
+							foreach ($components as $selector => &$attrs)
 							{
-								$rawData = $postlist->getRaw('data');
-								if (isset($rawData['data'][$selector]['attrs']))
+								if (
+									isset($manifest['nodes'][$selector]['waf_ignore']) &&
+									$manifest['nodes'][$selector]['waf_ignore']
+								)
 								{
-									$rawAttrs = $rawData['data'][$selector]['attrs'];
-									foreach ($attrs as $attCode => &$attValue)
+									$rawData = \Bitrix\Landing\PublicAction::getRawData();
+									if (isset($rawData['data'][$selector]['attrs']))
 									{
-										$attValue = $rawAttrs[$attCode];
-										$attValue = \Bitrix\Main\Text\Encoding::convertEncoding(
-											$attValue,
-											'utf-8',
-											SITE_CHARSET
-										);
+										$rawAttrs = $rawData['data'][$selector]['attrs'];
+										foreach ($attrs as $attCode => &$attValue)
+										{
+											$attValue = $rawAttrs[$attCode];
+											$attValue = \Bitrix\Main\Text\Encoding::convertEncoding(
+												$attValue,
+												'utf-8',
+												SITE_CHARSET
+											);
+										}
 									}
+									unset($attValue);
 								}
-								unset($attValue);
 							}
+							unset($attrs);
+							$blocks[$block]->updateNodes($components, $additional);
 						}
-						unset($attrs);
-						$blocks[$block]->updateNodes($components, $additional);
 					}
 					$result->setResult($blocks[$block]->save());
 					$result->setError($blocks[$block]->getError());

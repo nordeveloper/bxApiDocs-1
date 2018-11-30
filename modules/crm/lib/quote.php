@@ -10,6 +10,7 @@ namespace Bitrix\Crm;
 use Bitrix\Main\DB;
 use Bitrix\Main\Entity;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\ORM\Fields\IntegerField;
 
 Loc::loadMessages(__FILE__);
 
@@ -173,6 +174,7 @@ class QuoteTable extends Entity\DataManager
 				),
 				'join_type' => 'INNER',
 			),
+			new IntegerField('MYCOMPANY_ID'),
 			new Entity\StringField('LOCATION_ID'),
 		);
 	}

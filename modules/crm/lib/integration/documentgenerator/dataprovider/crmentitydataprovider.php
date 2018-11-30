@@ -16,6 +16,7 @@ use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Document;
 use Bitrix\DocumentGenerator\Integration\Numerator\DocumentNumerable;
 use Bitrix\DocumentGenerator\Template;
+use Bitrix\Main\IO\Path;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Numerator\Hashable;
 use Bitrix\Crm\Requisite\EntityLink;
@@ -27,6 +28,8 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	protected $linkData;
 	protected $requisiteIds;
 	protected $bankDetailIds;
+	protected $myCompanyRequisiteIds;
+	protected $myCompanyBankDetailIds;
 	protected $crmUserTypeManager;
 	protected $userFieldDescriptions = [];
 
@@ -227,11 +230,11 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			{
 				$result[$code]['PROVIDER'] = User::class;
 			}
-			elseif($field['USER_TYPE_ID'] == 'date')
+			elseif($field['USER_TYPE_ID'] == 'date' && $field['MULTIPLE'] != 'Y')
 			{
 				$result[$code]['TYPE'] = static::FIELD_TYPE_DATE;
 			}
-			elseif($field['USER_TYPE_ID'] == 'datetime')
+			elseif($field['USER_TYPE_ID'] == 'datetime' && $field['MULTIPLE'] != 'Y')
 			{
 				$result[$code]['TYPE'] = static::FIELD_TYPE_DATE;
 				$result[$code]['FORMAT'] = ['format' => DateTime::getFormat(DataProviderManager::getInstance()->getCulture())];
@@ -281,12 +284,9 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 					$result[$code]['DESCRIPTION'] = $field;
 				}
 			}
-			elseif($field['USER_TYPE_ID'] == 'money')
+			elseif($field['USER_TYPE_ID'] == 'money' && $field['MULTIPLE'] != 'Y')
 			{
 				$result[$code]['TYPE'] = Money::class;
-				$parts = explode('|', $field['VALUE']);
-				$currency = $parts[1];
-				$result[$code]['FORMAT'] = ['CURRENCY_ID' => $currency];
 			}
 		}
 
@@ -316,7 +316,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 		$field = $this->userFieldDescriptions[$placeholder];
 
 		$value = $field['VALUE'];
-		if(!$value)
+		if(!$value && $field['USER_TYPE_ID'] != 'boolean')
 		{
 			return $value;
 		}
@@ -339,12 +339,12 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			}
 			elseif(is_array($value))
 			{
-				$items = [];
+				$result = [];
 				foreach($value as $item)
 				{
-					$items[] = $field['DATA'][$item];
+					$result[] = $field['DATA'][$item];
 				}
-				$value = implode(', ', $items);
+				$value = $result;
 			}
 			else
 			{
@@ -353,12 +353,48 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 		}
 		elseif($field['USER_TYPE_ID'] == 'money')
 		{
-			$parts = explode('|', $field['VALUE']);
-			$value = $parts[0];
-			$currency = $parts[1];
-			$value = new Money($value, ['CURRENCY_ID' => $currency]);
+			$result = [];
+			if(!is_array($value))
+			{
+				$value = [$value];
+			}
+			foreach($value as $val)
+			{
+				$parts = explode('|', $val);
+				$result[] = new Money($parts[0], ['CURRENCY_ID' => $parts[1]]);
+			}
+			$value = $result;
 		}
-		elseif(is_array($value))
+		elseif($field['USER_TYPE_ID'] == 'datetime' || $field['USER_TYPE_ID'] == 'date')
+		{
+			$result = [];
+			$options = [];
+			if($field['USER_TYPE_ID'] == 'datetime')
+			{
+				$options = ['format' => DateTime::getFormat(DataProviderManager::getInstance()->getCulture())];
+			}
+			if(!is_array($value))
+			{
+				$value = [$value];
+			}
+			foreach($value as $val)
+			{
+				$result[] = new \Bitrix\DocumentGenerator\Value\DateTime($val, $options);
+			}
+			$value = $result;
+		}
+		elseif($field['USER_TYPE_ID'] == 'boolean')
+		{
+			if($value)
+			{
+				$value = DataProviderManager::getInstance()->getLangPhraseValue($this, 'UF_TYPE_BOOLEAN_YES');
+			}
+			else
+			{
+				$value = DataProviderManager::getInstance()->getLangPhraseValue($this, 'UF_TYPE_BOOLEAN_NO');
+			}
+		}
+		if(is_array($value))
 		{
 			$value = implode(', ', $value);
 		}
@@ -409,7 +445,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			'date' => 'date',
 			'datetime' => 'datetime',
 			'money' => 'money',
-			//'boolean' => 'boolean',
+			'boolean' => 'boolean',
 			'double' => 'double',
 			'crm' => 'crm',
 			'employee' => 'employee',
@@ -521,36 +557,35 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	 */
 	protected function getMyCompanyRequisiteId()
 	{
-		static $requisiteId = '';
-		if($requisiteId > 0)
+		if($this->myCompanyRequisiteIds === null)
 		{
-			return $requisiteId;
-		}
-		if($this->isLoaded())
-		{
-			if(!empty($this->getOptions()['VALUES']['MY_COMPANY.REQUISITE']))
+			if($this->isLoaded())
 			{
-				$requisiteId = $this->getOptions()['VALUES']['MY_COMPANY.REQUISITE'];
-			}
-			else
-			{
-				$linkData = $this->getLinkData();
-				if($linkData['MC_REQUISITE_ID'] > 0)
+				$this->myCompanyRequisiteIds = '';
+				if(!empty($this->getOptions()['VALUES']['MY_COMPANY.REQUISITE']))
 				{
-					$requisiteId = $linkData['MC_REQUISITE_ID'];
+					$this->myCompanyRequisiteIds = $this->getOptions()['VALUES']['MY_COMPANY.REQUISITE'];
 				}
 				else
 				{
-					$requisiteLink = EntityLink::getDefaultMyCompanyRequisiteLink();
-					if(isset($requisiteLink['MC_REQUISITE_ID']) && $requisiteLink['MC_REQUISITE_ID'] > 0)
+					$linkData = $this->getLinkData();
+					if($linkData['MC_REQUISITE_ID'] > 0)
 					{
-						$requisiteId = $requisiteLink['MC_REQUISITE_ID'];
+						$this->myCompanyRequisiteIds = $linkData['MC_REQUISITE_ID'];
+					}
+					else
+					{
+						$requisiteLink = EntityLink::getDefaultMyCompanyRequisiteLink();
+						if(isset($requisiteLink['MC_REQUISITE_ID']) && $requisiteLink['MC_REQUISITE_ID'] > 0)
+						{
+							$this->myCompanyRequisiteIds = $requisiteLink['MC_REQUISITE_ID'];
+						}
 					}
 				}
 			}
 		}
 
-		return $requisiteId;
+		return $this->myCompanyRequisiteIds;
 	}
 
 	/**
@@ -558,25 +593,24 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	 */
 	protected function getMyCompanyBankDetailId()
 	{
-		static $bankDetailId = '';
-		if($bankDetailId > 0)
+		if($this->myCompanyBankDetailIds === null)
 		{
-			return $bankDetailId;
+			$this->myCompanyBankDetailIds = '';
+			if($this->isLoaded())
+			{
+				if(!empty($this->getOptions()['VALUES']['MY_COMPANY.BANK_DETAIL']))
+				{
+					$this->myCompanyBankDetailIds = $this->getOptions()['VALUES']['MY_COMPANY.BANK_DETAIL'];
+				}
+				else
+				{
+					$linkData = $this->getLinkData();
+					$this->myCompanyBankDetailIds = $linkData['MC_BANK_DETAIL_ID'];
+				}
+			}
 		}
 
-		if($this->isLoaded())
-		{
-			if(!empty($this->getOptions()['VALUES']['MY_COMPANY.BANK_DETAIL']))
-			{
-				$bankDetailId = $this->getOptions()['VALUES']['MY_COMPANY.BANK_DETAIL'];
-			}
-			else
-			{
-				$linkData = $this->getLinkData();
-				$bankDetailId = $linkData['MC_BANK_DETAIL_ID'];
-			}
-		}
-		return $bankDetailId;
+		return $this->myCompanyBankDetailIds;
 	}
 
 	/**
@@ -724,11 +758,16 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	}
 
 	/**
+	 * @param null $defaultMyCompanyId
 	 * @return int|array
+	 * @throws \Bitrix\Main\ArgumentException
 	 */
-	public function getMyCompanyId()
+	public function getMyCompanyId($defaultMyCompanyId = null)
 	{
-		$defaultMyCompanyId = $this->getLinkData()['MYCOMPANY_ID'];
+		if(!$defaultMyCompanyId)
+		{
+			$defaultMyCompanyId = $this->getLinkData()['MYCOMPANY_ID'];
+		}
 		if(!$defaultMyCompanyId)
 		{
 			$defaultMyCompanyId = EntityLink::getDefaultMyCompanyId();
@@ -1074,5 +1113,13 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 		}
 
 		return null;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getLangPhrasesPath()
+	{
+		return Path::getDirectory(__FILE__).'/../phrases';
 	}
 }

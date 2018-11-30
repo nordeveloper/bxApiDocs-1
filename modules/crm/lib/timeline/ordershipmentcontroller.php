@@ -250,10 +250,20 @@ class OrderShipmentController extends EntityController
 
 		return $authorID;
 	}
-	/** @ToDo Change EditorId */
 	protected static function resolveEditorID(array $fields)
 	{
 		$authorID = 0;
+
+		if (isset($fields['RESPONSIBLE_ID']))
+		{
+			$authorID = (int)$fields['RESPONSIBLE_ID'];
+		}
+
+		if (isset($fields['MODIFY_BY']))
+		{
+			$authorID = (int)$fields['MODIFY_BY'];
+		}
+
 
 		if($authorID <= 0)
 		{

@@ -157,6 +157,16 @@ class FieldAdapter
 				$field = Field::customDate($sourceField);
 				break;
 
+			case "dest_selector" :
+				$field = Field::destSelector(
+					$sourceField["id"],
+					$sourceField["name"],
+					$sourceField["placeholder"],
+					(!empty($sourceField["params"]) && !empty($sourceField["params"]["multiple"]) && $sourceField["params"]["multiple"] == "Y"),
+					(!empty($sourceField["params"]) && is_array($sourceField["params"]) ? $sourceField["params"] : array())
+				);
+				break;
+
 			default :
 				$field = Field::string(
 					$sourceField["id"],

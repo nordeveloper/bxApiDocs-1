@@ -205,6 +205,37 @@ class CCrmProductFile
 			return '';
 		}
 	}
+	function GetPublicLink($params = array())
+	{
+		$result = $this->GetImgSrc($params);
+
+		if (is_array($params['url_params']))
+		{
+			$result = CHTTP::urlAddParams($result, $params['url_params']);
+		}
+
+		if(!preg_match("/^[a-z]+:\\/\\//", $result))
+		{
+			$context = Bitrix\Main\Application::getInstance()->getContext();
+			$scheme = $context->getRequest()->isHttps() ? 'https' : 'http';
+			$server = $context->getServer();
+			$domain = $server->getServerName() ?: \COption::getOptionString('main', 'server_name', '');
+			if (preg_match('/^(?<domain>.+):(?<port>\d+)$/', $domain, $matches))
+			{
+				$domain = $matches['domain'];
+				$port   = $matches['port'];
+			}
+			else
+			{
+				$port = $server->getServerPort();
+			}
+			$port = in_array($port, array(80, 443)) ? '' : ':'.$port;
+
+			$result = $scheme.'://'.$domain.$port.$result;
+		}
+
+		return $result;
+	}
 
 	function GetLinkHtml($params = array())
 	{

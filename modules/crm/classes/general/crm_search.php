@@ -462,15 +462,22 @@ class CCrmSearch
 
 	function OnSearchCheckPermissions($FIELD)
 	{
-		global $USER;
-
-		$CCrmPerms = new CCrmPerms($USER->GetID());
-		$arAttr['LEAD'] = $CCrmPerms->GetUserAttrForSelectEntity('LEAD', 'READ');
-		$arAttr['DEAL'] = $CCrmPerms->GetUserAttrForSelectEntity('DEAL', 'READ');
-		$arAttr['INVOICE'] = $CCrmPerms->GetUserAttrForSelectEntity('INVOICE', 'READ');
-		$arAttr['QUOTE'] = $CCrmPerms->GetUserAttrForSelectEntity('QUOTE', 'READ');
-		$arAttr['CONTACT'] = $CCrmPerms->GetUserAttrForSelectEntity('CONTACT', 'READ');
-		$arAttr['COMPANY'] = $CCrmPerms->GetUserAttrForSelectEntity('COMPANY', 'READ');
+		$arAttr = array();
+		if(CCrmPerms::IsAdmin())
+		{
+			$arAttr['LEAD'] = $arAttr['DEAL'] = $arAttr['INVOICE'] =
+				$arAttr['QUOTE'] = $arAttr['CONTACT'] = $arAttr['COMPANY'] = array(array());
+		}
+		else
+		{
+			$CCrmPerms = CCrmPerms::GetCurrentUserPermissions();
+			$arAttr['LEAD'] = $CCrmPerms->GetUserAttrForSelectEntity('LEAD', 'READ');
+			$arAttr['DEAL'] = $CCrmPerms->GetUserAttrForSelectEntity('DEAL', 'READ');
+			$arAttr['INVOICE'] = $CCrmPerms->GetUserAttrForSelectEntity('INVOICE', 'READ');
+			$arAttr['QUOTE'] = $CCrmPerms->GetUserAttrForSelectEntity('QUOTE', 'READ');
+			$arAttr['CONTACT'] = $CCrmPerms->GetUserAttrForSelectEntity('CONTACT', 'READ');
+			$arAttr['COMPANY'] = $CCrmPerms->GetUserAttrForSelectEntity('COMPANY', 'READ');
+		}
 
 		$arRel = array();
 		foreach ($arAttr as $ENTITY_TYPE => $_arRel)

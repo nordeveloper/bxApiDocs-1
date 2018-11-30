@@ -615,7 +615,7 @@ class CAllForumNew
 		if (is_integer($arUserGroups) || is_null($arUserGroups))
 		{
 			global $USER;
-			$arUserGroups = ($USER->getId() == $arUserGroups ? $USER->GetUserGroupArray() : CUser::GetUserGroup($arUserGroups));
+			$arUserGroups = (is_object($USER) && $USER->getId() == $arUserGroups ? $USER->GetUserGroupArray() : CUser::GetUserGroup($arUserGroups));
 		}
 		$arUserGroups = (!is_array($arUserGroups) ? array($arUserGroups) : $arUserGroups);
 		sort($arUserGroups);

@@ -165,7 +165,7 @@ class SequentNumberGenerator extends NumberGenerator implements Sequenceable, Us
 	{
 		if ($this->numberHash === null)
 		{
-			$this->numberHash = $this->numeratorId;
+			$this->setNumberHash($this->numeratorId);
 		}
 		return $this->numberHash;
 	}
@@ -373,9 +373,13 @@ class SequentNumberGenerator extends NumberGenerator implements Sequenceable, Us
 	/** @inheritdoc */
 	public function setNumberHash($numberHash)
 	{
+		if (!is_string($numberHash) && !is_int($numberHash))
+		{
+			return;
+		}
 		if ($this->numberHash === null)
 		{
-			$this->numberHash = $numberHash;
+			$this->numberHash = (string)$numberHash;
 		}
 	}
 }

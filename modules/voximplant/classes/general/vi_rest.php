@@ -1237,11 +1237,14 @@ class CVoxImplantRestService extends IRestService
 	 */
 	public static function registerExternalCall($params, $n, $server)
 	{
+		/*
 		$permissions = Security\Permissions::createWithCurrentUser();
 		if(!$permissions->canPerform(Security\Permissions::ENTITY_CALL_DETAIL, Security\Permissions::ACTION_MODIFY, Security\Permissions::PERMISSION_ANY))
 		{
 			throw new \Bitrix\Rest\AccessException();
 		}
+		*/
+
 		$clientId = $server->getClientId();
 		$row = \Bitrix\Rest\AppTable::getByClientId($clientId);
 		$appId = $row['ID'];
@@ -1290,11 +1293,13 @@ class CVoxImplantRestService extends IRestService
 	 */
 	public static function finishExternalCall($params, $n, $server)
 	{
+		/*
 		$permissions = Security\Permissions::createWithCurrentUser();
 		if(!$permissions->canPerform(Security\Permissions::ENTITY_CALL_DETAIL, Security\Permissions::ACTION_MODIFY, Security\Permissions::PERMISSION_ANY))
 		{
 			throw new \Bitrix\Rest\AccessException();
 		}
+		*/
 
 		$userId = (int)$params['USER_ID'];
 		if($userId == 0)

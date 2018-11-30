@@ -2,6 +2,7 @@
 
 namespace Bitrix\Main\UI\Filter;
 
+use Bitrix\Main\ModuleManager;
 use Bitrix\Main\Text\HtmlFilter;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Type\Date;
@@ -533,5 +534,81 @@ class Field
 		}
 
 		return $days;
+	}
+
+	/**
+	 * Prepares data of user field
+	 * @param string $name
+	 * @param string $value
+	 * @param string $label
+	 * @param string $placeholder
+	 * @return array
+	 */
+	public static function destSelector($name, $label = "", $placeholder = "", $multiple = false, $params = array())
+	{
+		\CJSCore::init(array('socnetlogdest'));
+
+		global $APPLICATION;
+
+		$field = array(
+			"ID" => "field_".$name,
+			"TYPE" => Type::DEST_SELECTOR,
+			"NAME" => $name,
+			"LABEL" => $label,
+			"VALUES" => array(
+				"_label" => "",
+				"_value" => ""
+			),
+			"MULTIPLE" => $multiple,
+			"PLACEHOLDER" => $placeholder
+		);
+
+		$optionsList = array(
+			'eventInit' => 'BX.Filter.DestinationSelector:openInit',
+			'eventOpen' => 'BX.Filter.DestinationSelector:open',
+			'context' => (isset($params['context']) ? $params['context'] : 'FILTER_'.$name),
+			'useSearch' => 'N',
+			'userNameTemplate' => \CUtil::jSEscape(\CSite::getNameFormat()),
+			'useClientDatabase' => 'Y',
+			'allowEmailInvitation' => (isset($params['allowEmailInvitation']) && $params['allowEmailInvitation'] == 'Y' ? 'Y' : 'N'),
+			'enableDepartments' => 'Y',
+			'enableSonetgroups' => (isset($params['enableSonetgroups']) && $params['enableSonetgroups'] == 'Y' ? 'Y' : 'N'),
+			'departmentSelectDisable' => (isset($params['departmentSelectDisable']) && $params['departmentSelectDisable'] == 'Y' ? 'Y' : 'N'),
+			'allowAddUser' => 'N',
+			'allowAddCrmContact' => 'N',
+			'allowAddSocNetGroup' => 'N',
+			'allowSearchEmailUsers' => (isset($params['allowSearchEmailUsers']) && $params['allowSearchEmailUsers'] == 'Y' ? 'Y' : 'N'),
+			'allowSearchCrmEmailUsers' => 'N',
+			'allowSearchNetworkUsers' => 'N',
+			'allowSonetGroupsAjaxSearchFeatures' => 'N',
+			'useNewCallback' => 'Y',
+			'enableAll' => (isset($params['enableAll']) && $params['enableAll'] == 'Y' ? 'Y' : 'N')
+		);
+
+		if (!empty($params['contextCode']))
+		{
+			$optionsList['contextCode'] = $params['contextCode'];
+		}
+
+		$APPLICATION->includeComponent(
+			"bitrix:main.ui.selector",
+			".default",
+			array(
+				'ID' => $name,
+				'ITEMS_SELECTED' => array(),
+				'CALLBACK' => array(
+					'select' => 'BX.Filter.DestinationSelectorManager.onSelect',
+					'unSelect' => '',
+					'openDialog' => 'BX.Filter.DestinationSelectorManager.onDialogOpen',
+					'closeDialog' => 'BX.Filter.DestinationSelectorManager.onDialogClose',
+					'openSearch' => ''
+				),
+				'OPTIONS' => $optionsList
+			),
+			false,
+			array("HIDE_ICONS" => "Y")
+		);
+
+		return $field;
 	}
 }

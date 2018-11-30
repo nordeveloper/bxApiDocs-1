@@ -51,7 +51,7 @@ class CAllSaleOrder
 		foreach(GetModuleEvents("sale", "OnSaleCalculateOrderShoppingCart", true) as $arEvent)
 			ExecuteModuleEventEx($arEvent, array(&$arOrder));
 
-		CSalePersonType::DoProcessOrder($arOrder, $personTypeId, $arErrors);
+		CSalePersonType::DoProcessOrder($arOrder, $personTypeId, $arErrors, $arOptions);
 		if (count($arErrors) > 0)
 			return null;
 

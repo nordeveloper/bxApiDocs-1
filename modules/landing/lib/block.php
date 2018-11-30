@@ -518,7 +518,7 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 		)
 		{
 			$landing->getError()->addError(
-				'LANDING_NOT_EXIST',
+				'BLOCK_WRONG_VERSION',
 				Loc::getMessage('LANDING_BLOCK_WRONG_VERSION')
 			);
 			return false;
@@ -970,16 +970,25 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 		}
 		$blocks += $blocksRepo;
 
-		// set by sections
-		foreach ($sections as $code => $title)
+		// create new section in repo
+		$createNewSection = function($title)
 		{
-			$blocksCats[$code] = array(
+			return array(
 				'name' => $title,
 				'new' => false,
 				'separator' => false,
 				'app_code' => false,
 				'items' => array()
 			);
+		};
+
+		// set by sections
+		$md5s = array();
+		foreach ($sections as $code => $title)
+		{
+			$title = trim($title);
+			$blocksCats[$code] = $createNewSection($title);
+			$md5s[md5(strtolower($title))] = $code;
 		}
 		foreach ($blocks as $key => $block)
 		{
@@ -990,9 +999,26 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 			foreach ($block['section'] as $section)
 			{
 				$section = trim($section);
-				if (!isset($blocksCats[$section]))
+				$sectionMd5 = md5(strtolower($section));
+				// adding new sections (actual for repo blocks)
+				if (
+					!isset($blocksCats[$section]) &&
+					!isset($blocksCats[$sectionMd5])
+				)
 				{
-					$section = 'other';
+					if (isset($md5s[$sectionMd5]))
+					{
+						$section = $md5s[$sectionMd5];
+					}
+					else
+					{
+						$blocksCats[$sectionMd5] = $createNewSection($section);
+						$section = $sectionMd5;
+					}
+				}
+				else if (isset($blocksCats[$sectionMd5]))
+				{
+					$section = $sectionMd5;
 				}
 				$blocksCats[$section]['items'][$key] = $block;
 				if ($block['new'])
@@ -1880,8 +1906,14 @@ class Block extends \Bitrix\Landing\Internals\BaseTable
 							? \htmlspecialcharsbx($this->anchor)
 							: $this->getAnchor($this->id);
 			}
-			$content = '<div id="' . $anchor . '" class="block-wrapper' . (!$this->active ? ' landing-block-deactive' : '') . '">' .
-							$this->content .
+			$classFromCode = 'block-' . $this->code;
+			$classFromCode = preg_replace('/([^a-z0-9-])/i', '-', $classFromCode);
+			$classFromCode = ' ' . $classFromCode;
+			$content = '<div id="' . $anchor . '" class="block-wrapper' .
+					   		(!$this->active ? ' landing-block-deactive' : '') .
+					   		$classFromCode .
+					   		'">' .
+								$this->content .
 						'</div>';
 		}
 		else

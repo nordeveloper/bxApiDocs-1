@@ -47,6 +47,12 @@ class CCrmProductSection
 
 		return self::$FIELD_INFOS;
 	}
+
+	public static function GetFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_PRODUCT_SECTION_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
+	}
 	// CRUD -->
 	public static function Add(&$arFields)
 	{
@@ -296,6 +302,63 @@ class CCrmProductSection
 				$rowsCount = CCrmProductRow::GetList(array(), array('PRODUCT_ID' => $arProductId), array(), false, array());
 				if($rowsCount > 0 || CCrmInvoice::HasProductRows($arProductId))
 					$result = true;
+			}
+		}
+
+		return $result;
+	}
+	public static function GetMaxDepth($catalogId = 0)
+	{
+		$result = 0;
+
+		if ($catalogId <= 0)
+		{
+			$catalogId = CCrmCatalog::GetDefaultID();
+
+			if ($catalogId > 0)
+			{
+				$connection = \Bitrix\Main\Application::getInstance()->getConnection();
+				$res = $connection->query(
+					"SELECT MAX(DEPTH_LEVEL) AS MAX_DEPTH FROM b_iblock_section WHERE IBLOCK_ID = {$catalogId}"
+				);
+				$row = is_object($res) ? $res->fetch() : null;
+				if (is_array($row) && isset($row['MAX_DEPTH']))
+				{
+					$result = (int)$row['MAX_DEPTH'];
+				}
+			}
+		}
+
+		return $result;
+	}
+	public static function GetPath($catalogId, $sectionId, $select)
+	{
+		$result = [];
+
+		if (!Bitrix\Main\Loader::includeModule('iblock'))
+		{
+			return $result;
+		}
+		
+		if ($catalogId <= 0)
+		{
+			$catalogId = CCrmCatalog::GetDefaultID();
+		}
+
+		if ($catalogId > 0)
+		{
+			$sectionId = (int)$sectionId;
+			if (!is_array($select))
+			{
+				$select = [];
+			}
+			$res = CIBlockSection::GetNavChain($catalogId, $sectionId, $select);
+			if (is_object($res))
+			{
+				while ($row = $res->Fetch())
+				{
+					$result[] = $row;
+				}
 			}
 		}
 

@@ -2,6 +2,8 @@
 
 namespace Bitrix\Main\UI\Viewer\Renderer;
 
+use Bitrix\Main\Engine\Response\ResizedImage;
+
 class Image extends Renderer
 {
 	const WIDTH  = 1920;
@@ -45,20 +47,12 @@ class Image extends Renderer
 		$imageFile = $this->getOriginalImage();
 		if (!$imageFile)
 		{
-			return;
+			return null;
 		}
 
-		$tmpImageFile = \CFile::resizeImageGet(
-			$imageFile,
-			array('width' => $this->getWidth(), 'height' => $this->getHeight()),
-			BX_RESIZE_IMAGE_EXACT,
-			true,
-			false,
-			true
-		);
-		$imageFile['FILE_SIZE'] = $tmpImageFile['size'];
-		$imageFile['SRC'] = $tmpImageFile['src'];
+		$resizedImage = new ResizedImage($imageFile, $this->getWidth(), $this->getHeight());
+		$resizedImage->setResizeType(BX_RESIZE_IMAGE_PROPORTIONAL);
 
-		\CFile::ViewByUser($imageFile, ['prevent_work_with_preview' => true,]);
+		return $resizedImage;
 	}
 }

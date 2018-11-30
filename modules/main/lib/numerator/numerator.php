@@ -459,7 +459,7 @@ class Numerator
 	 * @param string $hash
 	 * @return Result
 	 */
-	public function setNextSequentialNumber($nextNumber, $whereNumber, $hash = null)
+	public function setNextSequentialNumber($nextNumber, $whereNumber = null, $hash = null)
 	{
 		$this->setNumberHashForGenerators($hash);
 		foreach ($this->generators as $generator)
@@ -751,5 +751,10 @@ class Numerator
 		/** @var NumberGenerator $generatorClass */
 		$generatorClass = get_class($generator);
 		return $generatorClass::getType();
+	}
+
+	public function getId()
+	{
+		return $this->id;
 	}
 }

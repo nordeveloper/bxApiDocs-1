@@ -2,7 +2,7 @@
 $pathJS = '/bitrix/js/main/core';
 $pathCSS = '/bitrix/js/main/core/css';
 $pathCSSPanel = '/bitrix/panel/main';
-$pathLang = BX_ROOT.'/modules/main/lang/'.LANGUAGE_ID;
+$pathLang = BX_ROOT.'/modules/main';
 //WARNING: Don't use CUserOptions here! CJSCore::Init can be called from php_interface/init.php where no $USER exists
 
 $amChartsPath = '/bitrix/js/main/amcharts/3.21/';
@@ -51,6 +51,7 @@ $arJSCoreConfig = array(
 	'popup' => array(
 		'js' => $pathJS.'/core_popup.js',
 		'css' => $pathCSS.'/core_popup.css',
+		'rel' => array('ui.fonts.opensans')
 	),
 	'tags' => array(
 		'js' => $pathJS.'/core_tags.js',
@@ -113,12 +114,10 @@ $arJSCoreConfig = array(
 	'date' => array(
 		'js' => $pathJS.'/core_date.js',
 		'css' => $pathCSS.'/core_date.css',
-		'lang' => $pathLang.'/date_format.php',
 		'lang_additional' => array(
 			'WEEK_START' => CSite::GetWeekStart(),
-			'AMPM_MODE' => IsAmPmMode(true),
 		),
-		'rel' => array('popup'),
+		'rel' => array('main.date', 'popup'),
 	),
 	'ls' => array(
 		'js' => $pathJS.'/core_ls.js',
@@ -338,11 +337,16 @@ $arJSCoreConfig = array(
 		'js' => '/bitrix/js/main/loader/loader.js',
 		'css' => '/bitrix/js/main/loader/loader.css'
 	),
+	'message' => array(
+		'js' => $pathJS.'/core_message.js',
+		'skip_core' => true,
+	),
 
 	/* auto loaded libs */
 
 	'promise' => array(
 		'js' => $pathJS.'/core_promise.js',
+		'skip_core' => true,
 		'autoload' => true,
 	),
 	'loadext' => array(
@@ -431,7 +435,7 @@ $arJSCoreConfig = array(
 	array(
 		'/bitrix/js/main/core/core.js', '/bitrix/js/main/core/core_ajax.js', '/bitrix/js/main/json/json2.min.js',
 		'/bitrix/js/main/core/core_ls.js', '/bitrix/js/main/core/core_promise.js', '/bitrix/js/main/core/core_popup.js', '/bitrix/js/main/core/core_tooltip.js',
-		'/bitrix/js/main/core/core_date.js','/bitrix/js/main/core/core_timer.js', '/bitrix/js/main/core/core_fx.js',
+		'/bitrix/js/main/date/main.date.js', '/bitrix/js/main/core/core_date.js', '/bitrix/js/main/core/core_timer.js', '/bitrix/js/main/core/core_fx.js',
 		'/bitrix/js/main/core/core_window.js', '/bitrix/js/main/core/core_autosave.js', '/bitrix/js/main/rating_like.js',
 		'/bitrix/js/main/session.js', '/bitrix/js/main/dd.js', '/bitrix/js/main/utils.js',
 		'/bitrix/js/main/core/core_dd.js', '/bitrix/js/main/core/core_webrtc.js',

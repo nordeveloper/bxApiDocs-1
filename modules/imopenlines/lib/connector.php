@@ -29,22 +29,22 @@ class Connector
 		$connectorLoad = \Bitrix\Main\Loader::includeModule('imconnector');
 		if ($imLoad && $pullLoad && $connectorLoad)
 		{
-			$this->error = new Error(null, '', '');
+			$this->error = new BasicError(null, '', '');
 			$this->moduleLoad = true;
 		}
 		else
 		{
 			if (!$imLoad)
 			{
-				$this->error = new Error(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_IM_LOAD'));
+				$this->error = new BasicError(__METHOD__, 'IM_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_IM_LOAD'));
 			}
 			elseif (!$pullLoad)
 			{
-				$this->error = new Error(__METHOD__, 'PULL_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_PULL_LOAD'));
+				$this->error = new BasicError(__METHOD__, 'PULL_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_PULL_LOAD'));
 			}
 			elseif (!$connectorLoad)
 			{
-				$this->error = new Error(__METHOD__, 'CONNECTOR_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_CONNECTOR_LOAD'));
+				$this->error = new BasicError(__METHOD__, 'CONNECTOR_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_CONNECTOR_LOAD'));
 			}
 		}
 	}
@@ -183,10 +183,10 @@ class Connector
 				$guestChatData = $orm->fetch();
 
 				$chat = new \Bitrix\ImOpenLines\Chat($params['chat']['id']);
-				$chat->updateFieldData(\Bitrix\ImOpenLines\Chat::FIELD_LIVECHAT, Array(
+				$chat->updateFieldData([\Bitrix\ImOpenLines\Chat::FIELD_LIVECHAT => [
 					'SESSION_ID' => $session->getData('ID'),
-					'SHOW_FORM' => 'Y',
-				));
+					'SHOW_FORM' => 'Y'
+				]]);
 			}
 			else
 			{
@@ -266,27 +266,37 @@ class Connector
 			return false;
 		}
 
-		if ($addMessage["MESSAGE"])
+		if ($addMessage["MESSAGE"] && $params['extra']['disable_tracker'] !== 'Y' && \Bitrix\ImConnector\Connector::isChatGroup($params['connector']['connector_id']) != true)
 		{
 			$tracker = new \Bitrix\ImOpenLines\Tracker();
-			$tracker->message(Array(
-				'SESSION' => $session,
-				'MESSAGE' => Array(
+			$tracker->setSession($session);
+			$tracker->message([
 					'ID' => $messageId,
 					'TEXT' => $addMessage["MESSAGE"]
-				)
-			));
+			]);
 		}
 		if ($params['message']['id'])
 		{
 			if ($params['connector']['connector_id'] == self::TYPE_LIVECHAT)
 			{
-				\CIMMessageParam::Set($params['message']['id'], Array(
-					'CONNECTOR_MID' => $messageId,
-					'IMOL_SID' => $session->isNowCreated()? $session->getData('ID'): 0,
-					"IMOL_FORM" => $session->isNowCreated()? "welcome": 0
-				));
-				\CIMMessageParam::SendPull($params['message']['id'], Array('CONNECTOR_MID', 'IMOL_SID', 'IMOL_FORM'));
+				if ($session->isNowCreated())
+				{
+					$updateParams = Array(
+						'CONNECTOR_MID' => $messageId,
+						'IMOL_SID' => $session->getData('ID'),
+						"IMOL_FORM" => "welcome",
+						"TYPE" => "lines",
+						"COMPONENT_ID" => "bx-imopenlines-message",
+					);
+				}
+				else
+				{
+					$updateParams = Array(
+						'CONNECTOR_MID' => $messageId,
+					);
+				}
+				\CIMMessageParam::Set($params['message']['id'], $updateParams);
+				\CIMMessageParam::SendPull($params['message']['id'], array_keys($updateParams));
 
 				\Bitrix\ImOpenLines\Mail::removeSessionFromMailQueue($session->getData('ID'), false);
 			}
@@ -599,11 +609,11 @@ class Connector
 			}
 
 			$chat = new \Bitrix\ImOpenLines\Chat($connector['chat_id']);
-			$chat->updateFieldData(\Bitrix\ImOpenLines\Chat::FIELD_LIVECHAT, Array(
+			$chat->updateFieldData([\Bitrix\ImOpenLines\Chat::FIELD_LIVECHAT => [
 				'READED' => 'Y',
 				'READED_ID' => $maxId,
 				'READED_TIME' => new \Bitrix\Main\Type\DateTime()
-			));
+			]]);
 		}
 		else
 		{
@@ -845,7 +855,7 @@ class Connector
 			$params = Array();
 			foreach ($messageFields['PARAMS'] as $key => $value)
 			{
-				if (in_array($key, Array('CLASS')))
+				if (in_array($key, Array('CLASS', 'TYPE', 'COMPONENT_ID')))
 				{
 					$params[$key] = $value;
 				}

@@ -95,7 +95,7 @@ class Hook
 	 * @param int $id Entity id.
 	 * @param string $type Entity type.
 	 * @param array $data Data array (optional).
-	 * @return array
+	 * @return \Bitrix\Landing\Hook\Page[]
 	 */
 	protected static function getList($id, $type, array $data = array())
 	{
@@ -109,7 +109,10 @@ class Hook
 			$classFull = __NAMESPACE__  . $classNamespace . $class;
 			if (class_exists($classFull))
 			{
-				$hooks[$class] = new $classFull(self::$editMode);
+				$hooks[$class] = new $classFull(
+					self::$editMode,
+					!($type == self::ENTITY_TYPE_SITE)
+				);
 				if (!$hooks[$class]->active())
 				{
 					unset($hooks[$class]);

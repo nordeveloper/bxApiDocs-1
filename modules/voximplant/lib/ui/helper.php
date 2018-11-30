@@ -155,10 +155,24 @@ class Helper
 			return '';
 
 		\CBitrix24::initLicenseInfoPopupJS();
+		$initString = "";
 		foreach (array('main', 'security', 'groups', 'numbers', 'call-intercept', 'line-selection') as $popupId)
 		{
 			$popupData = \CVoxImplantMain::GetTrialText($popupId);
-			Asset::getInstance()->addString("<script>BX.Voximplant.setLicensePopup('".\CUtil::JSEscape($popupId)."', '".\CUtil::JSEscape($popupData['TITLE'])."', '".\CUtil::JSEscape($popupData['TEXT'])."');</script>");
+			$initString .= "BX.Voximplant.setLicensePopup('".\CUtil::JSEscape($popupId)."', '".\CUtil::JSEscape($popupData['TITLE'])."', '".\CUtil::JSEscape($popupData['TEXT'])."');";
 		}
+
+		Asset::getInstance()->addString("
+			<script>
+				BX.ready(function()
+				{
+					if(BX.Voximplant)
+					{
+						" . $initString . "
+					}
+				});
+				
+			</script>
+		");
 	}
 }

@@ -2507,8 +2507,15 @@ class OrderCompatibility extends Internals\EntityCompatibility
 			}
 		}
 
-		/** @var Sale\Result $r */
-		$r = $orderClassName::delete($id);
+		try
+		{
+			$r = $orderClassName::delete($id);
+		}
+		catch (\Exception $exception)
+		{
+			$r = $orderClassName::deleteNoDemand($id);
+		}
+
 		if (!$r->isSuccess())
 		{
 			$result->addErrors($r->getErrors());

@@ -48,4 +48,13 @@ abstract class Relation extends Field
 
 		return $this->refEntity;
 	}
+
+	/**
+	 * @return string
+	 */
+	public function getRefEntityName()
+	{
+		return $this->refEntityName;
+	}
+
 }

@@ -80,14 +80,19 @@ class CAdminList
 
 		$aColsTmp = explode(",", $aOptions["columns"]);
 		$aCols = array();
+		$userColumns = array();
 		foreach ($aColsTmp as $col)
 		{
 			$col = trim($col);
 			if ($col <> "")
+			{
 				$aCols[] = $col;
+				$userColumns[$col] = true;
+			}
 		}
 
 		$bEmptyCols = empty($aCols);
+		$userVisibleColumns = array();
 		foreach ($aParams as $param)
 		{
 			$param["__sort"] = -1;
@@ -95,12 +100,14 @@ class CAdminList
 			if (
 				(isset($_SESSION['SHALL']) && $_SESSION['SHALL'])
 				|| ($bEmptyCols && $param["default"] == true)
-				|| in_array($param["id"], $aCols)
+				|| isset($userColumns[$param["id"]])
 			)
 			{
 				$this->arVisibleColumns[] = $param["id"];
+				$userVisibleColumns[$param["id"]] = true;
 			}
 		}
+		unset($userColumns);
 
 		$aAllCols = null;
 		if (isset($_REQUEST["mode"]) && $_REQUEST["mode"] == "settings")
@@ -117,9 +124,10 @@ class CAdminList
 
 		foreach($this->aHeaders as $id=>$arHeader)
 		{
-			if(in_array($id, $this->arVisibleColumns))
+			if (isset($userVisibleColumns[$id]))
 				$this->aVisibleHeaders[$id] = $arHeader;
 		}
+		unset($userVisibleColumns);
 
 		if (isset($_REQUEST["mode"]) && $_REQUEST["mode"] == "settings")
 			$this->ShowSettings($aAllCols, $aCols, $aOptions);
@@ -449,7 +457,7 @@ class CAdminList
 		{
 			if($this->bEditMode && in_array($id, $this->arEditedRows))
 				$row->bEditMode = true;
-			elseif(in_array($id, $this->arUpdateErrorIDs))
+			elseif(!empty($this->arUpdateErrorIDs) && in_array($id, $this->arUpdateErrorIDs))
 				$row->bEditMode = true;
 		}
 

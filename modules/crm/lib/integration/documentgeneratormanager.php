@@ -14,6 +14,7 @@ use Bitrix\DocumentGenerator\Document;
 use Bitrix\DocumentGenerator\Driver;
 use Bitrix\DocumentGenerator\Nameable;
 use Bitrix\Main\Event;
+use Bitrix\Main\IO\File;
 use Bitrix\Main\Loader;
 use Bitrix\DocumentGenerator\Model\TemplateTable;
 use Bitrix\Main\UI\Spotlight;
@@ -130,13 +131,24 @@ class DocumentGeneratorManager
 	 */
 	protected function getAddTemplateUrl($provider)
 	{
-		$componentPath = \CComponentEngine::makeComponentPath('bitrix:documentgenerator.templates');
-		$componentPath = getLocalPath('components'.$componentPath.'/slider.php');
-		if(!empty($componentPath))
+		$path = null;
+		if(File::isFileExists(\Bitrix\Main\Application::getInstance()->getContext()->getServer()->getDocumentRoot().'/crm/documents/'))
 		{
-			$uri = new Uri($componentPath);
-			$uri->addParams(['MODULE' => 'crm', 'PROVIDER' => $provider]);
+			$path = '/crm/documents/templates/';
+			$uri = new Uri($path);
+			$uri->addParams(['entityTypeId' => $provider]);
 			return $uri->getLocator();
+		}
+		else
+		{
+			$path = \CComponentEngine::makeComponentPath('bitrix:documentgenerator.templates');
+			$path = getLocalPath('components'.$path.'/slider.php');
+			if(!empty($path))
+			{
+				$uri = new Uri($path);
+				$uri->addParams(['MODULE' => 'crm', 'PROVIDER' => $provider]);
+				return $uri->getLocator();
+			}
 		}
 
 		return false;

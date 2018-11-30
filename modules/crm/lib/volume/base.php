@@ -1931,8 +1931,8 @@ abstract class Base implements Crm\Volume\IVolumeIndicator
 			$diskCount = new Entity\ExpressionField('DISK_SIZE', '0');
 			$diskBindingCount = new Entity\ExpressionField('DISK_COUNT', '0');
 			$activityQuery
-				->registerRuntimeField('', $diskCount)
-				->registerRuntimeField('', $diskBindingCount)
+				->registerRuntimeField($diskCount)
+				->registerRuntimeField($diskBindingCount)
 				->addSelect('DISK_SIZE')
 				->addSelect('DISK_COUNT');
 		}
@@ -1940,8 +1940,8 @@ abstract class Base implements Crm\Volume\IVolumeIndicator
 		$activityCount = new Entity\ExpressionField('ACTIVITY_COUNT', 'COUNT(DISTINCT %s)', 'ID');
 		$activityBindingCount = new Entity\ExpressionField('BINDINGS_COUNT', 'COUNT(%s)', 'BINDINGS.ID');
 		$activityQuery
-			->registerRuntimeField('', $activityCount)
-			->registerRuntimeField('', $activityBindingCount)
+			->registerRuntimeField($activityCount)
+			->registerRuntimeField($activityBindingCount)
 			->addSelect('ACTIVITY_COUNT')
 			->addSelect('BINDINGS_COUNT');
 
@@ -1953,19 +1953,19 @@ abstract class Base implements Crm\Volume\IVolumeIndicator
 
 		//-----------
 
-		$activityFileQuery = $activityVolume->getActivityFileMeasureQuery(static::className());
+		$activityFileQuery = $activityVolume->getActivityFileMeasureQuery(static::className(), $entityGroupField);
 
 		$activityCount = new Entity\ExpressionField('ACTIVITY_COUNT', '0');
 		$activityBindingCount = new Entity\ExpressionField('BINDINGS_COUNT', '0');
 		$activityFileQuery
-			->registerRuntimeField('', $activityCount)
-			->registerRuntimeField('', $activityBindingCount)
+			->registerRuntimeField($activityCount)
+			->registerRuntimeField($activityBindingCount)
 			->addSelect('ACTIVITY_COUNT')
 			->addSelect('BINDINGS_COUNT');
 
-
 		foreach ($entityGroupField as $alias => $field)
 		{
+			$field = 'BIND.'. str_replace('.', '_', $field);
 			$activityFileQuery->addSelect($field, $alias);
 			$activityFileQuery->addGroup($field);
 		}

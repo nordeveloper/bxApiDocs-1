@@ -97,6 +97,12 @@ class EntityLink
 		return self::$FIELD_INFOS;
 	}
 
+	public static function getFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_ENTITY_LINK_{$fieldName}_FIELD");
+		return is_string($result) ? $result : '';
+	}
+
 	public static function getParentEntityFieldMap()
 	{
 		if (self::$parentEntityFieldMap === null)

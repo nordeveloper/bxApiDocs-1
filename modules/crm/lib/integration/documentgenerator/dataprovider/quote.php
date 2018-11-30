@@ -110,6 +110,16 @@ class Quote extends ProductsDataProvider implements Nameable
 	}
 
 	/**
+	 * @param null $defaultMyCompanyId
+	 * @return array|int
+	 * @throws \Bitrix\Main\ArgumentException
+	 */
+	public function getMyCompanyId($defaultMyCompanyId = null)
+	{
+		return parent::getMyCompanyId($this->data['MYCOMPANY_ID']);
+	}
+
+	/**
 	 * @return string
 	 */
 	protected function getCrmProductOwnerType()
@@ -133,6 +143,7 @@ class Quote extends ProductsDataProvider implements Nameable
 		return array_merge(parent::getHiddenFields(), [
 			'BEGINDATE_SHORT',
 			'CLOSEDATE_SHORT',
+			'MYCOMPANY_ID',
 		]);
 	}
 }

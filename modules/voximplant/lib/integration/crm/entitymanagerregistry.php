@@ -6,6 +6,7 @@ use Bitrix\Crm\EntityManageFacility;
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\Loader;
 use Bitrix\Main\SystemException;
+use Bitrix\Voximplant\Call;
 use Bitrix\Voximplant\Model\CallTable;
 
 class EntityManagerRegistry
@@ -20,7 +21,7 @@ class EntityManagerRegistry
 	 * @throws SystemException
 	 * @throws \Bitrix\Main\LoaderException
 	 */
-	public static function getWithPhoneNumber($phoneNumber)
+	protected static function getWithPhoneNumber($phoneNumber)
 	{
 		if(!Loader::includeModule('crm'))
 			return false;
@@ -28,16 +29,12 @@ class EntityManagerRegistry
 		if(!is_string($phoneNumber))
 			throw new ArgumentException("Phone number should be a string", "phoneNumber");
 
-		if(isset(static::$instances[$phoneNumber]))
-			return static::$instances[$phoneNumber];
-
 		$facilityInstance = new \Bitrix\Crm\EntityManageFacility();
 		$facilityInstance->setUpdateClientMode(EntityManageFacility::UPDATE_MODE_NONE);
 		$facilityInstance->disableAutomationRun();
 		$facilityInstance->getSelector()->appendPhoneCriterion($phoneNumber);
 		$facilityInstance->getSelector()->search();
 
-		static::$instances[$phoneNumber] = $facilityInstance;
 		return $facilityInstance;
 	}
 
@@ -49,7 +46,7 @@ class EntityManagerRegistry
 	 * @throws \Bitrix\Main\LoaderException
 	 */
 
-	public static function getWithEntity($entityType, $entityId)
+	protected static function getWithEntity($entityType, $entityId)
 	{
 		if(!Loader::includeModule('crm'))
 		{
@@ -64,11 +61,6 @@ class EntityManagerRegistry
 			throw new ArgumentException("entityId number should be an integer", "entityId");
 		}
 
-		$key = $entityType . "_" . $entityId;
-		if(isset(static::$instances[$key]))
-		{
-			return static::$instances[$key];
-		}
 		$facilityInstance = new \Bitrix\Crm\EntityManageFacility();
 		$facilityInstance->setUpdateClientMode(EntityManageFacility::UPDATE_MODE_NONE);
 		$facilityInstance->disableAutomationRun();
@@ -78,30 +70,37 @@ class EntityManagerRegistry
 		);
 		$facilityInstance->getSelector()->search();
 
-		static::$instances[$key] = $facilityInstance;
 		return $facilityInstance;
 	}
 
 	/**
 	 * Returns EntityManageFacility for the specified call.
-	 * @param array $call
+	 * @param Call $call
 	 * @return EntityManageFacility|false
 	 * @throws SystemException
 	 * @throws \Bitrix\Main\LoaderException
 	 */
-	public static function getWithCall(array $call)
+	public static function getWithCall(Call $call)
 	{
-		if ($call['CRM_ENTITY_TYPE'] != '' && $call['CRM_ENTITY_ID'] > 0)
+		if(static::$instances[$call->getCallId()])
 		{
-			return static::getWithEntity($call['CRM_ENTITY_TYPE'], (int)$call['CRM_ENTITY_ID']);
+			return static::$instances[$call->getCallId()];
 		}
-		else if($call['CALLER_ID'] != '')
+
+		if ($call->getPrimaryEntityType() != '' && $call->getPrimaryEntityId() > 0)
 		{
-			return static::getWithPhoneNumber($call['CALLER_ID']);
+			$manager = static::getWithEntity($call->getPrimaryEntityType(), $call->getPrimaryEntityId());
+		}
+		else if($call->getCallerId() != '')
+		{
+			$manager = static::getWithPhoneNumber($call->getCallerId());
 		}
 		else
 		{
 			return false;
 		}
+
+		static::$instances[$call->getCallId()] = $manager;
+		return $manager;
 	}
 }

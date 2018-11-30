@@ -1,8 +1,10 @@
 <?
 IncludeModuleLangFile(__FILE__);
-use Bitrix\Crm\UserField\UserFieldHistory,
-	Bitrix\Main,
-	Bitrix\Main\Loader;
+
+use	Bitrix\Main;
+use	Bitrix\Main\Loader;
+use Bitrix\Crm;
+use Bitrix\Crm\UserField\UserFieldHistory;
 
 class CCrmFields
 {

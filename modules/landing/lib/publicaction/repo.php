@@ -104,23 +104,29 @@ class Repo
 					{
 						foreach ($card['presets'] as $presetCode => &$preset)
 						{
-							$preset['html'] = Manager::sanitize(
-								$preset['html'],
-								$bad
-							);
-							if ($bad)
+							foreach (['html', 'name', 'values'] as $code)
 							{
-								$error->addError(
-									'PRESET_CONTENT_IS_BAD',
-									Loc::getMessage(
-										'LANDING_APP_PRESET_CONTENT_IS_BAD',
-										array(
-											'#preset#' => $presetCode,
-											'#card#' => $cardCode
-										))
-								);
-								$result->setError($error);
-								return $result;
+								if (isset($preset[$code]))
+								{
+									$preset[$code] = Manager::sanitize(
+										$preset[$code],
+										$bad
+									);
+									if ($bad)
+									{
+										$error->addError(
+											'PRESET_CONTENT_IS_BAD',
+											Loc::getMessage(
+												'LANDING_APP_PRESET_CONTENT_IS_BAD',
+												array(
+													'#preset#' => $presetCode,
+													'#card#' => $cardCode
+												))
+										);
+										$result->setError($error);
+										return $result;
+									}
+								}
 							}
 						}
 						unset($preset);

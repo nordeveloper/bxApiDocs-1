@@ -34,7 +34,7 @@ class OrderTarget extends BaseTarget
 		if ($id > 0)
 		{
 			$order = Order\Order::load($id);
-			$fields = $order->getFieldValues();
+			$fields = $order ? $order->getFieldValues() : null;
 
 			if ($fields)
 			{

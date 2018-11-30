@@ -16,14 +16,14 @@ class Network
 
 	public function __construct()
 	{
-		$this->error = new Error(null, '', '');
+		$this->error = new BasicError(null, '', '');
 	}
 
 	public function sendMessage($lineId, $fields)
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		\Bitrix\ImOpenLines\Log::write($fields, 'NETWORK ANSWER');
@@ -79,7 +79,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		\Bitrix\ImOpenLines\Log::write($fields, 'NETWORK UPDATE MESSAGE');
@@ -102,7 +102,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		\Bitrix\ImOpenLines\Log::write($fields, 'NETWORK DELETE MESSAGE');
@@ -121,7 +121,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		\Bitrix\ImOpenLines\Log::write($fields, 'NETWORK START WRITING (SEND)');
@@ -526,7 +526,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		$result = \Bitrix\ImBot\Bot\Network::search($text);
@@ -541,7 +541,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		$result = \Bitrix\ImBot\Bot\Network::join($code);
@@ -556,7 +556,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		$result = \Bitrix\ImBot\Bot\Network::registerConnector($lineId, $fields);
@@ -571,7 +571,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		$result = \Bitrix\ImBot\Bot\Network::updateConnector($lineId, $fields);
@@ -586,7 +586,7 @@ class Network
 	{
 		if (!\Bitrix\Main\Loader::includeModule('imbot'))
 		{
-			$this->error = new Error(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'IMBOT_ERROR', Loc::getMessage('IMOL_NETWORK_IMBOT_LOAD_ERROR'));
 		}
 
 		$result = \Bitrix\ImBot\Bot\Network::unRegisterConnector($lineId);

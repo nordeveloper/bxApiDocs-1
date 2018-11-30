@@ -482,3 +482,81 @@ Input\Manager::register('DELIVERY_PRODUCT_CATEGORIES', array(
 	'CLASS' => __NAMESPACE__.'\\ProductCategories',
 	'NAME' => Loc::getMessage('INPUT_DELIVERY_PRODUCT_CATEGORIES')
 ));
+
+class ButtonSelector extends Input\Base
+{
+	public static function getViewHtmlSingle(array $input, $values)
+	{
+		if(!is_array($values))
+			throw new ArgumentTypeException('values', 'array');
+
+		$itemName = (strlen($values['NAME']) > 0 ? htmlspecialcharsbx($values['NAME']) : '');
+
+		if(strlen($itemName) <= 0 && strlen($input['NAME_DEFAULT']) > 0)
+		{
+			$itemName = htmlspecialcharsbx($input['NAME_DEFAULT']);
+		}
+
+		return $itemName;
+	}
+
+	public static function getEditHtmlSingle($name, array $input, $values)
+	{
+		if(!isset($input["NAME"]))
+			$input["NAME"] = '';
+
+		if(!isset($input["VALUE"]))
+			$input["VALUE"] = '';
+
+		$itemName = (strlen($values['NAME']) > 0 ? htmlspecialcharsbx($values['NAME']) : '');
+
+		if(strlen($itemName) <= 0 && strlen($input['NAME_DEFAULT']) > 0)
+		{
+			$itemName = htmlspecialcharsbx($input['NAME_DEFAULT']);
+		}
+
+		$itemValue = (strlen($values['VALUE']) > 0 ? htmlspecialcharsbx($values['VALUE']) : '');
+
+		if(strlen($itemName) <= 0 && strlen($input['VALUE_DEFAULT']) > 0)
+		{
+			$itemValue = htmlspecialcharsbx($input['VALUE_DEFAULT']);
+		}
+
+		return '<div>'.
+			'<div id="'.$input['READONLY_NAME_ID'].'">'.htmlspecialcharsbx($itemName).'</div>'.
+			' <input type="button" value="'.$input['BUTTON']['NAME'].'" onclick="'.$input['BUTTON']['ONCLICK'].' return false;" style="margin-top: 20px;">'.
+			'<input type="hidden" name="'.$name.'[NAME]" value="'.$itemName.'">'.
+			'<input type="hidden" name="'.$name.'[VALUE]" value="'.$itemValue.'">'.
+			'</div>';
+	}
+
+	public static function getValueSingle(array $input, $userValue)
+	{
+		return $userValue;
+	}
+
+	public static function getSettings(array $input, $reload)
+	{
+		return array();
+	}
+
+	public static function getError(array $input, $values)
+	{
+		return self::getErrorSingle($input, $values);
+	}
+
+	public static function getErrorSingle(array $input, $values)
+	{
+		return array();
+	}
+
+	static function asSingle($value)
+	{
+		return $value;
+	}
+}
+Input\Manager::register('DELIVERY_BUTTON_SELECTOR', array(
+	'CLASS' => __NAMESPACE__.'\\ButtonSelector',
+	'NAME' => Loc::getMessage('INPUT_DELIVERY_BUTTON_SELECTOR')
+));
+

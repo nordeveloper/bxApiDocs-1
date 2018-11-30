@@ -256,6 +256,12 @@ class EntityPreset
 		return self::$fieldInfo;
 	}
 
+	public static function getFieldCaption($fieldName)
+	{
+		$result = Loc::getMessage("CRM_ENTITY_PRESET_{$fieldName}_FIELD");
+		return is_string($result) ? $result : '';
+	}
+
 	public static function getSettingsFieldsRestInfo()
 	{
 		return array(

@@ -1,29 +1,61 @@
 <?php
 namespace Bitrix\ImOpenLines;
 
-class Error
+/**
+ * Error handling class.
+ * @package Bitrix\ImOpenLines
+ */
+class Error extends \Bitrix\Main\Error
 {
-	public $method = '';
-	public $code = '';
-	public $msg = '';
-	public $params = Array();
-	public $error = false;
+	/** @var string */
+	protected $method;
 
-	public function __construct($method, $code, $msg, $params = Array())
+	/** @var array */
+	protected $params;
+
+	/**
+	 * Creates a new Error.
+	 * @param string $message Message of the error.
+	 * @param int|string $code Code of the error.
+	 * @param string $method
+	 * @param string|array $params
+	 */
+	public function __construct($message = '', $code = 0, $method = '', $params = Array())
 	{
-		if ($method != null)
-		{
-			$this->method = $method;
-			$this->code = $code;
+		parent::__construct($message, $code);
 
-			if(is_array($msg))
-				$this->msg = implode("; ", $msg);
-			else
-				$this->msg = $msg;
+		$this->method = $method;
 
-			$this->params = $params;
+		$this->params = $params;
 
-			$this->error = true;
-		}
+		$debugBacktrace = debug_backtrace();
+		Log::write(array(
+			'message' => $message,
+			'code' => $code,
+			'params' => $params,
+			'file' => $debugBacktrace[0]['file'],
+			'method' => $method,
+			'line' => $debugBacktrace[0]['line'],
+		));
+	}
+
+	/**
+	 * Returns a method in which there was an error.
+	 *
+	 * @return string
+	 */
+	public function getMethod()
+	{
+		return $this->method;
+	}
+
+	/**
+	 * Returns parameters which were transferred to a method at the time of emergence of an error.
+	 *
+	 * @return array|null
+	 */
+	public function getParams()
+	{
+		return $this->params;
 	}
 }

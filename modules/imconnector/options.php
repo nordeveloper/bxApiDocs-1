@@ -77,7 +77,7 @@ $tabControl = new \CAdminTabControl('tabControl', $aTabs);
 
 ?>
 <? $tabControl->Begin(); ?>
-<form method='post' action='<?echo $APPLICATION->GetCurPage()?>?mid=<?=urlencode($module_id)?>&amp;lang=<?=$request['lang']?>'>
+<form method="post" action="<?echo $APPLICATION->GetCurPage()?>?mid=<?=urlencode($module_id)?>&amp;lang=<?=htmlspecialcharsbx($request['lang'])?>">
 
 	<? foreach ($aTabs as $aTab):
 			if($aTab['OPTIONS']):?>
@@ -100,4 +100,3 @@ $tabControl = new \CAdminTabControl('tabControl', $aTabs);
 	<?=\bitrix_sessid_post();?>
 </form>
 <? $tabControl->End(); ?>
-

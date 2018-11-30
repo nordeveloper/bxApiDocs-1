@@ -535,7 +535,7 @@ class Lead extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volum
 
 		$querySql = $this->prepareActivityQuery(array(
 			'DATE_CREATE' => 'LEAD.DATE_CREATE_SHORT',
-			'LEAD_STAGE_SEMANTIC_ID' => 'LEAD.STATUS_SEMANTIC_ID',
+			'LEAD_STAGE_SEMANTIC' => 'LEAD.STATUS_SEMANTIC_ID',
 		));
 
 		if ($querySql != '')
@@ -548,7 +548,7 @@ class Lead extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volum
 					'".static::getIndicatorId()."' as INDICATOR_TYPE,
 					'".$this->getOwner()."' as OWNER_ID,
 					DATE_CREATE,
-					LEAD_STAGE_SEMANTIC_ID, 
+					LEAD_STAGE_SEMANTIC, 
 					(	FILE_SIZE +
 						ACTIVITY_COUNT * {$avgActivityTableRowLength} + 
 						BINDINGS_COUNT * {$avgBindingTableRowLength} ) as ACTIVITY_SIZE,
@@ -569,7 +569,7 @@ class Lead extends Crm\Volume\Base implements Crm\Volume\IVolumeClear, Crm\Volum
 					'INDICATOR_TYPE' => 'INDICATOR_TYPE',
 					'OWNER_ID' => 'OWNER_ID',
 					'DATE_CREATE' => 'DATE_CREATE',
-					'STAGE_SEMANTIC_ID' => 'LEAD_STAGE_SEMANTIC_ID',
+					'STAGE_SEMANTIC_ID' => 'LEAD_STAGE_SEMANTIC',
 				)
 			);
 		}

@@ -151,7 +151,7 @@ class CSocServBitrix24Net extends CSocServAuth
 					$arFields = array(
 						'EXTERNAL_AUTH_ID' => self::ID,
 						'XML_ID' => $arB24NetUser["ID"],
-						'LOGIN' => "B24_".$arB24NetUser["ID"],
+						'LOGIN' => isset($arB24NetUser['LOGIN']) ? $arB24NetUser['LOGIN'] : "B24_".$arB24NetUser["ID"],
 						'NAME' => $arB24NetUser["NAME"],
 						'LAST_NAME' => $arB24NetUser["LAST_NAME"],
 						'EMAIL' => $arB24NetUser["EMAIL"],

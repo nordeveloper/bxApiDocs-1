@@ -26,6 +26,12 @@ class PublicAction
 	protected static $restApp = null;
 
 	/**
+	 * Raw data from waf.
+	 * @var mixed
+	 */
+	protected static $rawData = null;
+
+	/**
 	 * Get full namespace for public classes.
 	 * @return string
 	 */
@@ -201,6 +207,15 @@ class PublicAction
 	}
 
 	/**
+	 * Get raw data of curring processing.
+	 * @return mixed
+	 */
+	public static function getRawData()
+	{
+		return self::$rawData;
+	}
+
+	/**
 	 * Listen commands from ajax.
 	 * @return array|null
 	 * @throws \ReflectionException
@@ -210,6 +225,7 @@ class PublicAction
 		$context = \Bitrix\Main\Application::getInstance()->getContext();
 		$request = $context->getRequest();
 		$files = $request->getFileList();
+		$postlist = $context->getRequest()->getPostList();
 
 		// multiple commands
 		if (
@@ -242,6 +258,11 @@ class PublicAction
 							$batchItem['data'][$code] = $file;
 						}
 					}
+					$rawData = $postlist->getRaw('batch');
+					if (isset($rawData[$key]['data']))
+					{
+						self::$rawData = $rawData[$key]['data'];
+					}
 					$result[$key] = self::actionProcessing(
 						$batchItem['action'],
 						$batchItem['data']
@@ -270,6 +291,11 @@ class PublicAction
 				{
 					$data[$code] = $file;
 				}
+			}
+			$rawData = $postlist->getRaw('data');
+			if (isset($rawData['data']))
+			{
+				self::$rawData = $rawData['data'];
 			}
 			return self::actionProcessing(
 				$request->get('action'),

@@ -22,7 +22,7 @@ class LiveChat
 	public function __construct($config)
 	{
 		$this->config = $config;
-		$this->error = new Error(null, '', '');
+		$this->error = new BasicError(null, '', '');
 	}
 
 	public function openSession()
@@ -266,8 +266,8 @@ class LiveChat
 		}
 		else
 		{
-			$userName = '';
-			$userLastName = self::getDefaultGuestName();
+			$userName = self::getDefaultGuestName();
+			$userLastName = '';
 		}
 		$userEmail = isset($this->temporary['USER_EMAIL'])? $this->temporary['USER_EMAIL']: '';
 		$userWebsite = isset($this->temporary['USER_PERSONAL_WWW'])? $this->temporary['USER_PERSONAL_WWW']: '';

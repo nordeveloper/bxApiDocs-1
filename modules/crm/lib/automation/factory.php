@@ -5,6 +5,7 @@ use Bitrix\Bitrix24\Feature;
 use Bitrix\Bizproc;
 use Bitrix\Crm\Automation\Target;
 use Bitrix\Crm\Automation\Trigger\BaseTrigger;
+use Bitrix\Main\Error;
 use Bitrix\Main\Loader;
 use Bitrix\Main\NotSupportedException;
 use Bitrix\Crm\Settings\LeadSettings;
@@ -26,6 +27,7 @@ class Factory
 	private static $targets = [];
 
 	private static $newActivities = [];
+	private static $conversionResults = [];
 
 	public static function isAutomationAvailable($entityTypeId, $ignoreLicense = false)
 	{
@@ -80,33 +82,53 @@ class Factory
 
 	public static function runOnAdd($entityTypeId, $entityId)
 	{
-		//We need to ignore license restrictions in Simple CRM mode for Leads
-		$ignoreLicense = false;
 		if ($entityTypeId === \CCrmOwnerType::Lead && !LeadSettings::isEnabled())
 		{
-			$ignoreLicense = true;
+			return self::runLeadFreeScenario($entityId);
 		}
 
-		if (empty($entityId) || !static::isAutomationAvailable($entityTypeId, $ignoreLicense))
-			return;
+		$result = new Result();
+
+		if (empty($entityId) || !static::isAutomationAvailable($entityTypeId))
+		{
+			$result->addError(new Error('not available'));
+			return $result;
+		}
 
 		$automationTarget = static::getTarget($entityTypeId, $entityId);
 		$automationTarget->getRuntime()->onDocumentAdd();
+
+		if ($conversionResult = self::shiftConversionResult($entityTypeId, $entityId))
+		{
+			$result->setConversionResult($conversionResult);
+		}
+
+		return $result;
 	}
 
 	public static function runOnStatusChanged($entityTypeId, $entityId)
 	{
+		$result = new Result();
+
 		if (empty($entityId) || !static::isAutomationAvailable($entityTypeId))
-			return;
+		{
+			$result->addError(new Error('not available'));
+			return $result;
+		}
 
 		static::doAutocompleteActivities($entityTypeId, $entityId);
 
 		$automationTarget = static::getTarget($entityTypeId, $entityId);
-
 		//refresh target entity fields
 		$automationTarget->setEntityById($entityId);
-
 		$automationTarget->getRuntime()->onDocumentStatusChanged();
+
+		if ($conversionResult = self::shiftConversionResult($entityTypeId, $entityId))
+		{
+			$result->setConversionResult($conversionResult);
+		}
+
+		return $result;
 	}
 
 	/**
@@ -278,6 +300,26 @@ class Factory
 		static::$newActivities[$id] = true;
 	}
 
+	public static function registerConversionResult($entityTypeId, $entityId, Converter\Result $result)
+	{
+		$key = $entityTypeId.'_'.$entityId;
+		self::$conversionResults[$key] = $result;
+	}
+
+	/**
+	 * @param int $entityTypeId
+	 * @param int $entityId
+	 * @return Converter\Result|null
+	 */
+	private static function shiftConversionResult($entityTypeId, $entityId)
+	{
+		$key = $entityTypeId.'_'.$entityId;
+		$result = isset(self::$conversionResults[$key]) ? self::$conversionResults[$key] : null;
+		unset(self::$conversionResults[$key]);
+
+		return $result;
+	}
+
 	private static function doAutocompleteActivities($entityTypeId, $entityId)
 	{
 		$result = ActivityTable::getList(array(
@@ -303,4 +345,30 @@ class Factory
 			}
 		}
 	}
+
+	private static function runLeadFreeScenario($entityId)
+	{
+		$result = new Result();
+
+		$converter = Converter\Factory::create(\CCrmOwnerType::Lead, $entityId);
+		$config = LeadSettings::getCurrent()->getFreeModeConverterConfig();
+
+		if (!$config['completeActivities'])
+		{
+			$converter->enableActivityCompletion(false);
+		}
+
+		$itemOptions = ['categoryId' => $config['dealCategoryId'] ?: 0];
+		$items = $config['items'] ? $config['items'] : [\CCrmOwnerType::Deal, \CCrmOwnerType::Contact];
+
+		foreach ($items as $itemTypeId)
+		{
+			$converter->setTargetItem($itemTypeId, $itemOptions);
+		}
+
+		$result->setConversionResult($converter->execute());
+
+		return $result;
+	}
+
 }

@@ -91,18 +91,6 @@ class CallTable extends Model\Base
 				'values' => array('N', 'Y'),
 				'title' => '',
 			),
-			'CRM_LEAD' => array(
-				'data_type' => 'integer',
-				'title' => '',
-			),
-			'CRM_ENTITY_TYPE' => array(
-				'data_type' => 'string',
-				'title' => '',
-			),
-			'CRM_ENTITY_ID' => array(
-				'data_type' => 'integer',
-				'title' => '',
-			),
 			'CRM_ACTIVITY_ID' => array(
 				'data_type' => 'integer',
 				'title' => '',

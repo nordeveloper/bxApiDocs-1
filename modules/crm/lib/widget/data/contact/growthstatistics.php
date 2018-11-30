@@ -119,6 +119,7 @@ class GrowthStatistics extends DataSource
 				$cntResponsibleValue[$cntRow['RESPONSIBLE_ID']] = $cntRow[$name];
 			}
 		}
+		$totalCountBeforePeriod = $cntValue;
 
 		$sort = isset($params['sort']) && is_array($params['sort']) && !empty($params['sort']) ? $params['sort'] : null;
 		if($sort)
@@ -170,6 +171,52 @@ class GrowthStatistics extends DataSource
 				$cntValue = $ary[$name];
 				$result[$date] = $ary;
 			}
+
+			if ($periodStartDate && $periodEndDate)
+			{
+				try
+				{
+					$valuesWholePeriod = array();
+					$currentCount = $totalCountBeforePeriod;
+
+					if (is_string($periodStartDate))
+					{
+						$periodStartDate = \DateTime::createFromFormat(FORMAT_DATE, $periodStartDate)->getTimestamp();
+						$periodStartDate = date('Y-m-d', $periodStartDate);
+					}
+					if (is_string($periodEndDate))
+					{
+						$periodEndDate = \DateTime::createFromFormat(FORMAT_DATE, $periodEndDate)->getTimestamp();
+						$periodEndDate = date('Y-m-d', $periodEndDate);
+					}
+
+					$startDate = new \DateTime($periodStartDate);
+					$endDate = new \DateTime($periodEndDate);
+					while ($startDate <= $endDate)
+					{
+						$date = $startDate->format('Y-m-d');
+						if (array_key_exists($date, $result))
+						{
+							$valuesWholePeriod[$date] = $result[$date];
+							$currentCount = $result[$date]['TOTAL_COUNT'];
+						}
+						else
+						{
+							$valuesWholePeriod[$date] = array(
+								'TOTAL_COUNT' => $currentCount,
+								'DATE' => $date
+							);
+						}
+						$startDate->add(new \DateInterval('P1D'));
+					}
+					if ($valuesWholePeriod)
+					{
+						$result = $valuesWholePeriod;
+					}
+				}
+				catch (\Exception $e) {}
+			}
+
 			$result = array_values($result);
 		}
 		elseif($group === self::GROUP_BY_USER)

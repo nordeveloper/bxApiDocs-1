@@ -1412,7 +1412,8 @@ $licensePrefix = CModule::IncludeModule("bitrix24") ? \CBitrix24::getLicensePref
 		<script type="text/javascript">
 			BX.message({
 				BX24_INVITE_DIALOG_CONTINUE_INVITE_BUTTON: "<?=GetMessageJS("BX24_INVITE_DIALOG_CONTINUE_INVITE_BUTTON")?>",
-				BX24_INVITE_DIALOG_CONTINUE_ADD_BUTTON: "<?=GetMessageJS("BX24_INVITE_DIALOG_CONTINUE_ADD_BUTTON")?>"
+				BX24_INVITE_DIALOG_CONTINUE_ADD_BUTTON: "<?=GetMessageJS("BX24_INVITE_DIALOG_CONTINUE_ADD_BUTTON")?>",
+				BX24_INVITE_DIALOG_COPY_URL: "<?=GetMessageJS("BX24_INVITE_DIALOG_COPY_URL")?>"
 			});
 
 			var inviteDialogInviteStructureLink = BX("invite-dialog-invite-structure-link");

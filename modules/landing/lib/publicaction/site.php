@@ -245,22 +245,25 @@ class Site
 		if ($res->isSuccess())
 		{
 			$result->setResult($res->getId());
-			// public all pages
-			if ($mark)
+			// work with pages
+			$res = Landing::getList(array(
+				'select' => array(
+					'ID'
+				),
+				'filter' => array(
+					'SITE_ID' => $id
+				)
+			));
+			while ($row = $res->fetch())
 			{
-				$res = Landing::getList(array(
-					'select' => array(
-						'ID'
-					),
-					'filter' => array(
-						'SITE_ID' => $id,
-						'=ACTIVE' => 'N'
-					)
-				));
-				while ($row = $res->fetch())
+				$landing = Landing::createInstance($row['ID']);
+				if ($mark)
 				{
-					$lansding = Landing::createInstance($row['ID']);
-					$lansding->publication();
+					$landing->publication();
+				}
+				else
+				{
+					$landing->unpublic();
 				}
 			}
 		}

@@ -334,7 +334,7 @@ class Quote extends Crm\Volume\Base implements  Crm\Volume\IVolumeClear, Crm\Vol
 
 	/**
 	 * Registers runtime field STAGE_SEMANTIC_ID.
-	 * @param Entity\Query $query Query to append.
+	 * @param Entity\Query|Main\ORM\Query\Query $query Query to append.
 	 * @param string $sourceAlias Source table alias.
 	 * @param string $fieldAlias Field alias.
 	 * @return void
@@ -740,7 +740,7 @@ class Quote extends Crm\Volume\Base implements  Crm\Volume\IVolumeClear, Crm\Vol
 
 		$querySql = $this->prepareActivityQuery(array(
 			'DATE_CREATE' => 'QUOTE.DATE_CREATE_SHORT',
-			'QUOTE_STAGE_SEMANTIC_ID' => 'QUOTE_STAGE_SEMANTIC_ID',
+			'QUOTE_STAGE_SEMANTIC' => 'QUOTE_STAGE_SEMANTIC_ID',
 		));
 
 		if ($querySql != '')
@@ -753,7 +753,7 @@ class Quote extends Crm\Volume\Base implements  Crm\Volume\IVolumeClear, Crm\Vol
 					'".static::getIndicatorId()."' as INDICATOR_TYPE,
 					'".$this->getOwner()."' as OWNER_ID,
 					DATE_CREATE,
-					QUOTE_STAGE_SEMANTIC_ID, 
+					QUOTE_STAGE_SEMANTIC, 
 					(	FILE_SIZE +
 						ACTIVITY_COUNT * {$avgActivityTableRowLength} + 
 						BINDINGS_COUNT * {$avgBindingTableRowLength} ) as ACTIVITY_SIZE,
@@ -774,7 +774,7 @@ class Quote extends Crm\Volume\Base implements  Crm\Volume\IVolumeClear, Crm\Vol
 					'INDICATOR_TYPE' => 'INDICATOR_TYPE',
 					'OWNER_ID' => 'OWNER_ID',
 					'DATE_CREATE' => 'DATE_CREATE',
-					'STAGE_SEMANTIC_ID' => 'QUOTE_STAGE_SEMANTIC_ID',
+					'STAGE_SEMANTIC_ID' => 'QUOTE_STAGE_SEMANTIC',
 				)
 			);
 		}

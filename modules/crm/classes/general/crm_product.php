@@ -590,6 +590,10 @@ class CCrmProduct
 			unset($arFilter['~REAL_PRICE']);
 		}
 
+		if (isset($arFilter['INCLUDE_SUBSECTIONS']) && $arFilter['INCLUDE_SUBSECTIONS'] === 'Y')
+		{
+			$arFilterRewrited['INCLUDE_SUBSECTIONS'] = 'Y';
+		}
 		foreach ($arProductFields as $fieldProduct => $fieldIblock)
 		{
 			foreach($arFilter as $k => $v)
@@ -1091,6 +1095,12 @@ class CCrmProduct
 			'MEASURE' => false,
 			'XML_ID' => 'XML_ID'
 		);
+	}
+
+	public static function GetFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_PRODUCT_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
 	}
 
 	// Get Fields Metadata

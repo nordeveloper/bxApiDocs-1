@@ -2615,6 +2615,12 @@ function ImgShw(ID, width, height, alt)
 
 	public static function ViewByUser($arFile, $arOptions = array())
 	{
+		$previewManager = new Viewer\PreviewManager();
+		if ($previewManager->isInternalRequest($arFile, $arOptions))
+		{
+			$previewManager->processViewByUserRequest($arFile, $arOptions);
+		}
+
 		/** @global CMain $APPLICATION */
 		global $APPLICATION;
 

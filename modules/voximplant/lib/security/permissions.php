@@ -149,10 +149,10 @@ class Permissions
 					self::PERMISSION_DEPARTMENT,
 					self::PERMISSION_ANY
 				),
-				self::ACTION_MODIFY => array(
+				/*self::ACTION_MODIFY => array(
 					self::PERMISSION_NONE,
 					self::PERMISSION_ANY
-				)
+				)*/
 			),
 			self::ENTITY_CALL_RECORD => array(
 				self::ACTION_LISTEN => array(

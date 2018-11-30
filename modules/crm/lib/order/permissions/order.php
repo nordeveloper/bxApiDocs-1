@@ -17,8 +17,6 @@ class Order
 	 */
 	public static function checkConvertPermission($id = 0, $entityTypeId = 0, $userPermissions = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
-
 		if(!$userPermissions)
 		{
 			$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
@@ -43,7 +41,6 @@ class Order
 	 */
 	public static function checkImportPermission($userPermissions = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
 		return \CCrmAuthorizationHelper::CheckImportPermission(self::$TYPE_NAME, $userPermissions);
 	}
 
@@ -53,7 +50,6 @@ class Order
 	 */
 	public static function checkCreatePermission($userPermissions = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
 		return \CCrmAuthorizationHelper::CheckCreatePermission(self::$TYPE_NAME, $userPermissions);
 	}
 
@@ -66,7 +62,6 @@ class Order
 	 */
 	public static function checkUpdatePermission($id, $userPermissions = null, array $options = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
 		$entityAttrs = $id > 0 && is_array($options) && isset($options['ENTITY_ATTRS']) ? $options['ENTITY_ATTRS'] : null;
 		return \CCrmAuthorizationHelper::CheckUpdatePermission(self::$TYPE_NAME, $id, $userPermissions, $entityAttrs);
 	}
@@ -79,7 +74,6 @@ class Order
 	 */
 	public static function checkStatusPermission($statusID, $permissionTypeID, \CCrmPerms $userPermissions = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
 		if($userPermissions === null)
 		{
 			$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
@@ -99,7 +93,6 @@ class Order
 	 */
 	public static function checkReadPermission($id = 0, $userPermissions = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
 		return \CCrmAuthorizationHelper::CheckReadPermission(self::$TYPE_NAME, $id, $userPermissions);
 	}
 
@@ -112,7 +105,6 @@ class Order
 	 */
 	public static function checkDeletePermission($id, $userPermissions = null, array $options = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
 		$entityAttrs = $id > 0 && is_array($options) && isset($options['ENTITY_ATTRS']) ? $options['ENTITY_ATTRS'] : null;
 		return \CCrmAuthorizationHelper::CheckDeletePermission(self::$TYPE_NAME, $id, $userPermissions, $entityAttrs);
 	}
@@ -154,7 +146,6 @@ class Order
 	 */
 	public static function checkExportPermission($userPermissions = null)
 	{
-		return \CCrmSaleHelper::isShopAccess();
 		return \CCrmAuthorizationHelper::CheckExportPermission(self::$TYPE_NAME, $userPermissions);
 	}
 
@@ -201,5 +192,33 @@ class Order
 	public static function getPermissionAttributes(array $ids)
 	{
 		return \CCrmPerms::GetEntityAttr(self::$TYPE_NAME, $ids);
+	}
+
+	public static function copyPermsFromInvoices()
+	{
+		//Copy perms from invoices to orders
+		$CCrmRole = new \CCrmRole();
+		$dbRoles = $CCrmRole->GetList();
+
+		while($arRole = $dbRoles->Fetch())
+		{
+			$arPerms = $CCrmRole->GetRolePerms($arRole['ID']);
+
+			if(!isset($arPerms['ORDER']) && is_array($arPerms['INVOICE']))
+			{
+				foreach ($arPerms['INVOICE'] as $key => $value)
+				{
+					if(isset($value['-']) && $value['-'] != 'O')
+						$arPerms['ORDER'][$key]['-'] = $value['-'];
+					else
+						$arPerms['ORDER'][$key]['-'] = 'X';
+				}
+			}
+
+			$arFields = array('RELATION' => $arPerms);
+			$CCrmRole->Update($arRole['ID'], $arFields);
+		}
+
+		return '';
 	}
 }

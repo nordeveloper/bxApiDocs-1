@@ -25,7 +25,7 @@ class Helper
 
 		global $pPERIOD;
 
-		$pPERIOD = $mailbox['SYNC_LOCK'] < 0 ? 3600 * 24 : ($result > 0 ? 60 : 600);
+		$pPERIOD = $mailbox['SYNC_LOCK'] < 0 ? $pPERIOD : min($result > 0 ? 60 : 600, $pPERIOD);
 
 		return sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $id);
 	}
@@ -37,6 +37,21 @@ class Helper
 		$result = empty($mailboxHelper) ? false : $mailboxHelper->syncOutgoing();
 
 		return '';
+	}
+
+	public static function resortTreeAgent($id)
+	{
+		return '';
+		$mailboxHelper = Helper\Mailbox::createInstance($id, false);
+
+		$result = empty($mailboxHelper) ? false : $mailboxHelper->resortTree();
+
+		return '';
+	}
+
+	public static function deleteMailboxAgent($id)
+	{
+		return \CMailbox::delete($id) ? '' : sprintf('Bitrix\Mail\Helper::deleteMailboxAgent(%u);', $id);
 	}
 
 	public static function resyncDomainUsersAgent()

@@ -411,6 +411,12 @@ class CAllCrmProductRow
 		return self::$FIELD_INFOS;
 	}
 
+	public static function GetFieldCaption($fieldName)
+	{
+		$result = GetMessage("CRM_PRODUCT_ROW_FIELD_{$fieldName}");
+		return is_string($result) ? $result : '';
+	}
+
 	protected static function GetFields()
 	{
 		return array(

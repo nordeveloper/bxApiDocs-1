@@ -173,8 +173,6 @@ class DealConverter extends EntityConverter
 				return false;
 			}
 
-			/** @var \CCrmPerms $permissions */
-			$permissions = $this->getUserPermissions();
 			$entityID = isset($this->contextData[$entityTypeName]) ? $this->contextData[$entityTypeName] : 0;
 
 			if($entityID > 0)
@@ -223,7 +221,7 @@ class DealConverter extends EntityConverter
 				return true;
 			}
 
-			if(!\CCrmAuthorizationHelper::CheckCreatePermission($entityTypeName , $permissions))
+			if(!self::checkCreatePermission($entityTypeName , $config))
 			{
 				throw new EntityConversionException(
 					\CCrmOwnerType::Deal,

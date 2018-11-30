@@ -319,58 +319,6 @@ class ContactCompanyCollection extends Sale\Internals\EntityCollection
 	}
 
 	/**
-	 * @return ContactCompanyEntity|null
-	 * @throws Main\ArgumentException
-	 * @throws Main\ObjectPropertyException
-	 * @throws Main\SystemException
-	 */
-	public function getPrimaryItemAppropriatedPersonType()
-	{
-		$domain = $this->getPersonTypeDomain();
-		if ($domain !== null)
-		{
-			if ($domain === Sale\BusinessValue::INDIVIDUAL_DOMAIN)
-			{
-				return $this->getPrimaryContact();
-			}
-			elseif ($domain === Sale\BusinessValue::ENTITY_DOMAIN)
-			{
-				return $this->getPrimaryCompany();
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * @return null
-	 * @throws Main\ArgumentException
-	 * @throws Main\ObjectPropertyException
-	 * @throws Main\SystemException
-	 */
-	private function getPersonTypeDomain()
-	{
-		/** @var Order $order */
-		$order = $this->getOrder();
-		if ($order)
-		{
-			$dbRes = Sale\Internals\BusinessValuePersonDomainTable::getList([
-				'select' => ['DOMAIN'],
-				'filter' => [
-					'=PERSON_TYPE_ID' => $order->getPersonTypeId()
-				]
-			]);
-
-			if ($data = $dbRes->fetch())
-			{
-				return $data['DOMAIN'];
-			}
-		}
-
-		return null;
-	}
-
-	/**
 	 * @internal
 	 *
 	 * @param $idOrder

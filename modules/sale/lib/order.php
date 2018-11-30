@@ -65,6 +65,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
+	 * Return printed check list
+	 *
 	 * @return array
 	 */
 	public function getPrintedChecks()
@@ -73,6 +75,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
+	 * Add printed check to order
+	 *
 	 * @param $check
 	 */
 	public function addPrintedCheck($check)
@@ -580,7 +584,9 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	/**
 	 * @param BasketBase $basket
 	 * @return Result
+	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
@@ -639,7 +645,9 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	/**
 	 * @param BasketBase $basket
 	 * @return Result
+	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
@@ -696,7 +704,11 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
+	 * Return shipment collection
+	 *
 	 * @return ShipmentCollection
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
 	 */
 	public function getShipmentCollection()
 	{
@@ -709,6 +721,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
+	 * Return trade binding collection
+	 *
 	 * @return TradeBindingCollection
 	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentTypeException
@@ -725,6 +739,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
+	 * Return payment collection
+	 *
 	 * @return PaymentCollection
 	 */
 	public function getPaymentCollection()
@@ -737,6 +753,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
+	 * Load shipment collection
+	 *
 	 * @return ShipmentCollection
 	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
@@ -751,6 +769,8 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
+	 * Load payment collection
+	 *
 	 * @return PaymentCollection
 	 * @throws Main\ArgumentException
 	 */
@@ -769,7 +789,7 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	 * @throws Main\ArgumentTypeException
 	 * @throws Main\SystemException
 	 */
-	public function loadTradeBindingCollection()
+	protected function loadTradeBindingCollection()
 	{
 		$registry = Registry::getInstance(static::getRegistryType());
 
@@ -1680,7 +1700,7 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
-	public function refreshInternal()
+	protected function refreshInternal()
 	{
 		$result = parent::refreshInternal();
 		if (!$result->isSuccess())
@@ -1811,9 +1831,9 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	}
 
 	/**
-	 * Return is order locked.
+	 * Return TRUE if order is locked.
 	 *
-	 * @param int $id			Order id.
+	 * @param int $id
 	 * @return bool
 	 */
 	public static function isLocked($id)
@@ -2029,6 +2049,11 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 		if ($shipmentCollection = $this->getShipmentCollection())
 		{
 			$shipmentCollection->clearChanged();
+		}
+
+		if ($tradeCollection = $this->getTradeBindingCollection())
+		{
+			$tradeCollection->clearChanged();
 		}
 	}
 

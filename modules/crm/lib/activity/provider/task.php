@@ -4,6 +4,7 @@ namespace Bitrix\Crm\Activity\Provider;
 use Bitrix\Main;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Crm;
 use Bitrix\Crm\Activity;
 use Bitrix\Crm\Integration;
 
@@ -220,15 +221,12 @@ class Task extends Activity\Provider\Base
 			)
 		);
 
-		// Does not works on MSSQL
-		//if($dbEntities->selectedRowsCount() > 0)
-
 		$isFound = false;
 		while($activity = $listIterator->fetch())
 		{
 			$isFound = true;
 			self::setFromTask($taskId, $task, $activity);
-			// Update activity if bindings are found overwise delete unbound activity
+			// Update activity if bindings are found otherwise delete unbound activity
 			if(isset($activity['BINDINGS']) && count($activity['BINDINGS']) > 0)
 			{
 				$activity['COMMUNICATIONS'] = self::prepareCommunications($activity);
@@ -476,16 +474,24 @@ class Task extends Activity\Provider\Base
 		}
 
 		$activity['BINDINGS'] = array();
-
 		if(\CCrmActivity::tryResolveUserFieldOwners($taskOwners, $ownerData, \CCrmUserType::getTaskBindingField()))
 		{
+			$bindingMap = array();
 			foreach($ownerData as $ownerInfo)
 			{
-				$activity['BINDINGS'][] = array(
-					'OWNER_TYPE_ID' => \CCrmOwnerType::resolveID($ownerInfo['OWNER_TYPE_NAME']),
-					'OWNER_ID' => (int)$ownerInfo['OWNER_ID']
+				$ownerTypeId = \CCrmOwnerType::resolveID($ownerInfo['OWNER_TYPE_NAME']);
+				$ownerId = (int)$ownerInfo['OWNER_ID'];
+
+				$bindingMap["{$ownerTypeId}_{$ownerId}"] = array(
+					'OWNER_TYPE_ID' => $ownerTypeId,
+					'OWNER_ID' => $ownerId
+				);
+				$bindingMap = array_merge(
+					$bindingMap,
+					\CCrmActivity::getSubsidiaryEntityBindingMap($ownerTypeId, $ownerId)
 				);
 			}
+			$activity['BINDINGS'] = array_values($bindingMap);
 		}
 
 		if(!empty($activity['BINDINGS']))
@@ -509,6 +515,8 @@ class Task extends Activity\Provider\Base
 				$activity['OWNER_TYPE_ID'] = $binding['OWNER_TYPE_ID'];
 				$activity['OWNER_ID'] = $binding['OWNER_ID'];
 			}
+
+
 		}
 	}
 

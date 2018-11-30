@@ -23,7 +23,7 @@ class LineAccessTable extends Entity\DataManager
 		return array(
 			new Entity\IntegerField('ID', array(
 				'primary' => true,
-				'auto_complete' => true
+				'autocomplete' => true
 			)),
 			new Entity\StringField('LINE_SEARCH_ID'),
 			new Entity\StringField('ACCESS_CODE'),

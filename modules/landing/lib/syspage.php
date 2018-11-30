@@ -69,15 +69,36 @@ class Syspage
 	/**
 	 * Get pages for site.
 	 * @param integer $id Site id.
+	 * @param bool $active Only active items.
 	 * @return array
 	 */
-	public static function get($id)
+	public static function get($id, $active = false)
 	{
 		static $types = array();
 
+		// check items for un active elements
+		$removeHidden = function(array $items) use($active)
+		{
+			if (!$active)
+			{
+				return $items;
+			}
+			foreach ($items as $k => $item)
+			{
+				if (
+					$item['DELETED'] == 'Y' ||
+					$item['ACTIVE'] == 'N'
+				)
+				{
+					unset($items[$k]);
+				}
+			}
+			return $items;
+		};
+
 		if (isset($types[$id]))
 		{
-			return $types[$id];
+			return $removeHidden($types[$id]);
 		}
 
 		$types[$id] = array();
@@ -86,7 +107,9 @@ class Syspage
 			'select' => array(
 				'TYPE',
 				'LANDING_ID',
-				'TITLE' => 'LANDING.TITLE'
+				'TITLE' => 'LANDING.TITLE',
+				'DELETED' => 'LANDING.DELETED',
+				'ACTIVE' => 'LANDING.ACTIVE'
 			),
 			'filter' => array(
 				'SITE_ID' => $id
@@ -104,7 +127,7 @@ class Syspage
 			$types[$id][$row['TYPE']] = $row;
 		}
 
-		return $types[$id];
+		return $removeHidden($types[$id]);
 	}
 
 	/**

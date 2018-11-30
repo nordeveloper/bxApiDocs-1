@@ -33,7 +33,7 @@ class Queue
 	 */
 	public function __construct($session, $config, $chat)
 	{
-		$this->error = new Error(null, '', '');
+		$this->error = new BasicError(null, '', '');
 		$this->session = $session;
 		$this->config = $config;
 		$this->chat = $chat;
@@ -340,7 +340,7 @@ class Queue
 	/**
 	 * This operator online?
 	 *
-	 * @param $id The user ID of the operator
+	 * @param $id The user ID of the operator.
 	 * @return bool
 	 */
 	public static function isOperatorOnline($id)

@@ -130,14 +130,14 @@ class Invoice extends ProductsDataProvider implements Nameable
 	/**
 	 * @return int|array
 	 */
-	public function getMyCompanyId()
+	public function getMyCompanyId($defaultMyCompanyId = null)
 	{
 		if(isset($this->data['UF_MYCOMPANY_ID']) && $this->data['UF_MYCOMPANY_ID'] > 0)
 		{
-			return $this->data['UF_MYCOMPANY_ID'];
+			$defaultMyCompanyId = $this->data['UF_MYCOMPANY_ID'];
 		}
 
-		return null;
+		return parent::getMyCompanyId($defaultMyCompanyId);
 	}
 
 	/**

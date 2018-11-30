@@ -18,7 +18,7 @@ class QueueManager
 
 	public function __construct($id, $config = array())
 	{
-		$this->error = new Error(null, '', '');
+		$this->error = new BasicError(null, '', '');
 		$this->id = intval($id);
 		$this->config = $config;
 		Loader::includeModule("im");

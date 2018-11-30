@@ -58,6 +58,11 @@ class IvrAction extends Node
 				$this->setNext(new Hangup(404, 'Could not find user with extension number '.$call->getGatheredDigits()));
 			}
 		}
+		else if ($action['ACTION'] === \Bitrix\Voximplant\Ivr\Action::ACTION_VOICEMAIL)
+		{
+			$voiceMailNode = new Voicemail($action['PARAMETERS']['USER_ID']);
+			$this->setNext($voiceMailNode);
+		}
 		
 		return false;
 	}

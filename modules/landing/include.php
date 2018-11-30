@@ -165,7 +165,9 @@ $jsConfig = array(
 			$pathJS . '/mediaservice/facebook_video_embed_service.js',
 			$pathJS . '/mediaservice/service_factory.js',
 			$pathJS . '/error_manager.js',
-			$pathJS . '/external/webfontloader/webfontloader.js'
+			$pathJS . '/external/webfontloader/webfontloader.js',
+			$pathJS . '/external/image-compressor/image-compressor.js',
+			$pathJS . '/compressor/compressor.js',
 		),
 		'css' => array(
 			$pathCSS . '/landing_master.css',

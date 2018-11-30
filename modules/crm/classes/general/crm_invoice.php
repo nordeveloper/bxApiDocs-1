@@ -906,6 +906,10 @@ class CAllCrmInvoice
 			$orderStatus = $arFields['STATUS_ID'];
 			unset($arFields['STATUS_ID']);
 		}
+		else
+		{
+			$arFields['STATUS_ID'] = self::GetDefaultStatusId();
+		}
 
 		// prepare entity permissions
 		$arAttr = array();
@@ -1640,7 +1644,7 @@ class CAllCrmInvoice
 				Bitrix\Crm\Statistics\DealInvoiceStatisticEntry::register($oldDealID);
 			}
 
-			if(isset($options['UPDATE_SEARCH']) && $options['UPDATE_SEARCH'] === true)
+			if(!isset($options['UPDATE_SEARCH']) ||  $options['UPDATE_SEARCH'] === true)
 			{
 				$arFilterTmp = Array('ID' => $orderID);
 				if (!$this->bCheckPermission)
@@ -3557,14 +3561,13 @@ class CAllCrmInvoice
 
 		// person type
 		$companyPTID  = 0;
-		$dbPerson = CSalePersonType::GetList(
-			array(),
-			array(
-				"LID" => $currentSiteID,
-				"CODE" => array('CRM_COMPANY')
-			)
-		);
-		while($arPerson = $dbPerson->Fetch())
+		$dbPerson = \Bitrix\Crm\Invoice\PersonType::getList([
+			'filter' => [
+				"=PERSON_TYPE_SITE.SITE_ID" => $currentSiteID,
+				"=CODE" => 'CRM_COMPANY'
+			]
+		]);
+		while($arPerson = $dbPerson->fetch())
 		{
 			if($arPerson["CODE"] == 'CRM_COMPANY')
 				$companyPTID = (int)$arPerson["ID"];

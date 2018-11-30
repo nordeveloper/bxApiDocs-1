@@ -30,6 +30,8 @@ class LeadSettings
 	private $enableAutoUsingFinishedLead = null;
 	/** @var ArraySetting */
 	private $activityCompletionConfig = null;
+	/** @var ArraySetting */
+	private $freeModeConverterConfig = null;
 
 	function __construct()
 	{
@@ -45,6 +47,14 @@ class LeadSettings
 			$completionConfig[$providerInfo['ID']] = true;
 		}
 		$this->activityCompletionConfig = new ArraySetting('lead_act_completion_cfg', $completionConfig);
+		$this->freeModeConverterConfig = new ArraySetting(
+			'lead_free_mode_converter_cfg',
+			[
+				'items' => [\CCrmOwnerType::Deal, \CCrmOwnerType::Contact],
+				'dealCategoryId' => 0,
+				'completeActivities' => false
+			]
+		);
 	}
 	/**
 	 * Get current instance
@@ -138,6 +148,14 @@ class LeadSettings
 	{
 		$this->activityCompletionConfig->remove();
 	}
+	public function getFreeModeConverterConfig()
+	{
+		return $this->freeModeConverterConfig->get();
+	}
+	public function setFreeModeConverterConfig(array $config)
+	{
+		$this->freeModeConverterConfig->set($config);
+	}
 	/**
 	 * Get current list view ID
 	 * @return int
@@ -209,23 +227,19 @@ class LeadSettings
 		$enabled = (bool)$enabled;
 		if ($enabled)
 		{
-			$result = \Bitrix\Crm\Automation\Demo\Wizard::unInstallSimpleCRM();
-		}
-		else
-		{
-			$result = \Bitrix\Crm\Automation\Demo\Wizard::installSimpleCRM();
-		}
-		if ($result)
-		{
-			if ($enabled)
-			{
-				ConversionSettings::getCurrent()->enableAutocreation(true);
-			}
-
-			\Bitrix\Main\Config\Option::set('crm', 'crm_lead_enabled', $enabled ? "Y" : "N");
+			ConversionSettings::getCurrent()->enableAutocreation(true);
 		}
 
-		return $result;
+		\Bitrix\Main\Config\Option::set('crm', 'crm_lead_enabled', $enabled ? "Y" : "N");
+
+		//clear menu settings
+		\CUserOptions::DeleteOptionsByName("ui", "crm_control_panel_menu");
+		if (\Bitrix\Main\Loader::includeModule("intranet"))
+		{
+			\CIntranetUtils::clearMenuCache();
+		}
+
+		return true;
 	}
 	/**
 	 * Check if leads are enabled
@@ -239,7 +253,7 @@ class LeadSettings
 
 	public static function showCrmTypePopup()
 	{
-		\CJSCore::Init(array('popup'));
+		\CJSCore::Init(array('popup', 'sidepanel'));
 
 		$isCrmAdmin = "N";
 		$CrmPerms = \CCrmPerms::GetCurrentUserPermissions();
@@ -248,22 +262,38 @@ class LeadSettings
 			$isCrmAdmin = "Y";
 		}
 
-		$needRobotsNotify = \Bitrix\Crm\Automation\Factory::hasRobotsForStatus(\CCrmOwnerType::Lead, 'NEW');
+		$existActiveLeads = "N";
+
+		$dbRes = \CCrmLead::GetListEx(array('DATE_CREATE' => 'desc'), array("STATUS_SEMANTIC_ID" => \Bitrix\Crm\PhaseSemantics::PROCESS), false, array("nPageSize" => 1), array("ID"));
+		$dbRes->NavStart(1, false);
+		if ($dbRes->GetNext())
+		{
+			$existActiveLeads = "Y";
+		}
 
 		$arParams = array(
 			"ajaxPath" => "/bitrix/tools/crm_lead_mode.php",
-			"dealPath" => SITE_DIR."crm/deal/list/",
-			"leadPath" => SITE_DIR."crm/lead/list/",
+			"dealPath" => (\Bitrix\Crm\Settings\DealSettings::getCurrent()->getCurrentListViewID() == \Bitrix\Crm\Settings\DealSettings::VIEW_KANBAN)
+				? SITE_DIR."crm/deal/kanban/" : \CCrmOwnerType::GetListUrl(\CCrmOwnerType::Deal),
+			"leadPath" => (\Bitrix\Crm\Settings\LeadSettings::getCurrent()->getCurrentListViewID() == self::VIEW_KANBAN)
+				? SITE_DIR."crm/lead/kanban/" : \CCrmOwnerType::GetListUrl(\CCrmOwnerType::Lead),
 			"isAdmin" => $isCrmAdmin,
 			"isLeadEnabled" => self::isEnabled() ? "Y" : "N",
-			"needRobotsNotify" => $needRobotsNotify ? "Y" : "N",
+			"existActiveLeads" => $existActiveLeads,
 			"messages" => array(
 				"CRM_TYPE_TITLE" => GetMessage("CRM_TYPE_TITLE"),
 				"CRM_TYPE_SAVE" => GetMessage("CRM_TYPE_SAVE"),
 				"CRM_TYPE_CANCEL" => GetMessage("CRM_TYPE_CANCEL"),
 				"CRM_TYPE_TURN_ON" => GetMessage("CRM_TYPE_TURN_ON"),
-				"CRM_ROBOTS_TITLE" => GetMessage("CRM_ROBOTS_TITLE"),
-				"CRM_ROBOTS_TEXT" => GetMessage("CRM_ROBOTS_TEXT")
+				"CRM_LEAD_CONVERT_TITLE" => GetMessage("CRM_LEAD_CONVERT_TITLE"),
+				"CRM_LEAD_CONVERT_TEXT" => GetMessage("CRM_LEAD_CONVERT_TEXT"),
+				"CRM_TYPE_CONTINUE" => GetMessage("CRM_TYPE_CONTINUE"),
+				"CRM_LEAD_BATCH_CONVERSION_STATE" => GetMessage("CRM_LEAD_BATCH_CONVERSION_STATE"),
+				"CRM_LEAD_BATCH_CONVERSION_TITLE" => GetMessage("CRM_LEAD_BATCH_CONVERSION_TITLE"),
+				"CRM_LEAD_BATCH_CONVERSION_COMPLETED" => GetMessage("CRM_LEAD_BATCH_CONVERSION_COMPLETED"),
+				"CRM_LEAD_BATCH_CONVERSION_COUNT_SUCCEEDED" => GetMessage("CRM_LEAD_BATCH_CONVERSION_COUNT_SUCCEEDED"),
+				"CRM_LEAD_BATCH_CONVERSION_COUNT_FAILED" => GetMessage("CRM_LEAD_BATCH_CONVERSION_COUNT_FAILED"),
+				"CRM_LEAD_BATCH_CONVERSION_NO_NAME" => GetMessage("CRM_LEAD_BATCH_CONVERSION_NO_NAME")
 			)
 		);
 

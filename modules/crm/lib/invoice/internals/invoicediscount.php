@@ -304,49 +304,6 @@ class InvoiceDiscountTable extends Main\Entity\DataManager
 	}
 
 	/**
-	 * Return discount modules list.
-	 * @deprecated
-	 *
-	 * @param array $discount			Discount data.
-	 * @return array
-	 */
-	public static function getDiscountModules($discount)
-	{
-		$result = array();
-		$needDiscountModules = array();
-		if (!empty($discount['MODULES']))
-		{
-			$needDiscountModules = (
-				!is_array($discount['MODULES'])
-				? array($discount['MODULES'])
-				: $discount['MODULES']
-			);
-		}
-		elseif (!empty($discount['HANDLERS']))
-		{
-			if (!empty($discount['HANDLERS']['MODULES']))
-			{
-				$needDiscountModules = (
-					!is_array($discount['HANDLERS']['MODULES'])
-					? array($discount['HANDLERS']['MODULES'])
-					: $discount['HANDLERS']['MODULES']
-				);
-			}
-		}
-		if (!empty($needDiscountModules))
-		{
-			foreach ($needDiscountModules as &$module)
-			{
-				$module = trim((string)$module);
-				if (!empty($module))
-					$result[] = $module;
-			}
-			unset($module);
-		}
-		return $result;
-	}
-
-	/**
 	 * Remove discount list.
 	 *
 	 * @param array|int $discount			Order discount list.
@@ -710,8 +667,6 @@ class InvoiceModulesTable extends Main\Entity\DataManager
 class InvoiceDiscountDataTable extends Main\Entity\DataManager
 {
 	const ENTITY_TYPE_BASKET_ITEM = 0x0001;
-	/** @deprecated */
-	const ENTITY_TYPE_BASKET = self::ENTITY_TYPE_BASKET_ITEM;
 	const ENTITY_TYPE_DELIVERY = 0x0002;
 	const ENTITY_TYPE_SHIPMENT = 0x0004;
 	const ENTITY_TYPE_DISCOUNT = 0x0008;
@@ -930,8 +885,6 @@ class InvoiceDiscountDataTable extends Main\Entity\DataManager
 class InvoiceRulesTable extends Main\Entity\DataManager
 {
 	const ENTITY_TYPE_BASKET_ITEM = 0x0001;
-	/** @deprecated */
-	const ENTITY_TYPE_BASKET = self::ENTITY_TYPE_BASKET_ITEM;
 	const ENTITY_TYPE_DELIVERY = 0x0002;
 
 	/**

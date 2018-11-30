@@ -5,6 +5,7 @@ namespace Bitrix\Voximplant;
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\SystemException;
 use Bitrix\Main\Type\DateTime;
+use Bitrix\Voximplant\Model\CallCrmEntityTable;
 use Bitrix\Voximplant\Model\CallTable;
 use Bitrix\Voximplant\Model\CallUserTable;
 use Bitrix\Voximplant\Routing\Node;
@@ -20,12 +21,10 @@ class Call
 	protected $callerId;
 	protected $status;
 	protected $crm;
-	protected $crmLead;
-	protected $crmEntityType;
-	protected $crmEntityId;
 	protected $crmActivityId;
 	protected $crmCallList;
 	protected $crmBindings;
+	protected $crmEntities;
 	protected $accessUrl;
 	protected $dateCreate;
 	protected $restAppId;
@@ -38,7 +37,7 @@ class Call
 	protected $sessionId;
 	protected $callbackParameters;
 	protected $comment;
-	protected $worktimeSkipped = 'N';
+	protected $worktimeSkipped = false;
 	protected $sipHeaders = [];
 	protected $gatheredDigits;
 	protected $parentCallId;
@@ -341,6 +340,22 @@ class Call
 	/**
 	 * @return mixed
 	 */
+	public function getComment()
+	{
+		return $this->comment;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function isWorktimeSkipped()
+	{
+		return $this->worktimeSkipped;
+	}
+
+	/**
+	 * @return mixed
+	 */
 	public function getConfig()
 	{
 		return $this->config;
@@ -368,6 +383,30 @@ class Call
 	public function getAccessUrl()
 	{
 		return $this->accessUrl;
+	}
+
+	/**
+	 * @return DateTime
+	 */
+	public function getDateCreate()
+	{
+		return $this->dateCreate;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getRestAppId()
+	{
+		return $this->restAppId;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getExternalLineId()
+	{
+		return $this->externalLineId;
 	}
 
 	/**
@@ -421,6 +460,14 @@ class Call
 	}
 
 	/**
+	 * @return mixed
+	 */
+	public function getCrmCallList()
+	{
+		return $this->crmCallList;
+	}
+
+	/**
 	 * @param int $crmActivityId
 	 */
 	public function setCrmActivityId($crmActivityId)
@@ -428,70 +475,102 @@ class Call
 		$this->update(['CRM_ACTIVITY_ID' => $crmActivityId]);
 	}
 
-	/**
-	 * Returns associated crm entity type name.
-	 * @return string
-	 */
-	public function getCrmEntityType()
+	public function getCrmEntities()
 	{
-		return $this->crmEntityType;
+		$this->loadCrmEntities();
+
+		return $this->crmEntities;
 	}
 
 	/**
-	 * Returns associated crm entity id.
-	 * @return int
+	 * @return array
 	 */
-	public function getCrmEntityId()
+	public function getCreatedCrmEntities()
 	{
-		return $this->crmEntityId;
+		$this->loadCrmEntities();
+
+		$result = [];
+
+		foreach ($this->crmEntities as $entity)
+		{
+			if($entity['IS_CREATED'] == 'Y')
+			{
+				$result[] = $entity;
+			}
+		}
+		return $result;
 	}
 
-	public function setCrmEntity($entityTypeName, $entityId)
+	public function getCreatedCrmLead()
 	{
-		if($this->crmEntityType == $entityTypeName && $this->crmEntityId == $entityId)
-		{
-			return;
-		}
+		$this->loadCrmEntities();
 
-		$this->update([
-			'CRM_ENTITY_TYPE' => $entityTypeName,
-			'CRM_ENTITY_ID' => $entityId
-		]);
+		$result = [];
 
-		$users = array_keys($this->users);
-		if(count($users) > 0)
+		foreach ($this->crmEntities as $entity)
 		{
-			$this->signaling->sendUpdateCrm($users);
+			if($entity['IS_CREATED'] == 'Y' && $entity['ENTITY_TYPE'] === 'LEAD')
+			{
+				return (int)$entity['ENTITY_ID'];
+			}
 		}
+		return $result;
+	}
+
+	public function updateCrmEntities(array $newEntities)
+	{
+		$this->crmEntities = $newEntities;
+		foreach ($this->crmEntities as $entity)
+		{
+			CallCrmEntityTable::merge([
+				'CALL_ID' => $this->callId,
+				'ENTITY_TYPE' => $entity['ENTITY_TYPE'],
+				'ENTITY_ID' => $entity['ENTITY_ID'],
+				'IS_PRIMARY' => $entity['IS_PRIMARY'],
+				'IS_CREATED' => $entity['IS_CREATED'],
+			]);
+		}
+	}
+
+	public function addCrmEntities(array $newEntities)
+	{
+		$this->loadCrmEntities();
+
+		$this->updateCrmEntities(array_merge($this->crmEntities, $newEntities));
 	}
 
 	/**
-	 * @return int
+	 * @return string|false
 	 */
-	public function getCrmLead()
+	public function getPrimaryEntityType()
 	{
-		return $this->crmLead;
+		$this->loadCrmEntities();
+
+		foreach ($this->crmEntities as $entity)
+		{
+			if($entity['IS_PRIMARY'] == 'Y')
+			{
+				return $entity['ENTITY_TYPE'];
+			}
+		}
+		return false;
 	}
 
-	public function updateCrmLead($leadId)
+	/**
+	 * @return int|false
+	 */
+	public function getPrimaryEntityId()
 	{
-		$fields = [
-			'CRM_LEAD' => $leadId
-		];
+		$this->loadCrmEntities();
 
-		if(!$this->crmEntityId || !$this->crmEntityType)
+		foreach ($this->crmEntities as $entity)
 		{
-			$fields['CRM_ENTITY_TYPE'] = 'LEAD';
-			$fields['CRM_ENTITY_ID'] = $leadId;
+			if($entity['IS_PRIMARY'] == 'Y')
+			{
+				return (int)$entity['ENTITY_ID'];
+			}
 		}
-
-		$this->update($fields);
-
-		$users = array_keys($this->users);
-		if(count($users) > 0)
-		{
-			$this->signaling->sendUpdateCrm($users);
-		}
+		return false;
 	}
 
 	/**
@@ -765,10 +844,8 @@ class Call
 			if($this->incoming == \CVoxImplantMain::CALL_INCOMING || $this->incoming == \CVoxImplantMain::CALL_CALLBACK)
 			{
 				$updatedFields['USER_ID'] = $userId;
-				if ($this->getCrmLead() > 0)
-				{
-					\CVoxImplantCrmHelper::UpdateLead($this->getCrmLead(), Array('ASSIGNED_BY_ID' => $userId));
-				}
+
+				\CVoxImplantCrmHelper::updateCrmEntities($this->getCreatedCrmEntities(), ['ASSIGNED_BY_ID' => $userId]);
 			}
 		}
 		$this->update($updatedFields);
@@ -834,6 +911,23 @@ class Call
 			{
 				CallQueue::dequeueFirstUserCall($userId);
 			}
+		}
+	}
+
+	/**
+	 * @return void
+	 */
+	protected function loadCrmEntities()
+	{
+		if(is_null($this->crmEntities))
+		{
+			$result = CallCrmEntityTable::getList([
+				'filter' => [
+					'=CALL_ID' => $this->callId
+				]
+			])->fetchAll();
+
+			$this->crmEntities = $result ?: [];
 		}
 	}
 
@@ -954,9 +1048,6 @@ class Call
 			'CALLER_ID' => $this->callerId,
 			'STATUS' => $this->status,
 			'CRM' => $this->crm,
-			'CRM_LEAD' => $this->crmLead,
-			'CRM_ENTITY_TYPE' => $this->crmEntityType,
-			'CRM_ENTITY_ID' => $this->crmEntityId,
 			'CRM_ACTIVITY_ID' => $this->crmActivityId,
 			'CRM_CALL_LIST' => $this->crmCallList,
 			'CRM_BINDINGS' => $this->crmBindings,
@@ -972,7 +1063,7 @@ class Call
 			'SESSION_ID' => $this->sessionId,
 			'CALLBACK_PARAMETERS' => $this->callbackParameters,
 			'COMMENT' => $this->comment,
-			'WORKTIME_SKIPPED' => $this->worktimeSkipped,
+			'WORKTIME_SKIPPED' => $this->worktimeSkipped ? 'Y' : 'N',
 			'SIP_HEADERS' => $this->sipHeaders,
 			'GATHERED_DIGITS' => $this->gatheredDigits,
 			'PARENT_CALL_ID' => $this->parentCallId,
@@ -996,9 +1087,6 @@ class Call
 		$this->callerId = array_key_exists('CALLER_ID', $fields) ? $fields['CALLER_ID'] : $this->callerId;
 		$this->status = array_key_exists('STATUS', $fields) ? $fields['STATUS'] : $this->status;
 		$this->crm = array_key_exists('CRM', $fields) ? $fields['CRM'] : $this->crm;
-		$this->crmLead = array_key_exists('CRM_LEAD', $fields) ? $fields['CRM_LEAD'] : $this->crmLead;
-		$this->crmEntityType = array_key_exists('CRM_ENTITY_TYPE', $fields) ? $fields['CRM_ENTITY_TYPE'] : $this->crmEntityType;
-		$this->crmEntityId = array_key_exists('CRM_ENTITY_ID', $fields) ? $fields['CRM_ENTITY_ID'] : $this->crmEntityId;
 		$this->crmActivityId = array_key_exists('CRM_ACTIVITY_ID', $fields) ? $fields['CRM_ACTIVITY_ID'] : $this->crmActivityId;
 		$this->crmCallList = array_key_exists('CRM_CALL_LIST', $fields) ? $fields['CRM_CALL_LIST'] : $this->crmCallList;
 		$this->crmBindings = array_key_exists('CRM_BINDINGS', $fields) ? $fields['CRM_BINDINGS'] : $this->crmBindings;
@@ -1014,7 +1102,7 @@ class Call
 		$this->sessionId = array_key_exists('SESSION_ID', $fields) ? $fields['SESSION_ID'] : $this->sessionId;
 		$this->callbackParameters = array_key_exists('CALLBACK_PARAMETERS', $fields) ? $fields['CALLBACK_PARAMETERS'] : $this->callbackParameters;
 		$this->comment = array_key_exists('COMMENT', $fields) ? $fields['COMMENT'] : $this->comment;
-		$this->worktimeSkipped = array_key_exists('WORKTIME_SKIPPED', $fields) ? $fields['WORKTIME_SKIPPED'] : $this->worktimeSkipped;
+		$this->worktimeSkipped = array_key_exists('WORKTIME_SKIPPED', $fields) ? $fields['WORKTIME_SKIPPED'] == 'Y' : $this->worktimeSkipped;
 		$this->sipHeaders = array_key_exists('SIP_HEADERS', $fields) ? $fields['SIP_HEADERS'] : $this->sipHeaders;
 		$this->gatheredDigits = array_key_exists('GATHERED_DIGITS', $fields) ? $fields['GATHERED_DIGITS'] : $this->gatheredDigits;
 		$this->parentCallId = array_key_exists('PARENT_CALL_ID', $fields) ? $fields['PARENT_CALL_ID'] : $this->parentCallId;

@@ -22,7 +22,7 @@ class BFile extends File
 
 	public static function createByFileData(array $file, $name = null)
 	{
-		return new static($file, $name);
+		return new self($file, $name);
 	}
 
 	public static function createByFileId($fileId, $name = null)
@@ -33,7 +33,7 @@ class BFile extends File
 			throw new Main\ObjectNotFoundException("Could not find file");
 		}
 
-		return new static($file, $name);
+		return new self($file, $name);
 	}
 
 	/**

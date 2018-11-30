@@ -25,8 +25,9 @@ class CCatalogAdmin
 
 	public static function get_other_elements_menu($IBLOCK_TYPE_ID, $IBLOCK_ID, $arSection, &$more_url)
 	{
+		$arSection['ID'] = (int)$arSection['ID'];
 		$urlSectionAdminPage = CIBlock::GetAdminSectionListLink($IBLOCK_ID, array('catalog' => null, "skip_public" => true));
-		$more_url[] = $urlSectionAdminPage."&find_section_section=".(int)$arSection["ID"];
+		$more_url[] = $urlSectionAdminPage."&find_section_section=".$arSection["ID"];
 		$more_url[] = CIBlock::GetAdminElementListLink($IBLOCK_ID, array("find_section_section" => $arSection["ID"]));
 		$more_url[] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null, "find_section_section" => $arSection["ID"]));
 		$more_url[] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null, "find_section_section" => $arSection["ID"]));
@@ -103,12 +104,14 @@ class CCatalogAdmin
 		$sortCount = 0.01;
 		while ($arSection = $rsSections->Fetch())
 		{
+			$arSection['ID'] = (int)$arSection['ID'];
+			$arSection['IBLOCK_SECTION_ID'] = (int)$arSection['IBLOCK_SECTION_ID'];
 			if ($limit > 0 && $intCount >= $limit)
 			{
 				if (empty($arOtherSectionTmp))
 				{
 					$urlSectionAdminPage = $baseUrlSectionAdminPage."&find_section_section=".
-						(int)$arSection["IBLOCK_SECTION_ID"]."&SECTION_ID=".(int)$arSection["IBLOCK_SECTION_ID"];
+						$arSection["IBLOCK_SECTION_ID"]."&SECTION_ID=".$arSection["IBLOCK_SECTION_ID"];
 					$arOtherSectionTmp = array(
 						"text" => Loc::getMessage("CAT_MENU_ALL_OTH"),
 						"url" => $urlSectionAdminPage."&apply_filter=Y",
@@ -132,7 +135,7 @@ class CCatalogAdmin
 				}
 				else
 				{
-					$arOtherSectionTmp['more_url'][] = $baseUrlSectionAdminPage."&find_section_section=".(int)$arSection["ID"]."&SECTION_ID=".(int)$arSection["ID"];
+					$arOtherSectionTmp['more_url'][] = $baseUrlSectionAdminPage."&find_section_section=".$arSection["ID"]."&SECTION_ID=".$arSection["ID"];
 					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminElementEditLink($IBLOCK_ID, 0, array("find_section_section" => $arSection["ID"]));
 					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null, "find_section_section" => $arSection["ID"]));
 					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null, "find_section_section" => $arSection["ID"]));
@@ -349,20 +352,6 @@ class CCatalogAdmin
 				);
 			}
 
-			/** @global CUser $USER */
-			global $USER;
-			if($USER->CanDoOperation('install_updates'))
-			{
-				$arItems[] = array(
-					"text" => Loc::getMessage("CAT_MENU_CATALOG_MARKETPLACE_ADD"),
-					"url" => "update_system_market.php?category=107&lang=".LANGUAGE_ID,
-					"more_url" => array("update_system_market.php?category=107"),
-					"title" => "",
-					"items_id" => "update_system_market",
-					"sort" => 207+$sortCount,
-				);
-			}
-
 			if (isset($_REQUEST["public_menu"]))
 				$text = ($totalCount > 1 ? htmlspecialcharsEx($arIBlock["NAME"]) : Loc::getMessage("CAT_MENU_ROOT_TITLE"));
 			else
@@ -381,22 +370,78 @@ class CCatalogAdmin
 			$sortCount += $sortCount + 0.01;
 		}
 
+		/** @global CUser $USER */
+		global $USER;
+		$showMarketplaceLink = $USER->CanDoOperation('install_updates');
+
 		if (!empty($aMenu["items"]))
 		{
-			$catalogCount = count($aMenu["items"]);
-			if ($catalogCount == 1)
+			$singleCatalog = count($aMenu["items"]) == 1;
+			if ($singleCatalog)
+			{
 				$aMenu = $aMenu["items"][0];
-			elseif ($catalogCount > 1)
+			}
+			else
+			{
 				$aMenu["text"] = Loc::getMessage("CAT_MENU_ROOT_MULTI");
-			unset($catalogCount);
-
+				if ($showMarketplaceLink)
+				{
+					$aMenu["items"][] = [
+						"text" => Loc::getMessage("CAT_MENU_CATALOG_MARKETPLACE_ADD"),
+						"url" => "update_system_market.php?category=107&lang=".LANGUAGE_ID,
+						"more_url" => array("update_system_market.php?category=107"),
+						"title" => Loc::getMessage("CAT_MENU_CATALOG_MARKETPLACE_ADD"),
+						"items_id" => "update_system_market",
+						"sort" => 207+$sortCount,
+					];
+				}
+			}
 			$aMenu["parent_menu"] = "global_menu_store";
 			$aMenu["section"] = "catalog_list";
 			$aMenu["sort"] = 200;
 			$aMenu["icon"] = "iblock_menu_icon_sections";
 			$aMenu["page_icon"] = "iblock_page_icon_types";
 			$aModuleMenu[] = $aMenu;
+			if ($singleCatalog && $showMarketplaceLink)
+			{
+				$aModuleMenu[] = [
+					"parent_menu" => "global_menu_store",
+					"section" => "catalog_list",
+					"text" => Loc::getMessage("CAT_MENU_CATALOG_MARKETPLACE_CATALOG_TOOLS"),
+					"title" => Loc::getMessage("CAT_MENU_CATALOG_MARKETPLACE_CATALOG_TOOLS"),
+					"icon" => "iblock_menu_icon_sections",
+					"page_icon" => "iblock_page_icon_types",
+					"items_id" => "update_system_market",
+					"url" => "update_system_market.php?category=107&lang=".LANGUAGE_ID,
+					"more_url" => array("update_system_market.php?category=107"),
+					"sort" => 201,
+				];
+			}
+			unset($singleCatalog);
 		}
+		else
+		{
+			if ($showMarketplaceLink)
+			{
+				$aMenu["items"] = [
+					[
+						"text" => Loc::getMessage("CAT_MENU_CATALOG_MARKETPLACE_CATALOG_TOOLS"),
+						"url" => "update_system_market.php?category=107&lang=".LANGUAGE_ID,
+						"more_url" => array("update_system_market.php?category=107"),
+						"title" => Loc::getMessage("CAT_MENU_CATALOG_MARKETPLACE_CATALOG_TOOLS"),
+						"items_id" => "update_system_market",
+						"sort" => 207
+					]
+				];
+				$aMenu["parent_menu"] = "global_menu_store";
+				$aMenu["section"] = "catalog_list";
+				$aMenu["sort"] = 200;
+				$aMenu["icon"] = "iblock_menu_icon_sections";
+				$aMenu["page_icon"] = "iblock_page_icon_types";
+				$aModuleMenu[] = $aMenu;
+			}
+		}
+		unset($showMarketplaceLink, $aMenu);
 	}
 
 	public static function OnAdminListDisplay(&$obList)

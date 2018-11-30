@@ -25,7 +25,7 @@ class LiveChatManager
 	{
 		$this->id = intval($configId);
 		$this->config = false;
-		$this->error = new Error(null, '', '');
+		$this->error = new BasicError(null, '', '');
 
 		\Bitrix\Main\Loader::includeModule("im");
 	}
@@ -65,7 +65,7 @@ class LiveChatManager
 			{
 				if ($specifiedName)
 				{
-					$this->error = new Error(__METHOD__, 'CODE_ERROR', Loc::getMessage('IMOL_LCM_CODE_ERROR'));
+					$this->error = new BasicError(__METHOD__, 'CODE_ERROR', Loc::getMessage('IMOL_LCM_CODE_ERROR'));
 					return false;
 				}
 				else

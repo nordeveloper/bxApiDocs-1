@@ -21,6 +21,8 @@ class RestrictionManager
 	private static $dealCategoryLimitRestriction = null;
 	/** @var Bitrix24AccessRestriction|null  */
 	private static $attributeConfigRestriction = null;
+	/** @var Bitrix24AccessRestriction|null  */
+	private static $permissionControlRestriction = null;
 	/**
 	* @return SqlRestriction
 	*/
@@ -72,6 +74,15 @@ class RestrictionManager
 	}
 
 	/**
+	 * @return AccessRestriction
+	 */
+	public static function getPermissionControlRestriction()
+	{
+		self::initialize();
+		return self::$permissionControlRestriction;
+	}
+
+	/**
 	* @return void
 	*/
 	public static function reset()
@@ -84,6 +95,7 @@ class RestrictionManager
 		self::$historyViewRestriction->reset();
 		self::$dealCategoryLimitRestriction->reset();
 		self::$attributeConfigRestriction->reset();
+		self::$permissionControlRestriction->reset();
 
 		self::$sqlRestriction = null;
 		self::$conversionRestriction = null;
@@ -91,6 +103,7 @@ class RestrictionManager
 		self::$historyViewRestriction = null;
 		self::$dealCategoryLimitRestriction = null;
 		self::$attributeConfigRestriction = null;
+		self::$permissionControlRestriction = null;
 
 		self::$isInitialized = false;
 	}
@@ -231,7 +244,7 @@ class RestrictionManager
 			array(
 				'ID' => 'crm_attr_configurator',
 				'TITLE' => GetMessage('CRM_RESTR_MGR_POPUP_TITLE'),
-				'CONTENT' => GetMessage('CRM_RESTR_MGR_CONDITIONALLY_REQUIRED_FIELD_POPUP_CONTENT')
+				'CONTENT' => GetMessage('CRM_RESTR_MGR_CONDITIONALLY_REQUIRED_FIELD_POPUP_CONTENT_2')
 			)
 		);
 
@@ -239,6 +252,26 @@ class RestrictionManager
 		{
 			self::$attributeConfigRestriction->permit(
 				Bitrix24Manager::isFeatureEnabled("crm_attr_configurator")
+			);
+		}
+		//endregion
+
+		//region Permission
+		self::$permissionControlRestriction = new Bitrix24AccessRestriction(
+			'crm_clr_cfg_permission',
+			true,
+			null,
+			array(
+				'ID' => 'crm_permission_control',
+				'TITLE' => GetMessage('CRM_RESTR_MGR_PERMISSION_CONTROL_POPUP_TITLE'),
+				'CONTENT' => GetMessage('CRM_RESTR_MGR_PERMISSION_CONTROL_POPUP_CONTENT')
+			)
+		);
+
+		if(!self::$permissionControlRestriction->load())
+		{
+			self::$permissionControlRestriction->permit(!Bitrix24Manager::isEnabled()
+				|| Main\Config\Option::get('crm', 'crm_enable_permission_control', 'Y', '') === 'Y'
 			);
 		}
 		//endregion

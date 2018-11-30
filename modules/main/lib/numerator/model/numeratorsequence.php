@@ -28,21 +28,21 @@ class NumeratorSequenceTable extends DataManager
 	public static function getMap()
 	{
 		return [
-			new IntegerField('NUMERATOR_ID', [
-				'required' => true,
-				'primary'  => true,
-			]),
-			new StringField('KEY', [
-				'required' => true,
-				'primary'  => true,
-			]),
-			new StringField('TEXT_KEY', [
-				'required'   => true
-			]),
-			new IntegerField('NEXT_NUMBER'),
-			new IntegerField('LAST_INVOCATION_TIME', [
-				'required' => true,
-			]),
+			(new IntegerField('NUMERATOR_ID'))
+				->configureRequired(true)
+				->configurePrimary(true)
+			,
+			(new StringField('KEY'))
+				->configureRequired(true)
+				->configurePrimary(true)
+			,
+			(new StringField('TEXT_KEY'))
+				->configureRequired(true)
+			,
+			(new IntegerField('NEXT_NUMBER')),
+			(new IntegerField('LAST_INVOCATION_TIME'))
+				->configureRequired(true)
+			,
 		];
 	}
 

@@ -2,7 +2,9 @@
 
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
+use Bitrix\Crm\CompanyAddress;
 use Bitrix\Crm\CompanyTable;
+use Bitrix\Crm\Integration\DocumentGenerator\Value\Money;
 use Bitrix\DocumentGenerator\Nameable;
 
 class Company extends CrmEntityDataProvider implements Nameable
@@ -50,6 +52,8 @@ class Company extends CrmEntityDataProvider implements Nameable
 				'TITLE' => GetMessage('CRM_DOCGEN_DATAPROVIDER_COMPANY_WEB_TITLE'),
 				'VALUE' => [$this, 'getWeb'],
 			];
+			$this->fields['REVENUE']['TYPE'] = Money::class;
+			$this->fields['REVENUE']['VALUE'] = [$this, 'getRevenue'];
 			$this->fields['ADDRESS']['VALUE'] = [$this, 'getPrimaryAddress'];
 			$this->fields['ADDRESS_LEGAL']['VALUE'] = [$this, 'getRegisteredAddress'];
 			if($this->isMyCompany())
@@ -89,10 +93,27 @@ class Company extends CrmEntityDataProvider implements Nameable
 		{
 			unset($this->data['ADDRESS']);
 		}
+		else
+		{
+			$address = CompanyAddress::getByOwner(CompanyAddress::Primary, $this->getCrmOwnerType(), $this->source);
+			if($address)
+			{
+				$this->data['ADDRESS'] = new \Bitrix\Crm\Integration\DocumentGenerator\Value\Address($address);
+			}
+		}
 		if($this->data['ADDRESS_LEGAL'] === '')
 		{
-			unset($this->data['ADDRESS']);
+			unset($this->data['ADDRESS_LEGAL']);
 		}
+		else
+		{
+			$address = CompanyAddress::getByOwner(CompanyAddress::Registered, $this->getCrmOwnerType(), $this->source);
+			if($address)
+			{
+				$this->data['ADDRESS_LEGAL'] = new \Bitrix\Crm\Integration\DocumentGenerator\Value\Address($address);
+			}
+		}
+		unset($this->data['REVENUE']);
 	}
 
 	/**
@@ -284,6 +305,15 @@ class Company extends CrmEntityDataProvider implements Nameable
 	public function getContactId()
 	{
 		return null;
+	}
+
+	/**
+	 * @return Money
+	 */
+	public function getRevenue()
+	{
+		$this->fetchData();
+		return new Money($this->data['REVENUE'], ['CURRENCY_ID' => $this->data['CURRENCY_ID']]);
 	}
 
 	/**

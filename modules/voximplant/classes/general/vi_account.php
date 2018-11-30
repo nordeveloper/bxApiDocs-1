@@ -22,6 +22,10 @@ class CVoxImplantAccount
 
 	public function UpdateAccountInfo()
 	{
+		if(\Bitrix\Voximplant\Limits::isRestOnly())
+		{
+			return false;
+		}
 		$ViHttp = new CVoxImplantHttp();
 		$result = $ViHttp->GetAccountInfo();
 		if ($result)
@@ -83,7 +87,9 @@ class CVoxImplantAccount
 
 	public function GetCallServer()
 	{
-		return 'ip.'.$this->GetAccountName();
+		$accountName = $this->GetAccountName();
+
+		return $accountName ? 'ip.'.$accountName : false;
 	}
 
 	public function SetAccountBalance($balance)

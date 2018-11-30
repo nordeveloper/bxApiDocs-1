@@ -1411,12 +1411,19 @@ class CCrmPaySystem
 		}
 		unset($defaultSite, $siteIterator);
 
-		$dbPersonType = CSalePersonType::GetList(
-				array('SORT' => "ASC", 'NAME' => 'ASC'),
-				array('LID' => $siteId, 'CODE' => array('CRM_COMPANY', 'CRM_CONTACT'))
-		);
+		$dbRes = \Bitrix\Crm\Invoice\PersonType::getList([
+			'select' => ['ID', 'CODE'],
+			'filter' => [
+				"=PERSON_TYPE_SITE.SITE_ID" => $siteId,
+				'@CODE' => ['CRM_COMPANY', 'CRM_CONTACT']
+			],
+			'order' => [
+				'SORT' => "ASC",
+				'NAME' => 'ASC'
+			]
+		]);
 
-		while($arPT = $dbPersonType->GetNext())
+		while($arPT = $dbRes->fetch())
 		{
 			if($arPT['CODE'] == 'CRM_COMPANY')
 				$arPTIDs['COMPANY'] = $arPT['ID'];
@@ -1440,12 +1447,18 @@ class CCrmPaySystem
 		if($getEmpty)
 			$arReturn[""] = GetMessage('CRM_ANY');
 
-		$dbPersonType = CSalePersonType::GetList(
-			array('SORT' => "ASC", 'NAME' => 'ASC'),
-			array('ID' => array($arPtIDs['COMPANY'], $arPtIDs['CONTACT']))
-		);
+		$dbRes = \Bitrix\Crm\Invoice\PersonType::getList([
+			'select' => ['ID', 'CODE'],
+			'filter' => [
+				'@ID' => [$arPtIDs['COMPANY'], $arPtIDs['CONTACT']]
+			],
+			'order' => [
+				'SORT' => "ASC",
+				'NAME' => 'ASC'
+			]
+		]);
 
-		while($arPT = $dbPersonType->GetNext())
+		while($arPT = $dbRes->fetch())
 			$arReturn[$arPT['ID']] = GetMessage($arPT['CODE']."_PT");
 
 		return $arReturn;
@@ -1685,9 +1698,16 @@ class CCrmPaySystem
 				$arPersonTypes['CONTACT'] => array(),
 			);
 
+			$crmPsIds = static::getCrmPaySystemIds();
+
 			$paySystemList = CSalePaySystem::DoLoadPaySystems(array($arPersonTypes['COMPANY'], $arPersonTypes['CONTACT']));
 			foreach ($paySystemList as $psId => $ps)
 			{
+				if (!isset($crmPsIds[$psId]))
+				{
+					continue;
+				}
+
 				if (isset($ps['~PSA_PERSON_TYPE_ID']))
 				{
 					if ($ps['~PSA_PERSON_TYPE_ID'] == $arPersonTypes['COMPANY'])
@@ -1701,6 +1721,28 @@ class CCrmPaySystem
 		}
 
 		return isset(self::$paySystems[$personTypeId]) ? self::$paySystems[$personTypeId] : false;
+	}
+
+	/**
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 */
+	private static function getCrmPaySystemIds()
+	{
+		$result = [];
+
+		$dbRes = \Bitrix\Sale\PaySystem\Manager::getList([
+			'select' => ['ID'],
+			'filter' => [
+				'@ENTITY_REGISTRY_TYPE' => [REGISTRY_TYPE_CRM_QUOTE, REGISTRY_TYPE_CRM_INVOICE]
+			]
+		]);
+		while ($item = $dbRes->fetch())
+		{
+			$result[$item['ID']] = $item['ID'];
+		}
+
+		return $result;
 	}
 
 	public static function GetPaySystemsListItems($personTypeId, $fullList = false)

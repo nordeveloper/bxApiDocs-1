@@ -62,7 +62,11 @@ abstract class Field
 	/** @var null|callback[] */
 	protected $additionalSaveDataModifiers = array();
 
-	/** @var bool */
+	/**
+	 * @deprecated
+	 * @see ArrayField
+	 * @var bool
+	 */
 	protected $isSerialized = false;
 
 	/** @var Field */
@@ -470,6 +474,7 @@ abstract class Field
 	}
 
 	/**
+	 * @deprecated
 	 * @return $this
 	 * @throws SystemException
 	 */

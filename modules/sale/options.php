@@ -863,6 +863,13 @@ $tabControl->BeginNextTab();
 			continue;
 		$Option = $arAllOptions[$i];
 		$val = COption::GetOptionString("sale", $Option[0], $Option[2]);
+
+		// hide setting for users, who doesn't use it
+		if ($Option[0] === 'QUANTITY_FACTORIAL' && $val === 'N')
+		{
+			continue;
+		}
+
 		$type = $Option[3];
 
 		if ($Option[0]=="assist_LOGIN" || $Option[0]=="assist_PASSWORD")

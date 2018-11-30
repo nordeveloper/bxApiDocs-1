@@ -595,6 +595,16 @@ class Adapter implements iBase
 	}
 
 	/**
+	 * Return true if is hidden.
+	 *
+	 * @return bool
+	 */
+	public function isHidden()
+	{
+		return ($this->message instanceof iHideable && $this->message->isHidden());
+	}
+
+	/**
 	 * Is available.
 	 *
 	 * @return bool

@@ -25,10 +25,13 @@ class ActualRanking
 	protected $entityTypeId;
 
 	/** @var array List for rank */
-	protected $list = array();
+	protected $list = [];
 
 	/** @var callable[] Modifiers */
-	protected $modifiers = array();
+	protected $modifiers = [];
+
+	/** @var array|null List after modifier. */
+	protected $modifiedList = null;
 
 	/** @var integer|null Top entity id in ranked list */
 	protected $entityId;
@@ -45,6 +48,7 @@ class ActualRanking
 	protected function clearRuntime()
 	{
 		$this->list = [];
+		$this->modifiedList = null;
 		$this->entityTypeId = null;
 
 		$this->entityId = null;
@@ -84,6 +88,26 @@ class ActualRanking
 		}
 
 		return $this;
+	}
+
+	/**
+	 * Get modified list.
+	 *
+	 * @return array|null
+	 */
+	public function getModifiedList()
+	{
+		return $this->modifiedList;
+	}
+
+	/**
+	 * Set modified list.
+	 *
+	 * @param array|null $modifiedList Modified list.
+	 */
+	public function setModifiedList(array $modifiedList)
+	{
+		$this->modifiedList = $modifiedList;
 	}
 
 	/**
@@ -188,12 +212,11 @@ class ActualRanking
 			return $this;
 		}
 
+		// filter or sort by custom modifiers
+		$this->runModifiers();
 
 		// filter by active status
 		$this->filterByActiveStatus();
-
-		// filter or sort by custom modifiers
-		$this->runModifiers();
 
 		if (count($this->list) === 0)
 		{

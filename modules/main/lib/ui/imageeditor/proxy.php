@@ -2,9 +2,8 @@
 
 namespace Bitrix\Main\UI\ImageEditor;
 
-use Bitrix\Main\IO\File;
-use Bitrix\Main\IO\Path;
 use Bitrix\Main\Application;
+use Bitrix\Main\Config\Option;
 use Bitrix\Main\Web\Uri;
 use Bitrix\Main\Web\HttpClient;
 
@@ -43,21 +42,11 @@ class Proxy
 			});
 		}
 
-		$this->uri = new Uri(rawurldecode($url));
-		$host = $this->uri->getHost();
+		$this->uri = new Uri($url);
 
-		if (!!$host && !$this->isAllowedHost($host))
+		if (!$this->uri->getHost())
 		{
-			$response->setStatus(400)->flush();
-			die('Host not allowed');
-		}
-
-		$ext = Path::getExtension($this->uri->getPath());
-
-		if (!static::isAllowedExtension($ext))
-		{
-			$response->setStatus(400)->flush();
-			die('File extension not allowed');
+			$this->uri->setHost(static::getCurrentHttpHost());
 		}
 	}
 
@@ -68,15 +57,6 @@ class Proxy
 	protected static function getResponse()
 	{
 		return Application::getInstance()->getContext()->getResponse();
-	}
-
-	/**
-	 * @return null|string
-	 * @throws \Bitrix\Main\SystemException
-	 */
-	protected static function getDocumentRoot()
-	{
-		return Application::getInstance()->getContext()->getServer()->getDocumentRoot();
 	}
 
 	/**
@@ -114,8 +94,29 @@ class Proxy
 	{
 		return array_merge(
 			[$this->getCurrentHttpHost()],
-			$this->allowedHosts
+			$this->allowedHosts,
+			$this->getUserAllowedHosts()
 		);
+	}
+
+	/**
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 */
+	protected function getUserAllowedHosts()
+	{
+		static $hosts = null;
+
+		if ($hosts === null)
+		{
+			$hosts = Option::get('main', 'imageeditor_proxy_white_list', []);
+			if (is_string($hosts))
+			{
+				$hosts = unserialize($hosts);
+			}
+		}
+
+		return $hosts;
 	}
 
 	/**
@@ -128,127 +129,79 @@ class Proxy
 	{
 		return (
 			in_array($host, $this->getAllowedHosts()) ||
-			in_array('*', $this->getAllowedHosts())
+			(in_array('*', $this->getAllowedHosts()) && $this->isEnabledForAll())
 		);
 	}
 
 
 	/**
-	 * @param ?string $ext
 	 * @return bool
-	 */
-	protected static function isAllowedExtension($ext)
-	{
-		return (
-			$ext !== false && (
-				strpos($ext, 'gif') !== false ||
-				strpos($ext, 'png') !== false ||
-				strpos($ext, 'jpg') !== false ||
-				strpos($ext, 'jpeg') !== false
-			)
-		);
-	}
-
-	/**
-	 * @return bool
-	 */
-	protected function isLocalFile()
-	{
-		return !$this->uri->getHost();
-	}
-
-	/**
-	 * @return bool|string
-	 */
-	protected function getContentType()
-	{
-		$ext = Path::getExtension($this->uri->getPath());
-
-		if (strpos($ext, 'gif') !== false)
-		{
-			return 'image/gif';
-		}
-
-		if (strpos($ext, 'png') !== false)
-		{
-			return 'image/png';
-		}
-
-		if (strpos($ext, 'jpg') !== false ||
-			strpos($ext, 'jpeg') !== false)
-		{
-			return 'image/jpeg';
-		}
-
-		return false;
-	}
-
-	/**
-	 * @param $path
-	 * @return bool
-	 * @throws \Bitrix\Main\SystemException
-	 */
-	protected static function isAllowedPath($path)
-	{
-		$documentRoot = static::getDocumentRoot();
-		return stripos($path, $documentRoot) === 0;
-	}
-
-	/**
 	 * @throws \Bitrix\Main\ArgumentNullException
 	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
-	 * @throws \Bitrix\Main\ArgumentTypeException
-	 * @throws \Bitrix\Main\IO\FileNotFoundException
+	 */
+	protected function isEnabledForAll()
+	{
+		return static::getEnabledOption() === 'Y';
+	}
+
+	/**
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 */
+	protected static function isEnabledForWhiteList()
+	{
+		return static::getEnabledOption() === 'YWL';
+	}
+
+	/**
+	 * @return string
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 */
+	protected static function getEnabledOption()
+	{
+		static $option = null;
+
+		if ($option === null)
+		{
+			$option = Option::get('main', 'imageeditor_proxy_enabled', 'N');
+		}
+
+		return $option;
+	}
+
+	/**
+	 * @param $host
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
 	 * @throws \Bitrix\Main\SystemException
 	 */
+	protected function isEnabledForHost($host)
+	{
+		return static::isEnabledForWhiteList() && $this->isAllowedHost($host);
+	}
+
 	public function output()
 	{
+		$remoteHost = $this->uri->getHost();
+		$currentHost = static::getCurrentHttpHost();
 		$response = static::getResponse();
 
-		if ($this->isLocalFile())
+		if ($this->isEnabledForAll() ||
+			$this->isEnabledForHost($remoteHost) ||
+			$remoteHost === $currentHost)
 		{
-			$path = Path::convertRelativeToAbsolute($this->uri->getPath());
+			$client = new HttpClient();
+			$contents = $client->get($this->uri->getUri());
 
-			if (static::isAllowedPath($path))
-			{
-				$file = new File($path);
-
-				if ($file->isExists())
-				{
-					$response->addHeader('Content-Type', $file->getContentType());
-					$response->flush($file->getContents());
-					return;
-				}
-			}
-
-			$response->setStatus(404);
-			$response->flush('404 Not found');
-			return;
+			$response->addHeader('Content-Type', $client->getContentType());
+			$response->flush($contents);
 		}
-
-		$client = new HttpClient();
-		$fileName = Path::getName($this->uri->getPath());
-
-		if ($fileName)
+		else
 		{
-			$filePath = \CFile::getTempName(false, $fileName);
-
-			if ($client->download($this->uri->getUri(), $filePath))
-			{
-				$file = new File($filePath);
-
-				if ($file->isExists())
-				{
-					$response->addHeader('Content-Type', $file->getContentType());
-					$response->flush($file->getContents());
-					$file->delete();
-					return;
-				}
-			}
+			$response->setStatus(404)->flush();
 		}
-
-		$response->setStatus(404);
-		$response->flush('404 Not found');
-		return;
 	}
 }

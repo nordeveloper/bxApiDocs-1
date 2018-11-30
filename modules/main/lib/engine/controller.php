@@ -3,6 +3,8 @@
 namespace Bitrix\Main\Engine;
 
 
+use Bitrix\Main\Config\Configuration;
+use Bitrix\Main\Diag\ExceptionHandlerFormatter;
 use Bitrix\Main\Engine\Contract\Controllerable;
 use Bitrix\Main\Engine\Response\Converter;
 use Bitrix\Main\Error;
@@ -246,7 +248,9 @@ class Controller implements Errorable, Controllerable
 	{
 		$this->collectDebugInfo();
 
+		$e = null;
 		$result = null;
+
 		try
 		{
 			$this->sourceParametersList = $sourceParametersList;
@@ -286,10 +290,27 @@ class Controller implements Errorable, Controllerable
 		{
 			$this->runProcessingError($e);
 		}
+		finally
+		{
+			$this->processExceptionInDebug($e);
+		}
 
 		$this->logDebugInfo();
 
 		return $result;
+	}
+
+	private function processExceptionInDebug($e)
+	{
+		$exceptionHandling = Configuration::getValue('exception_handling');
+		if (!empty($exceptionHandling['debug']) && ($e instanceof \Throwable || $e instanceof \Exception))
+		{
+			$this->addError(new Error(ExceptionHandlerFormatter::format($e)));
+			if ($e->getPrevious())
+			{
+				$this->addError(new Error(ExceptionHandlerFormatter::format($e->getPrevious())));
+			}
+		}
 	}
 
 	final public function getFullEventName($eventName)

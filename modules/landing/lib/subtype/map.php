@@ -1,5 +1,4 @@
 <?php
-
 namespace Bitrix\Landing\Subtype;
 
 use \Bitrix\Main\Localization\Loc;
@@ -25,11 +24,14 @@ class Map
 			$hooks = \Bitrix\Landing\Hook::getForSite(
 				$block->getSiteId()
 			);
-			if (!$hooks['GMAP']->enabled())
+			if ($hooks['GMAP']->getFields()['USE']->getValue() !== 'Y')
 			{
 				$manifest['requiredUserAction'] = array(
 					'header' => Loc::getMessage('LANDING_BLOCK_EMPTY_GMAP_TITLE'),
 					'description' => Loc::getMessage('LANDING_BLOCK_EMPTY_GMAP_DESC'),
+					'text' => Loc::getMessage('LANDING_BLOCK_EMPTY_GMAP_SETTINGS'),
+					'href' => '#page_url_site_edit',
+					'className' => 'landing-required-link'
 				);
 				
 				return $manifest;
@@ -38,7 +40,7 @@ class Map
 		
 		$manifest = self::addVisualSettings($manifest);
 
-//		add ASSETS
+		// add ASSETS
 		if (
 			!is_array($manifest['assets']['ext']) ||
 			!in_array('landing_google_maps_new', $manifest['assets']['ext'])
@@ -49,11 +51,15 @@ class Map
 		
 		return $manifest;
 	}
-	
-	
+
+	/**
+	 * Add some settings for map.
+	 * @param array $manifest
+	 * @return array
+	 */
 	private static function addVisualSettings($manifest)
 	{
-//		add STYLES
+		// add STYLES
 		$additional = [
 			'name' => Loc::getMessage('LANDING_GOOGLE_MAP--STYLE_TITLE'),
 			'attrs' => [
@@ -123,7 +129,7 @@ class Map
 			],
 		];
 
-//		check block/nodes style notation
+		// check block/nodes style notation
 		if (!is_array($manifest['style']['block']) && !is_array($manifest['style']['nodes']))
 		{
 			$manifest['style'] = [
@@ -139,7 +145,7 @@ class Map
 		$manifest['style']['nodes']['.landing-block-node-map']['additional'][] = $additional;
 		
 		
-//		add ATTRS
+		// add ATTRS
 		$attrs = [
 			[
 				'hidden' => true,

@@ -645,13 +645,15 @@ class Sender
 			$recipient["NAME"] = Recipient\Field::getDefaultName();
 		}
 
+		$senderChainId = (int)$recipient["MAILING_CHAIN_ID"] > 0 ? (int)$recipient["MAILING_CHAIN_ID"] : (int)$recipient['CAMPAIGN_ID'];
+
 		// prepare params for send
 		$fields = array(
 			'EMAIL_TO' => $recipient['CONTACT_CODE'],
 			'NAME' => $recipient['NAME'],
 			'USER_ID' => $recipient["USER_ID"],
-			'SENDER_CHAIN_ID' => $recipient["MAILING_CHAIN_ID"],
-			'SENDER_CHAIN_CODE' => 'sender_chain_item_' . $recipient["MAILING_CHAIN_ID"]
+			'SENDER_CHAIN_ID' => $senderChainId,
+			'SENDER_CHAIN_CODE' => 'sender_chain_item_' . $senderChainId
 		);
 
 		if(is_array($recipient['FIELDS']) && count($recipient) > 0)

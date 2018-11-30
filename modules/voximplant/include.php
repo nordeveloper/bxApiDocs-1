@@ -1,5 +1,4 @@
 <?
-
 CModule::AddAutoloadClasses(
 	"voximplant",
 	array(
@@ -26,12 +25,42 @@ CModule::AddAutoloadClasses(
 );
 
 CJSCore::RegisterExt('voximplant', array(
-	'js' => '/bitrix/js/voximplant/voximplant.js'
+	'js' => array(
+		'/bitrix/js/voximplant/voximplant.js',
+		'/bitrix/js/voximplant/client.js',
+	),
+	'oninit' => function()
+	{
+		global $USER;
+
+		$voximplantAuthorization = (new CVoxImplantUser())->getAuthorizationInfo($USER->getId());
+		if($voximplantAuthorization->isSuccess())
+		{
+			$voximplantAuthorizationData = $voximplantAuthorization->getData();
+			$voximplantServer = $voximplantAuthorizationData['server'];
+			$voximplantLogin = $voximplantAuthorizationData['login'];
+		}
+		else
+		{
+			$voximplantServer = '';
+			$voximplantLogin = '';
+		}
+
+		return array(
+			'lang_additional' => array(
+				'voximplantServer' => $voximplantServer,
+				'voximplantLogin' => $voximplantLogin,
+				'voximplantLines' => CVoxImplantConfig::GetLines(true, true),
+				'voximplantDefaultLineId' => CVoxImplantUser::getUserOutgoingLine($USER->getId())
+			)
+		);
+	}
 ));
 
 CJSCore::RegisterExt('voximplant_common', array(
 	'js' => '/bitrix/js/voximplant/common.js',
 	'lang' => '/bitrix/modules/voximplant/lang/'.LANGUAGE_ID.'/install/js/common.php',
+
 ));
 
 CJSCore::RegisterExt('voximplant_transcript', array(

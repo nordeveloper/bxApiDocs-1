@@ -1394,7 +1394,10 @@ class CAllMailMessage
 			elseif ($by == "mailbox_id")	$arSqlOrder[] = " MS.MAILBOX_ID ".$order." ";
 			elseif ($by == "new_message")	$arSqlOrder[] = " MS.NEW_MESSAGE ".$order." ";
 			elseif ($by == "mailbox_name" && !$bCnt)	$arSqlOrder[] = " MB.NAME ".$order." ";
-			elseif ($by == "spam_rating")	{$arSqlOrder[] = " MS.SPAM_RATING ".$order." "; CMailFilter::RecalcSpamRating();}
+			elseif ($by == "spam_rating")
+			{
+				$arSqlOrder[] = " MS.SPAM_RATING ".$order." "; CMailFilter::RecalcSpamRating();
+			}
 			else $arSqlOrder[] = " MS.ID ".$order." ";
 		}
 
@@ -1655,6 +1658,7 @@ class CAllMailMessage
 
 		// @TODO: MAX_ALLOWED_PACKET
 		$arFields['SEARCH_CONTENT'] = \Bitrix\Mail\Helper\Message::prepareSearchContent($arFields);
+		$arFields['INDEX_VERSION'] = \Bitrix\Mail\Helper\MessageIndexStepper::INDEX_VERSION;
 
 		if(isset($params['trackable']) && $params['trackable'])
 		{
@@ -2414,7 +2418,7 @@ class CAllMailUtil
 	{
 		$c="";
 		for($i=0; $i<$l; $i++)
-			$c .= $a{$i}^$b{$i};
+			$c .= $a[$i]^$b[$i];
 		return($c);
 	}
 

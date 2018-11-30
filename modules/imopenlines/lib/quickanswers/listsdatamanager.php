@@ -593,7 +593,7 @@ class ListsDataManager extends DataManager
 	public static function getStorageList()
 	{
 		$result = array();
-		$iblocks = \CIBlock::getList(array('SORT' => 'ASC'), array('ACTIVE' => 'Y', 'TYPE' => self::TYPE, 'CODE' => self::IBLOCK_CODE));
+		$iblocks = \CIBlock::getList(array('SORT' => 'ASC'), array('ACTIVE' => 'Y', 'TYPE' => self::TYPE, 'CODE' => self::IBLOCK_CODE, 'CHECK_PERMISSIONS' => 'N'));
 		while($iblock = $iblocks->fetch())
 		{
 			$result[$iblock['ID']] = array('NAME' => $iblock['NAME']);

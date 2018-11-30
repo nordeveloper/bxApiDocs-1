@@ -543,4 +543,18 @@ abstract class PropertyBase
 	{
 		return $this->getField('OPTIONS');
 	}
+
+	/**
+	 * @param $value
+	 */
+	public function onValueDelete($value)
+	{
+		if ($this->getType() === 'FILE')
+		{
+			foreach (Input\File::asMultiple($value) as $fileId)
+			{
+				\CFile::Delete($fileId);
+			}
+		}
+	}
 }

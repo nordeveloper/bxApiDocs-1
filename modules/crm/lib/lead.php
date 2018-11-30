@@ -7,12 +7,12 @@
  */
 namespace Bitrix\Crm;
 
-use Bitrix\Main\Entity;
+use Bitrix\Main;
 use Bitrix\Main\Localization\Loc;
 
 Loc::loadMessages(__FILE__);
 
-class LeadTable extends Entity\DataManager
+class LeadTable extends Main\ORM\Data\DataManager
 {
 	private static $STATUS_INIT = false;
 	private static $WORK_STATUSES = array();
@@ -391,7 +391,7 @@ class LeadTable extends Entity\DataManager
 			'SEARCH_CONTENT' => array(
 				'data_type' => 'string'
 			),
-			new Entity\IntegerField('FACE_ID')
+			new Main\Entity\IntegerField('FACE_ID')
 		);
 	}
 

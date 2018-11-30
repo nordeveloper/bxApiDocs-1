@@ -389,7 +389,14 @@ class CYandexOAuthInterface extends CSocServOAuthTransport
 		$h = new \Bitrix\Main\Web\HttpClient();
 		$result = $h->get(self::USERINFO_URL.'?format=json&oauth_token='.urlencode($this->access_token));
 
-		$result = \Bitrix\Main\Web\Json::decode($result);
+		try
+		{
+			$result = \Bitrix\Main\Web\Json::decode($result);
+		}
+		catch(\Bitrix\Main\SystemException $e)
+		{
+			$result = false;
+		}
 
 		if(is_array($result))
 		{

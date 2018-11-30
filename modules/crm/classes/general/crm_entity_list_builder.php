@@ -275,6 +275,12 @@ class CCrmEntityListBuilder
 				{
 					// INNER JOINs will be added tostart
 					$this->Add2SqlData($join['SQL'], 'FROM', (!isset($join['TYPE']) || $join['TYPE'] === 'INNER'), (isset($join['REPLACE']) ? $join['REPLACE'] : ''));
+
+					if(isset($this->sqlData['FROM_WHERE']))
+					{
+						$this->sqlData['FROM_WHERE'] .= ' ';
+					}
+					$this->sqlData['FROM_WHERE'] .= $join['SQL'];
 				}
 			}
 			unset($arFilter['__JOINS']);
@@ -333,6 +339,15 @@ class CCrmEntityListBuilder
 				{
 					$sqlType = isset($arOptions['PERMISSION_SQL_TYPE']) && $arOptions['PERMISSION_SQL_TYPE'] === 'FROM' ? 'FROM' : 'WHERE';
 					$this->Add2SqlData($permissionSql, $sqlType, $sqlType === 'FROM');
+
+					if($sqlType === 'FROM')
+					{
+						if(isset($this->sqlData['FROM_WHERE']))
+						{
+							$this->sqlData['FROM_WHERE'] .= ' ';
+						}
+						$this->sqlData['FROM_WHERE'] .= $permissionSql;
+					}
 				}
 			}
 		}

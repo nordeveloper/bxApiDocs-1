@@ -15,9 +15,9 @@ class CCrmProductResult extends CDBResult
 	private static $arVatRates = array();
 	private static $catalogIncluded = false;
 
-	function CCrmProductResult($res, $arFields = array(), $arAdditionalFilter = array(), $arAdditionalSelect = array(), $arOptions = array())
+	function __construct($res, $arFields = array(), $arAdditionalFilter = array(), $arAdditionalSelect = array(), $arOptions = array())
 	{
-		parent::CDBResult($res);
+		parent::__construct($res);
 		$fields = $arFields;
 		foreach ($fields as $k => $v)
 		{

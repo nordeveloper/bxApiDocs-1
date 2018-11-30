@@ -63,7 +63,7 @@ class ItemAttributes
 	 * @param $fileId
 	 * @param $sourceUri
 	 *
-	 * @return ItemAttributes
+	 * @return static
 	 * @throws ArgumentException
 	 */
 	public static function buildByFileId($fileId, $sourceUri)
@@ -81,7 +81,7 @@ class ItemAttributes
 	 * @param array $fileData
 	 * @param $sourceUri
 	 *
-	 * @return ItemAttributes
+	 * @return static
 	 * @throws ArgumentException
 	 */
 	public static function buildByFileData(array $fileData, $sourceUri)
@@ -91,7 +91,22 @@ class ItemAttributes
 			throw new ArgumentException('Invalid file data');
 		}
 
-		return new static($fileData['ID'], $sourceUri);
+		return new static($fileData, $sourceUri);
+	}
+
+	/**
+	 * @param $sourceUri
+	 *
+	 * @return static
+	 */
+	public static function buildAsUnknownType($sourceUri)
+	{
+		$fakeFileData = [
+			'ID' => -1,
+			'CONTENT_TYPE' => 'application/octet-stream',
+		];
+
+		return new static($fakeFileData, $sourceUri);
 	}
 
 	/**
@@ -116,6 +131,14 @@ class ItemAttributes
 		$this->attributes['data-viewer-group-by'] = htmlspecialcharsbx($id);
 
 		return $this;
+	}
+
+	/**
+	 * @return string|null
+	 */
+	public function getGroupBy()
+	{
+		return $this->getAttribute('data-viewer-group-by');
 	}
 
 	/**

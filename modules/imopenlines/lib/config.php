@@ -48,7 +48,7 @@ class Config
 
 	public function __construct()
 	{
-		$this->error = new Error(null, '', '');
+		$this->error = new BasicError(null, '', '');
 	}
 
 	private function prepareFields($params, $mode = self::MODE_ADD)
@@ -674,7 +674,7 @@ class Config
 		$result = Model\ConfigTable::add($fields);
 		if(!$result->isSuccess())
 		{
-			$this->error = new Error(__METHOD__, 'ADD_ERROR', Loc::getMessage('IMOL_ADD_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'ADD_ERROR', Loc::getMessage('IMOL_ADD_ERROR'));
 			return false;
 		}
 		$id = $result->getId();
@@ -744,7 +744,7 @@ class Config
 		$result = Model\ConfigTable::update($id, $fields);
 		if(!$result->isSuccess())
 		{
-			$this->error = new Error(__METHOD__, 'UPDATE_ERROR', Loc::getMessage('IMOL_UPDATE_ERROR'));
+			$this->error = new BasicError(__METHOD__, 'UPDATE_ERROR', Loc::getMessage('IMOL_UPDATE_ERROR'));
 			return false;
 		}
 
@@ -964,8 +964,8 @@ class Config
 
 	public static function canJoin($id, $crmEntityType = null, $crmEntityId = null)
 	{
-		if(!empty($crmEntityType) && !empty($CrmEntityId))
-			return self::canDoOperation($id, Security\Permissions::ENTITY_JOIN, Security\Permissions::ACTION_PERFORM) || Crm::hasAccessToEntity($crmEntityType, $crmEntityId);
+		if(!empty($crmEntityType) && !empty($crmEntityId))
+			return self::canDoOperation($id, Security\Permissions::ENTITY_JOIN, Security\Permissions::ACTION_PERFORM) || \Bitrix\ImOpenLines\Crm\Common::hasAccessToEntity($crmEntityType, $crmEntityId);
 		else
 			return self::canDoOperation($id, Security\Permissions::ENTITY_JOIN, Security\Permissions::ACTION_PERFORM);
 	}

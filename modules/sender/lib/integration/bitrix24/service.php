@@ -191,6 +191,21 @@ class Service
 	}
 
 	/**
+	 * Return true if plan is top.
+	 *
+	 * @return bool
+	 */
+	public static function isLicenceTop()
+	{
+		if (!self::isCloud())
+		{
+			return true;
+		}
+
+		return \CBitrix24::getLicenseType() === 'company';
+	}
+
+	/**
 	 * Lock additional services.
 	 *
 	 * @return void

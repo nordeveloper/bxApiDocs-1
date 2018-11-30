@@ -29,7 +29,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 
 		$control = new \Bitrix\ImOpenLines\Widget\Form($chatId, $userId);
 		$result = $control->saveForm($_POST['FORM'], $_POST['FIELDS']);
-		if ($result)
+		if ($result->isSuccess())
 		{
 			echo \Bitrix\ImOpenLines\Common::objectEncode(Array(
 				'ERROR' => ''
@@ -37,9 +37,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && array_key_exists("IM_AJAX_CALL", $_RE
 		}
 		else
 		{
+			$errors = $result->getErrors();
+			$error = current($errors);
+
 			echo \Bitrix\ImOpenLines\Common::objectEncode(Array(
-				'CODE' => $control->getError()->code,
-				'ERROR' => $control->getError()->msg
+				'CODE' => $error->getCode(),
+				'ERROR' => $error->getMessage()
 			));
 		}
 	}

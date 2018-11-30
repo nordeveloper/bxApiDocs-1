@@ -8,11 +8,15 @@ use \Bitrix\Im\User;
 
 class NoAnswer
 {
+	/**
+	 * @param $params
+	 * @throws \Exception
+	 */
 	public static function add($params)
 	{
 		if(defined('IMOPENLINES_LOG_NO_ANSWER'))
 		{
-			$parsedUserCode = Session::parseUserCode($params['USER_CODE']);
+			$parsedUserCode = Session\Common::parseUserCode($params['USER_CODE']);
 
 			$lineId = $parsedUserCode['CONFIG_ID'];
 			$connectorId = $params['SOURCE'];

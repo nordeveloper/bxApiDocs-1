@@ -440,6 +440,7 @@ class ResultEntity
 
 		$isEntityAdded = false;
 		$id = $this->findDuplicateEntityId($entityName, $entityFields);
+		$facility = new EntityManageFacility($this->selector);
 		if(!$id)
 		{
 			if($isNeedAddProducts && ($isLeadOrQuoteOrDeal || $isEntityInvoice))
@@ -472,7 +473,6 @@ class ResultEntity
 				$entityFields['WEBFORM_ID'] = $this->formId;
 				if($isEntityLead)
 				{
-					$facility = new EntityManageFacility($this->selector);
 					if ($this->duplicateMode == self::DUPLICATE_CONTROL_MODE_NONE)
 					{
 						$facility->setRegisterMode(EntityManageFacility::REGISTER_MODE_ALWAYS_ADD);
@@ -495,12 +495,27 @@ class ResultEntity
 				$entityClassName::SaveProductRows($id, $productRows, false);
 			}
 
-			$this->resultEntityPack[] = array(
+
+			$this->resultEntityPack[] = [
 				'RESULT_ID' => $this->resultId,
 				'ENTITY_NAME' => $entityName,
 				'ITEM_ID' => $id,
 				'IS_DUPLICATE' => !$isEntityAdded
-			);
+			];
+
+			if ($isEntityLead && $isEntityAdded)
+			{
+				$facility->convertLead($id);
+				foreach ($facility->getRegisteredEntities() as $complex)
+				{
+					$this->resultEntityPack[] = [
+						'RESULT_ID' => $this->resultId,
+						'ENTITY_NAME' => \CCrmOwnerType::resolveName($complex->getTypeId()),
+						'ITEM_ID' => $complex->getId(),
+						'IS_DUPLICATE' => false
+					];
+				}
+			}
 
 			if (
 				!$isEntityAdded

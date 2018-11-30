@@ -584,8 +584,6 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 
 		$this->onAfterSave($isNew);
 
-		$this->clearChanged();
-
 		return $result;
 	}
 

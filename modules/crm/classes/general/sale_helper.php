@@ -95,6 +95,11 @@ class CCrmSaleHelper
 			$options['CART_FIX'] = 'Y';
 		}
 
+		if (!is_array($cartItems))
+		{
+			$cartItems = [];
+		}
+
 		$arOrder = CSaleOrder::makeOrderArray($siteId, $saleUserId, $cartItems, $options);
 
 		$invoiceCompatible = \Bitrix\Crm\Invoice\Compatible\Invoice::create($arOrder);
@@ -755,5 +760,221 @@ class CCrmSaleHelper
 		}
 
 		return $listUserId;
+	}
+
+	public static function divideInvoiceOrderPersonTypeAgent()
+	{
+		if (!\Bitrix\Main\Loader::includeModule('sale'))
+		{
+			return '';
+		}
+
+		$dbRes = \Bitrix\Crm\Invoice\PersonType::getList([
+			'filter' => [
+				'@CODE' => ['CRM_CONTACT', 'CRM_COMPANY']
+			]
+		]);
+
+		if ($dbRes->fetch())
+		{
+			return '';
+		}
+
+		global $DB;
+
+		$DB->Query("
+			UPDATE 
+				b_sale_person_type 
+			SET 
+				ENTITY_REGISTRY_TYPE=NULL 
+			WHERE 
+				CODE='CRM_CONTACT' 
+				OR CODE='CRM_COMPANY'
+		");
+
+		$DB->Query("
+			UPDATE 
+				b_sale_person_type 
+			SET 
+				ENTITY_REGISTRY_TYPE='CRM_INVOICE' 
+			WHERE (
+				CODE='CRM_CONTACT' 
+				OR CODE='CRM_COMPANY'
+			) 
+			AND ENTITY_REGISTRY_TYPE IS NULL
+		");
+
+		$dbRes = $DB->Query("SELECT id FROM b_sale_person_type WHERE CODE='CRM_CONTACT' OR CODE='CRM_COMPANY'");
+		if ($dbRes->Fetch())
+		{
+			$dbRes = $DB->Query("SELECT id FROM b_sale_person_type WHERE ENTITY_REGISTRY_TYPE='ORDER'");
+			if (!$dbRes->Fetch())
+			{
+				$DB->Query("
+					INSERT INTO 
+						b_sale_person_type (LID, NAME, SORT, ACTIVE, CODE, ENTITY_REGISTRY_TYPE)
+					SELECT
+						bspt.LID, bspt.NAME, bspt.SORT, bspt.ACTIVE, bspt.CODE, 'ORDER'
+					FROM 
+						b_sale_person_type  bspt
+					WHERE 
+						bspt.CODE='CRM_CONTACT' OR bspt.CODE='CRM_COMPANY' 
+				");
+
+				$DB->Query("
+					INSERT INTO
+						b_sale_person_type_site (PERSON_TYPE_ID, SITE_ID)
+					SELECT
+						 bspt2.ID, bspts.SITE_ID
+					FROM
+						b_sale_person_type_site bspts
+					INNER JOIN b_sale_person_type bspt ON bspt.ID=bspts.PERSON_TYPE_ID
+					INNER JOIN b_sale_person_type bspt2 ON bspt.CODE=bspt2.CODE AND bspt2.ENTITY_REGISTRY_TYPE='ORDER'
+					WHERE(
+							bspt.CODE='CRM_CONTACT'
+							OR bspt.CODE='CRM_COMPANY'
+						)
+						AND bspt.ENTITY_REGISTRY_TYPE='CRM_INVOICE'
+				");
+			}
+		}
+
+		$DB->Query("
+			UPDATE 
+				b_sale_person_type 
+			SET 
+				ENTITY_REGISTRY_TYPE='ORDER' 
+			WHERE 
+				ENTITY_REGISTRY_TYPE IS NULL
+		");
+
+		$DB->Query("
+			UPDATE
+				b_sale_order bso
+			INNER JOIN b_sale_person_type bspt ON bso.PERSON_TYPE_ID=bspt.ID
+			INNER JOIN b_sale_person_type bspt2 ON bspt.CODE=bspt2.CODE AND bspt2.ENTITY_REGISTRY_TYPE='ORDER'
+			SET
+				bso.PERSON_TYPE_ID=bspt2.ID
+			WHERE(
+				bspt.CODE='CRM_CONTACT'
+				OR bspt.CODE='CRM_COMPANY'
+			)
+			AND bspt.ENTITY_REGISTRY_TYPE='CRM_INVOICE'
+		");
+
+		$DB->Query("
+			UPDATE
+				b_sale_order_props bsop
+			INNER JOIN b_sale_person_type bspt ON bsop.PERSON_TYPE_ID=bspt.ID
+			INNER JOIN b_sale_person_type bspt2 ON bspt.CODE=bspt2.CODE AND bspt2.ENTITY_REGISTRY_TYPE='ORDER'
+			SET
+				bsop.PERSON_TYPE_ID=bspt2.ID
+			WHERE(
+				bspt.CODE='CRM_CONTACT'
+				OR bspt.CODE='CRM_COMPANY'
+			)
+			AND bsop.ENTITY_REGISTRY_TYPE='ORDER'
+		");
+
+		$dbRes = $DB->Query("SELECT * FROM b_sale_bizval_persondomain bsbp LEFT JOIN b_sale_person_type bspt ON bspt.ID=bsbp.PERSON_TYPE_ID WHERE bspt.ENTITY_REGISTRY_TYPE='CRM_INVOICE'");
+		if (!$dbRes->Fetch())
+		{
+			$DB->Query("
+				INSERT INTO
+					b_sale_bizval_persondomain (PERSON_TYPE_ID, DOMAIN)
+				SELECT
+					 bspt2.ID, bspts.DOMAIN
+				FROM
+					b_sale_bizval_persondomain bspts
+				INNER JOIN b_sale_person_type bspt ON bspt.ID=bspts.PERSON_TYPE_ID
+				INNER JOIN b_sale_person_type bspt2 ON bspt.CODE=bspt2.CODE AND bspt2.ENTITY_REGISTRY_TYPE='ORDER'
+				WHERE (
+						bspt.CODE = 'CRM_CONTACT'
+						OR bspt.CODE = 'CRM_COMPANY'
+					)
+					AND bspt.ENTITY_REGISTRY_TYPE='CRM_INVOICE'
+			");
+		}
+
+		$DB->Query("
+			UPDATE
+				b_crm_order_props_form bcopf
+			INNER JOIN b_sale_person_type bspt ON bcopf.PERSON_TYPE_ID=bspt.ID
+			INNER JOIN b_sale_person_type bspt2 ON bspt.CODE=bspt2.CODE AND bspt2.ENTITY_REGISTRY_TYPE='ORDER'
+			SET
+				bcopf.PERSON_TYPE_ID=bspt2.ID
+			WHERE(
+				bspt.CODE='CRM_CONTACT'
+				OR bspt.CODE='CRM_COMPANY'
+			)
+			AND bspt.ENTITY_REGISTRY_TYPE='CRM_INVOICE'
+		");
+
+		$DB->Query("
+			UPDATE
+				b_crm_order_props_form_queue bcopfq 
+			INNER JOIN b_sale_person_type bspt ON bcopfq.PERSON_TYPE_ID=bspt.ID
+			INNER JOIN b_sale_person_type bspt2 ON bspt.CODE=bspt2.CODE AND bspt2.ENTITY_REGISTRY_TYPE='ORDER'
+			SET
+				bcopfq.PERSON_TYPE_ID=bspt2.ID
+			WHERE(
+				bspt.CODE='CRM_CONTACT'
+				OR bspt.CODE='CRM_COMPANY'
+			)
+			AND bspt.ENTITY_REGISTRY_TYPE='CRM_INVOICE'
+		");
+
+		$map = [];
+		$dbRes = $DB->Query("
+			SELECT
+				bspt.ID as INVOICE_PT_ID, bspt2.ID as ORDER_PT_ID
+			FROM
+				b_sale_person_type bspt
+			INNER JOIN b_sale_person_type bspt2 ON bspt.CODE=bspt2.CODE AND bspt2.ENTITY_REGISTRY_TYPE='ORDER'
+			WHERE 
+			(
+				bspt.CODE='CRM_CONTACT' 
+				OR bspt.CODE='CRM_COMPANY'
+			) 
+			AND 
+			bspt.ENTITY_REGISTRY_TYPE='CRM_INVOICE'
+		");
+		while ($data = $dbRes->Fetch())
+		{
+			$map[$data['INVOICE_PT_ID']] = $data['ORDER_PT_ID'];
+		}
+
+		$classList = [
+			'\\Bitrix\\Sale\\Services\\PaySystem\\Restrictions\\PersonType',
+			'\\Bitrix\\Sale\\Delivery\\Restrictions\\PersonType'
+		];
+		foreach ($classList as $class)
+		{
+			$dbRes = $DB->Query("
+				SELECT 
+					bssr.ID AS SR_ID, bssr.PARAMS AS SR_PARAMS 
+				FROM 
+					b_sale_service_rstr bssr
+				INNER JOIN b_sale_pay_system_action bspsa ON bssr.SERVICE_ID=bspsa.ID AND bssr.SERVICE_TYPE=1
+				WHERE 
+					bssr.CLASS_NAME='".$DB->ForSql($class)."'
+					AND bspsa.ENTITY_REGISTRY_TYPE='ORDER'"
+			);
+			while ($data = $dbRes->Fetch())
+			{
+				$params = unserialize($data['SR_PARAMS']);
+				foreach ($params['PERSON_TYPE_ID'] as $key => $id)
+				{
+					if (isset($map[$id]))
+					{
+						$params['PERSON_TYPE_ID'][$key] = $map[$id];
+					}
+				}
+
+				$DB->Query("UPDATE b_sale_service_rstr SET PARAMS='".serialize($params)."' WHERE ID=".$data['SR_ID']);
+			}
+		}
+
+		return '';
 	}
 }

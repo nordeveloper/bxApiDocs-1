@@ -87,7 +87,10 @@ class PersonTypeTable extends Main\Entity\DataManager
 			'ACTIVE' => array(
 				'data_type' => 'boolean',
 				'values' => array('N','Y')
-			)
+			),
+			'ENTITY_REGISTRY_TYPE' => array(
+				'data_type' => 'string',
+			),
 		);
 	}
 
@@ -99,7 +102,7 @@ class PersonTypeTable extends Main\Entity\DataManager
 	public static function validateLid()
 	{
 		return array(
-			new Entity\Validator\Length(null, 2),
+			new Main\Entity\Validator\Length(null, 2),
 		);
 	}
 	/**
@@ -110,7 +113,7 @@ class PersonTypeTable extends Main\Entity\DataManager
 	public static function validateName()
 	{
 		return array(
-			new Entity\Validator\Length(null, 255),
+			new Main\Entity\Validator\Length(null, 255),
 		);
 	}
 }

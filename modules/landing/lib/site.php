@@ -2,7 +2,6 @@
 namespace Bitrix\Landing;
 
 use \Bitrix\Main\Localization\Loc;
-use \Bitrix\Main\ModuleManager;
 
 Loc::loadMessages(__FILE__);
 
@@ -30,7 +29,8 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 				'SMN_SITE_ID'
 			),
 			'filter' => array(
-				'ID' => $id
+				'ID' => $id,
+				'=DELETED' => ['Y', 'N']
 			)
 		));
 		if ($row = $res->fetch())
@@ -821,5 +821,81 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 		$hashes[$id] = md5(implode('', $hash));
 
 		return $hashes[$id];
+	}
+
+	/**
+	 * Event handler for check existing pages of main module's site.
+	 * @param string Main site id.
+	 * @return bool
+	 */
+	public static function onBeforeMainSiteDelete($siteId)
+	{
+		$res = Landing::getList(array(
+			'select' => array(
+				'ID'
+			),
+			'filter' => array(
+				'=SITE.SMN_SITE_ID' => $siteId
+			)
+		));
+
+		if ($res->fetch())
+		{
+			Manager::getApplication()->throwException(
+				Loc::getMessage('LANDING_CLB_ERROR_DELETE_SMN'),
+				'ERROR_DELETE_SMN'
+			);
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Event handler for delete pages of main module's site.
+	 * @param string Main site id.
+	 * @return void
+	 */
+	public static function onMainSiteDelete($siteId)
+	{
+		$realSiteId = null;
+		// delete pages
+		$res = Landing::getList(array(
+			'select' => array(
+				'ID', 'SITE_ID'
+			),
+			'filter' => array(
+				'=SITE.SMN_SITE_ID' => $siteId,
+				'=SITE.DELETED' => ['Y', 'N'],
+				'=DELETED' => ['Y', 'N']
+			)
+		));
+		while ($row = $res->fetch())
+		{
+			$realSiteId = $row['SITE_ID'];
+			Landing::delete($row['ID'], true);
+		}
+		// detect site
+		if (!$realSiteId)
+		{
+			$res = self::getList(array(
+				'select' => array(
+					'ID'
+				),
+				'filter' => array(
+					'=SMN_SITE_ID' => $siteId,
+					'=DELETED' => ['Y', 'N']
+				)
+			));
+			if ($row = $res->fetch())
+			{
+				$realSiteId = $row['ID'];
+			}
+		}
+		// and delete site
+		if ($realSiteId)
+		{
+			self::delete($realSiteId);
+		}
 	}
 }

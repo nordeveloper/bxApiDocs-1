@@ -7,9 +7,9 @@
  */
 namespace Bitrix\Main;
 
+use Bitrix\Main\Config\Configuration;
 use Bitrix\Main\Engine\Binder;
 use Bitrix\Main\Engine\Controller;
-use Bitrix\Main\Engine\CurrentUser;
 use Bitrix\Main\Engine\Response\AjaxJson;
 use Bitrix\Main\Engine\Router;
 use Bitrix\Main\UI\PageNavigation;
@@ -99,6 +99,7 @@ class HttpApplication extends Application
 	{
 		try
 		{
+			$e = null;
 			$result = null;
 			$errorCollection = new ErrorCollection();
 
@@ -128,6 +129,16 @@ class HttpApplication extends Application
 		}
 		finally
 		{
+			$exceptionHandling = Configuration::getValue('exception_handling');
+			if ($e && !empty($exceptionHandling['debug']))
+			{
+				$errorCollection[] = new Error(Diag\ExceptionHandlerFormatter::format($e));
+				if ($e->getPrevious())
+				{
+					$errorCollection[] = new Error(Diag\ExceptionHandlerFormatter::format($e->getPrevious()));
+				}
+			}
+
 			$response = $this->buildResponse($result, $errorCollection);
 			$this->context->setResponse($response);
 

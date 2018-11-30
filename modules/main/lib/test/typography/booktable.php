@@ -9,6 +9,7 @@
 namespace Bitrix\Main\Test\Typography;
 
 use Bitrix\Main\ORM\Data\DataManager;
+use Bitrix\Main\ORM\Fields\ArrayField;
 use Bitrix\Main\ORM\Fields\BooleanField;
 use Bitrix\Main\ORM\Fields\Relations\ManyToMany;
 use Bitrix\Main\ORM\Fields\IntegerField;
@@ -42,9 +43,13 @@ class BookTable extends DataManager
 	public static function getTableName()
 	{
 		return '(
-			(SELECT 1 AS ID, "Title 1" AS TITLE, 253 AS PUBLISHER_ID, "978-3-16-148410-0" AS ISBN, "Y" AS IS_ARCHIVED)
+			(SELECT 1 AS ID, "Title 1" AS TITLE, 253 AS PUBLISHER_ID, "978-3-16-148410-0" AS ISBN, "Y" AS IS_ARCHIVED,
+				"[\\"quote1\\",\\"quote2\\"]" AS QUOTES
+			)
 			UNION
-			(SELECT 2 AS ID, "Title 2" AS TITLE, 253 AS PUBLISHER_ID, "456-1-05-586920-1" AS ISBN, "N" AS IS_ARCHIVED)
+			(SELECT 2 AS ID, "Title 2" AS TITLE, 253 AS PUBLISHER_ID, "456-1-05-586920-1" AS ISBN, "N" AS IS_ARCHIVED,
+				"[\\"quote3\\",\\"quote4\\"]" AS QUOTES
+			)
 		)';
 	}
 
@@ -70,6 +75,8 @@ class BookTable extends DataManager
 
 			(new BooleanField('IS_ARCHIVED'))
 				->configureValues('N', 'Y'),
+
+			(new ArrayField('QUOTES')),
 
 			(new ManyToMany('AUTHORS', AuthorTable::class))
 				->configureMediatorTableName('(

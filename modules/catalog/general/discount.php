@@ -921,7 +921,7 @@ class CAllCatalogDiscount
 		return CCatalogDiscount::GetDiscount($productID, $intIBlockID, $arCatalogGroups, $arUserGroups, $renewal, $siteID, $arDiscountCoupons);
 	}
 
-	private static function getDiscountsFromApplyResult(array $calcResults, \Bitrix\Sale\BasketItem $basketItem)
+	private static function getDiscountsFromApplyResult(array $calcResults, \Bitrix\Sale\BasketItemBase $basketItem)
 	{
 		$finalDiscountList = array();
 
@@ -981,6 +981,9 @@ class CAllCatalogDiscount
 			{
 				continue;
 			}
+
+			if ($actionConfiguration['TYPE'] == 'Closeout')
+				$actionConfiguration['VALUE_TYPE'] = self::TYPE_SALE;
 
 			$reformattedDiscount = array(
 				'ID' => $discount['ID'],
