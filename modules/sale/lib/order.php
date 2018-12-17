@@ -12,7 +12,6 @@ use Bitrix\Main;
 use Bitrix\Main\Type;
 use Bitrix\Sale\Internals;
 use Bitrix\Main\Localization\Loc;
-use Bitrix\Sale\PaySystem\Manager;
 
 Loc::loadMessages(__FILE__);
 
@@ -892,10 +891,6 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	{
 		$result = new Result();
 
-		$registry = Registry::getInstance(static::getRegistryType());
-		/** @var Payment $paymentClassName */
-		$paymentClassName = $registry->getPaymentClassName();
-
 		if ($action == EventActions::DELETE)
 		{
 			if ($this->getField('PAY_SYSTEM_ID') == $payment->getPaymentSystemId())
@@ -1130,34 +1125,30 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	/**
 	 * Modify basket.
 	 *
-	 * @param string $action				Action.
-	 * @param BasketItemBase $basketItem		Basket item.
-	 * @param null|string $name				Field name.
-	 * @param null|string|int|float $oldValue		Old value.
-	 * @param null|string|int|float $value			New value.
+	 * @param string $action
+	 * @param BasketItemBase $basketItem
+	 * @param null $name
+	 * @param null $oldValue
+	 * @param null $value
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotImplementedException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
 	 */
 	public function onBasketModify($action, BasketItemBase $basketItem, $name = null, $oldValue = null, $value = null)
 	{
 		$result = new Result();
-		if ($action != EventActions::UPDATE)
-			return $result;
 
-		if ($name == "QUANTITY")
+		if ($action === EventActions::DELETE)
 		{
 			/** @var ShipmentCollection $shipmentCollection */
 			if (!$shipmentCollection = $this->getShipmentCollection())
 			{
 				throw new Main\ObjectNotFoundException('Entity "ShipmentCollection" not found');
-			}
-			$r = $shipmentCollection->onBasketModify($action, $basketItem, $name, $oldValue, $value);
-			if (!$r->isSuccess())
-			{
-				$result->addErrors($r->getErrors());
-				return $result;
 			}
 
 			$r = parent::onBasketModify($action, $basketItem, $name, $oldValue, $value);
@@ -1167,9 +1158,49 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 				return $result;
 			}
 
-			if ($this->getId() == 0 && !$this->isMathActionOnly())
+			$r = $shipmentCollection->onBasketModify($action, $basketItem, $name, $oldValue, $value);
+			if (!$r->isSuccess())
 			{
-				$shipmentCollection->refreshData();
+				$result->addErrors($r->getErrors());
+				return $result;
+			}
+
+			return $result;
+		}
+		elseif ($action === EventActions::ADD)
+		{
+			if ($basketItem->getField('ORDER_ID'))
+			{
+				return $result;
+			}
+
+			return $this->getShipmentCollection()->onBasketModify($action, $basketItem, $name, $oldValue, $value);
+		}
+		elseif ($action !== EventActions::UPDATE)
+		{
+			return $result;
+		}
+
+		if ($name == "QUANTITY")
+		{
+			/** @var ShipmentCollection $shipmentCollection */
+			if (!$shipmentCollection = $this->getShipmentCollection())
+			{
+				throw new Main\ObjectNotFoundException('Entity "ShipmentCollection" not found');
+			}
+
+			$r = parent::onBasketModify($action, $basketItem, $name, $oldValue, $value);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+				return $result;
+			}
+
+			$r = $shipmentCollection->onBasketModify($action, $basketItem, $name, $oldValue, $value);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+				return $result;
 			}
 
 			return $result;

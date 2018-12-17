@@ -171,17 +171,18 @@ class ConditionGroup
 	{
 		$title = Loc::getMessage('BIZPROC_AUTOMATION_CONDITION_TITLE');
 		$fieldCondition = [];
+		$bizprocJoiner = 0;
 
 		/** @var Condition $condition */
 		foreach ($this->getItems() as list($condition, $joiner))
 		{
-			$bizprocJoiner = ($joiner === static::JOINER_OR) ? 1 : 0;
 			$fieldCondition[] = [
 				$condition->getField(),
 				$condition->getOperator(),
 				$condition->getValue(),
 				$bizprocJoiner
 			];
+			$bizprocJoiner = ($joiner === static::JOINER_OR) ? 1 : 0;
 		}
 
 		$activity = array(
@@ -231,8 +232,9 @@ class ConditionGroup
 		)
 		{
 			$conditionGroup = new static();
+			$bizprocConditions = $activity['Children'][0]['Properties']['fieldcondition'];
 
-			foreach ($activity['Children'][0]['Properties']['fieldcondition'] as $fieldCondition)
+			foreach ($bizprocConditions as $index => $fieldCondition)
 			{
 				$conditionItem = new Condition(array(
 					'field' => $fieldCondition[0],
@@ -240,7 +242,9 @@ class ConditionGroup
 					'value' => $fieldCondition[2],
 				));
 
-				$joiner = (isset($fieldCondition[3]) && $fieldCondition[3] > 0) ? static::JOINER_OR : static::JOINER_AND;
+				$nextCondition = isset($bizprocConditions[$index + 1]) ? $bizprocConditions[$index + 1] : null;
+				$joiner = ($nextCondition && !empty($nextCondition[3])) ? static::JOINER_OR : static::JOINER_AND;
+
 				$conditionGroup->addItem($conditionItem, $joiner);
 			}
 

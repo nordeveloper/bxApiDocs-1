@@ -385,20 +385,6 @@ class Helper
 			$statisticRecord['PORTAL_USER_ID']
 		);
 
-		if($call->getCrmActivityId() && \CVoxImplantCrmHelper::shouldAttachCallToActivity($statisticRecord, $call->getCrmActivityId()))
-		{
-			\CVoxImplantCrmHelper::attachCallToActivity($statisticRecord, $call->getCrmActivityId());
-			$statisticRecord['CRM_ACTIVITY_ID'] = $call->getCrmActivityId();
-		}
-		else
-		{
-			$statisticRecord['CRM_ACTIVITY_ID'] = \CVoxImplantCrmHelper::AddCall($statisticRecord, array(
-				'CRM_BINDINGS' => $call->getCrmBindings()
-			));
-			if(!$statisticRecord['CRM_ACTIVITY_ID'])
-				$activityCreationError = \CVoxImplantCrmHelper::$lastError;
-		}
-
 		if($call->getPrimaryEntityType() != '' && $call->getPrimaryEntityId() > 0)
 		{
 			$statisticRecord['CRM_ENTITY_TYPE'] = $call->getPrimaryEntityType();
@@ -417,6 +403,20 @@ class Helper
 					)
 				);
 			}
+		}
+
+		if($call->getCrmActivityId() && \CVoxImplantCrmHelper::shouldAttachCallToActivity($statisticRecord, $call->getCrmActivityId()))
+		{
+			\CVoxImplantCrmHelper::attachCallToActivity($statisticRecord, $call->getCrmActivityId());
+			$statisticRecord['CRM_ACTIVITY_ID'] = $call->getCrmActivityId();
+		}
+		else
+		{
+			$statisticRecord['CRM_ACTIVITY_ID'] = \CVoxImplantCrmHelper::AddCall($statisticRecord, array(
+				'CRM_BINDINGS' => $call->getCrmBindings()
+			));
+			if(!$statisticRecord['CRM_ACTIVITY_ID'])
+				$activityCreationError = \CVoxImplantCrmHelper::$lastError;
 		}
 
 		if(\CVoxImplantConfig::GetLeadWorkflowExecution() == \CVoxImplantConfig::WORKFLOW_START_DEFERRED)
@@ -1034,8 +1034,9 @@ class Helper
 
 		$userId = Security\Helper::getCurrentUserId();
 		$searchResult = \CCrmSipHelper::findByPhoneNumber($phoneNumber, array('USER_ID' => $userId));
-		$resultData = array();
-		$userIds = array();
+		$resultData = [];
+		$userIds = [];
+		$entities = [];
 
 		$entityNames = array(\CCrmOwnerType::ContactName, \CCrmOwnerType::LeadName, \CCrmOwnerType::CompanyName);
 		foreach ($entityNames as $entityName)
@@ -1050,7 +1051,21 @@ class Helper
 						'ASSIGNED_BY_ID' => $entityData['ASSIGNED_BY_ID']
 					);
 					$userIds[] = $entityData['ASSIGNED_BY_ID'];
+					$entities[] = [
+						'TYPE' => $entityName,
+						'ID' => $entityData['ID']
+					];
 				}
+			}
+		}
+
+		$crmEntityFields = \CVoxImplantCrmHelper::resolveEntitiesFields($entities);
+
+		foreach ($resultData as $k => $v)
+		{
+			if(isset($crmEntityFields[$v['CRM_ENTITY_TYPE'] . ':' . $v['CRM_ENTITY_ID']]))
+			{
+				$resultData[$k]['NAME'] = $crmEntityFields[$v['CRM_ENTITY_TYPE'] . ':' . $v['CRM_ENTITY_ID']]['NAME'];
 			}
 		}
 

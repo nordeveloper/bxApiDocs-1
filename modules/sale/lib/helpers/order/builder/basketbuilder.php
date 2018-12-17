@@ -705,29 +705,26 @@ abstract class BasketBuilder
 		{
 			foreach($result->getErrors() as $error)
 			{
+				$containerErrors = $this->getErrorsContainer()->getErrors();
+
 				//avoid duplication
-				foreach($this->getErrorsContainer()->getErrors() as $existError)
+				if(is_array($containerErrors) && !empty($containerErrors))
 				{
-					if($error->getMessage() === $existError->getMessage())
+					foreach($this->getErrorsContainer()->getErrors() as $existError)
 					{
-						continue 2;
-					}
-				}
-
-				if($error->getCode() == "CATALOG_QUANTITY_NOT_ENOGH")
-				{
-					if((string)Option::get('catalog', 'allow_negative_amount') != 'Y')
-					{
-						$data = $result->getData();
-						$res = $item->setField("QUANTITY", $data["AVAILABLE_QUANTITY"]);
-
-						if(!$res->isSuccess())
+						if($error->getMessage() !== $existError->getMessage())
 						{
-							$this->getErrorsContainer()->addErrors($res->getErrors());
+							$this->getErrorsContainer()->addError($error);
 						}
 					}
 				}
+				else
+				{
+					$this->getErrorsContainer()->addError($error);
+				}
 			}
+
+			throw new BuildingException();
 		}
 	}
 

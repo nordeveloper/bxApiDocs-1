@@ -83,7 +83,9 @@ abstract class BasketBase extends BasketItemCollection
 
 		/** @var OrderBase $order */
 		if ($order = $this->getOrder())
+		{
 			$order->onBasketModify(EventActions::DELETE, $oldItem);
+		}
 
 		return $oldItem;
 	}
@@ -564,10 +566,17 @@ abstract class BasketBase extends BasketItemCollection
 		$order = $this->getOrder();
 		if (!$order)
 		{
+			$r =  $this->verify();
+
+			if (!$r->isSuccess())
+			{
+				return $result->addErrors($r->getErrors());
+			}
+
 			$r = $this->callEventOnSaleBasketBeforeSaved();
 			if (!$r->isSuccess())
 			{
-				return $r;
+				return $result->addErrors($r->getErrors());
 			}
 		}
 
@@ -582,8 +591,10 @@ abstract class BasketBase extends BasketItemCollection
 				$result->addErrors($r->getErrors());
 			}
 
-			if (isset($originalItemsValues[$basketItem->getId()]) && $basketItem->getQuantity() > 0)
+			if (isset($originalItemsValues[$basketItem->getId()]))
+			{
 				unset($originalItemsValues[$basketItem->getId()]);
+			}
 		}
 
 		if ($originalItemsValues)

@@ -581,7 +581,7 @@ abstract class OrderBase extends Internals\Entity
 	 * @throws Main\ObjectPropertyException
 	 * @throws Main\SystemException
 	 */
-	protected function loadPropertyCollection()
+	public function loadPropertyCollection()
 	{
 		$registry = Registry::getInstance(static::getRegistryType());
 		/** @var PropertyValueCollectionBase $propertyCollectionClassName */
@@ -1121,6 +1121,11 @@ abstract class OrderBase extends Internals\Entity
 			}
 		}
 
+		if ($r->hasWarnings())
+		{
+			$result->addWarnings($r->getWarnings());
+		}
+
 		if (!$r->isSuccess())
 		{
 			$this->isSaveExecuting = false;
@@ -1342,7 +1347,9 @@ abstract class OrderBase extends Internals\Entity
 			}
 
 			if ($resultData = $r->getData())
+			{
 				$result->setData($resultData);
+			}
 		}
 
 		return $result;
@@ -1696,8 +1703,10 @@ abstract class OrderBase extends Internals\Entity
 
 			$this->setField('DATE_STATUS', new Type\DateTime());
 
-			if ($USER && $USER->isAuthorized())
+			if (is_object($USER) && $USER->isAuthorized())
+			{
 				$this->setField('EMP_STATUS_ID', $USER->GetID());
+			}
 
 			Internals\EventsPool::addEvent($this->getInternalId(), EventActions::EVENT_ON_ORDER_STATUS_CHANGE, array(
 				'ENTITY' => $this,
@@ -1751,25 +1760,20 @@ abstract class OrderBase extends Internals\Entity
 	public function onBasketModify($action, BasketItemBase $basketItem, $name = null, $oldValue = null, $value = null)
 	{
 		$result = new Result();
-		if ($action != EventActions::UPDATE)
-			return $result;
 
-		if ($name == "QUANTITY")
+		if ($action === EventActions::DELETE)
 		{
-			if ($value == 0)
+			/** @var Result $r */
+			$r = $this->refreshVat();
+			if (!$r->isSuccess())
 			{
-				/** @var Result $r */
-				$r = $this->refreshVat();
-				if (!$r->isSuccess())
-				{
-					$result->addErrors($r->getErrors());
-					return $result;
-				}
+				$result->addErrors($r->getErrors());
+				return $result;
+			}
 
-				if ($tax = $this->getTax())
-				{
-					$tax->resetTaxList();
-				}
+			if ($tax = $this->getTax())
+			{
+				$tax->resetTaxList();
 			}
 
 			/** @var Result $result */
@@ -1778,12 +1782,18 @@ abstract class OrderBase extends Internals\Entity
 			{
 				$result->addErrors($r->getErrors());
 			}
+
+			return $result;
 		}
-		elseif ($name == "PRICE")
+		elseif ($action !== EventActions::UPDATE)
+		{
+			return $result;
+		}
+
+		if ($name == "QUANTITY" || $name == "PRICE")
 		{
 			/** @var Result $result */
 			$r = $this->refreshOrderPrice();
-
 			if (!$r->isSuccess())
 			{
 				$result->addErrors($r->getErrors());

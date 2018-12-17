@@ -188,6 +188,8 @@ class CSalePersonType extends CAllSalePersonType
 			}
 		}
 
+		$arFields['ENTITY_REGISTRY_TYPE'] = \Bitrix\Sale\Registry::REGISTRY_TYPE_ORDER;
+
 		$arInsert = $DB->PrepareInsert("b_sale_person_type", $arFields);
 
 		$strSql =

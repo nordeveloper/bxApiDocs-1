@@ -143,8 +143,8 @@ HTML
 
 								<div style="clear: both;"></div>
 								<div class="block-pager adm-nav-pages-block">
-									<span class="adm-nav-page adm-nav-page-prev"></span>
-									<span class="adm-nav-page adm-nav-page-next"></span>
+									<span class="adm-nav-page adm-nav-page-prev #nav-display#"></span>
+									<span class="adm-nav-page adm-nav-page-next #nav-display#"></span>
 								</div>
 
 							</div>
@@ -981,6 +981,7 @@ HTML
 				'blocks' => $blocks,
 				'tools' => $tools,
 				'devices' => $devices,
+				'nav-display' => count($this->blocks) <= static::BLOCK_COUNT_PER_PAGE ? 'bx-block-hide' : '',
 				'MESS_ACCESS_DENIED' => Loc::getMessage('ACCESS_DENIED'),
 				'MESS_STYLES' => Loc::getMessage('BLOCK_EDITOR_UI_STYLES'),
 				'MESS_BLOCKS' => Loc::getMessage('BLOCK_EDITOR_UI_BLOCKS'),
@@ -1003,7 +1004,6 @@ HTML
 
 		return $this->getUI('main', array(
 			'TEXTAREA' => $textArea,
-			'id' => htmlspecialcharsbx($this->id),
 			'id' => htmlspecialcharsbx($this->id),
 			'tabs' => $tabs,
 			'panels' => $panels,

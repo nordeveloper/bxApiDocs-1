@@ -3851,6 +3851,8 @@ class CAllSaleUser
 	{
 		global $DB;
 
+		$DB->StartUsingMasterOnly();
+
 		$ID = IntVal($ID);
 		if ($ID <= 0)
 			return False;
@@ -3878,6 +3880,8 @@ class CAllSaleUser
 
 		$strSql = "UPDATE b_sale_fuser SET ".$strUpdate." WHERE ID = ".$ID." ";
 		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+
+		$DB->StopUsingMasterOnly();
 
 		return $ID;
 	}

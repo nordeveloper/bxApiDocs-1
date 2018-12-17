@@ -14,18 +14,23 @@ class Helper
 	{
 		$mailboxHelper = Helper\Mailbox::createInstance($id, false);
 
-		$result = empty($mailboxHelper) ? false : $mailboxHelper->sync();
-
-		if ($result === false)
+		if (empty($mailboxHelper))
 		{
 			return '';
 		}
 
 		$mailbox = $mailboxHelper->getMailbox();
 
+		if ($mailbox['OPTIONS']['next_sync'] <= time())
+		{
+			$mailboxHelper->sync();
+
+			$mailbox = $mailboxHelper->getMailbox();
+		}
+
 		global $pPERIOD;
 
-		$pPERIOD = $mailbox['SYNC_LOCK'] < 0 ? $pPERIOD : min($result > 0 ? 60 : 600, $pPERIOD);
+		$pPERIOD = min($pPERIOD, max($mailbox['OPTIONS']['next_sync'] - time(), 60));
 
 		return sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $id);
 	}
@@ -39,9 +44,11 @@ class Helper
 		return '';
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public static function resortTreeAgent($id)
 	{
-		return '';
 		$mailboxHelper = Helper\Mailbox::createInstance($id, false);
 
 		$result = empty($mailboxHelper) ? false : $mailboxHelper->resortTree();

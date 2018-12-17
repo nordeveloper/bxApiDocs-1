@@ -144,16 +144,79 @@ class Helper
 	public static function convertExpressions($source, array $documentType)
 	{
 		$source = (string)$source;
-		list($simple, $original) = static::getExpressionsMap($documentType);
-		$source = str_replace($original, $simple, $source);
+		list($ids, $names) = static::getFieldsMap($documentType);
+
+		$converter = function ($matches) use ($ids, $names)
+		{
+			if ($matches['object'] === 'Document')
+			{
+				$key = array_search($matches['field'], $ids);
+				if ($key !== false)
+				{
+					$fieldName = $names[$key];
+					$mods = [];
+
+					if ($matches['mod1'])
+					{
+						$mods[] = $matches['mod1'];
+					}
+					if ($matches['mod2'])
+					{
+						$mods[] = $matches['mod2'];
+					}
+
+					return '{{'.$fieldName. ($mods? ' > '.implode(',', $mods) : '').'}}';
+				}
+			}
+			return $matches[0];
+		};
+
+		$source = preg_replace_callback(
+			\CBPActivity::ValueInlinePattern,
+			$converter,
+			$source
+		);
+
 		return $source;
 	}
 
 	public static function unConvertExpressions($source, array $documentType)
 	{
 		$source = (string)$source;
-		list($simple, $original) = static::getExpressionsMap($documentType);
-		$source = str_replace($simple, $original, $source);
+		list($ids, $names) = static::getFieldsMap($documentType);
+
+		$converter = function ($matches) use ($ids, $names)
+		{
+			$pairs = explode('>', $matches['mixed']);
+			$fieldName = $fieldId = '';
+
+			while (($pair = array_shift($pairs)) !== null)
+			{
+				$fieldName .= $fieldName? '>'.$pair : $pair;
+
+				$key = array_search(trim($fieldName), $names);
+				if ($key !== false)
+				{
+					$fieldId = $ids[$key];
+					break;
+				}
+			}
+
+			if ($fieldId)
+			{
+				$mods = isset($pairs[0]) ? trim($pairs[0]) : '';
+				return '{=Document:'.$fieldId.($mods? ' > '.$mods : '').'}';
+			}
+
+			return $matches[0];
+		};
+
+		$source = preg_replace_callback(
+			'/\{\{(?<mixed>.*?)\}\}/is',
+			$converter,
+			$source
+		);
+
 		return $source;
 	}
 
@@ -207,22 +270,21 @@ class Helper
 		return $resultFields;
 	}
 
-	protected static function getExpressionsMap(array $documentType)
+	protected static function getFieldsMap(array $documentType)
 	{
 		$key = implode('@', $documentType);
 		if (!isset(static::$maps[$key]))
 		{
-			$simple = array();
-			$original = array();
+			$id = $name = [];
 
 			$fields = static::getDocumentFields($documentType);
 			foreach ($fields as $field)
 			{
-				$simple[] = $field['Expression'];
-				$original[] = $field['SystemExpression'];
+				$id[] = $field['Id'];
+				$name[] = $field['Name'];
 			}
 
-			static::$maps[$key] = array($simple, $original);
+			static::$maps[$key] = [$id, $name];
 		}
 		return static::$maps[$key];
 	}

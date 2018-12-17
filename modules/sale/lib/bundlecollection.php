@@ -1,10 +1,5 @@
 <?php
-/**
- * Bitrix Framework
- * @package bitrix
- * @subpackage sale
- * @copyright 2001-2012 Bitrix
- */
+
 namespace Bitrix\Sale;
 
 use Bitrix\Main;
@@ -62,6 +57,31 @@ class BundleCollection extends BasketItemCollection
 	public static function getList(array $parameters)
 	{
 		return Basket::getList($parameters);
+	}
+
+	/**
+	 * @param $index
+	 * @return mixed
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
+	 */
+	public function deleteItem($index)
+	{
+		$oldItem = parent::deleteItem($index);
+
+		/** @var Order $order */
+		if ($order = $this->getOrder())
+		{
+			$collection = $order->getShipmentCollection();
+			$collection->onBasketModify(EventActions::DELETE, $oldItem);
+		}
+
+		return $oldItem;
 	}
 
 	/**
@@ -184,9 +204,14 @@ class BundleCollection extends BasketItemCollection
 	 * @param null $oldValue
 	 * @param null $value
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\ArgumentTypeException
 	 * @throws Main\NotImplementedException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
 	 */
 	public function onItemModify(Internals\CollectableEntity $item, $name = null, $oldValue = null, $value = null)
 	{

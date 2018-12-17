@@ -167,15 +167,15 @@ class Landing extends Sale\TradingPlatform\Platform
 				if (isset($sysPages['personal']))
 				{
 					$landing = \Bitrix\Landing\Landing::createInstance(
-						$sysPages['personal']['LANDING_ID']
+						$sysPages['personal']['LANDING_ID'],
+						[
+							'blocks_limit' => 1
+						]
 					);
 					if ($landing->exist())
 					{
 						$url = $landing->getPublicUrl(
-							$sysPages['personal']['LANDING_ID'],
-							[
-								'blocks_limit' => 1
-							]
+							$sysPages['personal']['LANDING_ID']
 						);
 						$url .= '?SECTION=orders&ID=' . $order->getId();
 

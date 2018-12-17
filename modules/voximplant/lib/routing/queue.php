@@ -146,7 +146,17 @@ class Queue extends Node
 		$call->updateStatus(CallTable::STATUS_ENQUEUED);
 		$queuePosition = CallQueue::getCallPosition($call->getCallId());
 
-		return new Action(Command::ENQUEUE, ['QUEUE_POSITION' => $queuePosition]);
+		$userId = $call->getUserId();
+		if ($userId <= 0)
+		{
+			$userId = $this->queue->getFirstUserId($this->checkTimeman);
+			if ($userId)
+			{
+				$this->queue->touchUser($userId);
+			}
+		}
+
+		return new Action(Command::ENQUEUE, ['QUEUE_POSITION' => $queuePosition, 'QUEUE_ID' => $this->queueId, 'USER_ID' => $userId]);
 	}
 
 	protected function leaveQueue(Call $call)

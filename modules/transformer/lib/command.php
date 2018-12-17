@@ -155,8 +155,19 @@ class Command
 		{
 			if(is_a($callback, 'Bitrix\Transformer\InterfaceCallback', true))
 			{
-				/* @var $callback InterfaceCallback*/
-				$resultCallback = $callback::call($this->status, $this->command, $this->params, $result);
+				try
+				{
+					/* @var $callback InterfaceCallback*/
+					$resultCallback = $callback::call($this->status, $this->command, $this->params, $result);
+				}
+				catch(\Exception $exception)
+				{
+					$resultCallback = $exception->getMessage();
+				}
+				catch (\Error $error)
+				{
+					$resultCallback = $error->getMessage();
+				}
 				if($resultCallback === true)
 				{
 					$success++;

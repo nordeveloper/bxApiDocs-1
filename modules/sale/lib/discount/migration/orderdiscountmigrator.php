@@ -437,18 +437,18 @@ final class OrderDiscountMigrator
 		static $discountDescr = null;
 		if ($discountDescr === null)
 		{
-			$discountDescr = $actionsDescr = Sale\Discount\Formatter::prepareRow(
+			$discountDescr = Sale\Discount\Formatter::prepareRow(
 				Sale\Discount\Formatter::TYPE_SIMPLE,
 				Loc::getMessage('SALE_ORDER_DISCOUNT_MIGRATOR_MESS_CATALOG_DISCOUNT_SIMPLE_MESS')
-			)->getData();
+			);
 		}
 		static $accumulateDescr = null;
 		if ($accumulateDescr === null)
 		{
-			$accumulateDescr = $actionsDescr = Sale\Discount\Formatter::prepareRow(
+			$accumulateDescr = Sale\Discount\Formatter::prepareRow(
 				Sale\Discount\Formatter::TYPE_SIMPLE,
 				Loc::getMessage('SALE_ORDER_DISCOUNT_MIGRATOR_MESS_TYPE_ACCUMULATE_EMPTY')
-			)->getData();
+			);
 		}
 		foreach ($replaceKeys as $key)
 		{

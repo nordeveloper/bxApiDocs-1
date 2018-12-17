@@ -623,9 +623,9 @@ class ExternalLocationMap
 				INSERT INTO
 					  b_sale_hdaln (LOCATION_ID, LEFT_MARGIN, RIGHT_MARGIN, NAME)
 				VALUES(
-					".$sqlHelper->forSql($loc['ID']).",
-					".$sqlHelper->forSql($loc['LEFT_MARGIN']).",
-					".$sqlHelper->forSql($loc['RIGHT_MARGIN']).",
+					".intval($loc['ID']).",
+					".intval($loc['LEFT_MARGIN']).",
+					".intval($loc['RIGHT_MARGIN']).",
 					'".$sqlHelper->forSql(
 							preg_replace(
 									'/\s*(\(.*\))/i'.BX_UTF_PCRE_MODIFIER,

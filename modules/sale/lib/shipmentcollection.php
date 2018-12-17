@@ -1,10 +1,5 @@
 <?php
-/**
- * Bitrix Framework
- * @package bitrix
- * @subpackage sale
- * @copyright 2001-2012 Bitrix
- */
+
 namespace Bitrix\Sale;
 
 use Bitrix\Main;
@@ -15,6 +10,10 @@ use Bitrix\Sale\Internals;
 
 Loc::loadMessages(__FILE__);
 
+/**
+ * Class ShipmentCollection
+ * @package Bitrix\Sale
+ */
 class ShipmentCollection
 	extends Internals\EntityCollection
 {
@@ -194,7 +193,13 @@ class ShipmentCollection
 	{
 		/** @var Order $order */
 		$order = $this->getOrder();
-		return $order->onShipmentCollectionModify(EventActions::UPDATE, $item, $name, $oldValue, $value);
+
+		if ($item instanceof Shipment)
+		{
+			return $order->onShipmentCollectionModify(EventActions::UPDATE, $item, $name, $oldValue, $value);
+		}
+
+		return new Result();
 	}
 
 	/**
@@ -831,7 +836,10 @@ class ShipmentCollection
 
 	/**
 	 * Trying to reserve the contents of the shipment collection
+	 *
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
@@ -871,13 +879,14 @@ class ShipmentCollection
 			$r = $shipment->tryUnreserve();
 			if (!$r->isSuccess())
 			{
-
-				$registry = Registry::getInstance(static::getRegistryType());
-				/** @var EntityMarker $entityMarker */
-				$entityMarker = $registry->getEntityMarkerClassName();
-				$entityMarker::addMarker($order, $shipment, $r);
 				if (!$shipment->isSystem())
 				{
+					$registry = Registry::getInstance(static::getRegistryType());
+
+					/** @var EntityMarker $entityMarker */
+					$entityMarker = $registry->getEntityMarkerClassName();
+					$entityMarker::addMarker($order, $shipment, $r);
+
 					$shipment->setField('MARKED', 'Y');
 				}
 				$result->addErrors($r->getErrors());
@@ -892,28 +901,61 @@ class ShipmentCollection
 	}
 
 	/**
-	 * @param                $action
+	 * @param $action
 	 * @param BasketItemBase $basketItem
-	 * @param null           $name
-	 * @param null           $oldValue
-	 * @param null           $value
-	 *
+	 * @param null $name
+	 * @param null $oldValue
+	 * @param null $value
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotImplementedException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
 	 */
 	public function onBasketModify($action, BasketItemBase $basketItem, $name = null, $oldValue = null, $value = null)
 	{
-		if ($action != EventActions::UPDATE)
-			throw new Main\NotImplementedException();
+		$result = new Result();
 
-		/** @var Shipment $systemShipment */
-		if (!$systemShipment = $this->getSystemShipment())
+		if (!($basketItem instanceof BasketItem))
 		{
-			throw new Main\ObjectNotFoundException('Entity "Shipment" not found');
+			return $result;
 		}
 
-		$result = new Result();
+		if ($action === EventActions::DELETE)
+		{
+			/** @var Shipment $shipment */
+			foreach ($this->collection as $shipment)
+			{
+				$r = $shipment->onBasketModify($action, $basketItem, $name, $oldValue, $value);
+				if (!$r->isSuccess())
+				{
+					$result->addErrors($r->getErrors());
+				}
+			}
+
+			if (!$basketItem->isBundleChild())
+			{
+				$order = $this->getOrder();
+				if ($order->getId() == 0 && !$order->isMathActionOnly())
+				{
+					$this->refreshData();
+				}
+			}
+
+			return $result;
+		}
+		elseif ($action === EventActions::ADD)
+		{
+			$systemShipment = $this->getSystemShipment();
+			return $systemShipment->onBasketModify($action, $basketItem, $name, $oldValue, $value);
+		}
+		elseif ($action !== EventActions::UPDATE)
+		{
+			return $result;
+		}
 
 		$currentShipment = null;
 		$allowQuantityChange = false;
@@ -922,28 +964,7 @@ class ShipmentCollection
 		{
 			$deltaQuantity = $value - $oldValue;
 
-			if ($value == 0)
-			{
-
-				/** @var Shipment $shipment */
-				foreach ($this->collection as $shipment)
-				{
-
-					/** @var ShipmentItemCollection $shipmentItemCollection */
-					if (!$shipmentItemCollection = $shipment->getShipmentItemCollection())
-					{
-						throw new Main\ObjectNotFoundException('Entity "ShipmentItemCollection" not found');
-					}
-
-					$r = $shipmentItemCollection->deleteByBasketItem($basketItem);
-					if (!$r->isSuccess())
-					{
-						$result->addErrors($r->getErrors());
-					}
-				}
-
-			}
-			elseif ($deltaQuantity != 0)
+			if ($deltaQuantity != 0)
 			{
 				if (count($this->collection) == 1 || (count($this->collection) == 2) && $this->isExistsSystemShipment())
 				{
@@ -995,15 +1016,15 @@ class ShipmentCollection
 						if (!$basketItem->isBundleChild() && !isset($this->errors[$basketItem->getBasketCode()]['SALE_ORDER_SYSTEM_SHIPMENT_LESS_QUANTITY']))
 						{
 							$result->addError(new ResultError(
-												Loc::getMessage('SALE_ORDER_SYSTEM_SHIPMENT_LESS_QUANTITY',
-																array(
-																		'#PRODUCT_NAME#' => $basketItem->getField("NAME"),
-																		'#BASKET_ITEM_QUANTITY#' => ($basketItemQuantity),
-																		'#BASKET_ITEM_MEASURE#' => $basketItem->getField("MEASURE_NAME"),
-																		'#QUANTITY#' => ($basketItemQuantity - $value)
-																)
-													),
-												'SALE_ORDER_SYSTEM_SHIPMENT_LESS_QUANTITY'));
+								Loc::getMessage('SALE_ORDER_SYSTEM_SHIPMENT_LESS_QUANTITY',
+									array(
+										'#PRODUCT_NAME#' => $basketItem->getField("NAME"),
+										'#BASKET_ITEM_QUANTITY#' => ($basketItemQuantity),
+										'#BASKET_ITEM_MEASURE#' => $basketItem->getField("MEASURE_NAME"),
+										'#QUANTITY#' => ($basketItemQuantity - $value)
+									)
+								),
+								'SALE_ORDER_SYSTEM_SHIPMENT_LESS_QUANTITY'));
 
 							$this->errors[$basketItem->getBasketCode()]['SALE_ORDER_SYSTEM_SHIPMENT_LESS_QUANTITY'] = $basketItemQuantity - $value;
 						}
@@ -1012,11 +1033,14 @@ class ShipmentCollection
 					}
 				}
 			}
-
 		}
 
-		if(!$result->isSuccess())
+		if (!$result->isSuccess())
+		{
 			return $result;
+		}
+
+		$systemShipment = $this->getSystemShipment();
 
 		$r = $systemShipment->onBasketModify($action, $basketItem, $name, $oldValue, $value);
 		if (!$r->isSuccess())
@@ -1091,8 +1115,10 @@ class ShipmentCollection
 	 * @param $name
 	 * @param $oldValue
 	 * @param $value
-	 *
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
@@ -1105,7 +1131,6 @@ class ShipmentCollection
 			case "CANCELED":
 				if ($value == "Y")
 				{
-
 					$isShipped = false;
 					/** @var Shipment $shipment */
 					foreach ($this->collection as $shipment)
@@ -1119,7 +1144,13 @@ class ShipmentCollection
 
 					if ($isShipped)
 					{
-						$result->addError(new ResultError(Loc::getMessage('SALE_ORDER_CANCEL_SHIPMENT_EXIST_SHIPPED'), 'SALE_ORDER_CANCEL_SHIPMENT_EXIST_SHIPPED'));
+						$result->addError(
+							new ResultError(
+								Loc::getMessage('SALE_ORDER_CANCEL_SHIPMENT_EXIST_SHIPPED'),
+								'SALE_ORDER_CANCEL_SHIPMENT_EXIST_SHIPPED'
+							)
+						);
+
 						return $result;
 					}
 
@@ -1380,6 +1411,10 @@ class ShipmentCollection
 
 	/**
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 */
 	public function verify()
@@ -1389,31 +1424,26 @@ class ShipmentCollection
 		/** @var Shipment $shipment */
 		foreach ($this->collection as $shipment)
 		{
+			if ($shipment->isSystem())
+			{
+				continue;
+			}
+
 			$r = $shipment->verify();
 			if (!$r->isSuccess())
 			{
-				if (!$shipment->isSystem())
-				{
-					$result->addErrors($r->getErrors());
+				$result->addErrors($r->getErrors());
 
-					/** @var Order $order */
-					if (!$order = $this->getOrder())
-					{
-						throw new Main\ObjectNotFoundException('Entity "Order" not found');
-					}
+				$registry = Registry::getInstance(static::getRegistryType());
 
+				/** @var EntityMarker $entityMarker */
+				$entityMarker = $registry->getEntityMarkerClassName();
+				$entityMarker::addMarker($this->getOrder(), $shipment, $r);
 
-					$registry = Registry::getInstance(static::getRegistryType());
-					/** @var EntityMarker $entityMarker */
-					$entityMarker = $registry->getEntityMarkerClassName();
-					$entityMarker::addMarker($order, $shipment, $r);
-					if (!$shipment->isSystem())
-					{
-						$shipment->setField('MARKED', 'Y');
-					}
-				}
+				$shipment->setField('MARKED', 'Y');
 			}
 		}
+
 		return $result;
 	}
 

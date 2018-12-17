@@ -299,13 +299,7 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 			}
 		}
 
-
-		$r = $this->setField("QUANTITY", 0);
-		if (!$r->isSuccess())
-		{
-			$result->addErrors($r->getErrors());
-			return $result;
-		}
+		$this->setFieldNoDemand("QUANTITY", 0);
 
 		/** @var Result $r */
 		$r = parent::delete();
@@ -473,6 +467,7 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 			if (!empty($fields[$fieldName]))
 			{
 				$this->setField($fieldName, $fields[$fieldName]);
+				unset($fields[$fieldName]);
 			}
 		}
 
@@ -535,8 +530,9 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 	}
 
 	/**
-	 * @return ProviderBase|null
+	 * @return ProviderBase|null|string
 	 * @throws Main\ArgumentNullException
+	 * @throws Main\LoaderException
 	 */
 	public function getProvider()
 	{
@@ -580,8 +576,16 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 	{
 		$result = new Result();
 
-		if ($name == "QUANTITY" && $value != 0)
+		if ($name == "QUANTITY")
 		{
+			if ($value == 0)
+			{
+				$result->addError(new Main\Error(
+					Localization\Loc::getMessage('SALE_BASKET_ITEM_ERR_QUANTITY_ZERO')
+				));
+				return $result;
+			}
+
 			$value = (float)$value;
 			$oldValue = (float)$oldValue;
 			$deltaQuantity = $value - $oldValue;
@@ -1092,31 +1096,6 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 	}
 
 	/**
-	 * @return bool
-	 * @throws Main\ArgumentNullException
-	 */
-	private function checkFields()
-	{
-		if ($this->getId() > 0)
-		{
-			$fields = $this->fields->getChangedValues();
-
-			if (isset($fields["QUANTITY"]) && (float)$fields["QUANTITY"] == 0)
-				return false;
-		}
-		else
-		{
-			if ($this->getField('CURRENCY') === '')
-				throw new Main\ArgumentNullException('CURRENCY');
-
-			if ((float)$this->getField('QUANTITY') == 0)
-				return false;
-		}
-
-		return true;
-	}
-
-	/**
 	 * @return Result
 	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
@@ -1127,11 +1106,6 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 		$result = new Result();
 		$id = (int)$this->getId();
 		$isNew = $id === 0;
-
-		if ($this->checkFields() === false)
-		{
-			return $result;
-		}
 
 		$this->onBeforeSave();
 
@@ -1470,6 +1444,20 @@ abstract class BasketItemBase extends Internals\CollectableEntity
 	public function verify()
 	{
 		$result = new Result();
+
+		if ((float)$this->getField('QUANTITY') <= 0)
+		{
+			$result->addError(new Main\Error(
+				Localization\Loc::getMessage('SALE_BASKET_ITEM_ERR_QUANTITY_ZERO')
+			));
+		}
+
+		if (!$this->getField('CURRENCY'))
+		{
+			$result->addError(new Main\Error(
+				Localization\Loc::getMessage('SALE_BASKET_ITEM_ERR_CURRENCY_EMPTY')
+			));
+		}
 
 		if ($basketPropertyCollection = $this->getPropertyCollection())
 		{

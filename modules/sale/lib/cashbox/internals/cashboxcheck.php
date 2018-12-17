@@ -15,6 +15,8 @@ class CashboxCheckTable extends DataManager
 		return array(
 			'ID' => array(
 				'primary' => true,
+				'autocomplete' => true,
+				'autoincrement' => true,
 				'data_type' => 'integer',
 			),
 			'PAYMENT_ID' => array(

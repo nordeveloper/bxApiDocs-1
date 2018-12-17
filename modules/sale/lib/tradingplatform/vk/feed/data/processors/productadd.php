@@ -28,11 +28,10 @@ class ProductAdd extends DataProcessor
 	 * @throws TimeIsOverException
 	 * @throws Vk\ExecuteException
 	 */
-	public function process($data, Timer $timer = NULL)
+	public function process($data, Timer $timer = null)
 	{
 //		logger use always, but rich log need only if set this option
 		$logger = new Vk\Logger($this->exportId);
-		$richLog = self::$vk->getRichLog($this->exportId);
 		
 		if (count($data) > Vk\Vk::MAX_EXECUTION_ITEMS)
 		{
@@ -76,10 +75,9 @@ class ProductAdd extends DataProcessor
 //			todo: need a photo mapping check before upload.
 			if (!empty($data))
 			{
-				if ($richLog)
-					$logger->addLog("Upload main photo");
-				
-				$mainPhotoSaveResults = self::$apiHelper->uploadPhotos($data, $this->vkGroupId, 'PRODUCT_MAIN_PHOTO', $timer);
+				$logger->addLog("Upload main photo");
+				$mainPhotoSaveResults = self::$apiHelper->uploadPhotos($data, $this->vkGroupId, 'PRODUCT_MAIN_PHOTO',
+					$timer);
 				$data = Vk\Api\ApiHelper::addResultToData($data, $mainPhotoSaveResults, "BX_ID");
 			}
 
@@ -89,17 +87,17 @@ class ProductAdd extends DataProcessor
 			{
 				if ($product["PHOTOS"])
 				{
-					if ($richLog)
-						$logger->addLog("Upload product photos");
-					$productPhotosSaveResults = self::$apiHelper->uploadPhotos($product["PHOTOS"], $this->vkGroupId, 'PRODUCT_PHOTOS', $timer);
-					$product["PHOTOS"] = Vk\Api\ApiHelper::addResultToData($product["PHOTOS"], $productPhotosSaveResults, "PHOTO_BX_ID");
+					$logger->addLog("Upload product photos");
+					$productPhotosSaveResults = self::$apiHelper->uploadPhotos($product["PHOTOS"], $this->vkGroupId,
+						'PRODUCT_PHOTOS', $timer);
+					$product["PHOTOS"] = Vk\Api\ApiHelper::addResultToData($product["PHOTOS"], $productPhotosSaveResults,
+						"PHOTO_BX_ID");
 				}
 			}
 			unset($product);
 
 //			ADD or EDIT products
-			if ($richLog)
-				$logger->addLog("Add or edit products", $data);
+			$logger->addLog("Add or edit products", $data);
 			$productsData = Vk\Api\ApiHelper::prepareProductsDataToVk($data);
 			$productsAddEditResults = $this->executer->executeMarketProductAddEdit(array(
 				"owner_id" => $this->vkGroupId,
@@ -126,14 +124,14 @@ class ProductAdd extends DataProcessor
 //			adding to ALBUMS
 			$productsToAlbums = array();
 			$sectionsList = new Vk\SectionsList($this->exportId);
-			
+
 //			product may have multisections - find all them
 			$productsIds = array_keys($data);
 			$productsMultiSections = $sectionsList->getMultiSectionsToProduct($productsIds);
 			
-			foreach($productsMultiSections as $productId => $product)
+			foreach ($productsMultiSections as $productId => $product)
 			{
-				foreach($product as $sectionId)
+				foreach ($product as $sectionId)
 				{
 //					find album to adding current product
 					$toAlbumSectionId = $sectionsList->getToAlbumBySection($sectionId);
@@ -150,8 +148,7 @@ class ProductAdd extends DataProcessor
 				}
 			}
 			
-			if ($richLog)
-				$logger->addLog("Add products to albums", $productsToAlbums);
+			$logger->addLog("Add products to albums", $productsToAlbums);
 			$this->executer->executeMarketProductAddToAlbums(array(
 				"owner_id" => $this->vkGroupId,
 				"data" => $productsToAlbums,
@@ -161,7 +158,9 @@ class ProductAdd extends DataProcessor
 //			WRITE successful results TO MAP
 //			we don't need use timer in last operation	. Timer will be checked in feed cycle.
 			if (!empty($dataToMapping))
+			{
 				Vk\Map::addProductMapping($dataToMapping, $this->exportId);
+			}
 			unset($dataToMapping, $product);
 
 
@@ -173,12 +172,13 @@ class ProductAdd extends DataProcessor
 				$vkExportedData->addData($dataToCache);
 			}
 			
-			if ($richLog)
-				$logger->addLog("Finish product add chunk");
+			$logger->addLog("Finish product add chunk");
 
 //			check timer before next step, because not-agressive export can be run very long time
-			if ($timer !== NULL && !$timer->check())
+			if ($timer !== null && !$timer->check())
+			{
 				throw new TimeIsOverException();
+			}
 		}
 		
 		catch (TimeIsOverException $e)
@@ -188,6 +188,4 @@ class ProductAdd extends DataProcessor
 		
 		return true;
 	}
-	
-	
 }

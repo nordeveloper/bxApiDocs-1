@@ -283,7 +283,9 @@ class ShipmentItemCollection
 	 * @param null $name
 	 * @param null $oldValue
 	 * @param null $value
-	 * @return bool
+	 * @return Result
+	 * @throws Main\NotSupportedException
+	 * @throws Main\SystemException
 	 */
 	public function onItemModify(Internals\CollectableEntity $item, $name = null, $oldValue = null, $value = null)
 	{
@@ -489,10 +491,6 @@ class ShipmentItemCollection
 					}
 				}
 			}
-
-
-			if ($shipment->isSystem() && $shipmentItem->getQuantity() == 0)
-				continue;
 
 			$r = $shipmentItem->save();
 			if ($r->isSuccess())
@@ -712,71 +710,43 @@ class ShipmentItemCollection
 		return Internals\ShipmentItemTable::deleteWithItems($primary);
 	}
 
-
 	/**
 	 * @param $action
 	 * @param BasketItem $basketItem
 	 * @param null $name
 	 * @param null $oldValue
 	 * @param null $value
-	 * @return bool
+	 * @return Result
+	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
-	 * @throws Main\NotImplementedException
-	 * @throws \Exception
+	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
 	 */
 	public function onBasketModify($action, BasketItem $basketItem, $name = null, $oldValue = null, $value = null)
 	{
-		throw new Main\NotImplementedException();
+		$result = new Result();
 
-		$foundItem = false;
-		/** @var ShipmentItem $shipmentItem */
-		foreach ($this->collection as $shipmentItemIndex => $shipmentItem)
+		if ($action === EventActions::DELETE)
 		{
-			$code = $shipmentItem->getBasketCode();
-			if ($code === $basketItem->getBasketCode())
+			$r = $this->deleteByBasketItem($basketItem);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+			}
+		}
+		elseif ($action === EventActions::ADD)
+		{
+			$shipmentItem = $this->createItem($basketItem);
+			if ($shipmentItem)
 			{
 				$shipmentItem->onBasketModify($action, $basketItem, $name, $oldValue, $value);
-
-				if ($action == "ADD")
-				{
-					$foundItem = true;
-					break;
-				}
-				elseif ($action === "DELETE")
-				{
-					unset($this->collection[$shipmentItemIndex]);
-				}
-
-				return true;
-			}
-		}
-
-		if (!$foundItem && $action == "ADD" || ($action == "UPDATE" && $value > $oldValue))
-		{
-			$shipmentFields = array(
-				'ORDER_DELIVERY' => $this->shipment,
-				'BASKET' => $basketItem,
-				'QUANTITY' => ($basketItem->getQuantity()),
-				'RESERVED_QUANTITY' => 0
-			);
-
-			if ($action == "UPDATE")
-			{
-				$shipmentItem->initFields($shipmentFields);
-				$shipmentFields['QUANTITY'] = $value - $oldValue;
 			}
 
-			$shipmentItem = $this->createItem($basketItem);
-			$shipmentItem->initFields($shipmentFields);
-			return true;
+			return $result;
 		}
 
-		if ($action == "UPDATE" && $value < $oldValue)
-		{
-			throw new Main\SystemException("no quantity");
-		}
-
-		return false;
+		return $result;
 	}
 
 	/**
@@ -798,11 +768,12 @@ class ShipmentItemCollection
 
 	/**
 	 * @param BasketItem $basketItem
-	 *
 	 * @return Result
+	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
-	 * @throws \ErrorException
+	 * @throws Main\SystemException
 	 */
 	public function deleteByBasketItem(BasketItem $basketItem)
 	{
@@ -814,7 +785,6 @@ class ShipmentItemCollection
 		{
 			throw new Main\ObjectNotFoundException('Entity "Shipment" not found');
 		}
-
 
 		/** @var ShipmentItem $shipmentItem */
 		foreach ($this->collection as $shipmentItem)

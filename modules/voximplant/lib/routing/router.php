@@ -457,6 +457,14 @@ class Router
 		{
 			$firstUserId = (int)$action->getParameter('USER_ID');
 		}
+		else if($action->getCommand() == Command::VOICEMAIL)
+		{
+			$firstUserId = (int)$action->getParameter('USER_ID');
+		}
+		else if($action->getCommand() == Command::ENQUEUE)
+		{
+			$firstUserId = (int)$action->getParameter('USER_ID');
+		}
 
 		if($firstUserId > 0)
 		{

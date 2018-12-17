@@ -1,4 +1,6 @@
 <?
+$MESS["SALE_DLVRS_ADD_SP_SAVE"] = "Зберегти";
+$MESS["SALE_DLVRS_ADD_SP_CHOOSE_TITLE"] = "Вибір точки здачі";
 $MESS["SALE_DLVRS_ADD_NAME"] = "Додаткові служби доставки";
 $MESS["SALE_DLVRS_ADD_DESCRIPTION"] = "Набір додаткових служб доставок";
 $MESS["SALE_DLVRS_ADD_SERVICE_TYPE"] = "Тип служби доставки";

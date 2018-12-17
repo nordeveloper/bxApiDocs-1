@@ -1246,6 +1246,23 @@ class CMailHeader
 }
 
 
+class CMailMessageDBResult extends CDBResult
+{
+
+	function fetch()
+	{
+		if ($item = parent::fetch())
+		{
+			$item['OPTIONS'] = (array) @unserialize($item['OPTIONS']);
+		}
+
+		$item['FOR_SPAM_TEST'] = sprintf('%s %s', $item['HEADER'], $item['BODY_HTML'] ?: $item['BODY']);
+
+		return $item;
+	}
+
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 // class CMailMessage
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1418,6 +1435,7 @@ class CAllMailMessage
 		$strSql .= " WHERE 1=1 ".$strSqlSearch.$strSqlOrder;
 
 		$dbr = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+		$dbr = new \CMailMessageDBResult($dbr);
 		$dbr->is_filtered = $is_filtered;
 		return $dbr;
 	}
@@ -1431,12 +1449,17 @@ class CAllMailMessage
 	{
 		global $DB;
 		if(!is_array($arRow))
-			$res = $DB->Query("SELECT SPAM_RATING, SPAM_LAST_RESULT, FOR_SPAM_TEST FROM b_mail_message WHERE ID=".Intval($msgid));
+			$res = $DB->Query("SELECT SPAM_RATING, SPAM_LAST_RESULT, HEADER, BODY_HTML, BODY FROM b_mail_message WHERE ID=".Intval($msgid));
 		else
 			$ar = $arRow;
 
 		if(is_array($arRow) || $ar = $res->Fetch())
 		{
+			if (empty($ar['FOR_SPAM_TEST']))
+			{
+				$ar['FOR_SPAM_TEST'] = sprintf('%s %s', $ar['HEADER'], $ar['BODY_HTML'] ?: $ar['BODY'] );
+			}
+
 			if($ar["SPAM_LAST_RESULT"]=="Y")
 				return $ar["SPAM_RATING"];
 			$arSpam = CMailFilter::GetSpamRating($ar["FOR_SPAM_TEST"]);
@@ -1642,15 +1665,12 @@ class CAllMailMessage
 		if(COption::GetOptionString("mail", "save_src", B_MAIL_SAVE_SRC)=="Y")
 			$arFields["FULL_TEXT"] = $message;
 
-		if($message_body_html!==false)
-			$arFields["FOR_SPAM_TEST"] = $obHeader->strHeader." ".$message_body_html;
-		else
-			$arFields["FOR_SPAM_TEST"] = $obHeader->strHeader." ".$message_body;
+		$forSpamTest = sprintf('%s %s', $arFields['HEADER'], $message_body_html ?: $message_body);
 
 		$arFields["SPAM"] = "?";
 		if(COption::GetOptionString("mail", "spam_check", B_MAIL_CHECK_SPAM)=="Y")
 		{
-			$arSpam = CMailFilter::GetSpamRating($arFields["FOR_SPAM_TEST"]);
+			$arSpam = \CMailFilter::getSpamRating($forSpamTest);
 			$arFields["SPAM_RATING"] = $arSpam["RATING"];
 			$arFields["SPAM_WORDS"] = $arSpam["WORDS"];
 			$arFields["SPAM_LAST_RESULT"] = "Y";
@@ -1668,6 +1688,7 @@ class CAllMailMessage
 		if ($message_id = \CMailMessage::add($arFields))
 		{
 			$arFields['ID'] = $message_id;
+			$arFields['FOR_SPAM_TEST'] = $forSpamTest;
 
 			\CMailLog::addMessage(array(
 				'MAILBOX_ID'  => $mailbox_id,
@@ -1681,29 +1702,57 @@ class CAllMailMessage
 				),
 			));
 
-			try
+			$DB->query(sprintf(
+				'INSERT INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID) VALUES (%1$u, %1$u)',
+				$message_id
+			));
+
+			if ($arFields['IN_REPLY_TO'])
 			{
-				$mailboxHelper = Bitrix\Mail\Helper\Mailbox::createInstance($mailbox_id);
-			}
-			catch (\Exception $e)
-			{
+				$DB->query(sprintf(
+					"INSERT INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID)
+					(
+						SELECT DISTINCT %u, C.PARENT_ID
+						FROM b_mail_message M INNER JOIN b_mail_message_closure C ON M.ID = C.MESSAGE_ID
+						WHERE M.MAILBOX_ID = %u AND M.MSG_ID = '%s'
+					)",
+					$message_id,
+					$mailbox_id,
+					$DB->forSql($arFields['IN_REPLY_TO'])
+				));
 			}
 
-			if (!empty($mailboxHelper))
+			if ($arFields['MSG_ID'])
 			{
-				$mailbox = $mailboxHelper->getMailbox();
-				if ($mailbox['USER_ID'] > 0)
-				{
-					$mailboxHelper->incrementTree($arFields);
+				$DB->query(sprintf(
+					"INSERT IGNORE INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID)
+					(
+						SELECT DISTINCT C.MESSAGE_ID, P.PARENT_ID
+						FROM b_mail_message M
+							INNER JOIN b_mail_message_closure C ON M.ID = C.PARENT_ID
+							INNER JOIN b_mail_message_closure P ON P.MESSAGE_ID = %u
+						WHERE M.MAILBOX_ID = %u AND M.IN_REPLY_TO = '%s'
+					)",
+					$message_id,
+					$mailbox_id,
+					$DB->forSql($arFields['MSG_ID'])
+				));
+			}
 
-					\Bitrix\Mail\Internals\MailContactTable::addContactsBatch(array_merge(
-						MailContact::getContactsData($arFields['FIELD_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_TO),
-						MailContact::getContactsData($arFields['FIELD_FROM'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_FROM),
-						MailContact::getContactsData($arFields['FIELD_CC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_CC),
-						MailContact::getContactsData($arFields['FIELD_REPLY_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_REPLY_TO),
-						MailContact::getContactsData($arFields['FIELD_BCC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_BCC)
-					));
-				}
+			$mailbox = Bitrix\Mail\MailboxTable::getList(array(
+				'select' => array('ID', 'USER_ID'),
+				'filter' => array('ID' => $mailbox_id, 'ACTIVE' => 'Y'),
+			))->fetch();
+
+			if ($mailbox['USER_ID'] > 0)
+			{
+				\Bitrix\Mail\Internals\MailContactTable::addContactsBatch(array_merge(
+					MailContact::getContactsData($arFields['FIELD_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_TO),
+					MailContact::getContactsData($arFields['FIELD_FROM'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_FROM),
+					MailContact::getContactsData($arFields['FIELD_CC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_CC),
+					MailContact::getContactsData($arFields['FIELD_REPLY_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_REPLY_TO),
+					MailContact::getContactsData($arFields['FIELD_BCC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_BCC)
+				));
 			}
 
 			$atchCnt = 0;
@@ -1843,6 +1892,11 @@ class CAllMailMessage
 			$arFields['SUBJECT'] = strval(substr($arFields['SUBJECT'], 0, 255));
 		}
 
+		if (array_key_exists('OPTIONS', $arFields))
+		{
+			$arFields['OPTIONS'] = serialize($arFields['OPTIONS']);
+		}
+
 		$strUpdate = $DB->PrepareUpdate("b_mail_message", $arFields);
 		$strSql = "UPDATE b_mail_message SET ".$strUpdate." WHERE ID=".$ID;
 		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
@@ -1868,6 +1922,8 @@ class CAllMailMessage
 		$strSql = "DELETE FROM b_mail_message WHERE ID=".$id;
 		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 
+		$DB->query(sprintf('DELETE FROM b_mail_message_closure WHERE MESSAGE_ID = %1$u OR PARENT_ID = %1$u', $id));
+
 		return true;
 	}
 
@@ -1875,12 +1931,17 @@ class CAllMailMessage
 	{
 		global $DB;
 		if(!is_array($arRow))
-			$res = $DB->Query("SELECT SPAM, FOR_SPAM_TEST, MAILBOX_ID FROM b_mail_message WHERE ID=".Intval($ID));
+			$res = $DB->Query("SELECT SPAM, HEADER, BODY_HTML, BODY, MAILBOX_ID FROM b_mail_message WHERE ID=".Intval($ID));
 		else
 			$ar = $arRow;
 
 		if(is_array($arRow) || $ar = $res->Fetch())
 		{
+			if (empty($ar['FOR_SPAM_TEST']))
+			{
+				$ar['FOR_SPAM_TEST'] = sprintf('%s %s', $ar['HEADER'], $ar['BODY_HTML'] ?: $ar['BODY'] );
+			}
+
 			if($bIsSPAM)
 			{
 				if($ar["SPAM"]!="Y")
@@ -3149,10 +3210,11 @@ class CMailFilter
 	function RecalcSpamRating()
 	{
 		global $DB;
-		$res = $DB->Query("SELECT ID, FOR_SPAM_TEST FROM b_mail_message WHERE SPAM_LAST_RESULT<>'N'");
+		$res = $DB->Query("SELECT ID, HEADER, BODY_HTML, BODY FROM b_mail_message WHERE SPAM_LAST_RESULT<>'N'");
 		while($arr = $res->Fetch())
 		{
-			$arSpam = CMailFilter::GetSpamRating($arr["FOR_SPAM_TEST"]);
+			$forSpamTest = sprintf('%s %s', $arr['HEADER'], $arr['BODY_HTML'] ?: $arr['BODY']);
+			$arSpam = CMailFilter::GetSpamRating($forSpamTest);
 			$DB->Query("UPDATE b_mail_message SET SPAM_RATING=".Round($arSpam["RATING"], 4).", SPAM_LAST_RESULT='Y', SPAM_WORDS='".$DB->ForSql($arSpam["WORDS"], 255)."' WHERE ID=".$arr["ID"]);
 		}
 	}

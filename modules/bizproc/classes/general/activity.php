@@ -93,6 +93,18 @@ abstract class CBPActivity
 		}
 	}
 
+	public function GetWorkflowTemplateId()
+	{
+		$rootActivity = $this->GetRootActivity();
+		//prevent recursion by checking setter
+		if (method_exists($rootActivity, 'SetWorkflowTemplateId'))
+		{
+			return $rootActivity->GetWorkflowTemplateId();
+		}
+
+		return 0;
+	}
+
 	/**********************************************************/
 	protected function ClearProperties()
 	{
@@ -122,7 +134,9 @@ abstract class CBPActivity
 						}
 					}
 				}
-				if ($fieldTypeObject = $documentService->getFieldTypeObject($documentType, $value))
+
+				$fieldType = \Bitrix\Bizproc\FieldType::normalizeProperty($value);
+				if ($fieldTypeObject = $documentService->getFieldTypeObject($documentType, $fieldType))
 				{
 					$fieldTypeObject->setDocumentId($documentId)
 									->clearValue($rootActivity->arProperties[$key]);
@@ -190,12 +204,13 @@ abstract class CBPActivity
 						}
 					}
 				}
-				if ($fieldTypeObject = $documentService->getFieldTypeObject($documentType, $value))
+
+				$fieldType = \Bitrix\Bizproc\FieldType::normalizeProperty($value);
+				if ($fieldTypeObject = $documentService->getFieldTypeObject($documentType, $fieldType))
 				{
 					$fieldTypeObject->setDocumentId($documentId)
 						->clearValue($rootActivity->arVariables[$key]);
 				}
-
 			}
 		}
 	}

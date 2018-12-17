@@ -124,7 +124,11 @@ $map = [
 		'category_switcher/button_text_color' => ParameterType::COLOR,
 		'category_switcher/button_background_color_selected' => ParameterType::COLOR,
 		//additional
-		'additional/use_top_bar' => ParameterType::BOOLEAN,
+		'additional/use_top_bar' =>
+		[
+			"type"=>ParameterType::BOOLEAN,
+			"default"=>"YES"
+		],
 		'additional/use_slider' => ParameterType::BOOLEAN,
 		'additional/push/use_push' => [
 			"type"=>ParameterType::BOOLEAN,

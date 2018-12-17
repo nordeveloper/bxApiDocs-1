@@ -817,6 +817,11 @@ class CIntranetInviteDialog
 			$arUser["ACTIVE"] = $userData["ACTIVE"];
 		}
 
+		if(isset($userData['XML_ID']))
+		{
+			$arUser['XML_ID'] = $userData['XML_ID'];
+		}
+
 		$obUser = new CUser;
 		$res = $obUser->Add($arUser);
 		return ($res? $res : preg_split("/<br>/", $obUser->LAST_ERROR));

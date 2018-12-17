@@ -2110,7 +2110,18 @@ class CBPHelper
 
 	public static function isEmptyValue($value)
 	{
-		return $value === null || $value === '' || is_array($value) && sizeof($value) <= 0;
+		$filter = function ($value)
+		{
+			return ($value !== null && $value !== '');
+		};
+
+		return (
+				$value === null
+				||
+				$value === ''
+				||
+				is_array($value) && count(array_filter($value, $filter)) === 0
+		);
 	}
 
 	public static function ConvertParameterValues($val)

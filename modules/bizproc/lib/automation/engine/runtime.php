@@ -40,11 +40,11 @@ class Runtime
 		$ids = WorkflowInstanceTable::getList(array(
 			'select' => array('ID'),
 			'filter' => array(
-				'=STATE.MODULE_ID'             => $documentType[0],
-				'=STATE.ENTITY'                => $documentType[1],
-				'=STATE.DOCUMENT_ID'           => $documentId,
-				'=STATE.TEMPLATE.DOCUMENT_TYPE' => $documentType[2],
-				'=STATE.TEMPLATE.AUTO_EXECUTE' => \CBPDocumentEventType::Automation
+				'=MODULE_ID'             => $documentType[0],
+				'=ENTITY'                => $documentType[1],
+				'=DOCUMENT_ID'           => $documentId,
+				'=STARTED_EVENT_TYPE' => \CBPDocumentEventType::Automation,
+				'=TEMPLATE.DOCUMENT_TYPE' => $documentType[2],
 			)
 		))->fetchAll();
 
@@ -77,6 +77,7 @@ class Runtime
 					\CBPDocument::PARAM_USE_FORCED_TRACKING => !$template->isExternalModified(),
 					\CBPDocument::PARAM_IGNORE_SIMULTANEOUS_PROCESSES_LIMIT => true,
 					\CBPDocument::PARAM_DOCUMENT_TYPE => $documentType,
+					\CBPDocument::PARAM_DOCUMENT_EVENT_TYPE => \CBPDocumentEventType::Automation,
 				),
 				$errors
 			);

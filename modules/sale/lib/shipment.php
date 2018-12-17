@@ -298,6 +298,10 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 		}
 
 		$systemShipmentItem->setFieldNoDemand('QUANTITY', $newSystemShipmentItemQuantity);
+		if ($newSystemShipmentItemQuantity == 0)
+		{
+			$systemShipmentItem->delete();
+		}
 
 		$affectedQuantity = 0;
 
@@ -1633,24 +1637,55 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	 * @param null $oldValue
 	 * @param null $value
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
-	 * @throws Main\NotImplementedException
 	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
 	 */
 	public function onBasketModify($action, BasketItem $basketItem, $name = null, $oldValue = null, $value = null)
 	{
-		if (!$this->isSystem())
-			throw new Main\NotSupportedException();
+		$result = new Result();
 
-		if ($action !== EventActions::UPDATE)
-			throw new Main\NotImplementedException();
-
-		if ($name == "QUANTITY")
+		if ($action === EventActions::DELETE)
 		{
-			return $this->syncQuantityAfterModify($basketItem, $value, $oldValue);
+			$shipmentItemCollection = $this->getShipmentItemCollection();
+			$r = $shipmentItemCollection->onBasketModify($action, $basketItem, $name, $oldValue, $value);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+				return $result;
+			}
+
+			if ($this->isSystem())
+			{
+				return $this->syncQuantityAfterModify($basketItem, $value, $oldValue);
+			}
+		}
+		elseif ($action === EventActions::ADD)
+		{
+			if (!$this->isSystem())
+			{
+				return $result;
+			}
+
+			return $this->getShipmentItemCollection()->onBasketModify($action, $basketItem, $name, $oldValue, $value);
+		}
+		elseif ($action === EventActions::UPDATE)
+		{
+			if (!$this->isSystem())
+			{
+				return $result;
+			}
+
+			if ($name == "QUANTITY")
+			{
+				return $this->syncQuantityAfterModify($basketItem, $value, $oldValue);
+			}
 		}
 
-		return new Result();
+		return $result;
 	}
 
 	/**
@@ -1812,13 +1847,19 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 		}
 
 		$shipmentItem = $shipmentItemCollection->getItemByBasketCode($basketItem->getBasketCode());
-		if ($shipmentItem === null)
+
+		if ($value == 0)
 		{
-			if ($value == 0)
+			if ($shipmentItem !== null)
 			{
-				return $result;
+				$shipmentItem->setFieldNoDemand('QUANTITY', 0);
 			}
 
+			return $result;
+		}
+
+		if ($shipmentItem === null)
+		{
 			$shipmentItem = $shipmentItemCollection->createItem($basketItem);
 		}
 
@@ -1880,8 +1921,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 				return $result;
 			}
 
-
-			if($value > 0)
+			if ($value > 0)
 			{
 				$shipmentItem->setFieldNoDemand(
 					"QUANTITY",
@@ -1891,10 +1931,6 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 				{
 					Internals\Catalog\Provider::tryReserveShipmentItem($shipmentItem, $context);
 				}
-			}
-			else
-			{
-				$shipmentItem->setFieldNoDemand("QUANTITY", 0);
 			}
 
 		}
@@ -2122,13 +2158,16 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 		return $shipmentItemCollection->isExistBasketItem($basketItem);
 	}
 
-
 	/**
 	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ObjectNotFoundException
 	 */
 	public function verify()
 	{
 		$result = new Result();
+
 		if ($this->getDeliveryId() <= 0)
 		{
 			$result->addError(new ResultError(Loc::getMessage("SALE_SHIPMENT_DELIVERY_SERVICE_EMPTY"), 'SALE_SHIPMENT_DELIVERY_SERVICE_EMPTY'));

@@ -44,6 +44,10 @@ class CVoxImplantCrmHelper
 		}
 
 		$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall($call);
+		if(!$entityManager)
+		{
+			return [];
+		}
 		$entities = $entityManager->getSelector()->getEntities();
 
 		$result = [];
@@ -72,6 +76,10 @@ class CVoxImplantCrmHelper
 			return false;
 		}
 		$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall($call);
+		if(!$entityManager)
+		{
+			return false;
+		}
 
 		return $entityManager->getActivityBindings();
 	}
@@ -267,6 +275,11 @@ class CVoxImplantCrmHelper
 		}
 
 		$entityManager = VI\Integration\Crm\EntityManagerRegistry::getWithCall($call);
+		if(!$entityManager)
+		{
+			return false;
+		}
+
 		if ($call->getIncoming() == CVoxImplantMain::CALL_OUTGOING && !empty($entityManager->getActivityBindings()))
 		{
 			$entityManager->setRegisterMode($entityManager::REGISTER_MODE_ONLY_UPDATE);
@@ -365,6 +378,19 @@ class CVoxImplantCrmHelper
 			$entityManager->getSelector()->search();
 			$bindings = $entityManager->getActivityBindings();
 		}
+
+		if(count($bindings) == 0 && isset($callFields['CRM_ENTITY_TYPE']) && isset($callFields['CRM_ENTITY_ID']))
+		{
+			$entityManager = new \Bitrix\Crm\EntityManageFacility();
+			$entityManager->getSelector()->setEntity(
+				CCrmOwnerType::ResolveID($callFields['CRM_ENTITY_TYPE']),
+				$callFields['CRM_ENTITY_ID']
+			);
+			$entityManager->getSelector()->search();
+			$bindings = $entityManager->getActivityBindings();
+		}
+
+		$bindings = array_values($bindings);
 
 		if (count($bindings) == 0)
 		{
@@ -502,6 +528,8 @@ class CVoxImplantCrmHelper
 			global $APPLICATION;
 			if ($exception = $APPLICATION->GetException())
 				static::$lastError = $exception->GetString();
+
+			static::$lastError .= "\nDEBUG: Activity bindings: " . var_export($bindings, true);
 
 			CVoxImplantHistory::WriteToLog(static::$lastError, 'ERROR CAUGHT DURING CREATING CRM ACTIVITY');
 			return false;

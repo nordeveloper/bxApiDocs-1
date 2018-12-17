@@ -408,12 +408,12 @@ class RestService extends \IRestService
 			'ID' => 'ID',
 			'MODIFIED' => 'MODIFIED',
 			'OWNED_UNTIL' => 'OWNED_UNTIL',
-			'MODULE_ID' => 'STATE.MODULE_ID',
-			'ENTITY' => 'STATE.ENTITY',
-			'DOCUMENT_ID' => 'STATE.DOCUMENT_ID',
-			'STARTED' => 'STATE.STARTED',
-			'STARTED_BY' => 'STATE.STARTED_BY',
-			'TEMPLATE_ID' => 'STATE.WORKFLOW_TEMPLATE_ID',
+			'MODULE_ID' => 'MODULE_ID',
+			'ENTITY' => 'ENTITY',
+			'DOCUMENT_ID' => 'DOCUMENT_ID',
+			'STARTED' => 'STARTED',
+			'STARTED_BY' => 'STARTED_BY',
+			'TEMPLATE_ID' => 'WORKFLOW_TEMPLATE_ID',
 		);
 
 		$select = static::getSelect($params['SELECT'], $fields, array('ID', 'MODIFIED', 'OWNED_UNTIL'));

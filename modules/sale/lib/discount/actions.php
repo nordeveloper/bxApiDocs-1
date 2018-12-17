@@ -12,6 +12,7 @@ class Actions
 	const VALUE_TYPE_FIX = 'F';
 	const VALUE_TYPE_PERCENT = 'P';
 	const VALUE_TYPE_SUMM = 'S';
+	const VALUE_TYPE_CLOSEOUT = 'C';
 
 	const GIFT_SELECT_TYPE_ONE = 'one';
 	const GIFT_SELECT_TYPE_ALL = 'all';
@@ -465,22 +466,45 @@ class Actions
 		switch ($unit)
 		{
 			case self::VALUE_TYPE_SUMM:
-				$actionDescription['VALUE_TYPE'] = Formatter::VALUE_TYPE_SUMM;
-				$actionDescription['VALUE_UNIT'] = $currency;
+				$actionDescription = [
+					'ACTION_TYPE' => Formatter::TYPE_VALUE,
+					'VALUE' => abs($value),
+					'VALUE_ACTION' => ($value < 0 ? Formatter::VALUE_ACTION_DISCOUNT : Formatter::VALUE_ACTION_EXTRA),
+					'VALUE_TYPE' => Formatter::VALUE_TYPE_SUMM,
+					'VALUE_UNIT' => $currency
+				];
 				break;
 			case self::VALUE_TYPE_PERCENT:
-				$actionDescription['VALUE_TYPE'] = Formatter::VALUE_TYPE_PERCENT;
+				$actionDescription = [
+					'ACTION_TYPE' => Formatter::TYPE_VALUE,
+					'VALUE' => abs($value),
+					'VALUE_ACTION' => ($value < 0 ? Formatter::VALUE_ACTION_DISCOUNT : Formatter::VALUE_ACTION_EXTRA),
+					'VALUE_TYPE' => Formatter::VALUE_TYPE_PERCENT
+				];
 				break;
 			case self::VALUE_TYPE_FIX:
-				$actionDescription['VALUE_TYPE'] = Formatter::VALUE_TYPE_CURRENCY;
-				$actionDescription['VALUE_UNIT'] = $currency;
-				if ($maxBound)
-					$actionDescription['ACTION_TYPE'] = Formatter::TYPE_MAX_BOUND;
+				$actionDescription = [
+					'ACTION_TYPE' => ($maxBound ? Formatter::TYPE_MAX_BOUND : Formatter::TYPE_VALUE),
+					'VALUE' => abs($value),
+					'VALUE_ACTION' => ($value < 0 ? Formatter::VALUE_ACTION_DISCOUNT : Formatter::VALUE_ACTION_EXTRA),
+					'VALUE_TYPE' => Formatter::VALUE_TYPE_CURRENCY,
+					'VALUE_UNIT' => $currency
+				];
+				break;
+			case self::VALUE_TYPE_CLOSEOUT:
+				$actionDescription = [
+					'ACTION_TYPE' => Formatter::TYPE_FIXED,
+					'VALUE' => abs($value),
+					'VALUE_ACTION' => Formatter::VALUE_ACTION_DISCOUNT,
+					'VALUE_TYPE' => Formatter::VALUE_TYPE_CURRENCY,
+					'VALUE_UNIT' => $currency
+				];
 				break;
 			default:
 				return;
 				break;
 		}
+		$valueAction = $actionDescription['VALUE_ACTION'];
 
 		if(!empty($limitValue))
 		{
@@ -1360,14 +1384,29 @@ class Actions
 			$calculateValue = static::percentToValue($basketRow, $calculateValue);
 		$calculateValue = static::roundValue($calculateValue, $basketRow['CURRENCY']);
 
-		if (!empty($limitValue) && $limitValue + $calculateValue <= 0)
-			$calculateValue = -$limitValue;
-
-		$result = static::roundZeroValue($basketRow['PRICE'] + $calculateValue);
-		if ($maxBound && $result < 0)
+		if ($unit == self::VALUE_TYPE_CLOSEOUT)
 		{
-			$result = 0;
-			$calculateValue = -$basketRow['PRICE'];
+			if ($calculateValue < $basketRow['PRICE'])
+			{
+				$result = $calculateValue;
+				$calculateValue = $result - $basketRow['PRICE'];
+			}
+			else
+			{
+				$result = -1;
+			}
+		}
+		else
+		{
+			if (!empty($limitValue) && $limitValue + $calculateValue <= 0)
+				$calculateValue = -$limitValue;
+
+			$result = static::roundZeroValue($basketRow['PRICE'] + $calculateValue);
+			if ($maxBound && $result < 0)
+			{
+				$result = 0;
+				$calculateValue = -$basketRow['PRICE'];
+			}
 		}
 
 		return [$calculateValue, $result];

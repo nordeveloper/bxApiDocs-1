@@ -414,7 +414,7 @@ class CFileInput
 
 			if (self::$bFileExists)
 				foreach(self::$curFiles as $ind => $arFile)
-					self::DisplayFile($arFile, $ind);
+					self::DisplayFile($arFile);
 		?>
 		<script type="text/javascript">(top.BX.file_input) ? new top.BX.file_input(<?= CUtil::PHPToJSObject($arConfig)?>) : new BX.file_input(<?= CUtil::PHPToJSObject($arConfig)?>)</script>
 		</div>
@@ -453,9 +453,9 @@ class CFileInput
 		}
 	}
 
-	private static function DisplayFile($arFile = array(), $ind = 0)
+	private static function DisplayFile($arFile = array())
 	{
-		$hintId = self::$jsId.'_file_disp_'.$ind;
+		$hintId = self::$jsId.'_file_disp_'.$arFile['ID'];
 		$bNotFound = $arFile['FILE_NOT_FOUND'];
 
 		// Hint
@@ -477,13 +477,13 @@ class CFileInput
 			if (!self::$bShowDescInput && $arFile['DESCRIPTION'] != "")
 				$hint .= '<span class="adm-input-file-hint-row">'.GetMessage('ADM_FILE_DESCRIPTION').':&nbsp;&nbsp;'.htmlspecialcharsbx($arFile['DESCRIPTION']).'</span>';
 		}
-		?><span class="adm-input-file-exist-cont" id="<?= self::$jsId?>_file_cont_<?= $ind?>">
+		?><span class="adm-input-file-exist-cont" id="<?= self::$jsId?>_file_cont_<?= $arFile['ID']?>">
 		<div class="adm-input-file-ex-wrap<?if(self::$bMultiple){echo ' adm-input-cont-bordered';}?>">
 		<?
 		if ($bNotFound)
 		{
 			?>
-			<span id="<?= self::$jsId.'_file_404_'.$ind?>" class="adm-input-file-not-found">
+			<span id="<?= self::$jsId.'_file_404_'.$arFile['ID']?>" class="adm-input-file-not-found">
 			<?= GetMessage('ADM_FILE_NOT_FOUND')?>
 			</span>
 			<?
@@ -494,7 +494,7 @@ class CFileInput
 			?>
 			<span id="<?= $hintId?>" class="adm-input-file-preview" style="<?if(self::$minPreviewWidth > 0){echo 'min-width: '.self::$minPreviewWidth.'px;';}?> <?if(self::$minPreviewHeight > 0){echo 'min-height:'.self::$minPreviewHeight.'px;';}?>">
 				<?= CFile::Show2Images($file['src'], $arFile['SRC'], self::$maxPreviewWidth, self::$maxPreviewHeight);?>
-				<div id="<?= self::$jsId.'_file_del_lbl_'.$ind?>" class="adm-input-file-del-lbl"><?= GetMessage
+				<div id="<?= self::$jsId.'_file_del_lbl_'.$arFile['ID']?>" class="adm-input-file-del-lbl"><?= GetMessage
 			('ADM_FILE_DELETED_TITLE')?></div>
 			</span>
 			<?
@@ -525,12 +525,12 @@ class CFileInput
 		}
 
 		if (!self::$bViewMode)
-			self::ShowOpenerMenuHtml(self::$jsId.'_menu_'.$ind, $ind);
+			self::ShowOpenerMenuHtml(self::$jsId.'_menu_'.$arFile['ID'], $arFile['ID']);
 
 		if (!$bNotFound && self::$bShowDescInput)
 		{
 			?>
-			<div id="<?= self::$jsId.'_file_desc_'.$ind?>" class="adm-input-file-desc-inp-cont" <?if($arFile['DESCRIPTION'] == ""){echo 'style="display: none;"';}?>>
+			<div id="<?= self::$jsId.'_file_desc_'.$arFile['ID']?>" class="adm-input-file-desc-inp-cont" <?if($arFile['DESCRIPTION'] == ""){echo 'style="display: none;"';}?>>
 				<input name="<?= $descName?>" class="adm-input" type="text" value="<?= htmlspecialcharsbx($arFile['DESCRIPTION'])?>" size="<?= self::$inputSize?>" placeholder="<?= GetMessage("ADM_FILE_DESC")?>" <?if(self::$bViewMode){echo ' disabled="disabled"';}?>>
 			</div>
 			<?

@@ -620,7 +620,7 @@ class DiscountCompatibility
 					}
 				}
 			}
-
+			$basketItem['ACTION_APPLIED'] = 'N';
 			$basket[$basketCode] = $basketItem;
 		}
 
@@ -675,6 +675,18 @@ class DiscountCompatibility
 			$code = ($publicMode ? $basketItem['ID'] : $basketCode);
 			if (!static::calculateBasketItemDiscount($code, $basketItem))
 				return false;
+			if (!empty(self::$discountResult['BASKET'][$code]))
+			{
+				foreach (self::$discountResult['BASKET'][$code] as $row)
+				{
+					if ($row['RESULT']['APPLY'] == 'Y')
+					{
+						$basket[$basketCode]['ACTION_APPLIED'] = 'Y';
+						break;
+					}
+				}
+				unset($row);
+			}
 		}
 		unset($basketCode, $basketItem);
 
@@ -837,6 +849,16 @@ class DiscountCompatibility
 
 		if ($applied)
 		{
+			if (!empty($stepResult['BASKET']))
+			{
+				foreach ($stepResult['BASKET'] as $basketCode => $itemResult)
+				{
+					if ($itemResult['APPLY'] == 'Y')
+						$order['BASKET_ITEMS'][$basketCode]['ACTION_APPLIED'] = 'Y';
+				}
+				unset($basketCode, $itemResult);
+			}
+
 			self::$discountResult['ORDER'][] = array(
 				'DISCOUNT_ID' => $orderDiscountId,
 				'COUPON_ID' => $orderCouponId,

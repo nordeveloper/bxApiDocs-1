@@ -115,6 +115,8 @@ class Discount extends DiscountBase
 		return $discountClone;
 	}
 
+	/* apply result methods */
+
 	/**
 	 * Change applied discount list.
 	 *

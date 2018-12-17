@@ -16,6 +16,7 @@ Loc::loadMessages(__FILE__);
 class Logger
 {
 	private $exportId;
+	private $ritchLog = false;
 	
 	const MAX_SHOWING_ERRORS_ITEMS = 5;
 	
@@ -26,6 +27,7 @@ class Logger
 	public function __construct($exportId)
 	{
 		$this->exportId = $exportId;
+		$this->ritchLog = Vk::getInstance()->getRichLog($this->exportId);;
 	}
 	
 	/**
@@ -36,7 +38,7 @@ class Logger
 	 * @return array
 	 * @throws \Bitrix\Main\ArgumentException
 	 */
-	private function getExistingErrors($errCode = NULL, $itemId = NULL)
+	private function getExistingErrors($errCode = null, $itemId = null)
 	{
 		$result = array();
 		
@@ -64,10 +66,15 @@ class Logger
 	 * Log is like error, but not error.
 	 * It is equal entities, but we always set ErrorCode in "log".
 	 */
-	public function addLog($itemId = NULL, $params = NULL)
+	public function addLog($itemId = null, $params = null)
 	{
-		return $this->addError("LOG", $itemId, print_r($params, true));	//print_r to preserve multilevel array error in mysql
+		if ($this->ritchLog)
+		{
+//			print_r to preserve multilevel array error in mysql
+			return $this->addError("LOG", $itemId, print_r($params, true));
+		}
 	}
+	
 	
 	/**
 	 * Add new error in log.
@@ -80,7 +87,7 @@ class Logger
 	 * @throws ExecuteException
 	 * @throws \Exception
 	 */
-	public function addError($errCode, $itemId = NULL, $errParams = NULL)
+	public function addError($errCode, $itemId = null, $errParams = null)
 	{
 		$errorDescription = $this->getErrorsDescriptions($errCode);
 		$errCode = $errorDescription['CODE'] ? $errorDescription['CODE'] : $errCode;
@@ -107,7 +114,7 @@ class Logger
 	 * @throws \Bitrix\Main\ArgumentException
 	 * @throws \Exception
 	 */
-	private function addErrorToTable($errCode, $itemId = NULL, $errParams = NULL)
+	private function addErrorToTable($errCode, $itemId = null, $errParams = null)
 	{
 		$fields = array(
 			"EXPORT_ID" => $this->exportId,
@@ -149,7 +156,7 @@ class Logger
 		$errCodes = array();
 		$errCodes[$errorDescription['CODE']] = $errorDescription['CODE'];
 		$errCodes[$errCode] = $errCode;
-		
+
 //		remove error from log table
 		$resErrId = LogTable::getList(array('filter' => array("EXPORT_ID" => $this->exportId, "ERROR_CODE" => $errCodes)));
 		while ($err = $resErrId->fetch())
@@ -171,7 +178,9 @@ class Logger
 //		clear errors
 		$existingErrors = $this->getExistingErrors();
 		foreach ($existingErrors as $key => $err)
+		{
 			$resDelete = LogTable::delete($err['ID']);
+		}
 		
 		return true;
 	}
@@ -259,7 +268,8 @@ class Logger
 								<span style="cursor:pointer; border: 1px dashed; border-width: 0 0 1px 0" 
 									onclick = "expandElements(\'' . $errCode . '\');"
 									class="vk_export_notify__error_normal__more_elements" id="vk_export_notify__error_normal__more_elements--' . $errCode . '">' .
-								Loc::getMessage('SALE_VK_ERRORS__MORE_ELEMENTS', array('#C1' => $itemsCount - self::MAX_SHOWING_ERRORS_ITEMS)) .
+								Loc::getMessage('SALE_VK_ERRORS__MORE_ELEMENTS',
+									array('#C1' => $itemsCount - self::MAX_SHOWING_ERRORS_ITEMS)) .
 								'</span>
 								
 								<span style="cursor:pointer; border: 1px dashed; border-width: 0 0 1px 0; display:none;" 
@@ -469,10 +479,10 @@ class Logger
 	 * @param null $key
 	 * @return array|mixed|null
 	 */
-	private function getErrorsDescriptions($key = NULL)
+	private function getErrorsDescriptions($key = null)
 	{
 		$errorsDescriptions = array(
-//			"LOG" using just for write to log some data - f.e. to debug
+			//"LOG" using just for write to log some data - f.e. to debug
 			"LOG" => array(
 				"MESSAGE" => 'log',
 				"CODE" => "LOG",
@@ -482,7 +492,7 @@ class Logger
 				"MESSAGE" => Loc::getMessage("SALE_VK_ERROR__CODE_100"),
 				"CODE" => "100",
 				"ITEMS_TYPE" => 'METHODS',
-//				'IGNORE' => true,
+				// 'IGNORE' => true,
 				"CRITICAL" => true,
 			),
 			"1" => array(
@@ -586,7 +596,7 @@ class Logger
 				"CODE" => "205",
 				"ITEMS_TYPE" => 'NONE',
 			),
-//			todo: maybe we can recreate elements if 1402 and 1403 errors
+			// todo: maybe we can recreate elements if 1402 and 1403 errors
 			"1402" => array(
 				'IGNORE' => true,
 				"MESSAGE" => Loc::getMessage("SALE_VK_ERROR__SECTION_NOT_FOUND"),
@@ -703,7 +713,7 @@ class Logger
 //		if set key - return one element, else return all array
 		if ($key)
 		{
-			return array_key_exists($key, $errorsDescriptions) ? $errorsDescriptions[$key] : NULL;
+			return array_key_exists($key, $errorsDescriptions) ? $errorsDescriptions[$key] : null;
 		}
 		else
 		{

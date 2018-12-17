@@ -180,7 +180,7 @@ class Configuration
 		if (!Loader::includeModule('catalog'))
 			return false;
 
-		return Catalog\Config\Configuration::isUsedInventoryManagement();
+		return Catalog\Config\State::isUsedInventoryManagement();
 	}
 
 	/**

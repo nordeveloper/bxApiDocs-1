@@ -99,9 +99,6 @@ class MailMessageTable extends Entity\DataManager
 				'data_type' => 'boolean',
 				'values'    => array('N', 'Y'),
 			),
-			'FOR_SPAM_TEST' => array(
-				'data_type' => 'text',
-			),
 			'EXTERNAL_ID' => array(
 				'data_type' => 'string',
 			),

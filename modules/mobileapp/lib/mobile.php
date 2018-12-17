@@ -16,6 +16,7 @@ class Mobile
 	public static $isDev = false;
 	protected static $instance;
 	protected static $isAlreadyInit = false;
+	protected static $systemVersion = 9;
 	private $pixelRatio = 1.0;
 	private $minScale = false;
 	private $iniScale = false;
@@ -84,11 +85,15 @@ class Mobile
 			self::$platform = "android";
 		}
 
+		if ($_COOKIE["MOBILE_SYSTEM_VERSION"])
+		{
+			self::$systemVersion = $_COOKIE["MOBILE_SYSTEM_VERSION"];
+		}
+
 		if (array_key_exists("emulate_platform", $_REQUEST))
 		{
 			self::$platform = $_REQUEST["emulate_platform"];
 		}
-
 
 		if (array_key_exists("MOBILE_API_VERSION", $_COOKIE))
 		{
@@ -350,13 +355,11 @@ JSCODE;
 			$contentAttributes[] = "width=" . ($width / $this->getIniscale());
 		}
 
-		if (toUpper($this->getPlatform()) == "ANDROID")
+		if (!$this->getWidth())
 		{
-			if (!$this->getWidth())
-			{
-				$contentAttributes[] = "width=device-width";
-			}
+			$contentAttributes[] = "width=device-width";
 		}
+
 
 		$contentAttributes[] = "user-scalable=" . $this->getUserScalable();
 		$contentAttributes[] = "viewport-fit=cover";
@@ -626,6 +629,14 @@ JSCODE;
 	public static function getPgVersion()
 	{
 		return self::$pgVersion;
+	}
+
+	/**
+	 * @return float
+	 */
+	public static function getSystemVersion()
+	{
+		return (float) self::$systemVersion;
 	}
 
 	/**

@@ -1250,7 +1250,8 @@ class OrderCompatibility extends Internals\EntityCompatibility
 					'select' => array("ID"),
 					'filter' => array(
 						'ACTIVE' => 'Y',
-						'PERSON_TYPE_ID' => $personTypeId
+						'PERSON_TYPE_ID' => $personTypeId,
+						'ENTITY_REGISTRY_TYPE' => static::getRegistryType()
 					),
 					'order' => array('SORT'),
 					'limit' => 1
@@ -1266,7 +1267,10 @@ class OrderCompatibility extends Internals\EntityCompatibility
 		$dbPaySystem = Sale\PaySystem\Manager::getList(
 			array(
 				'select' => array("ID"),
-				'filter' => array('ACTIVE' => 'Y'),
+				'filter' => array(
+					'ACTIVE' => 'Y',
+					'ENTITY_REGISTRY_TYPE' => static::getRegistryType()
+				),
 				'order' => array('SORT'),
 				'limit' => 1
 			)

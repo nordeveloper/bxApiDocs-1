@@ -35,12 +35,9 @@ class Address extends \Bitrix\Main\UserField\TypeBase
 	public static function getApiKey()
 	{
 		$apiKey = Option::get('fileman', 'google_map_api_key', '');
-		if(Loader::includeModule('bitrix24'))
+		if(Loader::includeModule('bitrix24') && \CBitrix24::isCustomDomain())
 		{
-			if(\CBitrix24::isCustomDomain())
-			{
-				$apiKey = '';
-			}
+			$apiKey = '';
 
 			$key = Option::get('bitrix24', 'google_map_api_key', '');
 			$keyHost = Option::get('bitrix24', 'google_map_api_key_host', '');

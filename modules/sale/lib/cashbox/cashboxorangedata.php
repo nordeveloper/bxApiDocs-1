@@ -77,21 +77,6 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 
 		$calculatedSignMap = $this->getCalculatedSignMap();
 
-		if ($checkInfo['client_phone'])
-		{
-			$phone = \NormalizePhone($checkInfo['client_phone']);
-			if ($phone[0] !== '7')
-			{
-				$phone = '7'.$phone;
-			}
-
-			$customerContact = '+'.$phone;
-		}
-		else
-		{
-			$customerContact = $checkInfo['client_email'];
-		}
-
 		$result = array(
 			'id' => static::buildUuid(static::UUID_TYPE_CHECK, $checkInfo['unique_id']),
 			'inn' => $this->getValueFromSettings('SERVICE', 'INN'),
@@ -104,7 +89,7 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 					'payments' => array(),
 					'taxationSystem' => $this->getValueFromSettings('TAX', 'SNO'),
 				),
-				'customerContact' => $customerContact,
+				'customerContact' => $this->getCustomerContact($checkInfo),
 			)
 		);
 
@@ -137,6 +122,43 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @param array $data
+	 * @return mixed|string
+	 */
+	private function getCustomerContact(array $data)
+	{
+		$customerContact = $this->getValueFromSettings('CLIENT', 'INFO');
+
+		if ($customerContact === 'EMAIL')
+		{
+			return $data['client_email'];
+		}
+		elseif ($customerContact === 'PHONE')
+		{
+			$phone = \NormalizePhone($data['client_phone']);
+			if ($phone[0] !== '7')
+			{
+				$phone = '7'.$phone;
+			}
+
+			return '+'.$phone;
+		}
+
+		if ($data['client_phone'])
+		{
+			$phone = \NormalizePhone($data['client_phone']);
+			if ($phone[0] !== '7')
+			{
+				$phone = '7'.$phone;
+			}
+
+			return '+'.$phone;
+		}
+
+		return $data['client_email'];
 	}
 
 	/**
@@ -562,6 +584,22 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 				)
 			)
 		);
+
+		$settings['CLIENT'] = [
+			'LABEL' => Localization\Loc::getMessage('SALE_CASHBOX_ORANGE_DATA_SETTINGS_CLIENT'),
+			'ITEMS' => array(
+				'INFO' => array(
+					'TYPE' => 'ENUM',
+					'VALUE' => 'NONE',
+					'LABEL' => Localization\Loc::getMessage('SALE_CASHBOX_ORANGE_DATA_SETTINGS_CLIENT_INFO'),
+					'OPTIONS' => array(
+						'DEFAULT' => Localization\Loc::getMessage('SALE_CASHBOX_ORANGE_DATA_SETTINGS_CLIENT_DEFAULT'),
+						'PHONE' => Localization\Loc::getMessage('SALE_CASHBOX_ORANGE_DATA_SETTINGS_CLIENT_PHONE'),
+						'EMAIL' => Localization\Loc::getMessage('SALE_CASHBOX_ORANGE_DATA_SETTINGS_CLIENT_EMAIL'),
+					)
+				),
+			)
+		];
 
 		$settings['VAT'] = array(
 			'LABEL' => Localization\Loc::getMessage('SALE_CASHBOX_ORANGE_DATA_SETTINGS_VAT'),

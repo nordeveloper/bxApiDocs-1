@@ -397,7 +397,7 @@ abstract class StatusBase
 				continue;
 			}
 
-			$statuses[] = $row['ID'];
+			$statuses[$row['ID']] = $row['ID'];
 		}
 
 		return $statuses;

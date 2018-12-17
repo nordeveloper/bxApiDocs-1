@@ -30,6 +30,7 @@ class CBPDocument
 		{
 			CBPHistoryService::MigrateDocumentType($oldType, $newType, $templateIds);
 			CBPStateService::MigrateDocumentType($oldType, $newType, $templateIds);
+			WorkflowInstanceTable::migrateDocumentType($oldType, $newType, $templateIds);
 		}
 	}
 
@@ -130,6 +131,7 @@ class CBPDocument
 	public static function MergeDocuments($firstDocumentId, $secondDocumentId)
 	{
 		CBPStateService::MergeStates($firstDocumentId, $secondDocumentId);
+		WorkflowInstanceTable::mergeByDocument($firstDocumentId, $secondDocumentId);
 		CBPHistoryService::MergeHistory($firstDocumentId, $secondDocumentId);
 	}
 
@@ -1456,7 +1458,7 @@ class CBPDocument
 			array(
 				'select' => array(new \Bitrix\Main\Entity\ExpressionField('CNT', 'COUNT(\'x\')')),
 				'filter' => array(
-					'=STATE.STARTED_BY' => $userId,
+					'=STARTED_BY' => $userId,
 					'<OWNED_UNTIL' => date($DB->DateFormatToPHP(FORMAT_DATETIME),
 						time() - WorkflowInstanceTable::LOCKED_TIME_INTERVAL)
 				),

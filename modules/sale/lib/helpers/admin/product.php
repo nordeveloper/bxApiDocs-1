@@ -463,6 +463,9 @@ class Product
 			}
 			if ($exists)
 			{
+				$basketProperties = Catalog\Product\PropertyCatalogFeature::getBasketPropertyCodes($iblockId);
+				if (empty($basketProperties))
+					continue;
 				\CIBlockElement::GetPropertyValuesArray(
 					$this->resultData,
 					$iblockId,
@@ -470,7 +473,9 @@ class Product
 						'ID' => $elIds,
 						'IBLOCK_ID' => $iblockId
 					),
-					array(),
+					array(
+						'ID' => $basketProperties
+					),
 					array(
 						'PROPERTY_FIELDS' => array(
 							'ID', 'IBLOCK_ID', 'NAME', 'CODE', 'PROPERTY_TYPE',

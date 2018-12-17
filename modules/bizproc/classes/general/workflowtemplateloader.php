@@ -265,9 +265,8 @@ class CAllBPWorkflowTemplateLoader
 
 		$dbResult = $DB->Query(
 			"SELECT COUNT('x') as CNT ".
-			"FROM b_bp_workflow_state WS ".
-			"	INNER JOIN b_bp_workflow_instance WI ON (WS.ID = WI.ID) ".
-			"WHERE WS.WORKFLOW_TEMPLATE_ID = ".intval($id)." "
+			"FROM b_bp_workflow_instance WI ".
+			"WHERE WI.WORKFLOW_TEMPLATE_ID = ".intval($id)." "
 		);
 
 		if ($arResult = $dbResult->Fetch())
@@ -1044,8 +1043,17 @@ class CAllBPWorkflowTemplateLoader
 
 			foreach ($datumTmp["DOCUMENT_FIELDS"] as $code => $field)
 			{
+				//skip printable
 				if (strtoupper(substr($code, -$len)) == "_PRINTABLE")
+				{
 					continue;
+				}
+
+				//skip references
+				if (strpos($code, '.') !== false)
+				{
+					continue;
+				}
 
 				$documentField = array(
 					"name" => $field["Name"],
@@ -1065,9 +1073,13 @@ class CAllBPWorkflowTemplateLoader
 				$documentField = array_merge($documentField, $field);
 
 				if (!array_key_exists($code, $arDocumentFields))
+				{
 					$documentService->AddDocumentField($documentType, $documentField);
+				}
 				else
+				{
 					$documentService->UpdateDocumentField($documentType, $documentField);
+				}
 			}
 		}
 

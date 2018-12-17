@@ -473,6 +473,9 @@ class CHTMLEditor
 		if (isset($arParams["normalBodyWidth"]))
 			$this->jsConfig["normalBodyWidth"] = $arParams["normalBodyWidth"];
 
+		if (isset($arParams['autoLink']))
+			$this->jsConfig['autoLink'] = $arParams['autoLink'];
+
 		return $arParams;
 	}
 

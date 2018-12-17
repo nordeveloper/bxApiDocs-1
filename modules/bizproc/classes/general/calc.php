@@ -585,9 +585,11 @@ class CBPCalc
 			$delta *= -1;
 
 		$days = abs($days);
+		$iterations = 0;
 
-		while ($days > 0)
+		while ($days > 0 && $iterations < 1000)
 		{
+			++$iterations;
 			$date += $delta;
 
 			if ($this->isHoliday($date))
@@ -803,6 +805,28 @@ class CBPCalc
 		return floatval($num);
 	}
 
+	private function FunctionNumberFormat($args)
+	{
+		$ar = $this->ArrgsToArray($args);
+		$number = (float) array_shift($ar);
+		$decimals = (int) (array_shift($ar) ?: 0);
+		$decPoint = array_shift($ar);
+		if ($decPoint === null)
+		{
+			$decPoint = '.';
+		}
+		$decPoint = (string) $decPoint;
+
+		$thousandsSeparator = array_shift($ar);
+		if ($thousandsSeparator === null)
+		{
+			$thousandsSeparator = ',';
+		}
+		$thousandsSeparator = (string) $thousandsSeparator;
+
+		return number_format($number, $decimals, $decPoint, $thousandsSeparator);
+	}
+
 	private function FunctionMin($args)
 	{
 		if (!is_array($args))
@@ -838,6 +862,14 @@ class CBPCalc
 		}
 
 		return mt_rand($min, $max);
+	}
+
+	private function FunctionRandString($args)
+	{
+		$ar = $this->ArrgsToArray($args);
+		$len = (int)array_shift($ar);
+
+		return \randString($len);
 	}
 
 	private function FunctionRound($args)
@@ -909,6 +941,41 @@ class CBPCalc
 		$offset = (int)array_shift($ar);
 
 		return strpos($haystack, $needle, $offset);
+	}
+
+	private function FunctionStrlen($args)
+	{
+		$ar = $this->ArrgsToArray($args);
+		$str = array_shift($ar);
+
+		if (!is_scalar($str))
+		{
+			return null;
+		}
+
+		$str = (string) $str;
+		return strlen($str);
+	}
+
+	private function FunctionUrlencode($args)
+	{
+		$ar = $this->ArrgsToArray($args);
+		$str = array_shift($ar);
+
+		if (!is_scalar($str))
+		{
+			if (is_array($str))
+			{
+				$str = implode(", ", CBPHelper::MakeArrayFlat($str));
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		$str = (string) $str;
+		return urlencode($str);
 	}
 
 	private function FunctionConvert($args)
@@ -1005,6 +1072,7 @@ class CBPCalc
 		'if' => array('args' => true, 'func' => 'FunctionIf'),
 		'intval' => array('args' => true, 'func' => 'FunctionIntval'),
 		'floatval' => array('args' => true, 'func' => 'FunctionFloatval'),
+		'numberformat' => array('args' => true, 'func' => 'FunctionNumberFormat'),
 		'min' => array('args' => true, 'func' => 'FunctionMin'),
 		'max' => array('args' => true, 'func' => 'FunctionMax'),
 		'rand' => array('args' => true, 'func' => 'FunctionRand'),
@@ -1015,6 +1083,8 @@ class CBPCalc
 		'or' => array('args' => true, 'func' => 'FunctionOr'),
 		'substr' => array('args' => true, 'func' => 'FunctionSubstr'),
 		'strpos' => array('args' => true, 'func' => 'FunctionStrpos'),
+		'strlen' => array('args' => true, 'func' => 'FunctionStrlen'),
+		'randstring' => array('args' => true, 'func' => 'FunctionRandString'),
 		'true' => array('args' => false, 'func' => 'FunctionTrue'),
 		'convert' => array('args' => true, 'func' => 'FunctionConvert'),
 		'merge' => array('args' => true, 'func' => 'FunctionMerge'),
@@ -1022,6 +1092,7 @@ class CBPCalc
 		'workdateadd' => array('args' => true, 'func' => 'FunctionWorkDateAdd'),
 		'isworkday' => array('args' => true, 'func' => 'FunctionIsWorkDay'),
 		'isworktime' => array('args' => true, 'func' => 'FunctionIsWorkTime'),
+		'urlencode' => array('args' => true, 'func' => 'FunctionUrlencode'),
 	);
 
 	// Allowable errors

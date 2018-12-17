@@ -176,7 +176,6 @@ class Message
 					'filter' => array(
 						'=TOKEN' => $token,
 						'=MAILBOX_ID' => $message['MAILBOX_ID'],
-						//'=MESSAGE_ID' => $message['ID'],
 					),
 					'limit' => 1,
 				))->fetch();
@@ -191,13 +190,11 @@ class Message
 
 						if (!$access) // check parent access
 						{
-							$access = (bool) Mail\MailMessageTable::getList(array(
-								'select' => array('ID'),
+							$access = (bool) Mail\Internals\MessageClosureTable::getList(array(
+								'select' => array('PARENT_ID'),
 								'filter' => array(
-									'=MAILBOX_ID' => $message['MAILBOX_ID'],
-									'=ID' => $excerpt['MESSAGE_ID'],
-									'<LEFT_MARGIN' => $message['LEFT_MARGIN'],
-									'>RIGHT_MARGIN' => $message['RIGHT_MARGIN'],
+									'=MESSAGE_ID' => $message['ID'],
+									'=PARENT_ID' => $excerpt['MESSAGE_ID'],
 								),
 							))->fetch();
 						}
@@ -272,30 +269,13 @@ class Message
 			);
 		}
 		$totalUnseen = Mail\MailMessageUidTable::getList(array(
-			'runtime' => array(
-				new \Bitrix\Main\Entity\ReferenceField(
-					'MESSAGE',
-					'Bitrix\Mail\MailMessageTable',
-					array(
-						'=this.MAILBOX_ID' => 'ref.MAILBOX_ID',
-						'=this.MESSAGE_ID' => 'ref.ID',
-					),
-					array(
-						'join_type' => 'INNER',
-					)
-				),
-			),
 			'select' => array(
 				'MAILBOX_ID',
-				new \Bitrix\Main\Entity\ExpressionField(
-					'TOTAL',
-					'COUNT(DISTINCT %s)',
-					'MESSAGE_ID'
-				),
+				new \Bitrix\Main\Entity\ExpressionField('TOTAL', 'COUNT(1)'),
 				new \Bitrix\Main\Entity\ExpressionField(
 					'UNSEEN',
-					"COUNT(DISTINCT IF(%s IN('N','U'), %s, NULL))",
-					array('IS_SEEN', 'MESSAGE_ID')
+					"COUNT(IF(%s IN('N','U'), 1, NULL))",
+					array('IS_SEEN')
 				),
 			),
 			'filter' => array(

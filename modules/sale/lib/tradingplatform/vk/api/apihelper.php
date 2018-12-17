@@ -25,6 +25,7 @@ class ApiHelper
 	private $api;
 	private $executer;
 	private $exportId;
+	private $logger;
 	
 	/**
 	 * ApiHelper constructor.
@@ -39,6 +40,7 @@ class ApiHelper
 		$this->vk = Vk::getInstance();
 		$this->api = $this->vk->getApi($exportId);
 		$this->executer = $this->vk->getExecuter($exportId);
+		$this->logger = new Logger($this->exportId);
 	}
 	
 	
@@ -175,11 +177,6 @@ class ApiHelper
 				throw new SystemException("Wrong photo upload type");
 				break;
 		}
-		
-//		add rich log for catch errors. Use only if set option
-		$richLog = $this->vk->getRichLog($this->exportId);
-		if($richLog)
-			$logger = new Logger($this->exportId);
 
 //		PROCESSED
 		foreach ($data as $item)
@@ -193,30 +190,27 @@ class ApiHelper
 			if ($uploadType == 'PRODUCT_MAIN_PHOTO')
 				$getServerParams += self::setUploadServerMainPhotoParams($item[$keyPhotoBx]);
 			
-			if(isset($logger) && $richLog)
-				$logger->addLog("Get photo upload server", $getServerParams);
-			
 			$uploadServer = $this->api->run($uploadServerMethod, $getServerParams);
-//			$uploadServer = Json::decode($uploadServer);
+//			todo: may be this error in upload server response
+			$this->logger->addLog("Get photo upload server", [
+				'PARAMS' => $getServerParams,
+				'RESULT' => $uploadServer,
+			]);
 			$uploadServer = $uploadServer["upload_url"];
+			
 
 //			UPLOAD photo by http
-			if(isset($logger) && $richLog)
-//				different array for albums and products
-				$logger->addLog("Upload photo HTTP", array(
-					"UPLOAD_TYPE" => $uploadType,
-					"ITEM" => array_key_exists("BX_ID", $item) ?
-						$item["BX_ID"].': '.$item["NAME"] :
-						$item["SECTION_ID"].': '.$item["TITLE"],
-					"PHOTO_BX_ID" => array_key_exists("PHOTO_MAIN_BX_ID", $item) ? $item["PHOTO_MAIN_BX_ID"] : $item["PHOTO_BX_ID"],
-					"PHOTO_URL" => array_key_exists("PHOTO_MAIN_URL", $item) ? $item["PHOTO_MAIN_URL"] : $item["PHOTO_URL"],
-					"PHOTOS" => $item["PHOTOS"]	//only for products
-				));
-			$responseHttp = ApiHelper::uploadPhotoHttp($item, $uploadServer, $uploadType, $timer);
+			$this->logger->addLog("Upload photo HTTP before", array(
+				"UPLOAD_TYPE" => $uploadType,
+				"ITEM" => array_key_exists("BX_ID", $item) ?
+					$item["BX_ID"].': '.$item["NAME"] :
+					$item["SECTION_ID"].': '.$item["TITLE"],
+				"PHOTO_BX_ID" => array_key_exists("PHOTO_MAIN_BX_ID", $item) ? $item["PHOTO_MAIN_BX_ID"] : $item["PHOTO_BX_ID"],
+				"PHOTO_URL" => array_key_exists("PHOTO_MAIN_URL", $item) ? $item["PHOTO_MAIN_URL"] : $item["PHOTO_URL"],
+				"PHOTOS" => $item["PHOTOS"]	//only for products
+			));
+			$responseHttp = $this->uploadPhotoHttp($item, $uploadServer, $uploadType, $timer);
 			$responseHttp = Json::decode($responseHttp);
-			
-			if(isset($logger) && $richLog)
-				$logger->addLog("Upload photo HTTP response", $responseHttp);
 			
 //			SAVE upload result
 			$photoSaveParams = array(
@@ -261,7 +255,7 @@ class ApiHelper
 	 * @throws SystemException
 	 * @throws TimeIsOverException
 	 */
-	private static function uploadPhotoHttp($data, $uploadServer, $uploadType, Timer $timer = NULL)
+	private function uploadPhotoHttp($data, $uploadServer, $uploadType, Timer $timer = NULL)
 	{
 		switch ($uploadType)
 		{
@@ -278,7 +272,7 @@ class ApiHelper
 				$postParams = array(
 					"url" => $data["PHOTO_MAIN_URL"],
 					"filename" => IO\Path::getName($data["PHOTO_MAIN_URL"]),
-					"param_name" => 'photo',
+					"param_name" => 'file',
 					"timer" => $timer,
 				);
 				break;
@@ -287,7 +281,7 @@ class ApiHelper
 				$postParams = array(
 					"url" => $data["PHOTO_URL"],
 					"filename" => IO\Path::getName($data["PHOTO_URL"]),
-					"param_name" => 'photo',
+					"param_name" => 'file',
 					"timer" => $timer,
 				);
 				break;
@@ -298,7 +292,7 @@ class ApiHelper
 			
 		}
 		
-		return self::uploadHttp($uploadServer, $postParams);
+		return $this->uploadHttp($uploadServer, $postParams);
 	}
 	
 	
@@ -327,7 +321,13 @@ class ApiHelper
 		$http->setHeader('Content-type', 'multipart/form-data; boundary=' . $boundary);
 		$http->setHeader('Content-length', \Bitrix\Main\Text\BinaryString::getLength($data));
 		
+		$this->logger->addLog("Upload photo HTTP params", [
+			'SERVER' => $uploadServer,
+			'PARAMS' => $params,
+			'FILE_OK' => $file ? 'Y' : 'N',
+		]);
 		$result = $http->post($uploadServer, $data);
+		$this->logger->addLog("Upload photo HTTP response", $result);
 		
 //		check TIMER if set
 		if (array_key_exists("timer", $params))

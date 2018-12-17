@@ -29,17 +29,6 @@ class CashboxAtolFarmV4 extends CashboxAtolFarm
 		/** @var Main\Type\DateTime $dateTime */
 		$dateTime = $data['date_create'];
 
-		$phone = \NormalizePhone($data['client_phone']);
-		if (is_string($phone))
-		{
-			if ($phone[0] === '7')
-				$phone = substr($phone, 1);
-		}
-		else
-		{
-			$phone = '';
-		}
-
 		$serviceEmail = $this->getValueFromSettings('SERVICE', 'EMAIL');
 		if (!$serviceEmail)
 		{
@@ -53,10 +42,7 @@ class CashboxAtolFarmV4 extends CashboxAtolFarm
 				'callback_url' => $this->getCallbackUrl(),
 			),
 			'receipt' => array(
-				'client' => array(
-					'email' => $data['client_email'] ?: '',
-					'phone' => $phone,
-				),
+				'client' => array(),
 				'company' => array(
 					'email' => $serviceEmail,
 					'sno' => $this->getValueFromSettings('TAX', 'SNO'),
@@ -68,6 +54,36 @@ class CashboxAtolFarmV4 extends CashboxAtolFarm
 				'total' => (float)$data['total_sum']
 			)
 		);
+
+		$email = $data['client_email'] ?: '';
+
+		$phone = \NormalizePhone($data['client_phone']);
+		if (is_string($phone))
+		{
+			if ($phone[0] === '7')
+				$phone = substr($phone, 1);
+		}
+		else
+		{
+			$phone = '';
+		}
+
+		$clientInfo = $this->getValueFromSettings('CLIENT', 'INFO');
+		if ($clientInfo === 'PHONE')
+		{
+			$result['receipt']['client'] = ['phone' => $phone];
+		}
+		elseif ($clientInfo === 'EMAIL')
+		{
+			$result['receipt']['client'] = ['email' => $email];
+		}
+		else
+		{
+			$result['receipt']['client'] = [
+				'email' => $email,
+				'phone' => $phone,
+			];
+		}
 
 		$paymentTypeMap = $this->getPaymentTypeMap();
 		foreach ($data['payments'] as $payment)

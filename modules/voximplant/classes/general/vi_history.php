@@ -945,7 +945,7 @@ class CVoxImplantHistory
 		$call = VI\Call::create([
 			'CALL_ID' => $params['CALL_ID'],
 			'CONFIG_ID' => $config['ID'],
-			'DATE_CREATE' => \Bitrix\Main\Type\DateTime::createFromTimestamp($params['CALL_START_DATE']),
+			'DATE_CREATE' => \Bitrix\Main\Type\DateTime::createFromTimestamp($params['CALL_START_TS']),
 			'INCOMING' => $params['INCOMING'],
 			'CALLER_ID' => $params['PHONE_NUMBER'],
 			'USER_ID' => $params['PORTAL_USER_ID'],

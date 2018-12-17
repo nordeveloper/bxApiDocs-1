@@ -1387,7 +1387,7 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 
 		$eventManager->registerEventHandler('sale', 'OnSaleOrderDeleted', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onOrderDelete');
 
-		$eventManager->registerEventHandler('sale', 'OnSaleShipmentDelivery', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onSaleDeliveryOrder');
+		$eventManager->registerEventHandler('sale', 'OnShipmentAllowDelivery', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onSaleDeliveryOrder');
 
 		$eventManager->registerEventHandler('sale', 'OnSaleBeforeOrderCanceled', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onSaleBeforeCancelOrder');
 
@@ -1461,7 +1461,7 @@ class EventCompatibility extends Sale\Compatible\Internals\EntityCompatibility
 
 		$eventManager->unRegisterEventHandler('sale', 'OnSaleOrderDeleted', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onOrderDelete');
 
-		$eventManager->unRegisterEventHandler('sale', 'OnSaleShipmentDelivery', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onSaleDeliveryOrder');
+		$eventManager->unRegisterEventHandler('sale', 'OnShipmentAllowDelivery', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onSaleDeliveryOrder');
 
 		$eventManager->unRegisterEventHandler('sale', 'OnSaleBeforeOrderCanceled', 'sale', '\Bitrix\Sale\Compatible\EventCompatibility', 'onSaleBeforeCancelOrder');
 

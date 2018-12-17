@@ -2,7 +2,6 @@
 namespace Bitrix\Sale;
 
 use Bitrix\Main;
-use Bitrix\Main\Entity;
 use Bitrix\Sale\Internals;
 use Bitrix\Main\Localization\Loc;
 
@@ -871,64 +870,23 @@ class ShipmentItem
 	 * @param null $name
 	 * @param null $oldValue
 	 * @param null $value
-	 *
-	 * @return bool
+	 * @return Result
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
 	 */
 	public function onBasketModify($action, BasketItem $basketItem, $name = null, $oldValue = null, $value = null)
 	{
-		switch($action)
+		$result = new Result();
+
+		if ($action === EventActions::ADD)
 		{
-			case "UPDATE":
-
-				if ($name == "QUANTITY")
-				{
-
-					/** @var ShipmentItemCollection $collection */
-					$collection = $this->getCollection();
-					$shipment = $collection->getShipment();
-
-					if ($shipment->isShipped() != "Y")
-						return true;
-
-					if ($basketItem->getBasketCode() != $this->getBasketCode())
-						return true;
-
-					$quantity = ($value - $oldValue);
-
-					if ($quantity != 0)
-					{
-						$result = Internals\Catalog\Provider::tryReserveShipmentItem($this);
-					}
-
-					if (!empty($result) && is_array($result))
-					{
-						$this->setField('RESERVED_QUANTITY', $result['QUANTITY']);
-
-						if ($quantity > 0)
-						{
-							if ($this->getQuantity() != $this->getReservedQuantity())
-							{
-								/** @var ShipmentItemCollection $shipmentItemCollection */
-								$shipmentItemCollection = $this->getCollection();
-
-								/** @var Shipment $shipment */
-								$shipment = $shipmentItemCollection->getShipment();
-
-								$shipment->setMark();
-							}
-						}
-
-					}
-				}
-				//change quantity
-				
-				break;
-			case "DELETE":
-				// unreserve
-				break;
+			$this->setFieldNoDemand('QUANTITY', $basketItem->getQuantity());
 		}
+
+		return $result;
 	}
 
 	/**
@@ -1113,6 +1071,24 @@ class ShipmentItem
 					), 'SALE_SHIPMENT_ITEM_BASKET_ITEM_NOT_FOUND'
 				)
 			);
+
+			return $result;
+		}
+
+		if ($this->getQuantity() <= 0)
+		{
+			$result->addError(
+				new ResultError(
+					Loc::getMessage(
+						'SALE_SHIPMENT_ITEM_ERR_QUANTITY_EMPTY',
+						array(
+							'#BASKET_ITEM_NAME#' => $this->getBasketItem()->getField('NAME'),
+						)
+					), 'SALE_SHIPMENT_ITEM_ERR_QUANTITY_EMPTY'
+				)
+			);
+
+			return $result;
 		}
 
 		return $result;

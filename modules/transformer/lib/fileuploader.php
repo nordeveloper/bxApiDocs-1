@@ -3,6 +3,7 @@
 namespace Bitrix\Transformer;
 
 use Bitrix\Main\Error;
+use Bitrix\Main\IO\Path;
 use Bitrix\Main\Result;
 use Bitrix\Main\Text\BinaryString;
 
@@ -46,14 +47,14 @@ class FileUploader
 				{
 					$bucketId = $bucket->ID;
 					$maxUploadSizeCloud = $bucket->getService()->getMinUploadPartSize();
-					$fileName = \CCloudTempFile::GetFileName($bucket, $fileName);
+					$fileName = Path::combine(\CCloudTempFile::GetDirectoryName($bucket, 1), $fileName);
 				}
 			}
 		}
 
 		if(!$bucketId)
 		{
-			$fileName = \CTempFile::GetFileName($fileName);
+			$fileName = Path::combine(\CTempFile::GetDirectoryName(1), $fileName);
 		}
 
 		$maxUploadSizeLocal = self::parseSize(ini_get('post_max_size'));

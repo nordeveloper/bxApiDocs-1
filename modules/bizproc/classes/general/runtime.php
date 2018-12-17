@@ -53,6 +53,7 @@ class CBPRuntime
 		$this->arLoadedActivities = array();
 		$this->arActivityFolders = array(
 			$_SERVER["DOCUMENT_ROOT"]."/local/activities",
+			$_SERVER["DOCUMENT_ROOT"]."/local/activities/custom",
 			$_SERVER["DOCUMENT_ROOT"].BX_ROOT."/activities/custom",
 			$_SERVER["DOCUMENT_ROOT"].BX_ROOT."/activities/bitrix",
 			$_SERVER["DOCUMENT_ROOT"].BX_ROOT."/modules/bizproc/activities",
@@ -228,7 +229,7 @@ class CBPRuntime
 			$starterUserId = intval(substr($workflowParameters[CBPDocument::PARAM_TAGRET_USER], strlen("user_")));
 		}
 
-		$this->arServices["StateService"]->AddWorkflow($workflowId, $workflowTemplateId, $arDocumentId, $starterUserId);
+		$this->GetService("StateService")->AddWorkflow($workflowId, $workflowTemplateId, $arDocumentId, $starterUserId);
 
 		$this->arWorkflows[$workflowId] = $workflow;
 		return $workflow;

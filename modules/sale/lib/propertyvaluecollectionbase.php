@@ -556,7 +556,6 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 				$result->addErrors($r->getErrors());
 			}
 
-
 			$this->callEventOnSalePropertyValueDeleted($v);
 		}
 
@@ -567,7 +566,7 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	 * @param $values
 	 * @throws Main\NotImplementedException
 	 */
-	private function callEventOnBeforeSalePropertyValueDeleted($values)
+	private function callEventOnSalePropertyValueDeleted($values)
 	{
 		$eventClassName = $this->getItemEventName();
 
@@ -587,7 +586,7 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	 * @param $values
 	 * @throws Main\NotImplementedException
 	 */
-	protected function callEventOnSalePropertyValueDeleted($values)
+	protected function callEventOnBeforeSalePropertyValueDeleted($values)
 	{
 		$eventClassName = $this->getItemEventName();
 

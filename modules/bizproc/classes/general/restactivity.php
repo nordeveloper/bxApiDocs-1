@@ -171,7 +171,7 @@ class CBPRestActivity
 				$auth,
 				array(
 					"sendAuth" => true,
-					"sendRefreshToken" => false,
+					"sendRefreshToken" => true,
 					"category" => Sqs::CATEGORY_BIZPROC,
 				)
 			),

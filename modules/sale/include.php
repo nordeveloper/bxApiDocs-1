@@ -449,6 +449,7 @@ CModule::AddAutoloadClasses(
 		"CSaleCondCtrlGroup" => "general/sale_cond.php",
 		"CSaleCondCtrlBasketGroup" => "general/sale_cond.php",
 		"CSaleCondCtrlBasketFields" => "general/sale_cond.php",
+		"CSaleCondCtrlBasketItemConditions" => "general/sale_cond.php",
 		"CSaleCondCtrlBasketProperties" => "general/sale_cond.php",
 		"CSaleCondCtrlOrderFields" => "general/sale_cond.php",
 		"CSaleCondCtrlCommon" => "general/sale_cond.php",

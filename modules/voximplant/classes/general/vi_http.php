@@ -246,7 +246,10 @@ class CVoxImplantHttp
 		);
 		$query = $this->Query(
 			'AttachPhoneNumber',
-			$params
+			$params,
+			[
+				"streamTimeout" => 60
+			]
 		);
 		if (isset($query->error))
 		{
@@ -804,7 +807,7 @@ class CVoxImplantHttp
 		return $this->error;
 	}
 
-	private function Query($command, $params = array())
+	private function Query($command, $params = array(), $options = array())
 	{
 		if(\Bitrix\Voximplant\Limits::isRestOnly())
 		{
@@ -831,8 +834,8 @@ class CVoxImplantHttp
 		$params["BX_HASH"] = self::RequestSign($this->type, md5(implode("|", $params)));
 
 		$httpClient = \Bitrix\Voximplant\HttpClientFactory::create(array(
-			"socketTimeout" => 10,
-			"streamTimeout" => 30,
+			"socketTimeout" => (int)$options["socketTimeout"] ?: 10,
+			"streamTimeout" => (int)$options["streamTimeout"] ?: 30,
 			"disableSslVerification" => true
 		));
 		$httpClient->setHeader('User-Agent', 'Bitrix Telephony');

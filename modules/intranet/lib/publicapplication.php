@@ -15,6 +15,7 @@ class PublicApplication extends \Bitrix\Main\Authentication\Application
 		"/online/",
 		"/docs/pub/",
 		"/pub/",
+		"/rest/",
 		"/bitrix/services/main/ajax.php",
 		"/bitrix/services/rest/index.php"
 	);

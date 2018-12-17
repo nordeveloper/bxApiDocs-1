@@ -830,7 +830,9 @@ final class CheckManager
 					continue;
 
 				$service = $payment->getPaySystem();
-				if ($service->getField("CAN_PRINT_CHECK") !== 'Y')
+				if ($service === null
+					|| $service->getField("CAN_PRINT_CHECK") !== 'Y'
+				)
 				{
 					return false;
 				}

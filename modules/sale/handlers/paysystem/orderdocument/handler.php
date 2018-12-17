@@ -158,7 +158,7 @@ class OrderDocumentHandler extends PaySystem\BaseServiceHandler
 			}
 
 			$template = DocumentGenerator\Template::loadById($this->service->getField('PS_MODE'));
-			if (!$template)
+			if (!$template || $template->isDeleted())
 			{
 				return null;
 			}

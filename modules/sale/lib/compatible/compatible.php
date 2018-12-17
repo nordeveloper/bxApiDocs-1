@@ -405,7 +405,7 @@ class OrderQuery extends AliasedQuery
 
 	public static function explodeFilterKey($key)
 	{
-		preg_match('/^([!+]{0,1})([<=>@%~]{0,2})(.*)$/', $key, $matches);
+		preg_match('/^([!+*]{0,1})([<=>@%~]{0,2})(.*)$/', $key, $matches);
 
 		return array(
 			'modifier' => $matches[1], // can be ""
@@ -427,14 +427,17 @@ class OrderQuery extends AliasedQuery
 		switch ($operator)
 		{
 			case  '':
-			case '@': $operator = '='; break;
+			case '@': $operator = ($modifier === '*' ? '' : '=');
+				break;
 
-			case '~': $operator =  ''; break;
+			case '~': $operator =  '';
+				break;
 			// default: with no changes
 		}
 
 		switch ($modifier)
 		{
+			case '*':
 			case '' : return $this->addFilter($modifier.$operator.$name, $value);
 
 			case '!': return $operator == '=' && $value

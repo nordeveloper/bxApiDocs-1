@@ -863,6 +863,8 @@ class BusinessValueHandlers
 							return $fields[$registryType];
 						}
 
+						$fields[$registryType] = [];
+
 						$result = Internals\OrderPropsTable::getList(array(
 							'select' => array('ID', 'NAME', 'PERSON_TYPE_ID', 'TYPE', 'CODE'),
 							'filter' => array(

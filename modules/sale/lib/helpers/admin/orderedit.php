@@ -1553,27 +1553,7 @@ class OrderEdit
 
 	public static function setBasketItemFields(\Bitrix\Sale\BasketItem &$item, array $fields = array())
 	{
-		$result = $item->setFields($fields);
-
-		if(!$result->isSuccess())
-		{
-			foreach($result->getErrors() as $error)
-			{
-				if($error->getCode() == "CATALOG_QUANTITY_NOT_ENOGH")
-				{
-					if((string)Option::get('catalog', 'allow_negative_amount') != 'Y')
-					{
-						$data = $result->getData();
-						$res = $item->setField("QUANTITY", $data["AVAILABLE_QUANTITY"]);
-
-						if(!$res->isSuccess())
-							$result->addErrors($res->getErrors());
-					}
-				}
-			}
-		}
-
-		return $result;
+		return $item->setFields($fields);
 	}
 
 	public static function getSiteName(&$siteId)

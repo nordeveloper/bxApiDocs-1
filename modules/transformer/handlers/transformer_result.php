@@ -93,6 +93,15 @@ if(!empty($id))
 	if($error)
 	{
 		\Bitrix\Transformer\Log::write('Error on server: '.$error);
+		$result = $httpRequest->getPost('result');
+		if(is_array($result['files']))
+		{
+			foreach($result['files'] as $key => $fileName)
+			{
+				$file = new File($fileName);
+				$file->delete();
+			}
+		}
 		$command->updateStatus(Command::STATUS_ERROR, $error);
 		$command->callback(array('error' => $error));
 		echo Json::encode(array(
@@ -116,24 +125,30 @@ if(!empty($id))
 			$files[$key] = new File($fileName);
 			$result['files'][$key] = $files[$key]->getAbsolutePath();
 		}
-		if($command->callback($result))
+		try
 		{
-			$command->updateStatus(Command::STATUS_SUCCESS);
-			$command->push();
-			echo Json::encode(array(
-				'success' => 'OK'
-			));
+			if($command->callback($result))
+			{
+				$command->updateStatus(Command::STATUS_SUCCESS);
+				$command->push();
+				echo Json::encode(array(
+					'success' => 'OK'
+				));
+			}
+			else
+			{
+				$command->updateStatus(Command::STATUS_ERROR);
+				echo Json::encode(array(
+					'error' => 'Error of the callback'
+				));
+			}
 		}
-		else
+		finally
 		{
-			$command->updateStatus(Command::STATUS_ERROR);
-			echo Json::encode(array(
-				'error' => 'Error of the callback'
-			));
-		}
-		foreach($result['files'] as $key => $file)
-		{
-			$files[$key]->delete();
+			foreach($result['files'] as $key => $file)
+			{
+				$files[$key]->delete();
+			}
 		}
 		return;
 	}
