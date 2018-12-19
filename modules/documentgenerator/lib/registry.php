@@ -30,14 +30,21 @@ abstract class Registry
 	abstract protected function getEventName();
 
 	/**
+	 * @param array $params
 	 * @return array
 	 */
-	public static function getList()
+	public static function getList(array $params = [])
 	{
+		$modules = [];
+		if(isset($params['filter']['MODULE']) && is_array($params['filter']['MODULE']))
+		{
+			$modules = $params['filter']['MODULE'];
+		}
+
 		$self = new static();
 
 		$result = $self->getFromPath($self->getPath());
-		$result += $self->getFromEvent();
+		$result += $self->getFromEvent($modules);
 
 		return $result;
 	}
@@ -86,13 +93,14 @@ abstract class Registry
 	}
 
 	/**
+	 * @param array|null $modules
 	 * @return array
 	 */
-	protected function getFromEvent()
+	protected function getFromEvent(array $modules = null)
 	{
 		$result = [];
 
-		foreach(EventManager::getInstance()->findEventHandlers('documentgenerator', $this->getEventName()) as $handler)
+		foreach(EventManager::getInstance()->findEventHandlers('documentgenerator', $this->getEventName(), $modules) as $handler)
 		{
 			$eventResult = ExecuteModuleEventEx($handler);
 			if(is_array($eventResult))
@@ -101,7 +109,7 @@ abstract class Registry
 				{
 					if($fullClassName && $this->checkClassName($fullClassName) && is_array($description))
 					{
-						$result[$fullClassName] = $description;
+						$result[strtolower($fullClassName)] = $description;
 					}
 				}
 			}

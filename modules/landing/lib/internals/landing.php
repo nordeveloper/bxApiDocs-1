@@ -79,7 +79,7 @@ class LandingTable extends Entity\DataManager
 			'TPL_ID' => new Entity\IntegerField('TPL_ID', array(
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_TPL_ID')
 			)),
-			'TPL_CODE' => new Entity\IntegerField('TPL_CODE', array(
+			'TPL_CODE' => new Entity\StringField('TPL_CODE', array(
 				'title' => Loc::getMessage('LANDING_TABLE_FIELD_TPL_CODE')
 			)),
 			'SITE_ID' => new Entity\IntegerField('SITE_ID', array(

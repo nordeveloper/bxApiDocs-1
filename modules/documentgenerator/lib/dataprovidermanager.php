@@ -7,11 +7,9 @@ use Bitrix\DocumentGenerator\DataProvider\HashDataProvider;
 use Bitrix\DocumentGenerator\DataProvider\Rest;
 use Bitrix\DocumentGenerator\Value\DateTime;
 use Bitrix\DocumentGenerator\Value\Name;
-use Bitrix\Main\Application;
 use Bitrix\Main\Context\Culture;
 use Bitrix\Main\IO\File;
 use Bitrix\Main\Loader;
-use Bitrix\Main\Localization\CultureTable;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\ModuleManager;
 use Bitrix\Main\Type\Date;
@@ -21,16 +19,15 @@ final class DataProviderManager
 	/** @var DataProviderManager */
 	private static $instance;
 
-	protected $providersCache;
+	protected $providersCache = [];
+	protected $accessCache = [];
 	protected $phrases = [];
 	protected $loadedPhrasePath = [];
-	protected $region;
-	protected $culture;
-	protected $nameFormat;
+	protected $context;
 
 	private function __construct()
 	{
-		$this->providersCache = [];
+		$this->context = new Context();
 	}
 
 	private function __clone()
@@ -48,6 +45,24 @@ final class DataProviderManager
 		}
 
 		return self::$instance;
+	}
+
+	/**
+	 * @param Context $context
+	 * @return DataProviderManager
+	 */
+	public function setContext(Context $context)
+	{
+		$this->context = $context;
+		return $this;
+	}
+
+	/**
+	 * @return Context
+	 */
+	public function getContext()
+	{
+		return $this->context;
 	}
 
 	/**
@@ -98,6 +113,38 @@ final class DataProviderManager
 			return false;
 		}
 
+		$placeholderParts = explode('.', $placeholder);
+		if(count($placeholderParts) > 1)
+		{
+			$provider = $this->getDataProviderValue($dataProvider, $placeholderParts[0]);
+			if($provider && $provider instanceof DataProvider)
+			{
+				$value = $provider->getValue(implode('.', array_slice($placeholderParts, 1)));
+				if($this->getContext()->getIsCheckAccess() && !$this->checkDataProviderAccess($provider))
+				{
+					$value = false;
+				}
+			}
+			else
+			{
+				$value = false;
+			}
+		}
+		else
+		{
+			$value = $this->calculateDataProviderValue($dataProvider, $placeholder);
+		}
+
+		return $value;
+	}
+
+	/**
+	 * @param DataProvider $dataProvider
+	 * @param $placeholder
+	 * @return DataProvider|false|mixed
+	 */
+	protected function calculateDataProviderValue(DataProvider $dataProvider, $placeholder)
+	{
 		$fields = $dataProvider->getFields();
 		if(!isset($fields[$placeholder]))
 		{
@@ -377,6 +424,26 @@ final class DataProviderManager
 			{
 				$value = $this->getArray($value, $params);
 			}
+			elseif(is_array($value))
+			{
+				if(isset($params['listAsArray']) && $params['listAsArray'] === true)
+				{
+
+				}
+				elseif(isset($field['PROVIDER']))
+				{
+					$value = $this->getValueFromList($value);
+					$value = $this->createDataProvider($field, $value, $dataProvider, $placeholder);
+					if($value instanceof DataProvider)
+					{
+						$value = $this->getArray($value, $params);
+					}
+					else
+					{
+						$value = null;
+					}
+				}
+			}
 			$result[$placeholder] = $value;
 		}
 
@@ -413,6 +480,14 @@ final class DataProviderManager
 					unset($providers[$key]);
 				}
 			}
+		}
+		if($moduleId === Driver::REST_MODULE_ID)
+		{
+			$providers[strtolower(Rest::class)] = [
+				'CLASS' => Rest::class,
+				'NAME' => Driver::REST_MODULE_ID,
+				'MODULE' => Driver::REST_MODULE_ID,
+			];
 		}
 
 		return $providers;
@@ -718,30 +793,12 @@ final class DataProviderManager
 	}
 
 	/**
-	 * @param string $region
+	 * @param $region
 	 * @return $this
 	 */
 	public function setRegion($region)
 	{
-		$this->region = $region;
-
-		$culture = false;
-		if(is_string($region) && !empty($region))
-		{
-			$data = CultureTable::getList(['filter' => ['CODE' => $region]])->fetch();
-			if($data)
-			{
-				$culture = new Culture($data);
-			}
-		}
-
-		if(!$culture)
-		{
-			$culture = Application::getInstance()->getContext()->getCulture();
-		}
-
-		$this->culture = $culture;
-
+		$this->context->setRegion($region);
 		return $this;
 	}
 
@@ -750,21 +807,7 @@ final class DataProviderManager
 	 */
 	public function getRegion()
 	{
-		if(!$this->region)
-		{
-			return LANGUAGE_ID;
-		}
-
-		return $this->region;
-	}
-
-	/**
-	 * @deprecated
-	 * @return string
-	 */
-	public function getCurrentRegion()
-	{
-		return $this->getRegion();
+		return $this->context->getRegion();
 	}
 
 	/**
@@ -772,16 +815,7 @@ final class DataProviderManager
 	 */
 	public function getRegionLanguageId()
 	{
-		if($this->region)
-		{
-			$regionDescription = Driver::getInstance()->getRegionsList()[$this->region];
-			if($regionDescription && $regionDescription['LANGUAGE_ID'])
-			{
-				return $regionDescription['LANGUAGE_ID'];
-			}
-		}
-
-		return LANGUAGE_ID;
+		return $this->context->getRegionLanguageId();
 	}
 
 	/**
@@ -821,11 +855,33 @@ final class DataProviderManager
 	 */
 	public function getCulture()
 	{
-		if(!$this->culture)
+		return $this->context->getCulture();
+	}
+
+	/**
+	 * @param DataProvider $dataProvider
+	 * @param null $userId
+	 * @return bool
+	 */
+	public function checkDataProviderAccess(DataProvider $dataProvider, $userId = null)
+	{
+		if(!$userId)
 		{
-			$this->culture = Application::getInstance()->getContext()->getCulture();
+			$userId = Driver::getInstance()->getUserId();
 		}
-		return $this->culture;
+
+		if($userId === 0)
+		{
+			return true;
+		}
+
+		$providerHash = $this->getValueHash($dataProvider);
+		if(!isset($this->accessCache[$providerHash][$userId]))
+		{
+			$this->accessCache[$providerHash][$userId] = $dataProvider->hasAccess($userId);
+		}
+
+		return $this->accessCache[$providerHash][$userId];
 	}
 
 //	/**

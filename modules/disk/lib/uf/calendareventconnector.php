@@ -47,6 +47,22 @@ final class CalendarEventConnector extends StubConnector
 		$members = array();
 		if ($event['IS_MEETING'])
 		{
+			if(is_array($event['ATTENDEE_LIST']))
+			{
+				$userIndex = CCalendarEvent::getUserIndex();
+				foreach($event['ATTENDEE_LIST'] as $attendee)
+				{
+					if (isset($userIndex[$attendee["id"]]))
+					{
+						$members[] = array(
+							"NAME" => $userIndex[$attendee["id"]]['DISPLAY_NAME'],
+							"LINK" => $userIndex[$attendee["id"]]['URL'],
+							'AVATAR_SRC' => $userIndex[$attendee["id"]]['AVATAR'],
+							"IS_EXTRANET" => "N",
+						);
+					}
+				}
+			}
 			if(is_array($event['~ATTENDEES']))
 			{
 				foreach($event['~ATTENDEES'] as $user)
@@ -72,6 +88,7 @@ final class CalendarEventConnector extends StubConnector
 					'ID', 'NAME', 'LAST_NAME', 'LOGIN', 'PERSONAL_PHOTO',
 				))
 			)->fetch();
+
 			if($userRow)
 			{
 				$name = trim($userRow['NAME'].' '.$userRow['LAST_NAME']);

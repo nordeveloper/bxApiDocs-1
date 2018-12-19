@@ -89,8 +89,9 @@ final class TransformerManager implements InterfaceCallback
 		}
 
 		$isTransformationError = $status === Command::STATUS_ERROR;
-		static::addToStack($document, $isTransformationError);
-		$data = $document->getFile($isTransformationError)->getData();
+		$data = $document->getFile(false)->getData();
+		$data['isTransformationError'] = $isTransformationError;
+		static::addToStack($data, $isTransformationError);
 		$pdfId = null;
 		if(isset($updateData['PDF_ID']) && $updateData['PDF_ID'] > 0)
 		{
@@ -112,6 +113,8 @@ final class TransformerManager implements InterfaceCallback
 	}
 
 	/**
+	 * @see Document::setPdfId()
+	 * @see Document::setImageId()
 	 * @return array
 	 */
 	protected static function getFormats()
@@ -302,14 +305,17 @@ final class TransformerManager implements InterfaceCallback
 		return 'showImage';
 	}
 
-	public static function addToStack(Document $document, $isTransformationError = false)
+	/**
+	 * @param array $data
+	 */
+	public static function addToStack(array $data)
 	{
 		if(Loader::includeModule("pull"))
 		{
-			\CPullWatch::AddToStack(static::getPullTagName($document->ID), [
+			\CPullWatch::AddToStack(static::getPullTagName($data['id']), [
 				'module_id' => Driver::MODULE_ID,
 				'command' => static::getPullTagCommand(),
-				'params' => $document->getFile($isTransformationError)->getData(),
+				'params' => $data,
 			]);
 		}
 	}

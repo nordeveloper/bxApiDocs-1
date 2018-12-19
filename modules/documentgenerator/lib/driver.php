@@ -18,6 +18,7 @@ use Bitrix\Main\Numerator\Numerator;
 final class Driver
 {
 	const MODULE_ID = 'documentgenerator';
+	const REST_MODULE_ID = 'rest';
 	const DEFAULT_DATA_PATH = '/bitrix/modules/documentgenerator/data/';
 
 	const NUMERATOR_TYPE = 'DOCUMENT';
@@ -253,6 +254,12 @@ final class Driver
 	 */
 	public static function installDefaultTemplatesForCurrentRegion($rewrite = false)
 	{
+		global $DB;
+		if(!$DB->TableExists(TemplateTable::getTableName()))
+		{
+			return '\\Bitrix\\DocumentGenerator\\Driver::installDefaultTemplatesForCurrentRegion();';
+		}
+
 		$controller = new Controller\Template();
 
 		$result = $controller::getDefaultTemplateList(['REGION' => Driver::getInstance()->getCurrentRegion()['CODE']]);
@@ -273,6 +280,11 @@ final class Driver
 
 	public static function extendTemplateProviders($moduleId, $provider)
 	{
+		global $DB;
+		if(!$DB->TableExists(TemplateProviderTable::getTableName()))
+		{
+			return '';
+		}
 		if(!Loader::includeModule($moduleId))
 		{
 			return '';

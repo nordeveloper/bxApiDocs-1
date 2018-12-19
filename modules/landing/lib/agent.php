@@ -10,6 +10,8 @@ class Agent
 	 */
 	public static function clearRecycle($days = null)
 	{
+		return __CLASS__ . '::' . __FUNCTION__ . '();'; 
+
 		$days = !is_null($days)
 				? (int) $days
 				: (int) Manager::getOption('deleted_lifetime_days');

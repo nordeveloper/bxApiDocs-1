@@ -190,15 +190,23 @@ class Petrovich {
 	 * @param $type
 	 * @return string
 	 */
-	private function findInRules($name,$case,$type) {
-		foreach(static::$rules[$type]->suffixes as $rule) {
-			if ( ! $this->checkGender($rule->gender) )
+	private function findInRules($name,$case,$type)
+	{
+		foreach(static::$rules[$type]->suffixes as $rule)
+		{
+			if( ! $this->checkGender($rule->gender) )
+			{
 				continue;
-			foreach($rule->test as $last_char) {
-				$last_name_char = mb_substr($name,mb_strlen($name)-mb_strlen($last_char),mb_strlen($last_char));
-				if($last_char == $last_name_char) {
+			}
+			foreach($rule->test as $last_char)
+			{
+				$last_name_char = mb_strtolower(mb_substr($name,mb_strlen($name)-mb_strlen($last_char),mb_strlen($last_char)));
+				if(mb_strtolower($last_char) == $last_name_char)
+				{
 					if($rule->mods[$case] == '.')
+					{
 						return $name;
+					}
 					return $this->applyRule($rule->mods,$name,$case);
 				}
 			}
@@ -241,7 +249,13 @@ class Petrovich {
 	 * @return string
 	 */
 	private function applyRule($mods,$name,$case) {
+		$nameWithoutFirstLetter = mb_substr($name, 1);
+		$isUpperCase = ($nameWithoutFirstLetter != mb_strtolower($nameWithoutFirstLetter));
 		$result = mb_substr($name,0,mb_strlen($name) - mb_substr_count($mods[$case],'-'));
+		if($isUpperCase)
+		{
+			$mods[$case] = mb_strtoupper($mods[$case]);
+		}
 		$result .= str_replace('-','',$mods[$case]);
 		return $result;
 	}

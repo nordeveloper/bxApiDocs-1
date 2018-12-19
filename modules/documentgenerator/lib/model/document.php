@@ -86,6 +86,8 @@ class DocumentTable extends FileModel
 			new Main\Entity\TextField('VALUES', [
 				'serialized' => true
 			]),
+			new Main\Entity\IntegerField('CREATED_BY'),
+			new Main\Entity\IntegerField('UPDATED_BY'),
 			new Main\Entity\ReferenceField(
 				'TEMPLATE',
 				'\Bitrix\DocumentGenerator\Model\Template',

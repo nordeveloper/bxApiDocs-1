@@ -33,6 +33,19 @@ final class Docx extends ZipDocument
 	}
 
 	/**
+	 * @return bool
+	 */
+	public function isFileProcessable()
+	{
+		if(parent::isFileProcessable())
+		{
+			return $this->zip->getFromName(static::PATH_DOCUMENT) !== false;
+		}
+
+		return false;
+	}
+
+	/**
 	 * @inheritdoc
 	 */
 	public function process()

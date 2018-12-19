@@ -1,8 +1,11 @@
 <?php
 
+/** @noinspection PhpUnusedParameterInspection */
+
 namespace Bitrix\DocumentGenerator\Controller;
 
 use Bitrix\DocumentGenerator\Body\Docx;
+use Bitrix\DocumentGenerator\DataProvider\Rest;
 use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Driver;
 use Bitrix\DocumentGenerator\Engine\CheckAccess;
@@ -11,12 +14,17 @@ use Bitrix\DocumentGenerator\Model\DocumentTable;
 use Bitrix\DocumentGenerator\Model\FileTable;
 use Bitrix\DocumentGenerator\Model\TemplateTable;
 use Bitrix\Main\Engine\ActionFilter\Csrf;
+use Bitrix\Main\Engine\Binder;
 use Bitrix\Main\Engine\CurrentUser;
+use Bitrix\Main\Engine\Response\Converter;
+use Bitrix\Main\Engine\Response\DataType\ContentUri;
 use Bitrix\Main\Engine\Response\DataType\Page;
+use Bitrix\Main\Engine\UrlManager;
 use Bitrix\Main\Error;
 use Bitrix\Main\HttpResponse;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Result;
 use Bitrix\Main\UI\PageNavigation;
 use Bitrix\Rest\APAuth\PasswordTable;
 use Bitrix\Rest\AppTable;
@@ -24,8 +32,6 @@ use Bitrix\Rest\OAuth\Auth;
 
 class Document extends Base
 {
-	const ERROR_ACCESS_DENIED = 'DOCGEN_ACCESS_ERROR';
-
 	/**
 	 * @return array
 	 */
@@ -36,6 +42,25 @@ class Document extends Base
 
 		return $preFilters;
 	}
+
+	protected function init()
+	{
+		parent::init();
+
+		Binder::registerParameterDependsOnName(
+			\Bitrix\DocumentGenerator\Template::class,
+			function($className, $id)
+			{
+				/** @var \Bitrix\DocumentGenerator\Template $className */
+				return $className::loadById($id);
+			},
+			function()
+			{
+				return 'templateId';
+			}
+		);
+	}
+
 
 	/**
 	 * @return array
@@ -69,9 +94,10 @@ class Document extends Base
 
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
-	 * @return array|bool
+	 * @param \CRestServer|null $restServer
+	 * @return null
 	 */
-	public function getImageAction(\Bitrix\DocumentGenerator\Document $document)
+	public function getImageAction(\Bitrix\DocumentGenerator\Document $document, \CRestServer $restServer = null)
 	{
 		if($document->IMAGE_ID > 0)
 		{
@@ -83,15 +109,16 @@ class Document extends Base
 			$this->errorCollection[] = new Error(Loc::getMessage('DOCGEN_CONTROLLER_DOCUMENT_NO_IMAGE'));
 		}
 
-		return false;
+		return null;
 	}
 
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @param string $fileName
-	 * @return mixed
+	 * @param \CRestServer|null $restServer
+	 * @return null
 	 */
-	public function getFileAction(\Bitrix\DocumentGenerator\Document $document, $fileName = '')
+	public function getFileAction(\Bitrix\DocumentGenerator\Document $document, $fileName = '', \CRestServer $restServer = null)
 	{
 		if($fileName === '')
 		{
@@ -103,9 +130,10 @@ class Document extends Base
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @param string $fileName
-	 * @return array|mixed
+	 * @param \CRestServer|null $restServer
+	 * @return null
 	 */
-	public function getPdfAction(\Bitrix\DocumentGenerator\Document $document, $fileName = '')
+	public function getPdfAction(\Bitrix\DocumentGenerator\Document $document, $fileName = '', \CRestServer $restServer = null)
 	{
 		if($document->PDF_ID > 0)
 		{
@@ -121,15 +149,18 @@ class Document extends Base
 			$this->errorCollection[] = new Error(Loc::getMessage('DOCGEN_CONTROLLER_DOCUMENT_NO_PDF'));
 		}
 
-		return false;
+		return null;
 	}
 
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @param string $print
-	 * @return HttpResponse
+	 * @param int $height
+	 * @param int $width
+	 * @param \CRestServer|null $restServer
+	 * @return array|HttpResponse
 	 */
-	public function showPdfAction(\Bitrix\DocumentGenerator\Document $document, $print = 'y')
+	public function showPdfAction(\Bitrix\DocumentGenerator\Document $document, $print = 'y', $width = 700, $height = 900, \CRestServer $restServer = null)
 	{
 		$response = new HttpResponse();
 		if($document->PDF_ID > 0)
@@ -141,8 +172,11 @@ class Document extends Base
 				'',
 				[
 					'PATH' => $document->getPdfUrl(),
-					'IFRAME' => 'Y',
+					'IFRAME' => ($print === 'y' ? 'Y' : 'N'),
 					'PRINT' => ($print === 'y' ? 'Y' : 'N'),
+					'TITLE' => $document->getTitle(),
+					'WIDTH' => $width,
+					'HEIGHT' => $height,
 				]
 			);
 			$response->setContent(ob_get_contents());
@@ -153,20 +187,31 @@ class Document extends Base
 			Loc::loadLanguageFile(__FILE__);
 			$this->errorCollection[] = new Error(Loc::getMessage('DOCGEN_CONTROLLER_DOCUMENT_NO_PDF'));
 		}
-		return $response;
+		if($print === 'y')
+		{
+			return $response;
+		}
+		else
+		{
+			return [
+				'html' => $response->getContent(),
+			];
+		}
 	}
 
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
-	 * @throws \Exception
+	 * @param \CRestServer|null $restServer
+	 * @return null|Result
 	 */
-	public function deleteAction(\Bitrix\DocumentGenerator\Document $document)
+	public function deleteAction(\Bitrix\DocumentGenerator\Document $document, \CRestServer $restServer = null)
 	{
 		$result = DocumentTable::delete($document->ID);
 		if(!$result->isSuccess())
 		{
 			$this->errorCollection = $result->getErrorCollection();
 		}
+		return $result;
 	}
 
 	/**
@@ -175,28 +220,43 @@ class Document extends Base
 	 * @param $value
 	 * @param array $values
 	 * @param int $stampsEnabled
-	 * @return array|false
-	 * @throws \Bitrix\Main\ArgumentTypeException
+	 * @param array $fields
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 */
-	public function addAction(\Bitrix\DocumentGenerator\Template $template, $providerClassName, $value, array $values = [], $stampsEnabled = 0)
+	public function addAction(\Bitrix\DocumentGenerator\Template $template, $providerClassName = null, $value = null, array $values = [], $stampsEnabled = 0, array $fields = [], \CRestServer $restServer = null)
 	{
+		if($restServer)
+		{
+			$providerClassName = Rest::class;
+		}
+		elseif(!$providerClassName)
+		{
+			$this->errorCollection[] = new Error('Empty required parameter "providerClassName"');
+			return null;
+		}
+		if(!$value)
+		{
+			$this->errorCollection[] = new Error('Empty required parameter "value"');
+			return null;
+		}
 		$template->setSourceType($providerClassName);
 		$document = \Bitrix\DocumentGenerator\Document::createByTemplate($template, $value);
 		if(!$document->hasAccess(Driver::getInstance()->getUserId()))
 		{
 			$this->errorCollection[] = new Error('Access denied', static::ERROR_ACCESS_DENIED);
-			return false;
+			return null;
 		}
 		if(Bitrix24Manager::isEnabled() && Bitrix24Manager::isDocumentsLimitReached())
 		{
 			$this->errorCollection[] = new Error('Maximum count of documents has been reached', Bitrix24Manager::LIMIT_ERROR_CODE);
-			return false;
+			return null;
 		}
-		$result = $document->enableStamps($stampsEnabled == 1)->setValues($values)->getFile();
+		$result = $document->enableStamps($stampsEnabled == 1)->setValues($values)->setFields($fields)->getFile(true, $this->getScope() === static::SCOPE_REST);
 		if(!$result->isSuccess())
 		{
 			$this->errorCollection = $result->getErrorCollection();
-			return false;
+			return null;
 		}
 
 		return ['document' => $result->getData()];
@@ -206,14 +266,17 @@ class Document extends Base
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @param array $values
 	 * @param int $stampsEnabled
-	 * @return array
+	 * @param array $fields
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 */
-	public function updateAction(\Bitrix\DocumentGenerator\Document $document, array $values = [], $stampsEnabled = 1)
+	public function updateAction(\Bitrix\DocumentGenerator\Document $document, array $values = [], $stampsEnabled = 1, array $fields = [], \CRestServer $restServer = null)
 	{
-		$result = $document->enableStamps($stampsEnabled == 1)->update($values);
+		$result = $document->enableStamps($stampsEnabled == 1)->setFields($fields)->update($values, true, $this->getScope() === static::SCOPE_REST);
 		if(!$result->isSuccess())
 		{
 			$this->errorCollection = $result->getErrorCollection();
+			return null;
 		}
 
 		return ['document' => $result->getData()];
@@ -222,23 +285,25 @@ class Document extends Base
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @param array $values
-	 * @return array|false
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 */
-	public function getFieldsAction(\Bitrix\DocumentGenerator\Document $document, array $values = [])
+	public function getFieldsAction(\Bitrix\DocumentGenerator\Document $document, array $values = [], \CRestServer $restServer = null)
 	{
-		$fields = $document->setValues($values)->getFields([], true, true);
+		$fields = $document->setValues($values)->setIsCheckAccess(true)->getFields([], true, true);
 		foreach($fields as &$field)
 		{
-			$field = $this->convertArrayKeysToCamel($field, 3);
+			$field = $this->convertKeysToCamelCase($field);
 		}
 		return ['documentFields' => $fields];
 	}
 
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
-	 * @return array|false
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 */
-	public function getAction(\Bitrix\DocumentGenerator\Document $document)
+	public function getAction(\Bitrix\DocumentGenerator\Document $document, \CRestServer $restServer = null)
 	{
 		$result = $document->getFile();
 		if($result->isSuccess())
@@ -250,15 +315,16 @@ class Document extends Base
 			$this->errorCollection = $result->getErrorCollection();
 		}
 
-		return false;
+		return null;
 	}
 
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @param int $status
-	 * @return array
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 */
-	public function enablePublicUrlAction(\Bitrix\DocumentGenerator\Document $document, $status = 1)
+	public function enablePublicUrlAction(\Bitrix\DocumentGenerator\Document $document, $status = 1, \CRestServer $restServer = null)
 	{
 		$result = $document->enablePublicUrl($status == 1);
 		if($result->isSuccess())
@@ -270,7 +336,7 @@ class Document extends Base
 		else
 		{
 			$this->errorCollection = $result->getErrorCollection();
-			return [];
+			return null;
 		}
 	}
 
@@ -279,75 +345,101 @@ class Document extends Base
 	 * @param array|null $order
 	 * @param array|null $filter
 	 * @param PageNavigation|null $pageNavigation
+	 * @param \CRestServer|null $restServer
 	 * @return Page
 	 */
-	public function listAction(array $select = ['*'], array $order = null, array $filter = null, PageNavigation $pageNavigation = null)
+	public function listAction(array $select = ['*'], array $order = null, array $filter = null, PageNavigation $pageNavigation = null, \CRestServer $restServer = null)
 	{
+		$converter = new Converter(0);
+		if($restServer)
+		{
+			if(!is_array($filter))
+			{
+				$filter = [];
+			}
+			$filter['template.moduleId'] = Driver::REST_MODULE_ID;
+		}
 		if(is_array($filter))
 		{
-			$filter = $this->convertArrayKeysToUpper($filter, 1);
+			$filter = $converter->setFormat(Converter::TO_UPPER | Converter::KEYS | Converter::TO_SNAKE)->process($filter);
 		}
 		if(is_array($order))
 		{
-			$order = $this->convertArrayKeysToUpper($order, 1);
+			$order = $converter->setFormat(Converter::TO_UPPER | Converter::KEYS | Converter::TO_SNAKE)->process($order);
 		}
 		if(is_array($select))
 		{
-			$select = $this->convertArrayValuesToUpper($select, 1);
+			$select = $converter->setFormat(Converter::TO_UPPER | Converter::VALUES | Converter::TO_SNAKE)->process($select);
 		}
 
-		return new Page('documents', $this->convertArrayKeysToCamel(DocumentTable::getList([
+		$documents = [];
+		$documentList = DocumentTable::getList([
 			'select' => $select,
 			'filter' => $filter,
 			'order' => $order,
 			'offset' => $pageNavigation->getOffset(),
 			'limit' => $pageNavigation->getLimit(),
-		])->fetchAll(), 1), function() use ($filter)
+		]);
+		while($document = $documentList->fetch())
+		{
+			$document['DOWNLOAD_URL'] = $this->getDocumentFileLink($document['ID'], 'getfile', $document['updateTime']);
+			$document['PDF_URL'] = $this->getDocumentFileLink($document['ID'], 'getpdf', $document['updateTime']);
+			$document['IMAGE_URL'] = $this->getDocumentFileLink($document['ID'], 'getimage', $document['updateTime']);
+			$values = $document['VALUES'];
+			$document = $this->convertKeysToCamelCase($document);
+			$document['values'] = $values;
+			if(isset($values['stampsEnabled']) && $values['stampsEnabled'])
+			{
+				$document['stampsEnabled'] = true;
+			}
+			else
+			{
+				$document['stampsEnabled'] = false;
+			}
+			$documents[] = $document;
+		}
+
+		return new Page('documents', $documents, function() use ($filter)
 		{
 			return DocumentTable::getCount($filter);
 		});
 	}
 
 	/**
+	 * @param array $fields
 	 * @param \CRestServer $restServer
-	 * @param int $fileId
-	 * @param string $moduleId
-	 * @param string $region
-	 * @param string $providerClassName
-	 * @param mixed $value
-	 * @param string $title
-	 * @param string $number
 	 * @return array|bool
 	 */
-	public function uploadAction(\CRestServer $restServer, $fileId, $moduleId, $region, $providerClassName, $value, $title, $number)
+	public function uploadAction(array $fields, \CRestServer $restServer)
 	{
-		if(empty($moduleId) || !is_string($moduleId))
+		$emptyFields = $this->checkArrayRequiredParams($fields, ['moduleId', 'providerClassName', 'fileId', 'region', 'value', 'title', 'number']);
+		if(!empty($emptyFields))
 		{
-			$this->errorCollection[] = new Error('Wrong moduleId');
-			return false;
+			$this->errorCollection[] = new Error('Empty required fields: '.implode(', ', $emptyFields));
+			return null;
 		}
 
-		if(!Loader::includeModule($moduleId))
+		if(!Loader::includeModule($fields['moduleId']))
 		{
-			$this->errorCollection[] = new Error('Module '.$moduleId.' is not installed');
-			return false;
+			$this->errorCollection[] = new Error('Module '.$fields['moduleId'].' is not installed');
+			return null;
 		}
 
-		if(!DataProviderManager::checkProviderName($providerClassName))
+		if(!DataProviderManager::checkProviderName($fields['providerClassName']))
 		{
-			$this->errorCollection[] = new Error('Wrong provider '.$providerClassName);
-			return false;
+			$this->errorCollection[] = new Error('Wrong provider '.$fields['providerClassName']);
+			return null;
 		}
 
-		$restTemplate = $this->getRestTemplate($restServer, $moduleId, $region);
+		$restTemplate = $this->getRestTemplate($restServer, $fields['moduleId'], $fields['region']);
 		if(!$restTemplate)
 		{
 			$this->errorCollection[] = new Error('Error getting template');
-			return false;
+			return null;
 		}
-		$restTemplate->setSourceType($providerClassName);
+		$restTemplate->setSourceType($fields['providerClassName']);
 
-		$result = \Bitrix\DocumentGenerator\Document::upload($restTemplate, $value, $title, $number, $fileId);
+		$result = \Bitrix\DocumentGenerator\Document::upload($restTemplate, $fields['value'], $fields['title'], $fields['number'], $fields['fileId'], $fields['pdfId'], $fields['imageId']);
 		if($result->isSuccess())
 		{
 			return ['document' => $result->getData()];
@@ -355,7 +447,7 @@ class Document extends Base
 		else
 		{
 			$this->errorCollection->add($result->getErrors());
-			return false;
+			return null;
 		}
 	}
 
@@ -462,6 +554,21 @@ class Document extends Base
 		}
 
 		return false;
+	}
+
+	/**
+	 * @param $documentId
+	 * @param $action
+	 * @param null $updateTime
+	 * @return ContentUri|\Bitrix\Main\Web\Uri
+	 */
+	protected function getDocumentFileLink($documentId, $action, $updateTime = null)
+	{
+		if(!$updateTime)
+		{
+			$updateTime = time();
+		}
+		return new ContentUri(UrlManager::getInstance()->create('documentgenerator.api.document.'.$action, ['id' => $documentId, 'ts' => $updateTime], true)->getUri());
 	}
 }
 

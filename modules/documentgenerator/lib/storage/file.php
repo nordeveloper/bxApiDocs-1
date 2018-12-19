@@ -82,7 +82,6 @@ class File implements Storage
 			}
 		}
 
-		echo 'not a cloud path';
 		return false;
 	}
 

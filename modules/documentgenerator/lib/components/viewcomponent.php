@@ -78,12 +78,21 @@ abstract class ViewComponent extends \CBitrixComponent
 				if($document)
 				{
 					$this->document = $document;
+					if(!$this->document->hasAccess(Driver::getInstance()->getUserId()))
+					{
+						$result->addError(new Error('Access denied'));
+						return $result;
+					}
 					$provider = $this->document->getProvider();
 					if($provider)
 					{
 						$this->value = $provider->getSource();
 					}
 					$this->template = $document->getTemplate();
+					if($this->template && $this->template->MODULE_ID != $this->getModule())
+					{
+						$result->addError(new Error('Access denied'));
+					}
 				}
 				else
 				{
@@ -97,6 +106,11 @@ abstract class ViewComponent extends \CBitrixComponent
 				if($template)
 				{
 					$template->setSourceType($this->arParams['PROVIDER']);
+					if($template->MODULE_ID != $this->getModule())
+					{
+						$result->addError(new Error('Access denied'));
+						return $result;
+					}
 					$this->template = $template;
 					$this->value = $this->arParams['VALUE'];
 					$data = [];
@@ -108,6 +122,7 @@ abstract class ViewComponent extends \CBitrixComponent
 					if(!$this->document->hasAccess(Driver::getInstance()->getUserId()))
 					{
 						$result->addError(new Error('Access denied'));
+						return $result;
 					}
 					$this->document->setValues($this->arParams['VALUES']);
 				}

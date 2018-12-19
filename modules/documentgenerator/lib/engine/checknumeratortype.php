@@ -2,16 +2,15 @@
 
 namespace Bitrix\DocumentGenerator\Engine;
 
-use Bitrix\DocumentGenerator\Document;
 use Bitrix\DocumentGenerator\Driver;
-use Bitrix\DocumentGenerator\Template;
 use Bitrix\Main\Engine\ActionFilter\Base;
 use Bitrix\Main\Engine\Controller;
 use Bitrix\Main\Error;
 use Bitrix\Main\Event;
 use Bitrix\Main\EventResult;
+use Bitrix\Main\Numerator\Numerator;
 
-class CheckScope extends Base
+class CheckNumeratorType extends Base
 {
 	/**
 	 * @param Event $event
@@ -20,29 +19,17 @@ class CheckScope extends Base
 	 */
 	public function onBeforeAction(Event $event)
 	{
-		$module = null;
-		$restServer = null;
+		$numerator = false;
 		foreach($this->action->getArguments() as $name => $argument)
 		{
-			if($argument instanceof \CRestServer)
+			if($argument instanceof Numerator)
 			{
-				$restServer = $argument;
-			}
-			elseif($argument instanceof Document)
-			{
-				$template = $argument->getTemplate();
-				if($template)
-				{
-					$module = $template->MODULE_ID;
-				}
-			}
-			elseif($argument instanceof Template)
-			{
-				$module = $argument->MODULE_ID;
+				$numerator = $argument;
+				break;
 			}
 		}
 
-		if($restServer && $module !== Driver::REST_MODULE_ID && $module !== null)
+		if($numerator && $numerator->getConfig()[Numerator::getType()]['type'] !== Driver::NUMERATOR_TYPE)
 		{
 			$this->errorCollection[] = new Error('Access denied', \Bitrix\DocumentGenerator\Controller\Base::ERROR_ACCESS_DENIED);
 			return new EventResult(EventResult::ERROR, null, null, $this);

@@ -124,6 +124,14 @@ abstract class Body
 	abstract public function getFileExtension();
 
 	/**
+	 * @return bool
+	 */
+	public function isFileProcessable()
+	{
+		return true;
+	}
+
+	/**
 	 * Normalizes content of the body.
 	 */
 	public function normalizeContent()

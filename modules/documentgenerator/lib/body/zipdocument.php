@@ -27,6 +27,14 @@ abstract class ZipDocument extends Body
 	}
 
 	/**
+	 * @return bool
+	 */
+	public function isFileProcessable()
+	{
+		return $this->open() === true;
+	}
+
+	/**
 	 * Creates temporary file to store $content as ZipArchive can work with files only.
 	 *
 	 * @return File|false

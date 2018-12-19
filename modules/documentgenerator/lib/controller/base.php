@@ -2,11 +2,25 @@
 
 namespace Bitrix\DocumentGenerator\Controller;
 
+use Bitrix\DocumentGenerator\Engine\CheckScope;
+use Bitrix\DocumentGenerator\Model\FileTable;
 use Bitrix\Main\Engine\Binder;
 use Bitrix\Main\Engine\Controller;
+use Bitrix\Main\Error;
 
 abstract class Base extends Controller
 {
+	const FILE_PARAM_NAME = 'file';
+	const ERROR_ACCESS_DENIED = 'DOCGEN_ACCESS_ERROR';
+
+	protected function getDefaultPreFilters()
+	{
+		$preFilters = parent::getDefaultPreFilters();
+		$preFilters[] = new CheckScope();
+
+		return $preFilters;
+	}
+
 	protected function init()
 	{
 		parent::init();
@@ -17,6 +31,9 @@ abstract class Base extends Controller
 			{
 				/** @var \Bitrix\DocumentGenerator\Document $className */
 				return $className::loadById($id);
+			}, function()
+			{
+				return 'id';
 			}
 		);
 
@@ -26,103 +43,88 @@ abstract class Base extends Controller
 			{
 				/** @var \Bitrix\DocumentGenerator\Template $className */
 				return $className::loadById($id);
+			}, function()
+			{
+				return 'id';
 			}
+		);
+
+		Binder::registerParameterDependsOnName(
+			\Bitrix\Main\Numerator\Numerator::class,
+			function($className, $id)
+			{
+				/** @var \Bitrix\Main\Numerator\Numerator $className */
+				return $className::load($id);
+			}, function()
+		{
+			return 'id';
+		}
 		);
 	}
 
 	/**
 	 * @param array $array
-	 * @param int $levels
-	 * @param int $currentLevel
+	 * @param array $requiredParams
 	 * @return array
 	 */
-	protected function convertArrayValuesToUpper(array $array, $levels = 0, $currentLevel = 0)
+	protected function checkArrayRequiredParams(array $array, array $requiredParams)
 	{
-		$result = [];
-		foreach($array as $key => $value)
+		$emptyParams = [];
+
+		foreach($requiredParams as $param)
 		{
-			if($levels > 0 && is_array($value) && $currentLevel < $levels)
+			if(!isset($array[$param]) || empty($array[$param]))
 			{
-				$currentLevel++;
-				$value = $this->convertArrayValuesToUpper($value, $levels, $currentLevel);
-				$currentLevel--;
+				$emptyParams[] = $param;
 			}
-			$result[$key] = $this->toUpperCase($value);
 		}
 
-		return $result;
+		return $emptyParams;
 	}
 
 	/**
-	 * @param array $array
-	 * @param int $levels
-	 * @param int $currentLevel
-	 * @return array
+	 * @param null $fileContent
+	 * @param null $fileParamName
+	 * @param bool $required
+	 * @return false|int
+	 * @throws \Exception
 	 */
-	protected function convertArrayKeysToUpper(array $array, $levels = 0, $currentLevel = 0)
+	protected function uploadFile($fileContent = null, $fileParamName = null, $required = true)
 	{
-		$result = [];
-		foreach($array as $key => $value)
+		if(!$fileParamName)
 		{
-			if($levels > 0 && is_array($value) && $currentLevel < $levels)
-			{
-				$currentLevel++;
-				$value = $this->convertArrayKeysToUpper($value, $levels, $currentLevel);
-				$currentLevel--;
-			}
-			$result[$this->toUpperCase($key)] = $value;
+			$fileParamName = static::FILE_PARAM_NAME;
+		}
+		if(!$fileContent)
+		{
+			$fileContent = $this->request->getFile($fileParamName);
+		}
+		if(!$fileContent && !$required)
+		{
+			return null;
+		}
+		if(!$fileContent)
+		{
+			$this->errorCollection[] = new Error('Missing file content');
+			return false;
 		}
 
-		return $result;
-	}
-
-	/**
-	 * @param array $array
-	 * @param int $levels
-	 * @param int $currentLevel
-	 * @return array
-	 */
-	protected function convertArrayKeysToCamel(array $array, $levels = 0, $currentLevel = 0)
-	{
-		$result = [];
-		foreach($array as $key => $value)
+		$fileArray = \CRestUtil::saveFile($fileContent);
+		if(!$fileArray)
 		{
-			if($levels > 0 && is_array($value) && $currentLevel < $levels)
-			{
-				$currentLevel++;
-				$value = $this->convertArrayKeysToCamel($value, $levels, $currentLevel);
-				$currentLevel--;
-			}
-			$result[$this->toCamelCase($key)] = $value;
+			$this->errorCollection[] = new Error('Could not save file');
+			return false;
 		}
 
-		return $result;
-	}
-
-	/**
-	 * @param string $string
-	 * @return string
-	 */
-	protected function toCamelCase($string)
-	{
-		if(is_numeric($string))
+		$saveResult = FileTable::saveFile($fileArray);
+		if($saveResult->isSuccess())
 		{
-			return $string;
+			return $saveResult->getId();
 		}
-		$string = str_replace('_', ' ', strtolower($string));
-		return lcfirst(str_replace(' ', '', ucwords($string)));
-	}
-
-	/**
-	 * @param string $string
-	 * @return string
-	 */
-	protected function toUpperCase($string)
-	{
-		if(is_numeric($string))
+		else
 		{
-			return $string;
+			$this->errorCollection->add($saveResult->getErrors());
+			return false;
 		}
-		return strtoupper(preg_replace('/(.)([A-Z])/', '$1_$2', $string));
 	}
 }

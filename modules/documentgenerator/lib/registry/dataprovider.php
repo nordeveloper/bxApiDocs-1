@@ -10,11 +10,15 @@ class DataProvider extends Registry
 {
 	static $result = null;
 
-	public static function getList()
+	/**
+	 * @param array $params
+	 * @return array|null
+	 */
+	public static function getList(array $params = [])
 	{
 		if(static::$result === null)
 		{
-			$result = parent::getList();
+			$result = parent::getList($params);
 			foreach($result as $key => $data)
 			{
 				$provider = $data['CLASS'];

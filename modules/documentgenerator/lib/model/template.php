@@ -61,7 +61,6 @@ class TemplateTable extends FileModel
 			]),
 			new Main\Entity\IntegerField('CREATED_BY'),
 			new Main\Entity\IntegerField('UPDATED_BY'),
-			new Main\Entity\StringField('SITE_ID'),
 			new Main\Entity\StringField('MODULE_ID'),
 			new Main\Entity\IntegerField('FILE_ID', [
 				'required' => true,
@@ -111,12 +110,13 @@ class TemplateTable extends FileModel
 	 * @param string $className
 	 * @param null $userId
 	 * @param mixed $value
+	 * @param bool $activeOnly
 	 * @return array
 	 * @throws Main\ArgumentException
 	 * @throws Main\ObjectPropertyException
 	 * @throws Main\SystemException
 	 */
-	public static function getListByClassName($className, $userId = null, $value = ' ')
+	public static function getListByClassName($className, $userId = null, $value = ' ', $activeOnly = true)
 	{
 		$filterProvider = $className;
 		if(is_a($className, Filterable::class, true))
@@ -129,7 +129,11 @@ class TemplateTable extends FileModel
 			}
 		}
 		$filterProvider = str_replace("\\", "\\\\", strtolower($filterProvider));
-		$filter = Main\Entity\Query::filter()->whereLike('PROVIDER.PROVIDER', $filterProvider)->where('ACTIVE', 'Y')->where('IS_DELETED', 'N');
+		$filter = Main\Entity\Query::filter()->whereLike('PROVIDER.PROVIDER', $filterProvider)->where('IS_DELETED', 'N');
+		if($activeOnly)
+		{
+			$filter->where('ACTIVE', 'Y');
+		}
 		if($userId > 0)
 		{
 			$filter->where(
@@ -230,6 +234,14 @@ class TemplateTable extends FileModel
 	 */
 	public static function delete($primary, $isForever = false)
 	{
+		if(!$isForever)
+		{
+			$documents = DocumentTable::getCount(['TEMPLATE_ID' => $primary]);
+			if($documents == 0)
+			{
+				$isForever = true;
+			}
+		}
 		if($isForever)
 		{
 			return parent::delete($primary);

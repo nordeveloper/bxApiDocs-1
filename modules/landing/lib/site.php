@@ -183,6 +183,15 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 			isset($params['edit_mode']) && $params['edit_mode'] === 'Y'
 		);
 
+		if (!is_array($params))
+		{
+			$params = array();
+		}
+		$params['hooks_files'] = array(
+			'METAOG_IMAGE',
+			'BACKGROUND_PICTURE'
+		);
+
 		// check params
 		if (
 			!isset($params['hooks_disable']) ||
@@ -202,31 +211,31 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 		}
 		// additional hooks for disable
 		$params['hooks_disable'][] = 'B24BUTTON_CODE';
-		$params['hooks_disable'][] = 'SETTINGS_SECTION_ID';
+		$params['hooks_disable'][] = 'FAVICON_PICTURE';
 		// get all templates
 		$res = Template::getList(array(
-			'select' => array(
-				'ID', 'XML_ID'
-			)
-		));
+									 'select' => array(
+										 'ID', 'XML_ID'
+									 )
+								 ));
 		while ($row = $res->fetch())
 		{
 			$tplsXml[$row['ID']] = $row['XML_ID'];
 		}
 		// gets pages count
 		$res = Landing::getList(array(
-			'select' => array(
-				'CNT'
-			),
-			'filter' => array(
-				'SITE_ID' => $siteForExport
-			),
-			'runtime' => array(
-				new \Bitrix\Main\Entity\ExpressionField(
-					'CNT', 'COUNT(*)'
-				)
-			)
-		));
+									'select' => array(
+										'CNT'
+									),
+									'filter' => array(
+										'SITE_ID' => $siteForExport
+									),
+									'runtime' => array(
+										new \Bitrix\Main\Entity\ExpressionField(
+											'CNT', 'COUNT(*)'
+										)
+									)
+								));
 		if ($pagesCount = $res->fetch())
 		{
 			$pagesCount = $pagesCount['CNT'];
@@ -237,33 +246,33 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 		}
 		// get all pages from the site
 		$res = Landing::getList(array(
-			'select' => array(
-				'ID',
-				'CODE',
-				'RULE',
-				'TITLE',
-				'DESCRIPTION',
-				'TPL_ID',
-				'FOLDER',
-				'FOLDER_ID',
-				'SITE_ID',
-				'SITE_CODE' => 'SITE.CODE',
-				'SITE_TYPE' => 'SITE.TYPE',
-				'SITE_TPL_ID' => 'SITE.TPL_ID',
-				'SITE_TITLE' => 'SITE.TITLE',
-				'SITE_DESCRIPTION' => 'SITE.DESCRIPTION',
-				'LANDING_ID_INDEX' => 'SITE.LANDING_ID_INDEX',
-				'LANDING_ID_404' => 'SITE.LANDING_ID_404'
-			),
-			'filter' => array(
-				'SITE_ID' => $siteForExport,
-				//'=ACTIVE' => 'Y',
-				//'=SITE.ACTIVE' => 'Y'
-			),
-			'order' => array(
-				'ID' => 'asc'
-			)
-		));
+									'select' => array(
+										'ID',
+										'CODE',
+										'RULE',
+										'TITLE',
+										'DESCRIPTION',
+										'TPL_ID',
+										'FOLDER',
+										'FOLDER_ID',
+										'SITE_ID',
+										'SITE_CODE' => 'SITE.CODE',
+										'SITE_TYPE' => 'SITE.TYPE',
+										'SITE_TPL_ID' => 'SITE.TPL_ID',
+										'SITE_TITLE' => 'SITE.TITLE',
+										'SITE_DESCRIPTION' => 'SITE.DESCRIPTION',
+										'LANDING_ID_INDEX' => 'SITE.LANDING_ID_INDEX',
+										'LANDING_ID_404' => 'SITE.LANDING_ID_404'
+									),
+									'filter' => array(
+										'SITE_ID' => $siteForExport,
+										//'=ACTIVE' => 'Y',
+										//'=SITE.ACTIVE' => 'Y'
+									),
+									'order' => array(
+										'ID' => 'asc'
+									)
+								));
 		if (!($row = $res->fetch()))
 		{
 			return array();
@@ -274,35 +283,35 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 			{
 				$export = array(
 					'code' => isset($params['code'])
-								? $params['code']
-								: trim($row['SITE_CODE'], '/'),
+						? $params['code']
+						: trim($row['SITE_CODE'], '/'),
 					'code_mainpage' => '',
 					'name' => isset($params['name'])
-								? $params['name']
-								: $row['SITE_TITLE'],
+						? $params['name']
+						: $row['SITE_TITLE'],
 					'description' => isset($params['description'])
-								? $params['description']
-								: $row['SITE_DESCRIPTION'],
+						? $params['description']
+						: $row['SITE_DESCRIPTION'],
 					'preview' => isset($params['preview'])
-								? $params['preview']
-								: '',
+						? $params['preview']
+						: '',
 					'preview2x' => isset($params['preview2x'])
-								? $params['preview2x']
-								: '',
+						? $params['preview2x']
+						: '',
 					'preview3x' => isset($params['preview3x'])
-								? $params['preview3x']
-								: '',
+						? $params['preview3x']
+						: '',
 					'preview_url' => isset($params['preview_url'])
-								? $params['preview_url']
-								: '',
+						? $params['preview_url']
+						: '',
 					'show_in_list' => 'Y',
 					'type' => strtolower($row['SITE_TYPE']),
 					'version' => $version,
 					'fields' => array(
 						'ADDITIONAL_FIELDS' => array(),
 						'TITLE' => isset($params['name'])
-								? $params['name']
-								: $row['SITE_TITLE'],
+							? $params['name']
+							: $row['SITE_TITLE'],
 						'LANDING_ID_INDEX' => $row['LANDING_ID_INDEX'],
 						'LANDING_ID_404' => $row['LANDING_ID_404']
 					),
@@ -328,7 +337,10 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 				$hookFields = &$export['fields']['ADDITIONAL_FIELDS'];
 				foreach (Hook::getForSite($row['SITE_ID']) as $hCode => $hook)
 				{
-
+					if ($hCode == 'SETTINGS')
+					{
+						continue;
+					}
 					foreach ($hook->getFields() as $fCode => $field)
 					{
 						$hCodeFull = $hCode . '_' . $fCode;
@@ -339,6 +351,21 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 							{
 								unset($hookFields[$hCodeFull]);
 							}
+							else if (
+								in_array($hCodeFull, $params['hooks_files']) &&
+								intval($hookFields[$hCodeFull]) > 0
+							)
+							{
+								$hookFields[$hCodeFull] = File::getFilePath(
+									$hookFields[$hCodeFull]
+								);
+								if ($hookFields[$hCodeFull])
+								{
+									$hookFields[$hCodeFull] = Manager::getUrlFromFile(
+										$hookFields[$hCodeFull]
+									);
+								}
+							}
 						}
 					}
 				}
@@ -348,33 +375,33 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 			$export['items'][$row['ID']] = array(
 				'old_id' => $row['ID'],
 				'code' => $pagesCount > 1
-							? $export['code'] . '/' . $row['CODE']
-							: $export['code'],
+					? $export['code'] . '/' . $row['CODE']
+					: $export['code'],
 				'name' => (isset($params['name']) && $pagesCount == 1)
-							? $params['name']
-							: $row['TITLE'],
+					? $params['name']
+					: $row['TITLE'],
 				'description' => (isset($params['description']) && $pagesCount == 1)
-							? $params['description']
-							: $row['DESCRIPTION'],
+					? $params['description']
+					: $row['DESCRIPTION'],
 				'preview' => (isset($params['preview']) && $pagesCount == 1)
-							? $params['preview']
-							: '',
+					? $params['preview']
+					: '',
 				'preview2x' => (isset($params['preview2x']) && $pagesCount == 1)
-							? $params['preview2x']
-							: '',
+					? $params['preview2x']
+					: '',
 				'preview3x' => (isset($params['preview3x']) && $pagesCount == 1)
-							? $params['preview3x']
-							: '',
+					? $params['preview3x']
+					: '',
 				'preview_url' => (isset($params['preview_url']) && $pagesCount == 1)
-							? $params['preview_url']
-							: '',
+					? $params['preview_url']
+					: '',
 				'show_in_list' => ($pagesCount == 1) ? 'Y' : 'N',
 				'type' => strtolower($row['SITE_TYPE']),
 				'version' => $version,
 				'fields' => array(
 					'TITLE' => (isset($params['name']) && $pagesCount == 1)
-							? $params['name']
-							: $row['TITLE'],
+						? $params['name']
+						: $row['TITLE'],
 					'RULE' => $row['RULE'],
 					'ADDITIONAL_FIELDS' => array(),
 				),
@@ -407,6 +434,10 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 			$hookFields = &$export['items'][$row['ID']]['fields']['ADDITIONAL_FIELDS'];
 			foreach (Hook::getForLanding($row['ID']) as $hCode => $hook)
 			{
+				if ($hCode == 'SETTINGS')
+				{
+					continue;
+				}
 				foreach ($hook->getFields() as $fCode => $field)
 				{
 					$hCodeFull = $hCode . '_' . $fCode;
@@ -416,6 +447,21 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 						if (!$hookFields[$hCodeFull])
 						{
 							unset($hookFields[$hCodeFull]);
+						}
+						else if (
+							in_array($hCodeFull, $params['hooks_files']) &&
+							intval($hookFields[$hCodeFull]) > 0
+						)
+						{
+							$hookFields[$hCodeFull] = File::getFilePath(
+								$hookFields[$hCodeFull]
+							);
+							if ($hookFields[$hCodeFull])
+							{
+								$hookFields[$hCodeFull] = Manager::getUrlFromFile(
+									$hookFields[$hCodeFull]
+								);
+							}
 						}
 					}
 				}
@@ -678,6 +724,7 @@ class Site extends \Bitrix\Landing\Internals\BaseTable
 					$exportItem = array(
 						'old_id' => $block->getId(),
 						'code' => $block->getCode(),
+						'access' => $block->getAccess(),
 						'anchor' => $block->getLocalAnchor(),
 						'repo_block' => $repoBlock,
 						'cards' => $cards,

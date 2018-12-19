@@ -9,6 +9,7 @@ use Bitrix\DocumentGenerator\Model\DocumentTable;
 use Bitrix\DocumentGenerator\Model\ExternalLinkTable;
 use Bitrix\DocumentGenerator\Model\FileTable;
 use Bitrix\DocumentGenerator\Storage\Disk;
+use Bitrix\Main\Engine\Response\DataType\ContentUri;
 use Bitrix\Main\Error;
 use Bitrix\Main\Event;
 use Bitrix\Main\EventManager;
@@ -51,6 +52,7 @@ final class Document
 	protected $transformer;
 	protected $externalValues = [];
 	protected $selectFields = [];
+	protected $isCheckAccess = false;
 
 	/**
 	 * Document constructor.
@@ -164,6 +166,8 @@ final class Document
 	}
 
 	/**
+	 * Add new values or rewrite old ones, but does not clear all the list.
+	 *
 	 * @param array $values
 	 * @return $this
 	 */
@@ -185,6 +189,27 @@ final class Document
 		if(isset($this->fields[Template::MAIN_PROVIDER_PLACEHOLDER]))
 		{
 			$this->fields[Template::MAIN_PROVIDER_PLACEHOLDER]['OPTIONS']['VALUES'] = $this->getExternalValues();
+		}
+
+		return $this;
+	}
+
+	/**
+	 * Add new fields or rewrite old ones (except 'SOURCE' and 'DOCUMENT'), but does not clear all the list.
+	 *
+	 * @param array $fields
+	 * @return $this
+	 */
+	public function setFields(array $fields)
+	{
+		foreach($fields as $name => $field)
+		{
+			// do not let change these fields
+			if($name == Template::DOCUMENT_PROVIDER_PLACEHOLDER || $name == Template::MAIN_PROVIDER_PLACEHOLDER)
+			{
+				continue;
+			}
+			$this->fields[$name] = $field;
 		}
 
 		return $this;
@@ -244,10 +269,11 @@ final class Document
 	}
 
 	/**
-	 * @param bool $isTransformationError
+	 * @param bool $sendToTransformation
+	 * @param bool $skipTransformationError
 	 * @return Result
 	 */
-	public function getFile($isTransformationError = false)
+	public function getFile($sendToTransformation = true, $skipTransformationError = false)
 	{
 		if(!$this->result->isSuccess())
 		{
@@ -274,8 +300,9 @@ final class Document
 				'createTime' => $this->getCreateTime(),
 				'updateTime' => $this->getUpdateTime(),
 				'stampsEnabled' => $this->isStampsEnabled(),
-				'isTransformationError' => $isTransformationError,
+				'isTransformationError' => false,
 				'value' => $this->getValue(Template::MAIN_PROVIDER_PLACEHOLDER),
+				'values' => $this->getExternalValues(),
 			]);
 			$template = $this->getTemplate();
 			if($template)
@@ -287,16 +314,23 @@ final class Document
 			{
 				$data['provider'] = get_class($provider);
 			}
-			if(!$isTransformationError)
+			if($sendToTransformation)
 			{
-				$this->result = $this->transform();
-				if($this->result->isSuccess())
+				if(!$this->PDF_ID || !$this->IMAGE_ID)
 				{
-					$data['isTransformationError'] = false;
-				}
-				else
-				{
-					$data['isTransformationError'] = true;
+					$transformResult = $this->transform();
+					if($transformResult->isSuccess())
+					{
+						$data['isTransformationError'] = false;
+					}
+					else
+					{
+						$data['isTransformationError'] = true;
+						if(!$skipTransformationError)
+						{
+							$this->result->addErrors($transformResult->getErrors());
+						}
+					}
 				}
 			}
 			$pullTag = $this->getPullTag();
@@ -330,9 +364,11 @@ final class Document
 
 	/**
 	 * @param array $values
+	 * @param bool $sendToTransformation
+	 * @param bool $skipTransformationError
 	 * @return Result
 	 */
-	public function update(array $values)
+	public function update(array $values, $sendToTransformation = true, $skipTransformationError = false)
 	{
 		if($this->ID > 0)
 		{
@@ -341,7 +377,7 @@ final class Document
 				Template::DOCUMENT_PROVIDER_PLACEHOLDER => $this->values[Template::DOCUMENT_PROVIDER_PLACEHOLDER],
 			];
 			$this->selectFields = [];
-			return $this->setValues($values)->process()->save()->getFile();
+			return $this->setValues($values)->process()->save()->getFile($sendToTransformation, $skipTransformationError);
 		}
 		else
 		{
@@ -365,9 +401,9 @@ final class Document
 			$title = '';
 			if($this->template)
 			{
-				$title .= $this->template->NAME.' ';
+				$title .= $this->template->NAME;
 			}
-			$title .= ' '.$this->getNumber();
+			$title .= ' '.ltrim($this->getNumber());
 			$this->data['TITLE'] = $title;
 		}
 
@@ -492,6 +528,7 @@ final class Document
 	 */
 	public function getFields(array $fieldNames = [], $isConvertValuesToString = false, $groupsAsArrays = false)
 	{
+		DataProviderManager::getInstance()->setContext(Context::createFromDocument($this));
 		Loc::loadLanguageFile(__FILE__);
 		$this->resolveProviders();
 		$fields = [];
@@ -632,11 +669,19 @@ final class Document
 		if(!$this->template)
 		{
 			$this->result->addError(new Error('Cant process document without template'));
+			return $this;
 		}
 		if($this->template->isDeleted())
 		{
 			$this->result->addError(new Error('Cant process document on deleted template'));
+			return $this;
 		}
+		if(!$this->template->getSourceType())
+		{
+			$this->result->addError(new Error('Cant process document on template without sourceType'));
+			return $this;
+		}
+		DataProviderManager::getInstance()->setContext(Context::createFromDocument($this));
 		$requiredFields = $this->checkFields();
 		foreach($requiredFields as $placeholder => $field)
 		{
@@ -704,11 +749,13 @@ final class Document
 				];
 				if($this->ID > 0)
 				{
+					$data['UPDATED_BY'] = Driver::getInstance()->getUserId();
 					$result = DocumentTable::update($this->ID, $data);
 					$eventName = 'onUpdateDocument';
 				}
 				else
 				{
+					$data['CREATED_BY'] = Driver::getInstance()->getUserId();
 					$result = DocumentTable::add($data);
 					$eventName = 'onCreateDocument';
 				}
@@ -762,6 +809,15 @@ final class Document
 		$dataProvider = DataProviderManager::getInstance()->createDataProvider($field, $value);
 		if($dataProvider && $dataProvider->isLoaded())
 		{
+			if($this->isCheckAccess && !DataProviderManager::getInstance()->checkDataProviderAccess($dataProvider))
+			{
+				$this->result->addError(new Error('Access denied to provider '.$field['PROVIDER'].' for placeholder '.$name));
+				return;
+			}
+			if($dataProvider instanceof ArrayDataProvider && $dataProvider->getItemKey())
+			{
+				$this->fieldNames[$name] = $name;
+			}
 			$providerFields = $dataProvider->getFields();
 			foreach($providerFields as $placeholder => $providerField)
 			{
@@ -783,10 +839,15 @@ final class Document
 
 				$this->fields[$fullName] = array_merge($this->fields[$fullName], ['VALUE' => $providerValue]);
 			}
+			if(isset($this->externalValues[$name]))
+			{
+				$this->values[$name] = $dataProvider;
+				unset($this->externalValues[$name]);
+			}
 		}
 		else
 		{
-			$this->result->addError(new Error('Cant resolve provider '.$field['PROVIDER'].' for placeholder '.$field['PLACEHOLDER']));
+			$this->result->addError(new Error('Cant resolve provider '.$field['PROVIDER'].' for placeholder '.$name));
 		}
 	}
 
@@ -848,13 +909,20 @@ final class Document
 			}
 		}
 
-		if($value && $this->fields[$name]['PROVIDER'])
+		if($value && $this->fields[$name]['PROVIDER'] && isset($this->fields[$name]['PROVIDER_NAME']))
 		{
 			/** @var DataProvider $dataProvider */
 			$dataProvider = DataProviderManager::getInstance()->createDataProvider($this->fields[$name], $value);
-			if(isset($this->fields[$name]['PROVIDER_NAME']))
+			if($dataProvider && $dataProvider->isLoaded())
 			{
-				return $dataProvider->getValue($this->fields[$name]['PROVIDER_NAME']);
+				if($this->isCheckAccess && !DataProviderManager::getInstance()->checkDataProviderAccess($dataProvider))
+				{
+					$value = null;
+				}
+				else
+				{
+					$value = $dataProvider->getValue($this->fields[$name]['PROVIDER_NAME']);
+				}
 			}
 		}
 
@@ -866,6 +934,10 @@ final class Document
 		if(isset($externalValues[$name]))
 		{
 			$value = $externalValues[$name];
+			if(isset($this->fields[$name]))
+			{
+				$value = DataProviderManager::getInstance()->prepareValue($value, $this->fields[$name]);
+			}
 		}
 
 		return $value;
@@ -907,7 +979,7 @@ final class Document
 				$value = $dataProvider->getValue($providerName);
 			}
 			// here we handle multiple values for inner providers
-			if(is_array($value))
+			if(is_array($value) && $dataProvider)
 			{
 				$value = $this->handleMultipleProviderValue($value, $dataProvider, $fullChain, $providerName);
 				if(is_array($value))
@@ -942,7 +1014,14 @@ final class Document
 			}
 			if($value instanceof DataProvider)
 			{
-				$value = $this->getProviderValue($valueName, $value, $name);
+				if($this->isCheckAccess && $value->isLoaded() && !DataProviderManager::getInstance()->checkDataProviderAccess($value))
+				{
+					$value = null;
+				}
+				else
+				{
+					$value = $this->getProviderValue($valueName, $value, $name);
+				}
 			}
 		}
 		// if it is not the first iteration, there are no more providers in chain and we got $dataProvider.
@@ -961,7 +1040,7 @@ final class Document
 	 * @param $providerName
 	 * @return bool
 	 */
-	protected function handleMultipleProviderValue(array $value, DataProvider $dataProvider = null, $placeholder, $providerName)
+	protected function handleMultipleProviderValue(array $value, DataProvider $dataProvider, $placeholder, $providerName)
 	{
 		$fullPlaceholder = $placeholder;
 		$placeholderParts = explode('.', $placeholder);
@@ -1104,10 +1183,11 @@ final class Document
 	 */
 	public function hasAccess($userId)
 	{
+		$this->isCheckAccess = true;
 		$sourceProvider = $this->getProvider();
 		if($sourceProvider)
 		{
-			return $sourceProvider->hasAccess($userId);
+			return DataProviderManager::getInstance()->checkDataProviderAccess($sourceProvider, $userId);
 		}
 
 		return true;
@@ -1173,13 +1253,7 @@ final class Document
 	 */
 	public function getImageUrl($absolute = false)
 	{
-		$link = UrlManager::getInstance()->create('documentgenerator.api.document.getImage', ['documentId' => $this->ID, 'ts' => $this->getUpdateTime()->getTimestamp()]);
-		if($absolute)
-		{
-			$link = new Uri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
-		}
-
-		return $link;
+		return new ContentUri(UrlManager::getInstance()->create('documentgenerator.api.document.getimage', ['id' => $this->ID, 'ts' => $this->getUpdateTime()->getTimestamp()], $absolute)->getUri());
 	}
 
 	/**
@@ -1188,13 +1262,7 @@ final class Document
 	 */
 	public function getPdfUrl($absolute = false)
 	{
-		$link = UrlManager::getInstance()->create('documentgenerator.api.document.getPdf', ['documentId' => $this->ID, 'ts' => $this->getUpdateTime()->getTimestamp()]);
-		if($absolute)
-		{
-			$link = new Uri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
-		}
-
-		return $link;
+		return new ContentUri(UrlManager::getInstance()->create('documentgenerator.api.document.getpdf', ['id' => $this->ID, 'ts' => $this->getUpdateTime()->getTimestamp()], $absolute)->getUri());
 	}
 
 	/**
@@ -1203,13 +1271,7 @@ final class Document
 	 */
 	public function getPrintUrl($absolute = false)
 	{
-		$link = UrlManager::getInstance()->create('documentgenerator.api.document.showPdf', ['documentId' => $this->ID, 'print' => 'y', 'ts' => $this->getUpdateTime()->getTimestamp()]);
-		if($absolute)
-		{
-			$link = new Uri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
-		}
-
-		return $link;
+		return new ContentUri(UrlManager::getInstance()->create('documentgenerator.api.document.showpdf', ['id' => $this->ID, 'print' => 'y', 'ts' => $this->getUpdateTime()->getTimestamp()], $absolute)->getUri());
 	}
 
 	/**
@@ -1218,13 +1280,7 @@ final class Document
 	 */
 	public function getDownloadUrl($absolute = false)
 	{
-		$link = UrlManager::getInstance()->create('documentgenerator.api.document.getFile', ['documentId' => $this->ID, 'ts' => $this->getUpdateTime()->getTimestamp()]);
-		if($absolute)
-		{
-			$link = new Uri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
-		}
-
-		return $link;
+		return new ContentUri(UrlManager::getInstance()->create('documentgenerator.api.document.getfile', ['id' => $this->ID, 'ts' => $this->getUpdateTime()->getTimestamp()], $absolute)->getUri());
 	}
 
 	/**
@@ -1306,6 +1362,7 @@ final class Document
 	}
 
 	/**
+	 * @param bool $docx
 	 * @return int
 	 */
 	public function getEmailDiskFile($docx = false)
@@ -1358,10 +1415,12 @@ final class Document
 	 * @param $title
 	 * @param $number
 	 * @param $fileId
+	 * @param null $pdfId
+	 * @param null $imageId
 	 * @return Result
 	 * @throws \Exception
 	 */
-	public static function upload(Template $template, $value, $title, $number, $fileId)
+	public static function upload(Template $template, $value, $title, $number, $fileId, $pdfId = null, $imageId = null)
 	{
 		$result = new Result();
 
@@ -1370,6 +1429,22 @@ final class Document
 		{
 			return $result->addError(new Error('Wrong fileId - data not found'));
 		}
+		if($pdfId)
+		{
+			$fileData = FileTable::getById($pdfId);
+			if(!$fileData)
+			{
+				return $result->addError(new Error('Wrong pdfId - data not found'));
+			}
+		}
+		if($imageId)
+		{
+			$fileData = FileTable::getById($imageId);
+			if(!$fileData)
+			{
+				return $result->addError(new Error('Wrong imageId - data not found'));
+			}
+		}
 
 		$data = [
 			'ACTIVE' => 'Y',
@@ -1377,22 +1452,41 @@ final class Document
 			'VALUE' => $value,
 			'FILE_ID' => $fileId,
 			'PROVIDER' => $template->getSourceType(),
-			'IMAGE_ID' => null,
-			'PDF_ID' => null,
+			'IMAGE_ID' => $imageId,
+			'PDF_ID' => $pdfId,
 			'UPDATE_TIME' => new DateTime(),
 			'TITLE' => $title,
 			'NUMBER' => $number,
+			'CREATED_BY' => Driver::getInstance()->getUserId(),
 		];
 		$result = DocumentTable::add($data);
 		if($result->isSuccess())
 		{
 			$document = static::loadById($result->getId());
 			EventManager::getInstance()->send(new Event(Driver::MODULE_ID, 'onCreateDocument', ['document' => $document]));
-			return $document->getFile();
+			return $document->getFile(true, true);
 		}
 		else
 		{
 			return $result;
 		}
+	}
+
+	/**
+	 * @param bool $isCheckAccess
+	 * @return Document
+	 */
+	public function setIsCheckAccess($isCheckAccess)
+	{
+		$this->isCheckAccess = $isCheckAccess;
+		return $this;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function getIsCheckAccess()
+	{
+		return ($this->isCheckAccess === true);
 	}
 }

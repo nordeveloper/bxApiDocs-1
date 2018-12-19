@@ -7,7 +7,7 @@ use Bitrix\DocumentGenerator\Model\FileTable;
 use Bitrix\DocumentGenerator\Model\TemplateProviderTable;
 use Bitrix\DocumentGenerator\Model\TemplateTable;
 use Bitrix\DocumentGenerator\Model\TemplateUserTable;
-use Bitrix\Main\ArgumentTypeException;
+use Bitrix\Main\Engine\Response\DataType\ContentUri;
 use Bitrix\Main\Engine\UrlManager;
 use Bitrix\Main\Loader;
 use Bitrix\Main\ModuleManager;
@@ -27,6 +27,9 @@ use Bitrix\Main\Web\Uri;
  * @property-read int NUMERATOR_ID
  * @property-read string WITH_STAMPS
  * @property-read string IS_DELETED
+ * @property-read string SORT
+ * @property-read string CREATE_TIME
+ * @property-read string UPDATE_TIME
  */
 final class Template
 {
@@ -123,7 +126,6 @@ final class Template
 	{
 		if($this->fields === null)
 		{
-			DataProviderManager::getInstance()->setRegion($this->REGION);
 			$this->fields = [];
 			$this->fields[static::DOCUMENT_PROVIDER_PLACEHOLDER] = [
 				'PROVIDER' => DataProvider\Document::class,
@@ -334,12 +336,12 @@ final class Template
 	 */
 	public function setSourceType($sourceType)
 	{
-		if(!DataProviderManager::checkProviderName($sourceType))
-		{
-			throw new ArgumentTypeException('sourceType', DataProvider::class);
-		}
 		$sourceType = strtolower($sourceType);
-		$this->sourceType = $sourceType;
+		if(DataProviderManager::checkProviderName($sourceType, $this->MODULE_ID))
+		{
+			$this->sourceType = $sourceType;
+		}
+
 		return $this;
 	}
 
@@ -357,10 +359,10 @@ final class Template
 	 */
 	public function getDownloadUrl($absolute = false)
 	{
-		$link = UrlManager::getInstance()->create('documentgenerator.api.template.download', ['templateId' => $this->ID, 'ts' => $this->getModificationTime()]);
+		$link = UrlManager::getInstance()->create('documentgenerator.api.template.download', ['id' => $this->ID, 'ts' => $this->getModificationTime()]);
 		if($absolute)
 		{
-			$link = new Uri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
+			$link = new ContentUri(UrlManager::getInstance()->getHostUrl().$link->getLocator());
 		}
 
 		return $link;

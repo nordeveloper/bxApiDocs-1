@@ -2,8 +2,10 @@
 
 namespace Bitrix\DocumentGenerator\Controller;
 
+use Bitrix\DocumentGenerator\Body\Docx;
 use Bitrix\DocumentGenerator\Driver;
 use Bitrix\DocumentGenerator\Model\FileTable;
+use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\UI\Uploader\Uploader;
 
 class File extends Base
@@ -41,18 +43,38 @@ class File extends Base
 	 * @param $error
 	 * @return bool
 	 */
-	public function uploadFile($hash, &$file, &$package, &$upload, &$error)
+	public function uploadDocxFile($hash, &$file, &$package, &$upload, &$error)
 	{
+		Loc::loadMessages(__FILE__);
+		if($file['type'] != 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+		{
+			$error = Loc::getMessage('DOCGEN_CONT_FILE_UPLOAD_WRONG_TYPE');
+			return false;
+		}
+		elseif($file['size'] > 1024*1024)
+		{
+			$error = Loc::getMessage('DOCGEN_CONT_FILE_UPLOAD_WRONG_SIZE');
+			return false;
+		}
 		$uploadResult = FileTable::saveFile($file['files']['default']);
 		if($uploadResult->isSuccess())
 		{
-			$file['FILE_ID'] = $uploadResult->getId();
+			$fileId = $uploadResult->getId();
+			$body = new Docx(\Bitrix\Main\IO\File::getFileContents($file['files']['default']['tmp_name']));
+			if(!$body->isFileProcessable())
+			{
+				$error = Loc::getMessage('DOCGEN_CONT_FILE_UPLOAD_CORRUPTED_FILE');
+				FileTable::delete($fileId);
+				return false;
+			}
+			$file['FILE_ID'] = $fileId;
 			$file['name'] = GetFileNameWithoutExtension($file['name']);
 			return true;
 		}
 		else
 		{
-			$this->errorCollection = $uploadResult->getErrorCollection();
+			$error = implode(' ,', $uploadResult->getErrorMessages());
+			return false;
 		}
 	}
 
@@ -65,7 +87,7 @@ class File extends Base
 		{
 			$this->uploader = new Uploader([
 				"events" => [
-					"onFileIsUploaded" => [$this, "uploadFile"],
+					"onFileIsUploaded" => [$this, "uploadDocxFile"],
 				],
 				"storage" => [
 					"cloud" => true,

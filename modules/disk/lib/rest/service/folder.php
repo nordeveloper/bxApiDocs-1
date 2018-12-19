@@ -145,13 +145,16 @@ final class Folder extends BaseObject
 	 * @throws AccessException
 	 * @throws RestException
 	 */
-	protected function uploadFile($id, array $data = array(), $fileContent = null, array $rights = array())
+	protected function uploadFile($id, array $data = array(), $fileContent = null, array $rights = array(), $generateUniqueName = false)
 	{
 		if($fileContent === null)
 		{
 			return array(
 				'field' => self::FILE_FORM_FIELD,
-				'uploadUrl' => \CRestUtil::getUploadUrl(array('id' => $id, 'data' => $data, 'rights' => $rights), $this->restServer),
+				'uploadUrl' => \CRestUtil::getUploadUrl(
+					array('id' => $id, 'data' => $data, 'rights' => $rights, 'generateUniqueName' => $generateUniqueName),
+					$this->restServer
+				),
 			);
 		}
 
@@ -174,7 +177,7 @@ final class Folder extends BaseObject
 		$file = $folder->uploadFile($fileData, array(
 			'NAME' => $data['NAME'],
 			'CREATED_BY' => $this->userId
-		), $rights);
+		), $rights, $generateUniqueName);
 		if(!$file)
 		{
 			$this->errorCollection->add($folder->getErrors());
@@ -184,7 +187,7 @@ final class Folder extends BaseObject
 		return $file;
 	}
 
-	protected function upload($id, array $data = array(), array $rights = array())
+	protected function upload($id, array $data = array(), array $rights = array(), $generateUniqueName = false)
 	{
 		$folder = $this->getFolderById($id);
 		$securityContext = $folder->getStorage()->getCurrentUserSecurityContext();
@@ -203,7 +206,7 @@ final class Folder extends BaseObject
 		$file = $folder->uploadFile($_FILES[self::FILE_FORM_FIELD], array(
 			'NAME' => $_FILES[self::FILE_FORM_FIELD]['name'],
 			'CREATED_BY' => $this->userId
-		), $rights);
+		), $rights, $generateUniqueName);
 
 		if(!$file)
 		{

@@ -917,7 +917,7 @@ class Manager
 		}
 
 		$path = 'https://repo.bitrix24.site/rest/1/w1uqy3swvyp50bso/';
-		//$path = 'https://repo-dev.bitrix24.site/rest/1/w1uqy3swvyp50bso/';
+//		$path = 'https://repo-dev.bitrix24.site/rest/1/w1uqy3swvyp50bso/';
 
 		if (
 			!defined('LANDING_DISABLE_CLOUD') ||

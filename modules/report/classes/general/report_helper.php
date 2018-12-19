@@ -6,6 +6,7 @@ abstract class CReportHelper
 {
 	const UF_DATETIME_SHORT_POSTFIX = '_DTSHORT';
 	const UF_TEXT_TRIM_POSTFIX = '_TRIMTX';
+	const UF_BOOLEAN_POSTFIX = '_BLINL';
 
 	protected static $userNameFormat = null;
 

@@ -55,9 +55,25 @@ class BFile extends File
 			{
 				$contentType = $options['contentType'];
 			}
+			if(!isset($options['MODULE_ID']))
+			{
+				$options['MODULE_ID'] = Driver::MODULE_ID;
+			}
 			$fileDescription = \CFile::MakeFileArray($filePath, $contentType);
 			if($fileDescription)
 			{
+				if(isset($options['fileName']))
+				{
+					$options['fileName'] = str_replace(' ', '_', Path::replaceInvalidFilename($options['fileName'], function()
+					{
+						return '_';
+					}));
+					$fileDescription['name'] = $fileDescription['fileName'] = $options['fileName'];
+				}
+				if(isset($options['MODULE_ID']))
+				{
+					$fileDescription['MODULE_ID'] = $options['MODULE_ID'];
+				}
 				$fileId = \CFile::SaveFile($fileDescription, Driver::MODULE_ID);
 				parent::delete($filePath);
 				$result->setId($fileId);

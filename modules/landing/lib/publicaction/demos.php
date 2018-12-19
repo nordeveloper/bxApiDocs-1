@@ -113,6 +113,8 @@ class Demos
 	{
 		$result = new PublicActionResult();
 		$error = new \Bitrix\Landing\Error;
+		$themeCode = null;
+		$themeCodeTypo = null;
 
 		// make line array from site and pages
 		if (
@@ -128,6 +130,42 @@ class Demos
 				$dataPages = array();
 			}
 			unset($data['items']);
+			// set theme codes from sites to pages
+			if (isset($data['fields']['ADDITIONAL_FIELDS']['THEME_CODE']))
+			{
+				$themeCode = $data['fields']['ADDITIONAL_FIELDS']['THEME_CODE'];
+			}
+			if (isset($data['fields']['ADDITIONAL_FIELDS']['THEME_CODE_TYPO']))
+			{
+				$themeCodeTypo = $data['fields']['ADDITIONAL_FIELDS']['THEME_CODE_TYPO'];
+			}
+			foreach ($dataPages as &$page)
+			{
+				if (
+					!isset($page['fields']) ||
+					!is_array($page['fields'])
+				)
+				{
+					$page['fields'] = array();
+				}
+				if (
+					!isset($page['fields']['ADDITIONAL_FIELDS']) ||
+					!is_array($page['fields']['ADDITIONAL_FIELDS'])
+				)
+				{
+					$page['fields']['ADDITIONAL_FIELDS'] = array();
+				}
+				if (!isset($page['fields']['ADDITIONAL_FIELDS']['THEME_CODE']))
+				{
+					$page['fields']['ADDITIONAL_FIELDS']['THEME_CODE'] = $themeCode;
+				}
+				if (!isset($page['fields']['ADDITIONAL_FIELDS']['THEME_CODE_TYPO']))
+				{
+					$page['fields']['ADDITIONAL_FIELDS']['THEME_CODE_TYPO'] = $themeCodeTypo;
+				}
+			}
+			unset($page);
+
 			$data['items'] = array_keys($dataPages);
 			$data['tpl_type'] = DemoCore::TPL_TYPE_SITE;
 			$data = array_merge([$data], $dataPages);

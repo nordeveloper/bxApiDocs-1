@@ -74,7 +74,6 @@ class FieldTable extends Main\Entity\DataManager
 			new Main\Entity\DatetimeField('UPDATE_TIME'),
 			new Main\Entity\IntegerField('CREATED_BY'),
 			new Main\Entity\IntegerField('UPDATED_BY'),
-			new Main\Entity\StringField('SITE_ID'),
 		];
 	}
 }

@@ -5,6 +5,10 @@ return array(
 			'namespaces' => array(
 				'\\Bitrix\\DocumentGenerator\\Controller' => 'api',
 			),
+			'defaultNamespace' => '\\Bitrix\\DocumentGenerator\\Controller',
+			'restIntegration' => [
+				'enabled' => true,
+			],
 		),
 		'readonly' => true,
 	)

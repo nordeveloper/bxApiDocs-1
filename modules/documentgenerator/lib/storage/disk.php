@@ -10,6 +10,7 @@ use Bitrix\Main\Error;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Entity\AddResult;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Text\BinaryString;
 
 final class Disk extends BFile
 {
@@ -55,7 +56,7 @@ final class Disk extends BFile
 			if($result->isSuccess())
 			{
 				$bFileId = $result->getId();
-				$result = $this->addFile($bFileId, $options, strlen($content));
+				$result = $this->addFile($bFileId, $options, BinaryString::getLength($content));
 			}
 		}
 		else

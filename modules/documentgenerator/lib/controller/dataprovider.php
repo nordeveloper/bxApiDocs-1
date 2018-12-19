@@ -19,7 +19,7 @@ class DataProvider extends Base
 			$this->errorCollection[] = new Error('cant load module '.$module);
 			return;
 		}
-		if(DataProviderManager::checkProviderName($provider))
+		if(DataProviderManager::checkProviderName($provider, $module))
 		{
 			/** @var \Bitrix\DocumentGenerator\DataProvider $dataProvider */
 			$dataProvider = new $provider($value, $options);

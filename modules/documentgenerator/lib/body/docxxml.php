@@ -494,7 +494,7 @@ final class DocxXml extends Xml
 					{
 						if($valueNameParts[1] == $list->getItemKey() && count($valueNameParts) > 2)
 						{
-							$name = $valueNameParts[2];
+							$name = implode('.', array_slice($valueNameParts, 2));
 							if($data instanceof DataProvider)
 							{
 								$value = $data->getValue($name);

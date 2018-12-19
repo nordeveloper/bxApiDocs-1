@@ -289,7 +289,7 @@ final class Storage extends Base
 	 * @throws AccessException
 	 * @throws RestException
 	 */
-	protected function uploadFile($id, $fileContent, array $data, array $rights = array())
+	protected function uploadFile($id, $fileContent, array $data, array $rights = array(), $generateUniqueName = false)
 	{
 		if(!$this->checkRequiredInputParams($data, array('NAME')))
 		{
@@ -310,7 +310,7 @@ final class Storage extends Base
 		$file = $storage->uploadFile($fileData, array(
 			'NAME' => $data['NAME'],
 			'CREATED_BY' => $this->userId
-		), $rights);
+		), $rights, $generateUniqueName);
 		if(!$file)
 		{
 			$this->errorCollection->add($storage->getErrors());

@@ -1,8 +1,11 @@
 <?php
 
+/** @noinspection PhpUnusedParameterInspection */
+
 namespace Bitrix\DocumentGenerator\Controller;
 
 use Bitrix\DocumentGenerator\Body\Docx;
+use Bitrix\DocumentGenerator\DataProvider\Rest;
 use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Driver;
 use Bitrix\DocumentGenerator\Model\FileTable;
@@ -11,7 +14,10 @@ use Bitrix\DocumentGenerator\Model\TemplateTable;
 use Bitrix\DocumentGenerator\Model\TemplateUserTable;
 use Bitrix\Main\Application;
 use Bitrix\Main\Engine\ActionFilter\Csrf;
+use Bitrix\Main\Engine\Response\Converter;
+use Bitrix\Main\Engine\Response\DataType\ContentUri;
 use Bitrix\Main\Engine\Response\DataType\Page;
+use Bitrix\Main\Engine\UrlManager;
 use Bitrix\Main\Error;
 use Bitrix\Main\IO\Directory;
 use Bitrix\Main\IO\Path;
@@ -46,9 +52,10 @@ class Template extends Base
 	 * Deletes template by id.
 	 *
 	 * @param \Bitrix\DocumentGenerator\Template $template
+	 * @param \CRestServer|null $restServer
 	 * @throws \Exception
 	 */
-	public function deleteAction(\Bitrix\DocumentGenerator\Template $template)
+	public function deleteAction(\Bitrix\DocumentGenerator\Template $template, \CRestServer $restServer = null)
 	{
 		$deleteResult = TemplateTable::delete($template->ID);
 		if(!$deleteResult->isSuccess())
@@ -61,9 +68,10 @@ class Template extends Base
 	 * Let user download template file.
 	 *
 	 * @param \Bitrix\DocumentGenerator\Template $template
-	 * @return array|bool
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 */
-	public function downloadAction(\Bitrix\DocumentGenerator\Template $template)
+	public function downloadAction(\Bitrix\DocumentGenerator\Template $template, \CRestServer $restServer = null)
 	{
 		Loc::loadLanguageFile(__FILE__);
 		if(FileTable::download($template->FILE_ID, $template->getFileName(Loc::getMessage('DOCGEN_CONTROLLER_TEMPLATE_FILE_PREFIX'))) === false)
@@ -71,55 +79,145 @@ class Template extends Base
 			$this->errorCollection->add([new Error(Loc::getMessage('DOCGEN_CONTROLLER_TEMPLATE_DOWNLOAD_ERROR'))]);
 		}
 
-		return false;
+		return null;
 	}
 
 	/**
 	 * Add new template.
 	 *
-	 * @param string $name
-	 * @param int $fileId
-	 * @param $numeratorId
-	 * @param $region
-	 * @param array $providers
-	 * @param array $users
-	 * @param int $id
-	 * @param string $moduleId
-	 * @param string $siteId
-	 * @param string $active
-	 * @param string $stamps
-	 * @return array|bool
+	 * @param array $fields
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 * @throws \Bitrix\Main\ObjectException
 	 */
-	public function addAction($name, $fileId, $numeratorId, $region, array $providers, array $users = [], $id = null, $moduleId = Driver::MODULE_ID, $siteId = '', $active = 'Y', $stamps = 'N')
+	public function addAction(array $fields, \CRestServer $restServer = null)
 	{
-		if(!$this->includeModule($moduleId))
+		if($restServer && !isset($fields['fileId']))
 		{
-			return false;
+			$fields['fileId'] = $this->uploadFile($fields[static::FILE_PARAM_NAME], static::FILE_PARAM_NAME);
+			if(!$fields['fileId'])
+			{
+				return null;
+			}
+			unset($fields[static::FILE_PARAM_NAME]);
 		}
-		$templateData = [
-			'ACTIVE' => $active,
-			'FILE_ID' => $fileId,
-			'MODULE_ID' => $moduleId,
-			'SITE_ID' => $siteId,
-			'NAME' => $name,
-			'BODY_TYPE' => Docx::class,
-			'CREATED_BY' => Driver::getInstance()->getUserId(),
-			'ID' => $id,
-			'NUMERATOR_ID' => $numeratorId,
-			'REGION' => $region,
-			'WITH_STAMPS' => $stamps,
-		];
-		$result = $this->add($templateData, $providers, $users);
+		// do not let add templates to other modules in rest scope
+		if($restServer)
+		{
+			$fields['moduleId'] = Driver::REST_MODULE_ID;
+			$fields['providers'] = [
+				Rest::class,
+			];
+		}
+		$emptyFields = $this->checkArrayRequiredParams($fields, ['name', 'fileId', 'numeratorId', 'region', 'providers', 'moduleId']);
+		if(!empty($emptyFields))
+		{
+			$this->errorCollection[] = new Error('Empty required fields: '.implode(', ', $emptyFields));
+			return null;
+		}
+
+		if(!$this->includeModule($fields['moduleId']))
+		{
+			return null;
+		}
+		if(!$fields['active'])
+		{
+			$fields['active'] = 'Y';
+		}
+		if(!$fields['withStamps'])
+		{
+			$fields['withStamps'] = 'N';
+		}
+		if(!$fields['users'])
+		{
+			$fields['users'] = [];
+		}
+		$fields['bodyType'] = Docx::class;
+		$fields['createdBy'] = Driver::getInstance()->getUserId();
+		$converter = new Converter(Converter::TO_UPPER | Converter::KEYS | Converter::TO_SNAKE);
+		$templateData = $converter->process($fields);
+		$result = $this->add($templateData, $fields['providers'], $fields['users']);
 		if($result->isSuccess())
 		{
+			foreach($fields['providers'] as $provider)
+			{
+				Driver::extendTemplateProviders($fields['moduleId'], $provider);
+			}
 			return $result->getData();
 		}
 		else
 		{
 			$this->errorCollection = $result->getErrorCollection();
-			return false;
+			return null;
 		}
+	}
+
+	/**
+	 * @param \Bitrix\DocumentGenerator\Template $template
+	 * @param array $fields
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
+	 * @throws \Bitrix\Main\ObjectException
+	 */
+	public function updateAction(\Bitrix\DocumentGenerator\Template $template, array $fields, \CRestServer $restServer = null)
+	{
+		// do not let change moduleId in rest scope
+		if($restServer)
+		{
+			unset($fields['moduleId']);
+			$fileId = $this->uploadFile($fields[static::FILE_PARAM_NAME], static::FILE_PARAM_NAME, false);
+			if($fileId > 0)
+			{
+				$fields['fileId'] = $fileId;
+			}
+			elseif(isset($fields['fileId']))
+			{
+				unset($fields['fileId']);
+			}
+			unset($fields[static::FILE_PARAM_NAME]);
+		}
+		elseif(!$this->includeModule($fields['moduleId']))
+		{
+			return null;
+		}
+		$fields['bodyType'] = Docx::class;
+		$fields['id'] = $template->ID;
+		$converter = new Converter(Converter::TO_UPPER | Converter::KEYS | Converter::TO_SNAKE);
+		$templateData = $converter->process($fields);
+		if(!isset($fields['users']) || !is_array($fields['users']))
+		{
+			$fields['users'] = [];
+		}
+		if(!isset($fields['providers']) || !is_array($fields['providers']))
+		{
+			$fields['providers'] = [];
+		}
+		$result = $this->add($templateData, $fields['providers'], $fields['users']);
+		if($result->isSuccess())
+		{
+			if(!empty($fields['providers']))
+			{
+				$moduleId = $result->getData()['template']['moduleId'];
+				foreach($fields['providers'] as $provider)
+				{
+					Driver::extendTemplateProviders($moduleId, $provider);
+				}
+			}
+			return $result->getData();
+		}
+		else
+		{
+			$this->errorCollection = $result->getErrorCollection();
+			return null;
+		}
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function isSupportArrayInCreateActions()
+	{
+		return true;
 	}
 
 	/**
@@ -130,6 +228,11 @@ class Template extends Base
 	 */
 	public function installDefaultAction($code)
 	{
+		if($this->getScope() === static::SCOPE_REST)
+		{
+			$this->errorCollection->add([new Error('Wrong scope for current action')]);
+			return null;
+		}
 		$filter = ['CODE' => $code];
 		$result = static::getDefaultTemplateList($filter);
 		if($result->isSuccess())
@@ -138,7 +241,7 @@ class Template extends Base
 			if(!isset($templates[$code]))
 			{
 				$this->errorCollection->add([new Error(Loc::getMessage('DOCGEN_TEMPLATES_DEFAULT_TEMPLATE_NOT_FOUND'))]);
-				return false;
+				return null;
 			}
 			$template = $templates[$code];
 			$result = $this->installDefaultTemplate($template);
@@ -351,7 +454,7 @@ class Template extends Base
 	 * @throws \Bitrix\Main\ObjectException
 	 * @throws \Exception
 	 */
-	protected function add(array $templateData, array $providers, array $users = [])
+	protected function add(array $templateData, array $providers = [], array $users = [])
 	{
 		$id = intval($templateData['ID']);
 		if($id > 0)
@@ -383,30 +486,36 @@ class Template extends Base
 			return $result;
 		}
 		$templateId = $result->getId();
-		TemplateProviderTable::deleteByTemplateId($templateId);
-		foreach($providers as $provider)
+		if(!empty($providers))
 		{
-			$result = TemplateProviderTable::add([
-				'TEMPLATE_ID' => $templateId,
-				'PROVIDER' => $provider,
-			]);
-			if(!$result->isSuccess())
+			TemplateProviderTable::deleteByTemplateId($templateId);
+			foreach($providers as $provider)
 			{
-				TemplateTable::delete($templateId, true);
-				return $result;
+				$result = TemplateProviderTable::add([
+					'TEMPLATE_ID' => $templateId,
+					'PROVIDER' => $provider,
+				]);
+				if(!$result->isSuccess())
+				{
+					TemplateTable::delete($templateId, true);
+					return $result;
+				}
 			}
 		}
-		TemplateUserTable::delete($templateId);
-		foreach($users as $code)
+		if(!empty($users))
 		{
-			$result = TemplateUserTable::add([
-				'TEMPLATE_ID' => $templateId,
-				'ACCESS_CODE' => $code,
-			]);
-			if(!$result->isSuccess())
+			TemplateUserTable::delete($templateId);
+			foreach($users as $code)
 			{
-				TemplateTable::delete($templateId, true);
-				return $result;
+				$result = TemplateUserTable::add([
+					'TEMPLATE_ID' => $templateId,
+					'ACCESS_CODE' => $code,
+				]);
+				if(!$result->isSuccess())
+				{
+					TemplateTable::delete($templateId, true);
+					return $result;
+				}
 			}
 		}
 		$template = \Bitrix\DocumentGenerator\Template::loadById($templateId);
@@ -456,22 +565,27 @@ class Template extends Base
 	 * @param $providerClassName
 	 * @param $value
 	 * @param array $values
-	 * @return array|false
-	 * @throws \Bitrix\Main\ArgumentTypeException
+	 * @param \CRestServer|null $restServer
+	 * @return array|null
 	 */
-	public function getFieldsAction(\Bitrix\DocumentGenerator\Template $template, $providerClassName, $value, array $values = [])
+	public function getFieldsAction(\Bitrix\DocumentGenerator\Template $template, $providerClassName = null, $value = null, array $values = [], \CRestServer $restServer = null)
 	{
+		if($restServer)
+		{
+			$providerClassName = Rest::class;
+			$value = 1;
+		}
 		$template->setSourceType($providerClassName);
 		$document = \Bitrix\DocumentGenerator\Document::createByTemplate($template, $value);
 		if(!$document->hasAccess(Driver::getInstance()->getUserId()))
 		{
-			$this->errorCollection[] = new Error('Access denied', Document::ERROR_ACCESS_DENIED);
-			return false;
+			$this->errorCollection[] = new Error('Access denied', static::ERROR_ACCESS_DENIED);
+			return null;
 		}
 		$fields = $document->setValues($values)->getFields([], true, true);
 		foreach($fields as &$field)
 		{
-			$field = $this->convertArrayKeysToCamel($field, 3);
+			$field = $this->convertKeysToCamelCase($field);
 		}
 		return ['templateFields' => $fields];
 	}
@@ -481,9 +595,10 @@ class Template extends Base
 	 * @param array|null $order
 	 * @param array|null $filter
 	 * @param PageNavigation|null $pageNavigation
+	 * @param \CRestServer|null $restServer
 	 * @return Page
 	 */
-	public function listAction(array $select = ['*'], array $order = null, array $filter = null, PageNavigation $pageNavigation = null)
+	public function listAction(array $select = ['*'], array $order = null, array $filter = null, PageNavigation $pageNavigation = null, \CRestServer $restServer = null)
 	{
 		$withProviders = $withUsers = false;
 		if(($key = array_search('providers', $select)) !== false)
@@ -496,26 +611,36 @@ class Template extends Base
 			$withUsers = true;
 			unset($select[$key]);
 		}
+		if(!is_array($filter))
+		{
+			$filter = [];
+		}
+		if(!isset($filter['isDeleted']) && !isset($filter['@isDeleted']) && !isset($filter['!isDeleted']))
+		{
+			$filter['isDeleted'] = 'N';
+		}
+		if($restServer)
+		{
+			$filter['moduleId'] = Driver::REST_MODULE_ID;
+		}
 
+		$converter = new Converter(0);
 		if(is_array($filter))
 		{
-			$filter = $this->convertArrayKeysToUpper($filter, 1);
+			$filter = $converter->setFormat(Converter::TO_UPPER | Converter::KEYS | Converter::TO_SNAKE)->process($filter);
 		}
 		if(is_array($order))
 		{
-			$order = $this->convertArrayKeysToUpper($order, 1);
+			$order = $converter->setFormat(Converter::TO_UPPER | Converter::KEYS | Converter::TO_SNAKE)->process($order);
 		}
 		if(is_array($select))
 		{
-			$select = $this->convertArrayValuesToUpper($select, 1);
+			$select = $converter->setFormat(Converter::TO_UPPER | Converter::VALUES | Converter::TO_SNAKE)->process($select);
 		}
 
-		if($withUsers || $withProviders)
+		if(!in_array('ID', $select))
 		{
-			if(!in_array('ID', $select))
-			{
-				$select[] = 'ID';
-			}
+			$select[] = 'ID';
 		}
 
 		$templates = TemplateTable::getList([
@@ -526,16 +651,14 @@ class Template extends Base
 			'limit' => $pageNavigation->getLimit(),
 		])->fetchAll();
 
-		if($withUsers || $withProviders)
+		$buffer = [];
+		foreach($templates as $template)
 		{
-			$buffer = [];
-			foreach($templates as $template)
-			{
-				$buffer[$template['ID']] = $template;
-			}
-			$templates = $buffer;
-			unset($buffer);
+			$template['download'] = $this->getTemplateDownloadLink($template['ID'], $template['UPDATE_TIME']);
+			$buffer[$template['ID']] = $template;
 		}
+		$templates = $buffer;
+		unset($buffer);
 
 		if($withProviders)
 		{
@@ -547,6 +670,10 @@ class Template extends Base
 		}
 		if($withUsers)
 		{
+			foreach($templates as &$template)
+			{
+				$template['USERS'] = [];
+			}
 			$users = TemplateUserTable::getList(['filter' => ['TEMPLATE_ID' => array_keys($templates)]]);
 			while($user = $users->fetch())
 			{
@@ -554,7 +681,7 @@ class Template extends Base
 			}
 		}
 
-		return new Page('templates', $this->convertArrayKeysToCamel($templates, 1), function() use ($filter)
+		return new Page('templates', $this->convertKeysToCamelCase($templates), function() use ($filter)
 		{
 			return TemplateTable::getCount($filter);
 		});
@@ -562,9 +689,10 @@ class Template extends Base
 
 	/**
 	 * @param \Bitrix\DocumentGenerator\Template $template
+	 * @param \CRestServer|null $restServer
 	 * @return array
 	 */
-	public function getAction(\Bitrix\DocumentGenerator\Template $template)
+	public function getAction(\Bitrix\DocumentGenerator\Template $template, \CRestServer $restServer = null)
 	{
 		return [
 			'template' => [
@@ -572,17 +700,32 @@ class Template extends Base
 				'name' => $template->NAME,
 				'region' => $template->REGION,
 				'code' => $template->CODE,
-				'links' => [
-					'download' => $template->getDownloadUrl(true),
-				],
+				'download' => $template->getDownloadUrl(true),
 				'active' => $template->ACTIVE,
 				'moduleId' => $template->MODULE_ID,
 				'numeratorId' => $template->NUMERATOR_ID,
 				'withStamps' => $template->WITH_STAMPS,
 				'providers' => $template->getDataProviders(),
 				'users' => $template->getUsers(),
-				'fileId' => $template->FILE_ID,
+				'isDeleted' => $template->isDeleted() ? 'Y' : 'N',
+				'sort' => $template->SORT,
+				'createTime' => $template->CREATE_TIME,
+				'updateTime' => $template->UPDATE_TIME,
 			],
 		];
+	}
+
+	/**
+	 * @param $templateId
+	 * @param null $updateTime
+	 * @return ContentUri
+	 */
+	protected function getTemplateDownloadLink($templateId, $updateTime = null)
+	{
+		if(!$updateTime)
+		{
+			$updateTime = time();
+		}
+		return new ContentUri(UrlManager::getInstance()->create('documentgenerator.api.template.download', ['id' => $templateId, 'ts' => $updateTime])->getUri());
 	}
 }

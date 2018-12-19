@@ -77,7 +77,7 @@ class File
 			FileTable::update(
 				$row['ID'],
 				array(
-					'FILE_ID' => -1 * $row['FILE_ID']
+					'FILE_ID' => -1 * abs($row['FILE_ID'])
 				)
 			);
 		}
@@ -127,17 +127,21 @@ class File
 			}
 			foreach ($deletedFiles as $fid)
 			{
-				//@tmp log
-				\CEventLog::add(array(
-					'SEVERITY' => 'NOTICE',
-					'AUDIT_TYPE_ID' => 'LANDING_FILE_DELETE',
-					'MODULE_ID' => 'landing',
-					'ITEM_ID' => \CFile::getPath($fid),
-					'DESCRIPTION' => print_r(array(
-						'fileId' => $fid
-					), true)
-				));
-				\CFile::delete($fid);
+				$fileData = self::getFileArray($fid);
+				if ($fileData)
+				{
+					//@tmp log
+					\CEventLog::add(array(
+						'SEVERITY' => 'NOTICE',
+						'AUDIT_TYPE_ID' => 'LANDING_FILE_DELETE',
+						'MODULE_ID' => 'landing',
+						'ITEM_ID' => $fileData['SRC'],
+						'DESCRIPTION' => print_r(array(
+							'fileId' => $fid
+						), true)
+					));
+					\CFile::delete($fid);
+				}
 			}
 		}
 	}
@@ -337,5 +341,40 @@ class File
 	public static function copyBlockFiles($from, $to)
 	{
 		self::copyEntityFiles($from, $to, self::ENTITY_TYPE_BLOCK);
+	}
+
+	/**
+	 * Gets core file array.
+	 * @param int $fileId File id.
+	 * @return mixed
+	 */
+	public static function getFileArray($fileId)
+	{
+		$file = \CFile::getFileArray(
+			$fileId
+		);
+		if (
+			isset($file['MODULE_ID']) &&
+			$file['MODULE_ID'] == 'landing'
+		)
+		{
+			return $file;
+		}
+		return false;
+	}
+
+	/**
+	 * Gets core file path.
+	 * @param int $fileId File id.
+	 * @return string
+	 */
+	public static function getFilePath($fileId)
+	{
+		$file = self::getFileArray($fileId);
+		if (isset($file['SRC']))
+		{
+			return $file['SRC'];
+		}
+		return null;
 	}
 }

@@ -4,6 +4,7 @@ namespace Bitrix\DocumentGenerator\Value;
 
 use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Value;
+use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Type;
 
@@ -20,17 +21,41 @@ class DateTime extends Value
 		$format = $options['format'];
 		if(!$value instanceof Type\Date)
 		{
-			$value = Type\DateTime::tryParse($value);
+			$value = $this->getFromString($value, $format);
 		}
+		parent::__construct($value, $options);
+	}
+
+	/**
+	 * @param $string
+	 * @param null $format
+	 * @return Type\DateTime|null
+	 */
+	protected function getFromString($string, $format = null)
+	{
+		if(is_array($string) || is_object($string))
+		{
+			return null;
+		}
+		$value = Type\DateTime::tryParse($string);
 		if(!$value instanceof Type\Date)
 		{
-			$value = Type\DateTime::tryParse($value, $format);
+			$value = Type\DateTime::tryParse($string, $format);
+		}
+		if(!$value instanceof Type\Date && Loader::includeModule('rest'))
+		{
+			$convertedDate = \CRestUtil::unConvertDateTime($string);
+			if($convertedDate)
+			{
+				$value = Type\DateTime::tryParse($convertedDate);
+			}
 		}
 		if(!$value)
 		{
-			$value = '';
+			$value = null;
 		}
-		parent::__construct($value, $options);
+
+		return $value;
 	}
 
 	/**
@@ -59,6 +84,10 @@ class DateTime extends Value
 			return $result;
 		}
 
+		if(!$date)
+		{
+			$date = '';
+		}
 		return $date;
 	}
 
