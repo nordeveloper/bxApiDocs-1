@@ -125,7 +125,7 @@ class BaseTrigger extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 	public function send()
 	{
 		$applied = false;
-		$triggers = $this->getTriggers();
+		$triggers = $this->getPotentialTriggers();
 		if ($triggers)
 		{
 			foreach ($triggers as $trigger)
@@ -142,54 +142,9 @@ class BaseTrigger extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 		return $applied;
 	}
 
-	protected function getTriggers()
-	{
-		$triggers = array();
-
-		$currentStatus = $this->getTarget()->getEntityStatus();
-		$allStatuses = $this->getTarget()->getEntityStatuses();
-
-		$needleKey = array_search($currentStatus, $allStatuses);
-
-		if ($needleKey === false)
-			return $triggers;
-
-		$needleStatuses = array_slice($allStatuses, $needleKey + 1);
-
-		if (count($needleStatuses) > 0)
-		{
-			$rows = array();
-			$iterator = Entity\TriggerTable::getList(array(
-				'filter' => array(
-					'=CODE' => static::getCode(),
-					'=ENTITY_TYPE_ID' => $this->getTarget()->getEntityTypeId(),
-					'@ENTITY_STATUS' => $needleStatuses
-				)
-			));
-			while ($row = $iterator->fetch())
-			{
-				$rows[$row['ENTITY_STATUS']][] = $row;
-			}
-
-			if ($rows)
-			{
-				// take only nearest to the current status
-				foreach ($needleStatuses as $needleStatus)
-				{
-					if (isset($rows[$needleStatus]))
-					{
-						$triggers = array_merge($triggers, $rows[$needleStatus]);
-					}
-				}
-			}
-		}
-
-		return $triggers;
-	}
-
 	protected function applyTrigger(array $trigger)
 	{
-		$statusId = $trigger['ENTITY_STATUS'];
+		$statusId = $trigger['DOCUMENT_STATUS'];
 
 		/** @var \Bitrix\Crm\Automation\Target\BaseTarget $target */
 		$target = $this->getTarget();

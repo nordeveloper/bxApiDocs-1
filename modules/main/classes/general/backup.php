@@ -1503,7 +1503,7 @@ class CTar
 		{
 			$upper_dir = dirname($dir);
 			if (!file_exists($upper_dir) && !self::xmkdir($upper_dir))
-				return $this->Error('Can\'t create folder: '.$upper_dir);
+				return false;
 
 			return mkdir($dir);
 		}

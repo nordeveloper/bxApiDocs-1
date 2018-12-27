@@ -16,15 +16,33 @@ class CCrmDocument
 		global $USER_FIELD_MANAGER;
 		$arDocumentID = static::GetDocumentInfo($documentType.'_0');
 		if (empty($arDocumentID))
+		{
 			throw new CBPArgumentNullException('documentId');
+		}
 
 		$arResult = array(
 			'string' => array('Name' => GetMessage('BPVDX_STRING'), 'BaseType' => 'string'),
 			'int' => array('Name' => GetMessage('BPVDX_NUMINT'), 'BaseType' => 'int'),
-			'email' => array('Name' => GetMessage('BPVDX_EMAIL'), 'BaseType' => 'string'),
-			'phone' => array('Name' => GetMessage('BPVDX_PHONE'), 'BaseType' => 'string'),
-			'web' => array('Name' => GetMessage('BPVDX_WEB'), 'BaseType' => 'string'),
-			'im' => array('Name' => GetMessage('BPVDX_MESSANGER'), 'BaseType' => 'string'),
+			'email' => array(
+				'Name' => GetMessage('BPVDX_EMAIL'),
+				'BaseType' => 'string',
+				'typeClass' => \Bitrix\Crm\Integration\BizProc\FieldType\Email::class
+			),
+			'phone' => array(
+				'Name' => GetMessage('BPVDX_PHONE'),
+				'BaseType' => 'string',
+				'typeClass' => \Bitrix\Crm\Integration\BizProc\FieldType\Phone::class
+			),
+			'web' => array(
+				'Name' => GetMessage('BPVDX_WEB'),
+				'BaseType' => 'string',
+				'typeClass' => \Bitrix\Crm\Integration\BizProc\FieldType\Web::class
+			),
+			'im' => array(
+				'Name' => GetMessage('BPVDX_MESSANGER'),
+				'BaseType' => 'string',
+				'typeClass' => \Bitrix\Crm\Integration\BizProc\FieldType\Im::class
+			),
 			'text' => array('Name' => GetMessage('BPVDX_TEXT'), 'BaseType' => 'text'),
 			'double' => array('Name' => GetMessage('BPVDX_NUM'), 'BaseType' => 'double'),
 			'select' => array('Name' => GetMessage('BPVDX_LIST'), 'BaseType' => 'select', "Complex" => true),
@@ -44,7 +62,11 @@ class CCrmDocument
 		}
 
 		//'Disk File' is disabled due to GUI issues (see CCrmFields::GetFieldTypes)
-		$ignoredUserTypes = array('string', 'double', 'boolean', 'integer', 'datetime', 'file', 'employee', 'enumeration', 'video', 'string_formatted', 'webdav_element_history', 'disk_version', 'disk_file', 'vote', 'url_preview', 'hlblock');
+		$ignoredUserTypes = array(
+			'string', 'double', 'boolean', 'integer', 'datetime', 'file', 'employee', 'enumeration', 'video',
+			'string_formatted', 'webdav_element_history', 'disk_version', 'disk_file', 'vote', 'url_preview', 'hlblock',
+			'mail_message'
+		);
 		$arTypes = $USER_FIELD_MANAGER->GetUserType();
 		foreach ($arTypes as $arType)
 		{
@@ -52,15 +74,57 @@ class CCrmDocument
 				continue;
 				
 			if ($arType['BASE_TYPE'] == 'enum')
+			{
 				$arType['BASE_TYPE'] = 'select';
-			$arResult['UF:'.$arType['USER_TYPE_ID']] = array('Name' => $arType['DESCRIPTION'], 'BaseType' => $arType['BASE_TYPE']);
-			if (in_array($arType['USER_TYPE_ID'], array('crm', 'crm_status', 'iblock_element', 'iblock_section')))
-				$arResult['UF:'.$arType['USER_TYPE_ID']]['Complex'] = true;
+			}
+
+			$sType = 'UF:'.$arType['USER_TYPE_ID'];
+
+			$arResult[$sType] = array(
+				'Name' => $arType['DESCRIPTION'],
+				'BaseType' => $arType['BASE_TYPE']
+			);
 
 			if ($arType['USER_TYPE_ID'] === 'date')
 			{
-				$arResult['UF:'.$arType['USER_TYPE_ID']]['typeClass'] = '\Bitrix\Bizproc\BaseType\Date';
-				$arResult['UF:'.$arType['USER_TYPE_ID']]['BaseType'] = 'date';
+				$arResult[$sType]['typeClass'] = '\Bitrix\Bizproc\BaseType\Date';
+				$arResult[$sType]['BaseType'] = 'date';
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'iblock_element')
+			{
+				$arResult[$sType]['typeClass'] = \Bitrix\Crm\Integration\BizProc\FieldType\IblockElement::class;
+				$arResult[$sType]['Complex'] = true;
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'iblock_section')
+			{
+				$arResult[$sType]['typeClass'] = \Bitrix\Crm\Integration\BizProc\FieldType\IblockSection::class;
+				$arResult[$sType]['Complex'] = true;
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'crm_status')
+			{
+				$arResult[$sType]['typeClass'] = \Bitrix\Crm\Integration\BizProc\FieldType\CrmStatus::class;
+				$arResult[$sType]['Complex'] = true;
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'crm')
+			{
+				$arResult[$sType]['typeClass'] = \Bitrix\Crm\Integration\BizProc\FieldType\Crm::class;
+				$arResult[$sType]['Complex'] = true;
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'resourcebooking')
+			{
+				//TODO
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'money')
+			{
+				$arResult[$sType]['typeClass'] = \Bitrix\Crm\Integration\BizProc\FieldType\Money::class;
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'address')
+			{
+				//TODO
+			}
+			elseif ($arType['USER_TYPE_ID'] === 'url')
+			{
+				//TODO
 			}
 		}
 		return $arResult;
@@ -72,7 +136,9 @@ class CCrmDocument
 
 		$arDocumentID = static::GetDocumentInfo($documentType.'_0');
 		if (empty($arDocumentID))
+		{
 			throw new CBPArgumentNullException('documentId');
+		}
 
 		static $arDocumentFieldTypes = array();
 		if (!array_key_exists($documentType, $arDocumentFieldTypes))
@@ -1217,7 +1283,9 @@ class CCrmDocument
 	{
 		$arDocumentID = static::GetDocumentInfo($documentId);
 		if (empty($arDocumentID))
+		{
 			throw new CBPArgumentNullException('documentId');
+		}
 
 		$arResult = null;
 
@@ -1408,6 +1476,10 @@ class CCrmDocument
 							}
 							$objDocument[$userFieldName.'_PRINTABLE'] = GetMessage($fieldValue > 0 ? 'MAIN_YES' : 'MAIN_NO');
 						}
+						elseif ($fieldTypeID === 'resourcebooking')
+						{
+							self::prepareResourceBookingField($objDocument, $userFieldName);
+						}
 					}
 				}
 			}
@@ -1495,6 +1567,10 @@ class CCrmDocument
 				);
 			}
 			// <-- Preparation of user names
+
+			//communications
+			$typeId = \CCrmOwnerType::ResolveID($arDocumentID['TYPE']);
+			$objDocument += static::getCommunicationFieldsValues($typeId, $arDocumentID['ID']);
 
 			switch ($arDocumentID['TYPE'])
 			{
@@ -2696,12 +2772,132 @@ class CCrmDocument
 		return $fields;
 	}
 
+	protected static function getCommunicationFields()
+	{
+		$callName = Bitrix\Crm\Activity\Provider\Call::getName();
+		$emailName = Bitrix\Crm\Activity\Provider\Email::getName();
+		$olName = Bitrix\Crm\Activity\Provider\OpenLine::getName();
+		$webFormName = Bitrix\Crm\Activity\Provider\WebForm::getName();
+
+		$msg = GetMessage('CRM_DOCUMENT_FIELD_LAST_COMMUNICATION_DATE');
+
+		return [
+			'COMMUNICATIONS.LAST_CALL_DATE' => [
+				'Name' => $msg . ': '.$callName,
+				'Type' => 'datetime',
+			],
+			'COMMUNICATIONS.LAST_EMAIL_DATE' => [
+				'Name' => $msg . ': '.$emailName,
+				'Type' => 'datetime',
+			],
+			'COMMUNICATIONS.LAST_OL_DATE' => [
+				'Name' => $msg . ': '.$olName,
+				'Type' => 'datetime',
+			],
+			'COMMUNICATIONS.LAST_FORM_DATE' => [
+				'Name' => $msg . ': '.$webFormName,
+				'Type' => 'datetime',
+			],
+		];
+	}
+
+	protected static function getCommunicationFieldsValues($typeId, $id)
+	{
+		$callId = Bitrix\Crm\Activity\Provider\Call::getId();
+		$emailId = Bitrix\Crm\Activity\Provider\Email::getId();
+		$olId = Bitrix\Crm\Activity\Provider\OpenLine::getId();
+		$webFormId = Bitrix\Crm\Activity\Provider\WebForm::getId();
+
+		$callDate = $emailDate = $olDate = $webFormDate = null;
+
+		$ormRes = \Bitrix\Crm\ActivityTable::getList([
+			'select' => ['END_TIME', 'PROVIDER_ID'],
+			'filter' => [
+				'=COMPLETED' => 'Y',
+				'@PROVIDER_ID' => [$callId, $emailId, $olId, $webFormId],
+				'=BINDINGS.OWNER_TYPE_ID' => $typeId,
+				'=BINDINGS.OWNER_ID' => $id,
+			],
+			'order' => ['END_TIME' => 'DESC']
+		]);
+
+		while ($row = $ormRes->fetch())
+		{
+			if ($callDate === null)
+			{
+				if ($row['PROVIDER_ID'] === $callId)
+				{
+					$callDate = $row['END_TIME'];
+				}
+			}
+			if ($emailDate === null)
+			{
+				if ($row['PROVIDER_ID'] === $emailId)
+				{
+					$emailDate = $row['END_TIME'];
+				}
+			}
+			if ($olDate === null)
+			{
+				if ($row['PROVIDER_ID'] === $olId)
+				{
+					$olDate = $row['END_TIME'];
+				}
+			}
+			if ($webFormDate === null)
+			{
+				if ($row['PROVIDER_ID'] === $webFormId)
+				{
+					$webFormDate = $row['END_TIME'];
+				}
+			}
+
+			if ($callDate !== null && $emailDate !== null && $olDate !== null && $webFormDate !== null)
+			{
+				break;
+			}
+		}
+
+		return [
+			'COMMUNICATIONS.LAST_CALL_DATE' => (string) $callDate,
+			'COMMUNICATIONS.LAST_EMAIL_DATE' => (string) $emailDate,
+			'COMMUNICATIONS.LAST_OL_DATE' => (string) $olDate,
+			'COMMUNICATIONS.LAST_FORM_DATE' => (string) $webFormDate,
+		];
+	}
+
+	private static function prepareResourceBookingField(array &$document, $fieldId)
+	{
+		if (empty($document[$fieldId]) || !\Bitrix\Main\Loader::includeModule('calendar'))
+		{
+			return;
+		}
+
+		$resourceList = \Bitrix\Calendar\UserField\ResourceBooking::getResourceEntriesList((array) $document[$fieldId]);
+
+		if ($resourceList)
+		{
+			$document[$fieldId.'.SERVICE_NAME'] = $resourceList['SERVICE_NAME'];
+			$document[$fieldId.'.DATE_FROM'] = $resourceList['DATE_FROM'];
+			$document[$fieldId.'.DATE_TO'] = $resourceList['DATE_TO'];
+			$users = [];
+
+			foreach ($resourceList['ENTRIES'] as $entry)
+			{
+				if ($entry['TYPE'] === 'user')
+				{
+					$users[] = 'user_'.$entry['RESOURCE_ID'];
+				}
+			}
+			$document[$fieldId.'.USERS'] = $users;
+		}
+	}
+
 	public static function isFeatureEnabled($documentType, $feature)
 	{
 		$supported = [
 			//\CBPDocumentService::FEATURE_MARK_MODIFIED_FIELDS,
-			'FEATURE_SET_MODIFIED_BY',
-			// TODO: replace to \CBPDocumentService::FEATURE_SET_MODIFIED_BY after bizproc will be released
+			\CBPDocumentService::FEATURE_SET_MODIFIED_BY,
 		];
 
 		return in_array($feature, $supported);

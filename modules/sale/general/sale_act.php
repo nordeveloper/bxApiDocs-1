@@ -1108,6 +1108,7 @@ class CSaleActionCtrlBasketGroup extends CSaleActionCtrlAction
 
 	public static function CheckAtoms($arOneCondition, $arParams, $arControl, $boolShow)
 	{
+		//TODO: remove this after refactoring control
 		if (!isset($arOneCondition['Max']))
 		{
 			$arOneCondition['Max'] = 0;
@@ -1331,6 +1332,10 @@ class CSaleActionCtrlBasketGroup extends CSaleActionCtrlAction
 	{
 		$mxResult = '';
 		$boolError = false;
+
+		//TODO: remove this after refactoring control
+		if (!isset($arOneCondition['Max']))
+			$arOneCondition['Max'] = 0;
 
 		foreach (static::GetAtomsEx(false, false) as $atom)
 		{

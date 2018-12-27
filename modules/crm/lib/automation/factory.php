@@ -208,11 +208,13 @@ class Factory
 			self::$triggerRegistry = [];
 			foreach ([
 					Trigger\EmailTrigger::className(),
+					Trigger\EmailSentTrigger::className(),
 					Trigger\EmailReadTrigger::className(),
 					Trigger\EmailLinkTrigger::className(),
 					Trigger\CallTrigger::className(),
 					Trigger\MissedCallTrigger::className(),
 					Trigger\WebFormTrigger::className(),
+					Trigger\CallBackTrigger::className(),
 					Trigger\InvoiceTrigger::className(),
 					Trigger\PaymentTrigger::className(),
 					Trigger\AllowDeliveryTrigger::className(),
@@ -222,7 +224,9 @@ class Factory
 					Trigger\VisitTrigger::className(),
 					Trigger\GuestReturnTrigger::className(),
 					Trigger\OpenLineTrigger::className(),
-					Trigger\AppTrigger::className()
+					Trigger\OpenLineMessageTrigger::className(),
+					Trigger\ResourceBookingTrigger::className(),
+					Trigger\AppTrigger::className(),
 				 ]
 				 as $triggerClass
 			)

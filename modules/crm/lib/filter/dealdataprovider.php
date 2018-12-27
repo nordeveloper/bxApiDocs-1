@@ -263,6 +263,14 @@ class DealDataProvider extends EntityDataProvider
 				)
 			);
 		}
+
+		$result['ACTIVE_TIME_PERIOD'] = $this->createField(
+			'ACTIVE_TIME_PERIOD',
+			array(
+				'name' => Loc::getMessage('CRM_DEAL_FILTER_ACTIVE_TIME_PERIOD'),
+				'type' => 'date'
+			)
+		);
 		return $result;
 	}
 
@@ -420,5 +428,26 @@ class DealDataProvider extends EntityDataProvider
 			);
 		}
 		return null;
+	}
+
+	/**
+	 * Prepare field parameter for specified field.
+	 * @param array $filter Filter params.
+	 * @param string $fieldID Field ID.
+	 * @return void
+	 */
+	public function prepareListFilterParam(array &$filter, $fieldID)
+	{
+		if($fieldID === 'TITLE'
+			|| $fieldID === 'COMMENTS'
+		)
+		{
+			$value = isset($filter[$fieldID]) ? trim($filter[$fieldID]) : '';
+			if($value !== '')
+			{
+				$filter["?{$fieldID}"] = $value;
+			}
+			unset($filter[$fieldID]);
+		}
 	}
 }

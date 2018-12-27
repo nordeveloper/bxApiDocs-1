@@ -1210,7 +1210,24 @@ class EntityLink
 		$entityExists = ($operation === self::ENTITY_OPERATION_UPDATE && $entityId > 0);
 		if ($entityExists)
 		{
-			$csInfo = self::getEntityClientSellerInfo($entityTypeId, $entityId, ['GET_PARENT_ENTITY_FILEDS' => true]);
+			try
+			{
+				$csInfo = self::getEntityClientSellerInfo($entityTypeId, $entityId, ['GET_PARENT_ENTITY_FILEDS' => true]);
+			}
+			catch (Main\SystemException $e)
+			{
+				switch ($e->getCode())
+				{
+					case self::ERR_ENTITY_NOT_FOUND:
+						$entityExists = false;
+						break;
+				}
+			}
+
+			if (!$entityExists)
+			{
+				return $resultLink;
+			}
 
 			$currentParrentEntityMap = self::prepareParrentEntityMap($entityTypeId, $csInfo);
 			foreach (array_keys($parentEntityMap) as $parentEntityTypeId)
@@ -1485,6 +1502,7 @@ class EntityLink
 				$continueCheck = true;
 				switch ($e->getCode())
 				{
+					case self::ERR_ENTITY_NOT_FOUND:
 					case self::ERR_INVALID_ENTITY_TYPE:
 					case self::ERR_INVALID_ENTITY_ID:
 						$resultLink['CLIENT_ENTITY_TYPE_ID'] = \CCrmOwnerType::Undefined;

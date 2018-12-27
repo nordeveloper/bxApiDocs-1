@@ -1090,13 +1090,20 @@ class CCaptcha
 			$arFields["~DATE_CREATE"] = CDatabase::CurrentTimeFunction();
 		}
 
+		$pool = \Bitrix\Main\Application::getInstance()->getConnectionPool();
+		$pool->useMasterOnly(true);
+
 		$arInsert = $DB->PrepareInsert("b_captcha", $arFields);
 
-		if (!$DB->Query("INSERT INTO b_captcha (".$arInsert[0].") VALUES (".$arInsert[1].")", true))
-			return false;
+		$result = $DB->Query("INSERT INTO b_captcha (".$arInsert[0].") VALUES (".$arInsert[1].")", true);
 
-		return $arFields["ID"];
+		$pool->useMasterOnly(false);
 
+		if($result)
+		{
+			return $arFields["ID"];
+		}
+		return false;
 	}
 
 	function Delete($sid)

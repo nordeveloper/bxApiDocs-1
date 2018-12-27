@@ -3,6 +3,7 @@ IncludeModuleLangFile(__FILE__);
 
 use Bitrix\Crm;
 use Bitrix\Crm\UtmTable;
+use Bitrix\Crm\Tracking;
 use Bitrix\Crm\Integration\StorageManager;
 use Bitrix\Crm\Integration\StorageType;
 use Bitrix\Crm\Binding\QuoteContactTable;
@@ -988,6 +989,7 @@ class CAllCrmQuote
 
 			// delete utm fields
 			UtmTable::deleteEntityUtm(CCrmOwnerType::Quote, $ID);
+			Tracking\Entity::deleteTrace(CCrmOwnerType::Quote, $ID);
 
 			if(Bitrix\Crm\Settings\HistorySettings::getCurrent()->isQuoteDeletionEventEnabled())
 			{

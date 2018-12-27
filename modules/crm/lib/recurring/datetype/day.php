@@ -12,6 +12,9 @@ class Day extends Base
 	const TYPE_A_FEW_DAYS_BEFORE = 2;
 	const TYPE_A_FEW_DAYS_AFTER = 3;
 
+	const FIELD_INTERVAL_NAME = 'INTERVAL_DAY';
+	const FIELD_IS_WORKDAY_NAME = 'IS_WORKDAY';
+
 	/**
 	 * @param array $params
 	 * @param Date $startDate
@@ -21,9 +24,9 @@ class Day extends Base
 	public static function calculateDate(array $params, Date $startDate)
 	{
 		$week = new self($params);
-		$week->setType($params['TYPE']);
+		$week->setType($params[self::FIELD_TYPE_NAME]);
 		$week->setStartDate($startDate);
-		$week->setInterval($params['INTERVAL_DAY']);
+		$week->setInterval($params[self::FIELD_INTERVAL_NAME]);
 		return $week->calculate();
 	}
 
@@ -46,7 +49,7 @@ class Day extends Base
 	 */
 	private function isWorkdayType()
 	{
-		return $this->params['IS_WORKDAY'] === 'Y';
+		return $this->params[self::FIELD_IS_WORKDAY_NAME] === 'Y';
 	}
 
 	/**
@@ -105,7 +108,7 @@ class Day extends Base
 		$weekHolidays = array_keys(array_intersect(array_flip($weekDays), $calendarSettings['week_holidays']));
 		$yearHolidays = explode(',', $calendarSettings['year_holidays']);
 		$lastWorkingDateInLimit = $date;
-		$interval = (int)$params['INTERVAL_DAY'];
+		$interval = (int)$params[self::FIELD_INTERVAL_NAME];
 
 		while ($interval > 0)
 		{

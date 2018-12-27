@@ -1,11 +1,4 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: maxyc
- * Date: 17.05.18
- * Time: 10:51
- */
-
 namespace Bitrix\Tasks\Integration\Recyclebin;
 
 use Bitrix\Main\Application;
@@ -129,6 +122,24 @@ if (Loader::includeModule('recyclebin'))
 		public static function removeFromRecyclebin(Entity $entity)
 		{
 			$result = new Result;
+
+			try
+			{
+				$res = Application::getConnection()->query(
+					'SELECT FORUM_TOPIC_ID FROM b_tasks WHERE ID = '.$entity->getEntityId()
+				);
+				$task = $res->fetch();
+
+				Forum\Task\Topic::delete($task["FORUM_TOPIC_ID"]);
+
+				$connection = Application::getConnection();
+
+				$connection->queryExecute('DELETE FROM b_tasks WHERE ID='.$entity->getId());
+			}
+			catch (\Exception $e)
+			{
+				$result->addError(new Error($e->getMessage(), $e->getCode()));
+			}
 
 			return $result;
 		}

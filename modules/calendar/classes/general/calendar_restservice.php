@@ -30,6 +30,7 @@ final class CCalendarRestService extends IRestService
 			"calendar.event.update" => [__CLASS__, "EventUpdate"],
 			"calendar.event.delete" => [__CLASS__, "EventDelete"],
 			"calendar.event.get.nearest" => [__CLASS__, "EventGetNearest"],
+			"calendar.event.getbyid" => [__CLASS__, "EventGetById"],
 
 			"calendar.section.get" => [__CLASS__, "SectionGet"],
 			"calendar.section.add" => [__CLASS__, "SectionAdd"],
@@ -207,6 +208,36 @@ final class CCalendarRestService extends IRestService
 		return $arEvents;
 	}
 
+
+	/*
+	 * Returns event by it id
+	 *
+	 * @param array $params - incomoning params:
+	 * $params['id'] - int, (required) calendar event id
+	 * @return event or null
+	 * @throws \Bitrix\Rest\RestException
+	 *
+	 * @example (Javascript)
+	 * BX24.callMethod("calendar.event.getbyid",
+	 * {
+	 * 		id: 324
+	 * });
+	 *
+	 */
+	public static function EventGetById($params = array(), $nav = null, $server = null)
+	{
+		$methodName = "calendar.event.getbyid";
+
+		if (!isset($params['id']) || empty($params['id']))
+		{
+			throw new RestException(Loc::getMessage('CAL_REST_PARAM_EXCEPTION', array('#PARAM_NAME#' => 'id', '#REST_METHOD#' => $methodName)));
+		}
+
+		$event = CCalendarEvent::GetById($params['id']);
+
+		return $event ? $event : null;
+	}
+
 	/*
 	 * Add new event
 	 *
@@ -217,7 +248,8 @@ final class CCalendarRestService extends IRestService
 	 * $params['to'] - (required) datetime, "to" limit
 	 * $params['from_ts'] - timestamp, "from" limit, can be set instead of $params['from']
 	 * $params['to_ts'] - timestamp, "to" limit, can be set instead of $params['to']
-	 * $params['section'] - (required), number, id of the section
+	 * $params['section'] - (required if $params['auto_detect_section'] is not "Y"), number, id of the section
+	 * $params['auto_detect_section'] - "Y" | "N", if "Y" $params['section'] could be skipped
 	 * $params['name'] - (required), string, name of the event
 	 * $params['skip_time'] - "Y"|"N",
 	 * $params['description'] - string, description of the event
@@ -281,10 +313,10 @@ final class CCalendarRestService extends IRestService
 		$methodName = "calendar.event.add";
 
 		if (isset($params['from']))
-			$params['from'] = CRestUtil::unConvertDateTime($params['from']);
+			$params['from'] = CRestUtil::unConvertDateTime($params['from'], true);
 
 		if (isset($params['to']))
-			$params['to'] = CRestUtil::unConvertDateTime($params['to']);
+			$params['to'] = CRestUtil::unConvertDateTime($params['to'], true);
 
 		if (isset($params['from_ts']) && !isset($params['from']))
 			$params['from'] = CCalendar::Date($params['from_ts']);
@@ -292,7 +324,11 @@ final class CCalendarRestService extends IRestService
 		if (isset($params['to_ts']) && !isset($params['to']))
 			$params['to'] = CCalendar::Date($params['to_ts']);
 
-		$necessaryParams = array('from', 'to', 'name', 'ownerId', 'type', 'section');
+		$necessaryParams = array('from', 'to', 'name', 'ownerId', 'type');
+		if ($params['auto_detect_section'] !== "Y")
+		{
+			$necessaryParams[] = 'section';
+		}
 		foreach ($necessaryParams as $param)
 		{
 			if (!isset($params[$param]) || empty($params[$param]))
@@ -396,6 +432,11 @@ final class CCalendarRestService extends IRestService
 			$saveParams['userId'] = $arFields['MEETING_HOST'];
 		}
 		$saveParams['arFields'] = $arFields;
+		if (isset($params['auto_detect_section']) && $params['auto_detect_section'] === 'Y')
+		{
+			$saveParams['autoDetectSection'] = true;
+		}
+
 		$newId = CCalendar::SaveEvent($saveParams);
 
 		if (!$newId)
@@ -482,10 +523,10 @@ final class CCalendarRestService extends IRestService
 		$ownerId = intval($params['ownerId']);
 
 		if (isset($params['from']))
-			$params['from'] = CRestUtil::unConvertDateTime($params['from']);
+			$params['from'] = CRestUtil::unConvertDateTime($params['from'], true);
 
 		if (isset($params['to']))
-			$params['to'] = CRestUtil::unConvertDateTime($params['to']);
+			$params['to'] = CRestUtil::unConvertDateTime($params['to'], true);
 
 		if (isset($params['from_ts']) && !isset($params['from']))
 			$params['from'] = CCalendar::Date($params['from_ts']);
@@ -505,7 +546,13 @@ final class CCalendarRestService extends IRestService
 			$arFields["SKIP_TIME"] = $params['skip_time'] == 'Y';
 
 		if (isset($params['name']))
+		{
 			$arFields["NAME"] = trim($params['name']);
+			if (empty($arFields["NAME"]))
+			{
+				$arFields["NAME"] = Loc::getMessage('EC_T_NEW_EVENT');
+			}
+		}
 
 		if (isset($params['description']))
 			$arFields["DESCRIPTION"] = trim($params['description']);
@@ -1437,7 +1484,7 @@ final class CCalendarRestService extends IRestService
 	 *
 	 * @param array $params - incomoning params:
 	 * $params['resourceId'] - (required) number,
-	 * $params['name'] - string, name of the resource
+	 * $params['name'] - (required) string, name of the resource
 	 *
 	 * @return id of modified section
 	 *

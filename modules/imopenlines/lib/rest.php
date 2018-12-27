@@ -33,12 +33,13 @@ class Rest extends \IRestService
 				'imopenlines.network.message.add' => array(__CLASS__, 'networkMessageAdd'),
 				'imopenlines.config.path.get' => array(__CLASS__, 'configGetPath'),
 
-				'imopenlines.widget.config.get' =>  array('callback' => array(__CLASS__, 'widgetConfigGet'), 'options' => array('private' => true)),
-				'imopenlines.widget.dialog.get' =>  array('callback' => array(__CLASS__, 'widgetDialogGet'), 'options' => array('private' => true)),
-				'imopenlines.widget.user.register' =>  array('callback' => array(__CLASS__, 'widgetUserRegister'), 'options' => array('private' => true)),
-				'imopenlines.widget.user.consent.apply' =>  array('callback' => array(__CLASS__, 'widgetUserConsentApply'), 'options' => array('private' => true)),
-				'imopenlines.widget.user.get' =>  array('callback' => array(__CLASS__, 'widgetUserGet'), 'options' => array('private' => true)),
-				'imopenlines.widget.user.vote' =>  array('callback' => array(__CLASS__, 'widgetUserVote'), 'options' => array('private' => true)),
+				'imopenlines.widget.config.get' =>  array('callback' => array(__CLASS__, 'widgetConfigGet'), 'options' => array()),
+				'imopenlines.widget.dialog.get' =>  array('callback' => array(__CLASS__, 'widgetDialogGet'), 'options' => array()),
+				'imopenlines.widget.user.register' =>  array('callback' => array(__CLASS__, 'widgetUserRegister'), 'options' => array()),
+				'imopenlines.widget.user.consent.apply' =>  array('callback' => array(__CLASS__, 'widgetUserConsentApply'), 'options' => array()),
+				'imopenlines.widget.user.get' =>  array('callback' => array(__CLASS__, 'widgetUserGet'), 'options' => array()),
+				'imopenlines.widget.vote.send' =>  array('callback' => array(__CLASS__, 'widgetVoteSend'), 'options' => array()),
+				'imopenlines.widget.form.send' =>  array('callback' => array(__CLASS__, 'widgetFormSend'), 'options' => array()),
 			),
 		);
 	}
@@ -524,23 +525,27 @@ class Rest extends \IRestService
 			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
 		}
 
-		if ($_SESSION['LIVECHAT']['REGISTER'])
+		$params = array_change_key_case($params, CASE_UPPER);
+		if (
+			$_SESSION['LIVECHAT']['REGISTER']
+			&& !(
+				isset($params['USER_HASH']) && trim($params['USER_HASH']) && preg_match("/^[a-fA-F0-9]{32}$/i", $params['USER_HASH'])
+			)
+		)
 		{
 			return $_SESSION['LIVECHAT']['REGISTER'];
 		}
 
-		$params = array_change_key_case($params, CASE_UPPER);
-
 		$params['CONFIG_ID'] = intval($params['CONFIG_ID']);
 		if ($params['CONFIG_ID'] <= 0)
 		{
-			throw new \Bitrix\Rest\RestException("Config id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+			throw new \Bitrix\Rest\RestException("Config id is not specified.", "CONFIG_ID_EMPTY", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		$config = \Bitrix\Imopenlines\Model\ConfigTable::getById($params['CONFIG_ID'])->fetch();
 		if (!$config)
 		{
-			throw new \Bitrix\Rest\RestException("Config is not found.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+			throw new \Bitrix\Rest\RestException("Config is not found.", "CONFIG_NOT_FOUND", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		$userData = \Bitrix\Imopenlines\Widget\User::register([
@@ -551,7 +556,7 @@ class Rest extends \IRestService
 			'PERSONAL_WWW' => $params['WWW'],
 			'PERSONAL_GENDER' => $params['GENDER'],
 			'WORK_POSITION' => $params['POSITION'],
-			'USER_HASH' => $params['HASH'],
+			'USER_HASH' => $params['USER_HASH'],
 		]);
 		if (!$userData)
 		{
@@ -572,8 +577,7 @@ class Rest extends \IRestService
 			);
 		}
 
-		global $USER;
-		$USER->Authorize($userData['ID'], false, true, 'public');
+		\Bitrix\Imopenlines\Widget\Auth::authorizeById($userData['ID'], true, true);
 
 		$userConsent = false;
 		if ($config['AGREEMENT_MESSAGE'] == 'Y')
@@ -588,13 +592,17 @@ class Rest extends \IRestService
 		}
 
 		$result = [
-			'id' => $userData['ID'],
+			'id' => (int)$userData['ID'],
 			'hash' => $userData['HASH'],
-			'chatId' => $dialogData['CHAT_ID'],
+			'chatId' => (int)$dialogData['CHAT_ID'],
+			'dialogId' => 'chat'.$dialogData['CHAT_ID'],
 			'userConsent' => $userConsent,
 		];
 
 		$_SESSION['LIVECHAT']['REGISTER'] = $result;
+
+		$_SESSION['LIVECHAT']['TRACE_DATA'] = (string)$params['TRACE_DATA'];
+		$_SESSION['LIVECHAT']['CUSTOM_DATA'] = (string)$params['CUSTOM_DATA'];
 
 		return $result;
 	}
@@ -611,18 +619,18 @@ class Rest extends \IRestService
 		$params['CONFIG_ID'] = intval($params['CONFIG_ID']);
 		if ($params['CONFIG_ID'] <= 0)
 		{
-			throw new \Bitrix\Rest\RestException("Config id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+			throw new \Bitrix\Rest\RestException("Config id is not specified.", "CONFIG_ID_EMPTY", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		$config = \Bitrix\Imopenlines\Model\ConfigTable::getById($params['CONFIG_ID'])->fetch();
 		if (!$config)
 		{
-			throw new \Bitrix\Rest\RestException("Config is not found.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+			throw new \Bitrix\Rest\RestException("Config is not found.", "CONFIG_NOT_FOUND", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		if (!\Bitrix\Main\Loader::includeModule('im'))
 		{
-			throw new \Bitrix\Rest\RestException("Messenger is not installed.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+			throw new \Bitrix\Rest\RestException("Messenger is not installed.", "IM_NOT_INSTALLED", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		if ($config['AGREEMENT_MESSAGE'] != 'Y')
@@ -641,7 +649,7 @@ class Rest extends \IRestService
 		))->fetch();
 		if (!$chat)
 		{
-			throw new \Bitrix\Rest\RestException("Chat is not found.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+			throw new \Bitrix\Rest\RestException("Chat is not found.", "CHAT_NOT_FOUND", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		\Bitrix\Main\UserConsent\Consent::addByContext(
@@ -654,7 +662,7 @@ class Rest extends \IRestService
 		return true;
 	}
 
-	public static function widgetUserVote($params, $n, \CRestServer $server)
+	public static function widgetVoteSend($params, $n, \CRestServer $server)
 	{
 		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
 		{
@@ -666,12 +674,46 @@ class Rest extends \IRestService
 		$params['SESSION_ID'] = intval($params['SESSION_ID']);
 		if ($params['SESSION_ID'] <= 0)
 		{
-			throw new \Bitrix\Rest\RestException("Session id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
+			throw new \Bitrix\Rest\RestException("Session id is not specified.", "SESSION_ID_EMPTY", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
 		$action = strtolower($params['ACTION']) !== 'like';
 
 		\Bitrix\ImOpenlines\Session::voteAsUser($params['SESSION_ID'], $action);
+
+		return true;
+	}
+
+	public static function widgetFormSend($params, $n, \CRestServer $server)
+	{
+		if ($server->getAuthType() != \Bitrix\Imopenlines\Widget\Auth::AUTH_TYPE)
+		{
+			throw new \Bitrix\Rest\RestException("Access for this method allowed only by livechat authorization.", "WRONG_AUTH_TYPE", \CRestServer::STATUS_FORBIDDEN);
+		}
+
+		$params = array_change_key_case($params, CASE_UPPER);
+
+		$params['CHAT_ID'] = intval($params['CHAT_ID']);
+		if ($params['CHAT_ID'] <= 0)
+		{
+			throw new \Bitrix\Rest\RestException("Chat id is not specified.", "CHAT_ID_EMPTY", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$params['FIELDS'] = array_change_key_case($params['FIELDS'], CASE_UPPER);
+		if (empty($params['FIELDS']))
+		{
+			throw new \Bitrix\Rest\RestException("Form fields is not specified.", "FIELDS_EMPTY", \CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		$control = new \Bitrix\ImOpenLines\Widget\Form($params['CHAT_ID']);
+		$result = $control->saveForm($params['FORM'], $params['FIELDS']);
+		if (!$result->isSuccess())
+		{
+			$errors = $result->getErrors();
+			$error = current($errors);
+
+			throw new \Bitrix\Rest\RestException('Form error: "'.$error->getMessage().'" ['.$error->getCode().']', "SAVE_ERROR", \CRestServer::STATUS_WRONG_REQUEST);
+		}
 
 		return true;
 	}
@@ -715,6 +757,10 @@ class Rest extends \IRestService
 			throw new \Bitrix\Rest\RestException("Config id is not specified.", "WRONG_REQUEST", \CRestServer::STATUS_WRONG_REQUEST);
 		}
 
+		$_SESSION['LIVECHAT']['TRACE_DATA'] = (string)$params['TRACE_DATA'];
+
+		$_SESSION['LIVECHAT']['CUSTOM_DATA'] = (string)$params['CUSTOM_DATA'];
+
 		$result = \Bitrix\Imopenlines\Widget\Dialog::get($USER->GetID(), $params['CONFIG_ID']);
 		if (!$result)
 		{
@@ -750,25 +796,39 @@ class Rest extends \IRestService
 		shuffle($config['OPERATORS']);
 		$config['OPERATORS'] = array_slice($config['OPERATORS'], 0, 3);
 
-		return self::objectEncode($config);
+		$result = self::objectEncode($config);
+
+		$coreMessages = \CJSCore::GetCoreMessages();
+		$result['serverVariables'] = Array(
+			'FORMAT_DATE' => $coreMessages['FORMAT_DATE'],
+			'FORMAT_DATETIME' => $coreMessages['FORMAT_DATETIME'],
+			'AMPM_MODE' => IsAmPmMode(true),
+		);
+
+		return $result;
 	}
 
-	public static function objectEncode($params)
+	public static function objectEncode($data, $options = [])
 	{
-		if (is_array($params))
+		if (!is_array($options['IMAGE_FIELD']))
+		{
+			$options['IMAGE_FIELD'] = ['AVATAR', 'AVATAR_HR'];
+		}
+
+		if (is_array($data))
 		{
 			$result = [];
-			foreach ($params as $key => $value)
+			foreach ($data as $key => $value)
 			{
 				if (is_array($value))
 				{
-					$value = self::objectEncode($value);
+					$value = self::objectEncode($value, $options);
 				}
 				else if ($value instanceof \Bitrix\Main\Type\DateTime)
 				{
 					$value = date('c', $value->getTimestamp());
 				}
-				else if (is_string($key) && in_array($key, ['AVATAR', 'AVATAR_HR']) && is_string($value) && $value && strpos($value, 'http') !== 0)
+				else if (is_string($key) && in_array($key, $options['IMAGE_FIELD']) && is_string($value) && $value && strpos($value, 'http') !== 0)
 				{
 					$value = \Bitrix\ImOpenLines\Common::getServerAddress().$value;
 				}
@@ -777,9 +837,9 @@ class Rest extends \IRestService
 
 				$result[$key] = $value;
 			}
-			$params = $result;
+			$data = $result;
 		}
 
-		return $params;
+		return $data;
 	}
 }

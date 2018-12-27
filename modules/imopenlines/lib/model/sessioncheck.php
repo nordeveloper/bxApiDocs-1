@@ -19,7 +19,7 @@ Loc::loadMessages(__FILE__);
  * @package Bitrix\Imopenlines
  **/
 
-class SessionCheckTable extends Main\Entity\DataManager
+class SessionCheckTable extends Main\ORM\Data\DataManager
 {
 	/**
 	 * Returns DB table name for entity.

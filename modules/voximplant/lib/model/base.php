@@ -3,11 +3,12 @@ namespace Bitrix\Voximplant\Model;
 
 use Bitrix\Main\Application;
 use Bitrix\Main\Entity;
+use Bitrix\Main\ORM;
 use Bitrix\Main\Error;
 use Bitrix\Main\SystemException;
 use Bitrix\Voximplant\Internals\Entity\Query;
 
-abstract class Base extends Entity\DataManager
+abstract class Base extends ORM\Data\DataManager
 {
 	/**
 	 * Deletes all records from the table.

@@ -16,6 +16,10 @@ class Money extends Value
 	 */
 	public function toString($modifier = null)
 	{
+		if($this->value === null)
+		{
+			return '';
+		}
 		$options = $this->getOptions($modifier);
 		if(isset($options['WORDS']) && $options['WORDS'] === true && function_exists('Number2Word_Rus'))
 		{
@@ -58,6 +62,21 @@ class Money extends Value
 		$this->enableZeros();
 
 		return $result;
+	}
+
+	/**
+	 * @param $modifier
+	 * @return array
+	 */
+	protected function getOptions($modifier = null)
+	{
+		$options = parent::getOptions($modifier);
+		if(!isset($options['CURRENCY_ID']) || empty($options['CURRENCY_ID']))
+		{
+			$options['CURRENCY_ID'] = static::getDefaultCurrencyId();
+		}
+
+		return $options;
 	}
 
 	/**

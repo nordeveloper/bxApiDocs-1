@@ -1,11 +1,4 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: maxyc
- * Date: 10.08.18
- * Time: 12:44
- */
-
 namespace Bitrix\Tasks\Rest\Controllers\Task;
 
 use Bitrix\Tasks\Rest\Controllers\Base;
@@ -22,9 +15,11 @@ class Favorite extends Base
 	 *
 	 * @return bool
 	 */
-	public function addAction($taskId, array $params = array())
+	public function addAction(\CTaskItem $task, array $params = array())
 	{
-		return false;
+		$task->addToFavorite($params);
+
+		return true;
 	}
 
 	/**
@@ -35,21 +30,10 @@ class Favorite extends Base
 	 *
 	 * @return bool
 	 */
-	public function deleteAction($taskId, array $params = array())
+	public function deleteAction(\CTaskItem $task, array $params = array())
 	{
-		return false;
-	}
+		$task->deleteFromFavorite($params);
 
-	/**
-	 * Get list all task
-	 *
-	 * @param array $params ORM get list params
-	 *
-	 *
-	 * @return array
-	 */
-	public function listAction(array $params = array())
-	{
-		return [];
+		return true;
 	}
 }

@@ -111,14 +111,10 @@ class Button
 		$button = new Button();
 		$button->load($buttonId);
 		$button->mergeData($updateFields);
-		if (!Script::saveCache($button))
-		{
-			return false;
-		}
-
 		$updateResult = Internals\ButtonTable::update($buttonId, $updateFields);
 		if($updateResult->isSuccess())
 		{
+			Script::saveCache($button);
 			return true;
 		}
 		else

@@ -22,11 +22,6 @@ class OrderSearchContentRebuildAgent extends EntitySearchContentRebuildAgent
 		return self::$instance;
 	}
 
-	public static function activate()
-	{
-		\CAgent::AddAgent(__CLASS__.'::run();', 'crm', 'N', 0, '', 'Y', ConvertTimeStamp(time() + \CTimeZone::GetOffset() + 30, 'FULL'));
-	}
-
 	public function isEnabled()
 	{
 		return Option::get('crm', '~CRM_REBUILD_ORDER_SEARCH_CONTENT', 'N') === 'Y';

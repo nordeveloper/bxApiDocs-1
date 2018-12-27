@@ -259,8 +259,8 @@ abstract class EntityConversionMapper
 					{
 						if(isset($srcValues[$enumID]))
 						{
-							$xmlID = $srcValues[$enumID];
-							if(isset($dstValues[$xmlID]))
+							$hash = $srcValues[$enumID];
+							if(isset($dstValues[$hash]))
 							{
 								if(!isset($dstFields[$dstFieldID]))
 								{
@@ -271,7 +271,7 @@ abstract class EntityConversionMapper
 									$dstFields[$dstFieldID] = array($dstFields[$dstFieldID]);
 								}
 
-								$dstFields[$dstFieldID][] = $dstValues[$xmlID];
+								$dstFields[$dstFieldID][] = $dstValues[$hash];
 							}
 						}
 					}
@@ -281,10 +281,10 @@ abstract class EntityConversionMapper
 					$enumID = $enumIDs[0];
 					if(isset($srcValues[$enumID]))
 					{
-						$xmlID = $srcValues[$enumID];
-						if(isset($dstValues[$xmlID]))
+						$hash = $srcValues[$enumID];
+						if(isset($dstValues[$hash]))
 						{
-							$dstFields[$dstFieldID] = $dstValues[$xmlID];
+							$dstFields[$dstFieldID] = $dstValues[$hash];
 						}
 					}
 				}
@@ -294,10 +294,10 @@ abstract class EntityConversionMapper
 				$enumID = $srcFields[$srcFieldID];
 				if(isset($srcValues[$enumID]))
 				{
-					$xmlID = $srcValues[$enumID];
-					if(isset($dstValues[$xmlID]))
+					$hash = $srcValues[$enumID];
+					if(isset($dstValues[$hash]))
 					{
-						$dstFields[$dstFieldID] = $dstValues[$xmlID];
+						$dstFields[$dstFieldID] = $dstValues[$hash];
 					}
 				}
 			}
@@ -364,25 +364,19 @@ abstract class EntityConversionMapper
 	}
 	protected static function getEnumerationMap(array $field, $flip = false)
 	{
-		if(!$flip)
-		{
-			$key = 'ID';
-			$value = 'XML_ID';
-		}
-		else
-		{
-			$key = 'XML_ID';
-			$value = 'ID';
-		}
-
 		$result = array();
 		if($field['USER_TYPE_ID'] === 'enumeration' && is_callable(array($field['USER_TYPE']['CLASS_NAME'], 'GetList')))
 		{
 			$dbResult = call_user_func_array(array($field['USER_TYPE']['CLASS_NAME'], 'GetList'), array($field));
 			while($enum = $dbResult->GetNext())
 			{
-				$result[$enum[$key]] = $enum[$value];
+				$result[$enum['ID']] = md5($enum['VALUE']);
 			}
+		}
+
+		if($flip)
+		{
+			$result = array_flip($result);
 		}
 		return $result;
 	}

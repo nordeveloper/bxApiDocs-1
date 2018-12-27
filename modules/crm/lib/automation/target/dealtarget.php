@@ -90,6 +90,12 @@ class DealTarget extends BaseTarget
 
 	public function getStatusInfos($categoryId = 0)
 	{
+		$entity = $this->getEntity();
+		if ($entity && !empty($entity['CATEGORY_ID']))
+		{
+			$categoryId = (int)$entity['CATEGORY_ID'];
+		}
+
 		$processColor = \CCrmViewHelper::PROCESS_COLOR;
 		$successColor = \CCrmViewHelper::SUCCESS_COLOR;
 		$failureColor = \CCrmViewHelper::FAILURE_COLOR;

@@ -175,4 +175,31 @@ class Dialog
 
 		return false;
 	}
+
+	public static function read($dialogId, $messageId = null, $userId = null)
+	{
+		$userId = \Bitrix\Im\Common::getUserId($userId);
+		if (!$userId)
+		{
+			return false;
+		}
+
+		if (\Bitrix\Im\Common::isChatId($dialogId))
+		{
+			$chatId = self::getChatId($dialogId);
+
+			$chat = new \CIMChat($userId);
+			$chat->SetReadMessage($chatId, $messageId);
+		}
+		else
+		{
+			$CIMMessage = new \CIMMessage($userId);
+			$CIMMessage->SetReadMessage($dialogId, $messageId);
+		}
+
+		return false;
+	}
+
+
+
 }

@@ -850,6 +850,7 @@ abstract class DiscountBase
 		$this->orderData = [
 			'ID' => 0,
 			'USER_ID' => $this->context->getUserId(),
+			'USER_GROUPS' => $this->context->getUserGroups(),
 			'SITE_ID' => $siteId,
 			'LID' => $siteId,  // compatibility only
 			'ORDER_PRICE' => $basket->getPrice(),

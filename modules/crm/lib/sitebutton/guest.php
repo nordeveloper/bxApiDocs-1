@@ -15,6 +15,7 @@ use Bitrix\Main\Event;
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\EventManager;
 use Bitrix\Crm\Automation\Trigger\GuestReturnTrigger;
+use Bitrix\Crm\Tracking;
 
 /**
  * Class Guest
@@ -42,7 +43,20 @@ class Guest
 		$action = $request->get('a');
 		$eventName = $request->get('e');
 		$data = $request->get('d');
-		$data = is_array($data) ? $data : array();
+		if (is_string($data))
+		{
+			try
+			{
+				$data = Json::decode($data);
+			}
+			catch (\Exception $exception)
+			{
+			}
+		}
+		if (!is_array($data))
+		{
+			$data = [];
+		}
 		$answerData = array();
 
 		switch ($action)
@@ -56,6 +70,13 @@ class Guest
 
 			case 'link':
 				$answerData['gid'] = self::link($request->get('gid'), $data);
+				break;
+
+			case 'storeTrace':
+				if (!empty($data['trace']))
+				{
+					Tracking\Trace::create($data['trace'])->save();
+				}
 				break;
 
 			case 'event':

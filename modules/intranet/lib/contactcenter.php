@@ -20,7 +20,8 @@ class ContactCenter
 		"mail",
 		"voximplant",
 		"crm",
-		"imopenlines"
+		"imopenlines",
+		"rest"
 	);
 
 
@@ -315,6 +316,72 @@ class ContactCenter
 						}
 					}
 				}
+			}
+		}
+
+		$result->setData($itemsList);
+
+		return $result;
+	}
+
+	/**
+	 * Return items from rest module
+	 *
+	 * @param array $filter
+	 *
+	 * @return Result
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\LoaderException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public function restGetItems($filter = array())
+	{
+		$result = new Result();
+		$module = "rest";
+		$itemsList = array();
+
+		if (!Loader::includeModule($module))
+		{
+			$result->addError(new Error(Loc::getMessage("CONTACT_CENTER_ERROR_MODULE_NOT_LOADED", array("#MODULE_ID" => $module)), self::CC_MODULE_NOT_LOADED));
+		}
+		else
+		{
+			$placements = \Bitrix\Rest\PlacementTable::getHandlersList(\CIntranetRestService::CONTACT_CENTER_PLACEMENT);
+			$appIdList = array();
+			$appList = array();
+
+			foreach ($placements as $placement)
+			{
+				$appIdList[] = $placement["APP_ID"];
+			}
+			$appIdList = array_unique($appIdList);
+			$parameters = array("filter" => array("ID" => $appIdList));
+
+			if (isset($filter["ACTIVE"]))
+			{
+				$parameters["filter"]["ACTIVE"] = $filter["ACTIVE"];
+			}
+
+			$appsCollection = \Bitrix\Rest\AppTable::getList($parameters);
+
+			while ($app = $appsCollection->Fetch())
+			{
+				$appList[$app["ID"]] = $app;
+			}
+
+			foreach ($placements as $placement)
+			{
+				$app = $appList[$placement["APP_ID"]];
+				$selected = ($app["ACTIVE"] == \Bitrix\Rest\AppTable::ACTIVE);
+				$itemsList[$app["CODE"]] = array (
+					"NAME" => (strlen($placement["TITLE"]) > 0) ? $placement["TITLE"] : $placement["APP_NAME"],
+					"LINK" =>  \CUtil::JSEscape(SITE_DIR . "marketplace/app/" . $app["ID"] . "/"),
+					"SELECTED" => $selected,
+					"PLACEMENT_ID" => $placement["ID"],
+					"APP_ID" => $app["ID"],
+					"LOGO_CLASS" => "ui-icon ui-icon-service-common"
+				);
 			}
 		}
 

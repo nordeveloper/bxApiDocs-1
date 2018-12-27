@@ -798,7 +798,7 @@ class StagesTable extends Entity\DataManager
 				$res = \CTasks::getList(
 					$sort,
 					$filter,
-					array('ID', 'TITLE'),
+					array('ID'),
 					array(
 						'NAV_PARAMS' => array(
 							'nTopCount' => 1

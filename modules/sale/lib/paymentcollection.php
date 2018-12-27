@@ -589,9 +589,9 @@ class PaymentCollection extends Internals\EntityCollection
 		{
 			return $cloneEntity[$this];
 		}
-		
-		$paymentCollectionClone = clone $this;
-		$paymentCollectionClone->isClone = true;
+
+		/** @var PaymentCollection $paymentCollectionClone */
+		$paymentCollectionClone = parent::createClone($cloneEntity);
 
 		if ($this->order)
 		{
@@ -599,25 +599,6 @@ class PaymentCollection extends Internals\EntityCollection
 			{
 				$paymentCollectionClone->order = $cloneEntity[$this->order];
 			}
-		}
-
-		if (!$cloneEntity->contains($this))
-		{
-			$cloneEntity[$this] = $paymentCollectionClone;
-		}
-
-		/**
-		 * @var int key
-		 * @var Payment $payment
-		 */
-		foreach ($paymentCollectionClone->collection as $key => $payment)
-		{
-			if (!$cloneEntity->contains($payment))
-			{
-				$cloneEntity[$payment] = $payment->createClone($cloneEntity);
-			}
-
-			$paymentCollectionClone->collection[$key] = $cloneEntity[$payment];
 		}
 
 		return $paymentCollectionClone;

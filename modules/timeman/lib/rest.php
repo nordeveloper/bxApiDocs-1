@@ -390,24 +390,24 @@ class Rest extends \IRestService
 
 		if (array_key_exists('ACTIVE', $query))
 		{
-			 \Bitrix\Timeman\Absence::setOptionActive((bool)$query['ACTIVE']);
+			\Bitrix\Timeman\Absence::setOptionActive((bool)$query['ACTIVE']);
 		}
 		if (array_key_exists('MINIMUM_IDLE_FOR_REPORT', $query))
 		{
-			 \Bitrix\Timeman\Absence::setOptionMinimumIdleForReport((int)$query['MINIMUM_IDLE_FOR_REPORT']);
+			\Bitrix\Timeman\Absence::setOptionMinimumIdleForReport((int)$query['MINIMUM_IDLE_FOR_REPORT']);
 		}
 
 		if (array_key_exists('REGISTER_OFFLINE', $query))
 		{
-			 \Bitrix\Timeman\Absence::setOptionRegisterOffline((bool)$query['REGISTER_OFFLINE']);
+			\Bitrix\Timeman\Absence::setOptionRegisterOffline((bool)$query['REGISTER_OFFLINE']);
 		}
 		if (array_key_exists('REGISTER_IDLE', $query))
 		{
-			 \Bitrix\Timeman\Absence::setOptionRegisterIdle((bool)$query['REGISTER_IDLE']);
+			\Bitrix\Timeman\Absence::setOptionRegisterIdle((bool)$query['REGISTER_IDLE']);
 		}
 		if (array_key_exists('REGISTER_DESKTOP', $query))
 		{
-			 \Bitrix\Timeman\Absence::setOptionRegisterDesktop((bool)$query['REGISTER_DESKTOP']);
+			\Bitrix\Timeman\Absence::setOptionRegisterDesktop((bool)$query['REGISTER_DESKTOP']);
 		}
 
 		if (array_key_exists('REPORT_REQUEST_TYPE', $query))
@@ -821,6 +821,21 @@ class Rest extends \IRestService
 
 	protected static function isAdmin()
 	{
-		return $GLOBALS['USER']->IsAdmin() || \Bitrix\Main\Loader::includeModule('bitrix24') && \CBitrix24::IsPortalAdmin($GLOBALS['USER']->GetID());
+		if ($GLOBALS['USER']->IsAdmin())
+			return true;
+
+		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
+		{
+			if (\CBitrix24::IsPortalAdmin($GLOBALS['USER']->GetID()))
+			{
+				return true;
+			}
+			else if (\CBitrix24::isIntegrator($GLOBALS['USER']->GetID()))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

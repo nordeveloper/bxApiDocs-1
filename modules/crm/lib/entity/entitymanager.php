@@ -7,6 +7,11 @@ class EntityManager
 {
 	public static function resolveByTypeID($entityTypeID)
 	{
+		if(!is_int($entityTypeID))
+		{
+			$entityTypeID = (int)$entityTypeID;
+		}
+
 		if($entityTypeID === \CCrmOwnerType::Lead)
 		{
 			return Lead::getInstance();

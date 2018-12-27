@@ -37,7 +37,7 @@ final class OrderBuilderCrm extends OrderBuilder
 
 	public function build($data)
 	{
-		$this->createOrder($data)
+		$this->createOrder($data)			
 			->setDiscounts() //?
 			->setFields()
 			->setContactCompanyCollection()

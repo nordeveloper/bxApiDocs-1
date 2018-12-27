@@ -65,6 +65,25 @@ class QueueTable extends Main\Entity\DataManager
 				'data_type' => 'integer',
 				'title' => Loc::getMessage('QUEUE_ENTITY_LAST_ACTIVITY_DATE_EXACT_FIELD')
 			),
+			'USER_NAME' => array(
+				'data_type' => 'string',
+				'validation' => array(__CLASS__, 'validateString'),
+				'title' => Loc::getMessage('QUEUE_ENTITY_USER_NAME_FIELD'),
+			),
+			'USER_WORK_POSITION' => array(
+				'data_type' => 'string',
+				'validation' => array(__CLASS__, 'validateString'),
+				'title' => Loc::getMessage('QUEUE_ENTITY_USER_WORK_POSITION_FIELD'),
+			),
+			'USER_AVATAR' => array(
+				'data_type' => 'string',
+				'validation' => array(__CLASS__, 'validateString'),
+				'title' => Loc::getMessage('QUEUE_ENTITY_USER_AVATAR_FIELD'),
+			),
+			'USER_AVATAR_ID' => array(
+				'data_type' => 'integer',
+				'title' => Loc::getMessage('QUEUE_ENTITY_USER_AVATAR_FILE_ID_FIELD'),
+			),
 			'USER' => array(
 				'data_type' => 'Bitrix\Main\User',
 				'reference' => array('=this.USER_ID' => 'ref.ID')
@@ -81,5 +100,16 @@ class QueueTable extends Main\Entity\DataManager
 	public static function getCurrentDate()
 	{
 		return new \Bitrix\Main\Type\DateTime();
+	}
+
+	/**
+	 * @return array
+	 * @throws Main\ArgumentTypeException
+	 */
+	public static function validateString()
+	{
+		return array(
+			new Main\Entity\Validator\Length(null, 255),
+		);
 	}
 }

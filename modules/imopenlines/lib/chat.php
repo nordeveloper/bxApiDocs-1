@@ -65,21 +65,25 @@ class Chat
 				$this->error = new BasicError(__METHOD__, 'PULL_LOAD_ERROR', Loc::getMessage('IMOL_CHAT_ERROR_PULL_LOAD'));
 			}
 		}
-		$chatId = intval($chatId);
-		if ($chatId > 0)
-		{
-			$chat = \Bitrix\Im\Model\ChatTable::getById($chatId)->fetch();
-			if ($chat && in_array($chat['ENTITY_TYPE'], Array(self::CHAT_TYPE_OPERATOR, self::CHAT_TYPE_CLIENT)))
-			{
-				if (isset($params['CONNECTOR']['chat']['description']) && $chat['DESCRIPTION'] != $params['CONNECTOR']['chat']['description'])
-				{
-					$chatManager = new \CIMChat(0);
-					$chatManager->SetDescription($chat['ID'], $params['CONNECTOR']['chat']['description']);
-					$chat['DESCRIPTION'] = $params['CONNECTOR']['chat']['description'];
-				}
 
-				$this->chat = $chat;
-				$this->isDataLoaded = true;
+		if ($imLoad)
+		{
+			$chatId = intval($chatId);
+			if ($chatId > 0)
+			{
+				$chat = \Bitrix\Im\Model\ChatTable::getById($chatId)->fetch();
+				if ($chat && in_array($chat['ENTITY_TYPE'], Array(self::CHAT_TYPE_OPERATOR, self::CHAT_TYPE_CLIENT)))
+				{
+					if (isset($params['CONNECTOR']['chat']['description']) && $chat['DESCRIPTION'] != $params['CONNECTOR']['chat']['description'])
+					{
+						$chatManager = new \CIMChat(0);
+						$chatManager->SetDescription($chat['ID'], $params['CONNECTOR']['chat']['description']);
+						$chat['DESCRIPTION'] = $params['CONNECTOR']['chat']['description'];
+					}
+
+					$this->chat = $chat;
+					$this->isDataLoaded = true;
+				}
 			}
 		}
 	}
@@ -468,7 +472,7 @@ class Chat
 
 				Im::addMessage(Array(
 					"TO_CHAT_ID" => $this->chat['ID'],
-					"MESSAGE" => Loc::getMessage('IMOL_CHAT_TO_QUEUE'),
+					"MESSAGE" => Loc::getMessage('IMOL_CHAT_TO_QUEUE_NEW'),
 					"SYSTEM" => 'Y',
 				));
 			}
@@ -602,7 +606,7 @@ class Chat
 
 			if($params['TO']  == 'queue')
 			{
-				$message = Loc::getMessage('IMOL_CHAT_RETURNED_TO_QUEUE');
+				$message = Loc::getMessage('IMOL_CHAT_RETURNED_TO_QUEUE_NEW');
 			}
 			else if ($lineFromId == $queueId)
 			{
@@ -723,11 +727,11 @@ class Chat
 			}
 			else if(empty($transferUserId))
 			{
-				$message = Loc::getMessage('IMOL_CHAT_NO_OPERATOR_AVAILABLE_IN_QUEUE');
+				$message = Loc::getMessage('IMOL_CHAT_NO_OPERATOR_AVAILABLE_IN_QUEUE_NEW');
 			}
 			else
 			{
-				$message = Loc::getMessage('IMOL_CHAT_NEXT_IN_QUEUE', Array('#USER_TO#' => '[USER='.$userTo->getId().']'.$userTo->getFullName(false).'[/USER]'));
+				$message = Loc::getMessage('IMOL_CHAT_NEXT_IN_QUEUE_NEW', Array('#USER_TO#' => '[USER='.$userTo->getId().']'.$userTo->getFullName(false).'[/USER]'));
 			}
 
 			\Bitrix\ImOpenLines\Model\OperatorTransferTable::Add(Array(
@@ -770,25 +774,44 @@ class Chat
 		return true;
 	}
 
+	/**
+	 * Adding a user to the chat.
+	 *
+	 * @param $userId
+	 * @param bool $skipMessage
+	 * @param bool $skipRecent
+	 * @return bool
+	 */
 	public function join($userId, $skipMessage = true, $skipRecent = false)
 	{
-		if (!$this->isDataLoaded)
-			return false;
+		$result = false;
 
-		if (empty($userId))
-			return false;
+		if($this->isDataLoaded && !empty($userId))
+		{
+			$chat = new \CIMChat($this->joinByUserId);
+			$result = $chat->AddUser($this->chat['ID'], $userId, false, $skipMessage, $skipRecent);
+		}
 
-		$chat = new \CIMChat($this->joinByUserId);
-		return $chat->AddUser($this->chat['ID'], $userId, false, $skipMessage, $skipRecent);
+		return $result;
 	}
 
+	/**
+	 * To exclude a user from chat.
+	 *
+	 * @param $userId
+	 * @return bool
+	 */
 	public function leave($userId)
 	{
-		if (!$this->isDataLoaded)
-			return false;
+		$result = false;
 
-		$chat = new \CIMChat(0);
-		return $chat->DeleteUser($this->chat['ID'], $userId, false, true);
+		if ($this->isDataLoaded)
+		{
+			$chat = new \CIMChat(0);
+			$result = $chat->DeleteUser($this->chat['ID'], $userId, false, true);
+		}
+
+		return $result;
 	}
 
 	public function close()
@@ -1014,7 +1037,7 @@ class Chat
 				"SYSTEM" => 'Y',
 			));
 
-			if ($session->getData('SOURCE') == 'livechat')
+			if (\Bitrix\ImOpenLines\Connector::isLiveChat($session->getData('SOURCE')))
 			{
 				$parsedUserCode = Session\Common::parseUserCode($session->getData('USER_CODE'));
 				$chatId = $parsedUserCode['EXTERNAL_CHAT_ID'];
@@ -1201,7 +1224,7 @@ class Chat
 		{
 			Im::addMessage(Array(
 				"TO_CHAT_ID" => $this->chat['ID'],
-				"MESSAGE" => Loc::getMessage('IMOL_CHAT_PAUSE_OFF'),
+				"MESSAGE" => Loc::getMessage('IMOL_CHAT_PAUSE_OFF_NEW'),
 				"SYSTEM" => 'Y',
 			));
 		}
@@ -1543,7 +1566,7 @@ class Chat
 						'module_id' => 'im',
 						'command' => 'chatUpdateParam',
 						'params' => Array(
-							'chatId' => $this->chat['ID'],
+							'chatId' => (int)$this->chat['ID'],
 							'name' => strtolower($name),
 							'value' => $value
 						),
@@ -1598,7 +1621,7 @@ class Chat
 		if (array_key_exists('AUTHOR_ID', $fields))
 		{
 			$parsedUserCode = Session\Common::parseUserCode($this->chat['ENTITY_ID']);
-			if ($parsedUserCode['CONNECTOR_ID'] == 'livechat')
+			if (\Bitrix\ImOpenLines\Connector::isLiveChat($parsedUserCode['CONNECTOR_ID']))
 			{
 				\Bitrix\Pull\Event::add($parsedUserCode['CONNECTOR_USER_ID'], Array(
 					'module_id' => 'imopenlines',
@@ -1606,7 +1629,7 @@ class Chat
 					'params' => Array(
 						'chatId' => (int)$parsedUserCode['EXTERNAL_CHAT_ID'],
 						'operator' => Rest::objectEncode(
-							Operator::getOperatorData($fields['AUTHOR_ID'], $parsedUserCode['CONFIG_ID'])
+							Queue::getUserData($parsedUserCode['CONFIG_ID'], $fields['AUTHOR_ID'])
 						)
 					)
 				));
@@ -1684,11 +1707,11 @@ class Chat
 		{
 			$toUserId = $userList[0];
 			$userName = \Bitrix\Im\User::getInstance($toUserId)->getFullName(false);
-			$message = Loc::getMessage('IMOL_CHAT_ASSIGN_OPERATOR', Array('#USER#' => '[USER='.$toUserId.']'.$userName.'[/USER]'));
+			$message = Loc::getMessage('IMOL_CHAT_ASSIGN_OPERATOR_NEW', Array('#USER#' => '[USER='.$toUserId.']'.$userName.'[/USER]'));
 		}
 		else
 		{
-			$message = Loc::getMessage('IMOL_CHAT_ASSIGN_OPERATOR_LIST');
+			$message = Loc::getMessage('IMOL_CHAT_ASSIGN_OPERATOR_LIST_NEW');
 		}
 
 		$messageId = Im::addMessage(Array(
@@ -1789,7 +1812,7 @@ class Chat
 		$userName = '';
 		if ($type == self::RATING_TYPE_CLIENT)
 		{
-			$notifyMessageName = $rating == self::RATING_VALUE_DISLIKE? 'IMOL_CHAT_NOTIFY_RATING_CLIENT_DISLIKE': 'IMOL_CHAT_NOTIFY_RATING_CLIENT_LIKE';
+			$notifyMessageName = $rating == self::RATING_VALUE_DISLIKE? 'IMOL_CHAT_NOTIFY_RATING_CLIENT_DISLIKE_NEW': 'IMOL_CHAT_NOTIFY_RATING_CLIENT_LIKE_NEW';
 			$ratingImage = $rating == self::RATING_VALUE_DISLIKE? '[dislike]': '[like]';
 			$ratingText = Loc::getMessage('IMOL_CHAT_NOTIFY_RATING_VALUE_'.($rating == self::RATING_VALUE_DISLIKE? 'DISLIKE': 'LIKE'));
 		}
@@ -1830,7 +1853,7 @@ class Chat
 		return array(
 			"imopenlines" => array(
 				"rating_client" => Array(
-					"NAME" => Loc::getMessage('IMOL_CHAT_NOTIFY_SCHEMA_RATING_CLIENT'),
+					"NAME" => Loc::getMessage('IMOL_CHAT_NOTIFY_SCHEMA_RATING_CLIENT_new'),
 					"LIFETIME" => 86400*7
 				),
 				"rating_head" => Array(

@@ -536,6 +536,7 @@ class DealConverter extends EntityConverter
 		}
 		elseif($this->currentPhase === DealConversionPhase::FINALIZATION)
 		{
+			$this->onFinalizationPhase();
 			return true;
 		}
 
@@ -567,5 +568,14 @@ class DealConverter extends EntityConverter
 		}
 
 		return (self::$maps[$entityTypeID] = $map);
+	}
+
+	/**
+	 * Get Supported Destination Types.
+	 * @return array
+	 */
+	public function getSupportedDestinationTypeIDs()
+	{
+		return array(\CCrmOwnerType::Quote, \CCrmOwnerType::Invoice);
 	}
 }

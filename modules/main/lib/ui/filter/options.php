@@ -433,6 +433,7 @@ class Options
 				{
 					$result["fields"][$valueId] = $request[$valueId];
 					$result["fields"][$labelId] = $request[$nameId] !== null ? $request[$nameId] : $request[$labelId];
+					$result["fields"][$id] = $request[$id];
 					$result["rows"][] = $id;
 				}
 			}

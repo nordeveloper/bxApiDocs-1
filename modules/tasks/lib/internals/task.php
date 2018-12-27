@@ -241,10 +241,10 @@ class TaskTable extends Entity\DataManager
 			),
 
 
-            'SEARCH_INDEX' => array(
-                'data_type' => 'string',
-                'required' => true
-            ),
+//            'SEARCH_INDEX' => array(
+//                'data_type' => 'string',
+//                'required' => true
+//            ),
 		);
 	}
 	/**

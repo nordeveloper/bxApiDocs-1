@@ -292,6 +292,10 @@ abstract class SqlHelper
 
 		$tableFields = $this->connection->getTableFields($tableName);
 
+		// one registry
+		$tableFields = array_change_key_case($tableFields, CASE_UPPER);
+		$fields = array_change_key_case($fields, CASE_UPPER);
+
 		foreach ($fields as $columnName => $value)
 		{
 			if (isset($tableFields[$columnName]))
@@ -327,6 +331,10 @@ abstract class SqlHelper
 		$update = array();
 
 		$tableFields = $this->connection->getTableFields($tableName);
+
+		// one registry
+		$tableFields = array_change_key_case($tableFields, CASE_UPPER);
+		$fields = array_change_key_case($fields, CASE_UPPER);
 
 		foreach ($fields as $columnName => $value)
 		{

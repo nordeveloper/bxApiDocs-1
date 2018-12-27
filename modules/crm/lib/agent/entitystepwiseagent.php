@@ -58,41 +58,35 @@ abstract class EntityStepwiseAgent extends AgentBase
 		return true;
 	}
 	//endregion
-	public function getRegistrationName()
-	{
-		return '';
-	}
 	public function isRegistered()
 	{
-		$name = $this->getRegistrationName();
-		if($name === '')
-		{
-			return false;
-		}
-
 		$dbResult = \CAgent::GetList(
 			array('ID' => 'DESC'),
-			array('MODULE_ID' => 'crm', 'NAME' => "{$name}%")
+			array('MODULE_ID' => 'crm', 'NAME' => get_called_class().'::run(%')
 		);
-
-		return is_array($dbResult->Fetch());
+		return is_object($dbResult) && is_array($dbResult->Fetch());
 	}
-	public function register()
+
+	public function register($delay = 0)
 	{
-		$name = $this->getRegistrationName();
-		if($name === '')
+		if(!is_int($delay))
 		{
-			return false;
+			$delay = (int)$delay;
+		}
+
+		if($delay < 0)
+		{
+			$delay = 0;
 		}
 
 		return \CAgent::AddAgent(
-			$name,
+			get_called_class().'::run();',
 			'crm',
-			'Y',
-			2,
+			'N',
+			0,
 			'',
 			'Y',
-			ConvertTimeStamp(time() + \CTimeZone::GetOffset(), 'FULL')
+			ConvertTimeStamp(time() + \CTimeZone::GetOffset() + $delay, 'FULL')
 		);
 	}
 	public function isEnabled()

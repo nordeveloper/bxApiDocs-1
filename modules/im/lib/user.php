@@ -11,6 +11,8 @@ class User
 	private $userId = 0;
 	private $userData = null;
 
+	static $formatNameTemplate = null;
+
 	const FILTER_LIMIT = 50;
 
 	const PHONE_ANY = 'PHONE_ANY';
@@ -18,6 +20,7 @@ class User
 	const PHONE_PERSONAL = 'personal_phone';
 	const PHONE_MOBILE = 'personal_mobile';
 	const PHONE_INNER = 'uf_phone_inner';
+
 
 	function __construct($userId = null)
 	{
@@ -483,6 +486,16 @@ class User
 			$result['AVATAR_HR'] = $this->getAvatarHr();
 		}
 
+		if ($options['LIVECHAT'])
+		{
+			$imolUserData = \Bitrix\ImOpenLines\Queue::getUserData($options['LIVECHAT'], $this->getId(), true);
+			if ($imolUserData)
+			{
+				$result = array_merge($result, $imolUserData);
+				$result['AVATAR_HR'] = $result['AVATAR'];
+			}
+		}
+
 		if ($options['JSON'])
 		{
 			foreach ($result as $key => $value)
@@ -491,7 +504,7 @@ class User
 				{
 					$result[$key] = date('c', $value->getTimestamp());
 				}
-				else if (in_array($key, ['AVATAR', 'AVATAR_HR']) && is_string($value) && $value && strpos($value, 'http') !== 0)
+				else if (is_string($value) && is_string($key) && in_array($key, ['AVATAR', 'AVATAR_HR']) && is_string($value) && $value && strpos($value, 'http') !== 0)
 				{
 					$result[$key] = \Bitrix\Im\Common::getPublicDomain().$value;
 				}
@@ -714,8 +727,8 @@ class User
 
 			$users[$user["ID"]] = Array(
 				'ID' => (int)$user["ID"],
-				'NAME' => \CUser::FormatName($nameTemplate, $user, true, false),
-				'FIRST_NAME' => $user['NAME'],
+				'NAME' => \Bitrix\Im\User::formatFullNameFromDatabase($user),
+				'FIRST_NAME' => \Bitrix\Im\User::formatNameFromDatabase($user),
 				'LAST_NAME' => $user['LAST_NAME'],
 				'WORK_POSITION' => $user['WORK_POSITION'],
 				'COLOR' => $color,
@@ -781,7 +794,7 @@ class User
 					{
 						$users[$key][$field] = date('c', $value->getTimestamp());
 					}
-					else if (is_string($value) && $value && in_array($field, Array('AVATAR', 'AVATAR_HR')) && strpos($value, 'http') !== 0)
+					else if (is_string($value) && $value && is_string($field) &&  in_array($field, Array('AVATAR', 'AVATAR_HR')) && strpos($value, 'http') !== 0)
 					{
 						$users[$key][$field] = \Bitrix\Im\Common::getPublicDomain().$value;
 					}
@@ -1118,5 +1131,43 @@ class User
 		}
 
 		return $result;
+	}
+
+	public static function formatNameFromDatabase($fields)
+	{
+		if (empty($fields['NAME']) && empty($fields['LAST_NAME']))
+		{
+			if (in_array($fields['EXTERNAL_AUTH_ID'], \Bitrix\Main\UserTable::getExternalUserTypes()))
+			{
+				return Loc::getMessage('IM_USER_GUEST_NAME');
+			}
+			else
+			{
+				return Loc::getMessage('IM_USER_ANONYM_NAME');
+			}
+		}
+
+		return $fields['NAME'];
+	}
+	public static function formatFullNameFromDatabase($fields)
+	{
+		if (is_null(self::$formatNameTemplate))
+		{
+			self::$formatNameTemplate = \CSite::GetNameFormat(false);
+		}
+
+		if (empty($fields['NAME']) && empty($fields['LAST_NAME']))
+		{
+			if (in_array($fields['EXTERNAL_AUTH_ID'], \Bitrix\Main\UserTable::getExternalUserTypes()))
+			{
+				return Loc::getMessage('IM_USER_GUEST_NAME');
+			}
+			else
+			{
+				return Loc::getMessage('IM_USER_ANONYM_NAME');
+			}
+		}
+
+		return \CUser::FormatName(self::$formatNameTemplate, $fields, true, false);
 	}
 }

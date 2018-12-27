@@ -148,7 +148,7 @@ class Manager
 					$list = array();
 					while ($item = $listDb->fetch())
 					{
-						$list[$item['LID']] = $item['NAME'];
+						$list[$item['LID']] = array("NAME" => $item['NAME']);
 					}
 				}
 			}
@@ -411,7 +411,7 @@ class Manager
 
 	/**
 	 * Event handler of changing licence
-	 * @return bool
+	 * @return void
 	 */
 	public static function onBitrix24LicenseChange($licenseType)
 	{
@@ -442,5 +442,38 @@ class Manager
 				}
 			}
 		}
+	}
+
+	/**
+	 * Get plain button list.
+	 *
+	 * @return array
+	 */
+	public static function getListPlain()
+	{
+		$parameters = array();
+		$parameters["cache"] = array("ttl" => 3600);
+		return Internals\ButtonTable::getList($parameters)->fetchAll();
+	}
+
+	/**
+	 * Get list form names list.
+	 *
+	 * @return array
+	 */
+	public static function getListNames()
+	{
+		static $result = null;
+		if (!is_array($result))
+		{
+			$result = array();
+			$list = self::getListPlain();
+			foreach ($list as $item)
+			{
+				$result[$item['ID']] = $item['NAME'];
+			}
+		}
+
+		return $result;
 	}
 }

@@ -10,6 +10,7 @@ use Bitrix\DocumentGenerator\Nameable;
 class Company extends CrmEntityDataProvider implements Nameable
 {
 	protected $bankDetailIds;
+	protected $revenue;
 
 	public function getFields()
 	{
@@ -113,7 +114,11 @@ class Company extends CrmEntityDataProvider implements Nameable
 				$this->data['ADDRESS_LEGAL'] = new \Bitrix\Crm\Integration\DocumentGenerator\Value\Address($address);
 			}
 		}
-		unset($this->data['REVENUE']);
+		if(!$this->revenue)
+		{
+			$this->revenue = $this->data['REVENUE'];
+			unset($this->data['REVENUE']);
+		}
 	}
 
 	/**
@@ -313,7 +318,7 @@ class Company extends CrmEntityDataProvider implements Nameable
 	public function getRevenue()
 	{
 		$this->fetchData();
-		return new Money($this->data['REVENUE'], ['CURRENCY_ID' => $this->data['CURRENCY_ID']]);
+		return new Money($this->revenue, ['CURRENCY_ID' => $this->data['CURRENCY_ID']]);
 	}
 
 	/**

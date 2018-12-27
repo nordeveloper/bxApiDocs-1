@@ -1,7 +1,9 @@
 <?php
 namespace Bitrix\Crm\Conversion;
-use Bitrix\Crm\Synchronization\UserFieldSynchronizer;
-use Bitrix\Main;
+
+use Bitrix\Crm\Tracking;
+
+
 abstract class EntityConverter
 {
 	/** @var EntityConversionConfig */
@@ -333,6 +335,32 @@ abstract class EntityConverter
 
 		$this->removeEntity($entityTypeID, $entityID);
 		unset($this->resultData[$entityTypeName], $this->resultData[$isNewKeyName]);
+	}
+
+	/**
+	 * Finalization phase. Called for every entity.
+	 * Uses for calling common conversion code for every converted entity.
+	 *
+	 * @return void
+	 */
+	protected function onFinalizationPhase()
+	{
+		foreach($this->getSupportedDestinationTypeIDs() as $entityTypeID)
+		{
+			$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);
+			$entityID = self::getDestinationEntityID($entityTypeName, $this->resultData);
+			if($entityID <= 0)
+			{
+				continue;
+			}
+
+			Tracking\Entity::copyTrace(
+				$this->getEntityTypeID(),
+				$this->getEntityID(),
+				$entityTypeID,
+				$entityID
+			);
+		}
 	}
 
 	//endregion

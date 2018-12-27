@@ -334,7 +334,8 @@ class CIMNotify
 					U2.LOGIN FROM_USER_LOGIN,
 					U2.NAME FROM_USER_NAME,
 					U2.LAST_NAME FROM_USER_LAST_NAME,
-					U2.SECOND_NAME FROM_USER_SECOND_NAME
+					U2.SECOND_NAME FROM_USER_SECOND_NAME,
+					U2.EXTERNAL_AUTH_ID FROM_EXTERNAL_AUTH_ID
 				FROM b_im_message M
 				LEFT JOIN b_user U2 ON U2.ID = M.AUTHOR_ID
 				WHERE M.ID > ".intval($arResRelation['LAST_SEND_ID'])." AND M.CHAT_ID = ".intval($arResRelation['CHAT_ID'])."
@@ -413,6 +414,7 @@ class CIMNotify
 
 		$CCTP->link_target = "_self";
 		$arNotify = Array(
+			'tempId' => $arFields['TEMP_ID']? $arFields['TEMP_ID']: '',
 			'id' => $arFields['ID'],
 			'type' => $arFields['NOTIFY_TYPE'],
 			'date' => \Bitrix\Main\Type\DateTime::createFromTimestamp($arFields['DATE_CREATE']),

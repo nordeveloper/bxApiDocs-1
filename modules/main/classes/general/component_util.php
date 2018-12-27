@@ -952,13 +952,13 @@ class CComponentUtil
 		$arTemplateParameters = array();
 
 		$componentName = trim($componentName);
-		if (strlen($componentName) <= 0)
+		if ($componentName == '')
 			return $arTemplateParameters;
 
-		if (strlen($templateName) <= 0)
+		if ($templateName == '')
 			$templateName = ".default";
 
-		if(!preg_match("#[A-Za-z0-9_.-]#i", $templateName))
+		if(preg_match("#[^a-z0-9_.-]#i", $templateName))
 			return $arTemplateParameters;
 
 		$path2Comp = CComponentEngine::MakeComponentPath($componentName);
@@ -1119,14 +1119,14 @@ class CComponentUtil
 		global $APPLICATION;
 
 		$componentName = trim($componentName);
-		if (strlen($componentName) <= 0)
+		if ($componentName == '')
 		{
 			$APPLICATION->ThrowException(GetMessage("comp_util_err1"), "EMPTY_COMPONENT_NAME");
 			return false;
 		}
 
 		$path2Comp = CComponentEngine::MakeComponentPath($componentName);
-		if (strlen($path2Comp) <= 0)
+		if ($path2Comp == '')
 		{
 			$APPLICATION->ThrowException(str_replace("#NAME#", $componentName, GetMessage("comp_util_err2")), "ERROR_NOT_COMPONENT");
 			return false;
@@ -1141,22 +1141,21 @@ class CComponentUtil
 		}
 
 		$newNamespace = trim($newNamespace);
-		if (strlen($newNamespace) > 0)
+		if ($newNamespace <> '')
 		{
-			$newNamespaceTmp = preg_replace("#[^A-Za-z0-9_.-]#i", "", $newNamespace);
-			if ($newNamespace != $newNamespaceTmp)
+			if (preg_match("#[^a-z0-9_.-]#i", $newNamespace))
 			{
 				$APPLICATION->ThrowException(str_replace("#NAME#", $newNamespace, GetMessage("comp_util_err3")), "ERROR_NEW_NAMESPACE");
 				return false;
 			}
 		}
 
-		if (strlen($newName) <= 0)
+		if ($newName == '')
 			$newName = false;
 
 		if ($newName !== false)
 		{
-			if (!preg_match("#^([A-Za-z0-9_-]+\\.)*([A-Za-z0-9_-]+)$#i", $newName))
+			if (!preg_match("#^([a-z0-9_-]+\\.)*([a-z0-9_-]+)$#i", $newName))
 			{
 				$APPLICATION->ThrowException(str_replace("#NAME#", $newName, GetMessage("comp_util_err4")), "ERROR_NEW_NAME");
 				return false;
@@ -1217,14 +1216,14 @@ class CComponentUtil
 		global $APPLICATION;
 
 		$componentName = trim($componentName);
-		if (strlen($componentName) <= 0)
+		if ($componentName == '')
 		{
 			$APPLICATION->ThrowException(GetMessage("comp_util_err1"), "EMPTY_COMPONENT_NAME");
 			return false;
 		}
 
 		$path2Comp = CComponentEngine::MakeComponentPath($componentName);
-		if (strlen($path2Comp) <= 0)
+		if ($path2Comp == '')
 		{
 			$APPLICATION->ThrowException(str_replace("#NAME#", $componentName, GetMessage("comp_util_err2")), "ERROR_NOT_COMPONENT");
 			return false;
@@ -1238,17 +1237,16 @@ class CComponentUtil
 			return false;
 		}
 
-		if (strlen($templateName) <= 0)
+		if ($templateName == '')
 			$templateName = ".default";
 
-		$templateNameTmp = preg_replace("#[^A-Za-z0-9_.-]#i", "", $templateName);
-		if ($templateNameTmp != $templateName)
+		if (preg_match("#[^a-z0-9_.-]#i", $templateName))
 		{
 			$APPLICATION->ThrowException(str_replace("#NAME#", $templateName, GetMessage("comp_util_err7")), "ERROR_BAD_TEMPLATE_NAME");
 			return false;
 		}
 
-		if (strlen($siteTemplate) <= 0)
+		if ($siteTemplate == '')
 			$siteTemplate = false;
 
 		if ($siteTemplate != false)
@@ -1298,8 +1296,7 @@ class CComponentUtil
 		else
 			$templateNameNew = $templateName;
 
-		$templateNameNewTmp = preg_replace("#[^A-Za-z0-9_.-]#i", "", $templateNameNew);
-		if ($templateNameNewTmp != $templateNameNew)
+		if (preg_match("#[^a-z0-9_.-]#i", $templateNameNew))
 		{
 			$APPLICATION->ThrowException(str_replace("#NAME#", $templateNameNew, GetMessage("comp_util_err7")), "ERROR_BAD_TEMPLATE_NAME");
 			return false;

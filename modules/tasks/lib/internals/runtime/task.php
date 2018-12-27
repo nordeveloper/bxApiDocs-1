@@ -151,6 +151,84 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 		return $result;
 	}
 
+	/**
+	 * Parse given sub filter options and set it to query
+	 *
+	 * @param $subFilterFieldOptions
+	 * @param Entity\Query $query
+	 * @return Entity\Query
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function setOptionsForQuery($subFilterFieldOptions, Entity\Query $query)
+	{
+		foreach ($subFilterFieldOptions as $optionName => $optionValues)
+		{
+			switch ($optionName)
+			{
+				case 'FIELDS':
+					foreach ($optionValues as $field)
+					{
+						$query->registerRuntimeField(
+							$field['NAME'],
+							new Entity\ReferenceField(
+								$field['NAME'],
+								$field['REFERENCE_ENTITY'],
+								$field['REFERENCE_FILTER'],
+								$field['REFERENCE_PARAMS']
+							)
+						);
+					}
+					break;
+
+				case 'WHERE':
+					foreach ($optionValues as $key => $conditions)
+					{
+						switch ($key)
+						{
+							case 'WHERE':
+								foreach ($conditions as $condition)
+								{
+									$query->where($condition);
+								}
+								break;
+
+							case 'COLUMN':
+								foreach ($conditions as $condition)
+								{
+									$query->whereColumn(
+										$condition['FIELD_1'],
+										$condition['SIGN'],
+										$condition['FIELD_2']
+									);
+								}
+								break;
+
+							case 'EXISTS':
+								foreach ($conditions as $condition)
+								{
+									$query->whereExists($condition);
+								}
+								break;
+
+							case 'MATCH':
+								foreach ($conditions as $condition)
+								{
+									$query->whereMatch(
+										$condition['COLUMN'],
+										$condition['VALUE']
+									);
+								}
+								break;
+						}
+					}
+					break;
+			}
+		}
+
+		return $query;
+	}
+
 	public static function getAccessibleTaskIdsSql(array $parameters)
 	{
 		$result = array();
@@ -158,6 +236,13 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 		$parameters = static::checkParameters($parameters);
 		$filter = static::getForwardedFilter($parameters['APPLY_FILTER'], $parameters);
 		$memberCondition = static::getMemberConditions($parameters['APPLY_MEMBER_FILTER'], $parameters);
+		$options = [];
+
+		if ($parameters['SEARCH_MODE'] == 'Y')
+		{
+			$filter = array_merge($filter, $parameters['ACCESS_FILTER']);
+			$options = $parameters['ACCESS_RUNTIME_OPTIONS'];
+		}
 
 		// todo: where 1 = 0 here if $parameters['USER_ID'] is 0
 
@@ -173,6 +258,9 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 			$gaFilter = $filter;
 			$gaFilter['GROUP_ID'] = $allowedGroups;
 			$q->setFilter($gaFilter);
+
+			$q = static::setOptionsForQuery($options, $q);
+
 			$result[] = "\n/*tasks in accessible groups*/\n".$q->getQuery();
 		}
 
@@ -205,6 +293,8 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 				$q->setFilter($filter);
 			}
 
+			$q = static::setOptionsForQuery($options, $q);
+
 			$result[] = "\n/*tasks accessible by my sub-employees*/\n".$q->getQuery();
 		}
 
@@ -228,6 +318,8 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 		{
 			$q->setFilter($filter);
 		}
+
+		$q = static::setOptionsForQuery($options, $q);
 
 		$result[] = "\n/*tasks accessible by me*/\n".$q->getQuery();
 

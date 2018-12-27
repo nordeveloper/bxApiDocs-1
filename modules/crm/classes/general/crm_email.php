@@ -3,6 +3,7 @@
 use Bitrix\Crm\Integration\StorageManager;
 use Bitrix\Crm\Integration\Channel;
 use Bitrix\Crm\Settings\ActivitySettings;
+use Bitrix\Crm\Tracking;
 
 if(!IsModuleInstalled('bitrix24'))
 {
@@ -835,12 +836,19 @@ class CCrmEMail
 			}
 		);
 
+		$trace = Tracking\Trace::create()->addChannel(
+			new Tracking\Channel\Mail(!empty($rcptAddress) ?
+				reset($rcptAddress)->getEmail() : null
+			)
+		);
+
 		if ($forceNewLead)
 		{
 			$commAddress = $filteredAddress;
 
 			$facility = new \Bitrix\Crm\EntityManageFacility();
 			$facility->setDirection($isIncome ? $facility::DIRECTION_INCOMING : $facility::DIRECTION_OUTGOING);
+			$facility->setTrace($trace);
 
 			if ($isForced)
 			{
@@ -917,6 +925,7 @@ class CCrmEMail
 
 			$facility = new \Bitrix\Crm\EntityManageFacility($selector);
 			$facility->setDirection($isIncome ? $facility::DIRECTION_INCOMING : $facility::DIRECTION_OUTGOING);
+			$facility->setTrace($trace);
 
 			$emailFacility->setBindings($facility->getActivityBindings());
 
@@ -973,11 +982,20 @@ class CCrmEMail
 			return false;
 		}
 
-		$contactFields = array(
-			'TYPE_ID' => 'CLIENT',
-		);
+		$contactFields = array();
+
+		$contactTypes = \CCrmStatus::getStatusList('CONTACT_TYPE');
+		if (isset($contactTypes['CLIENT']))
+		{
+			$contactFields['TYPE_ID'] = 'CLIENT';
+		}
+		else if (isset($contactTypes['OTHER']))
+		{
+			$contactFields['TYPE_ID'] = 'OTHER';
+		}
 
 		$leadFields = array(
+			'COMPANY_TITLE' => \CCrmCompany::getDefaultTitle(),
 			'OPENED' => 'Y',
 		);
 

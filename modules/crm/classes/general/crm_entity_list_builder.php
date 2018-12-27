@@ -86,6 +86,18 @@ class CCrmEntityListBuilder
 		return $this->userFields;
 	}
 
+	private function Insert2SqlOrder($sql, $position)
+	{
+		if(!(isset($this->sqlData['ORDERBY']) && $this->sqlData['ORDERBY'] !== ''))
+		{
+			$this->sqlData['ORDERBY'] = $sql;
+			return;
+		}
+
+		$parts = explode(',', $this->sqlData['ORDERBY']);
+		array_splice($parts, $position, 0, array($sql));
+		$this->sqlData['ORDERBY'] = implode(', ', $parts);
+	}
 	private function Add2SqlData($sql, $type, $add2Start = false, $replace = '')
 	{
 		$sql = strval($sql);
@@ -366,6 +378,12 @@ class CCrmEntityListBuilder
 				if(isset($arUserSql['FROM']))
 				{
 					$this->Add2SqlData($arUserSql['FROM'], 'FROM');
+
+					if(isset($this->sqlData['FROM_WHERE']))
+					{
+						$this->sqlData['FROM_WHERE'] .= ' ';
+					}
+					$this->sqlData['FROM_WHERE'] .= $arUserSql['FROM'];
 				}
 
 				if(isset($arUserSql['WHERE']))
@@ -383,21 +401,21 @@ class CCrmEntityListBuilder
 			// Adding user fields to ORDER BY
 			if(is_array($arOrder))
 			{
+				$orderKeyPos = 0;
 				foreach ($arOrder as $orderKey => $order)
 				{
 					$orderSql = $ufSelectSql->GetOrder($orderKey);
-					if(!is_string($orderSql) || $orderSql === '')
+					if(is_string($orderSql) && $orderSql !== '')
 					{
-						continue;
-					}
+						$order = strtoupper($order);
+						if($order !== 'ASC' && $order !== 'DESC')
+						{
+							$order = 'ASC';
+						}
 
-					$order = strtoupper($order);
-					if($order !== 'ASC' && $order !== 'DESC')
-					{
-						$order = 'ASC';
+						$this->Insert2SqlOrder("$orderSql $order", $orderKeyPos);
 					}
-
-					$this->Add2SqlData("$orderSql $order", 'ORDERBY');
+					$orderKeyPos++;
 				}
 			}
 

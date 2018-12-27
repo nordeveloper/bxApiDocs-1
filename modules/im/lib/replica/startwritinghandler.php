@@ -85,8 +85,6 @@ if (Loader::includeModule('replica'))
 				if (!\Bitrix\Main\Loader::includeModule('pull'))
 					return;
 
-				\CPushManager::DeleteFromQueueBySubTag($userId, 'IM_MESS');
-
 				$userName = \Bitrix\Im\User::getInstance($userId)->getFullName();
 
 

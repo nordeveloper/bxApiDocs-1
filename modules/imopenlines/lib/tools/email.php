@@ -65,6 +65,36 @@ class Email
 	}
 
 	/**
+	 * @param $text
+	 * @return array
+	 * @throws \Bitrix\Main\LoaderException
+	 */
+	public static function parseText($text)
+	{
+		$result = [];
+		$matchesEmails = [];
+
+		preg_match_all("/[^\s]+@[^\s]+/i", $text, $matchesEmails);
+		if (!empty($matchesEmails[0]))
+		{
+			foreach ($matchesEmails[0] as $email)
+			{
+				if(self::validate($email))
+				{
+					$result[] = self::normalize($email);
+				}
+			}
+
+			if(!empty($result))
+			{
+				$result = array_unique($result);
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * @param $emails
 	 * @param $searchEmail
 	 * @return bool

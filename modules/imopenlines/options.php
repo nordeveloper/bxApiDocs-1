@@ -44,6 +44,12 @@ if(strlen($_POST['Update'])>0 && check_bitrix_sessid())
 
 		COption::SetOptionString("imopenlines", "debug", isset($_POST['DEBUG_MODE']));
 
+		$execMode = COption::GetOptionString("imopenlines", "exec_mode");
+		if ($_POST['EXEC_MODE'] != $execMode && in_array($_POST['EXEC_MODE'], array(\Bitrix\ImOpenlines\Common::MODE_AGENT, \Bitrix\ImOpenlines\Common::MODE_CRON)))
+		{
+			COption::SetOptionString("imopenlines", "exec_mode", $_POST['EXEC_MODE']);
+		}
+
 		if(strlen($Update)>0 && strlen($_REQUEST["back_url_settings"])>0)
 		{
 			LocalRedirect($_REQUEST["back_url_settings"]);
@@ -76,6 +82,21 @@ if ($errorMessage):?>
 <tr>
 	<td width="40%"><?=GetMessage("IMOPENLINES_ACCOUNT_DEBUG")?>:</td>
 	<td width="60%"><input type="checkbox" name="DEBUG_MODE" value="Y" <?=(COption::GetOptionInt("imopenlines", "debug")? 'checked':'')?> /></td>
+</tr>
+<tr>
+	<td width="40%"><?=GetMessage("IMOPENLINES_ACCOUNT_EXEC_MODE")?>:</td>
+	<td width="60%">
+		<select name="EXEC_MODE">
+			<option value="<?=\Bitrix\ImOpenlines\Common::MODE_AGENT?>"
+				<?if(\Bitrix\ImOpenlines\Common::getExecMode() == \Bitrix\ImOpenlines\Common::MODE_AGENT) {?>selected="selected"<?}?>>
+				<?=GetMessage("IMOPENLINES_ACCOUNT_EXEC_MODE_AGENT")?>
+			</option>
+			<option value="<?=\Bitrix\ImOpenlines\Common::MODE_CRON?>"
+					<?if(\Bitrix\ImOpenlines\Common::getExecMode() == \Bitrix\ImOpenlines\Common::MODE_CRON) {?>selected="selected"<?}?>>
+				<?=GetMessage("IMOPENLINES_ACCOUNT_EXEC_MODE_CRON")?>
+			</option>
+		</select>
+	</td>
 </tr>
 <?$tabControl->Buttons();?>
 <input type="submit" name="Update" value="<?echo GetMessage('MAIN_SAVE')?>">

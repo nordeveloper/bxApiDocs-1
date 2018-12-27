@@ -53,7 +53,8 @@ class Connector
 		$connectors = array_merge($connectors, array(
 			"facebook" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_FACEBOOK_PAGE'),
 			"facebookcomments" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_FACEBOOK_COMMENTS_PAGE'),
-			"instagram" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_INSTAGRAM'),
+			"fbinstagram" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_FBINSTAGRAM'),
+			"instagram" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_INSTAGRAM'), //TODO: del
 			"network" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_NETWORK'),
 			//Virtual connectors.
 			"botframework.skype" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_BOTFRAMEWORK_SKYPE'),
@@ -124,7 +125,8 @@ class Connector
 		$connectors = array_merge($connectors, array(
 			"facebook" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_FACEBOOK_PAGE'),
 			"facebookcomments" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_FACEBOOK_COMMENTS_PAGE'),
-			"instagram" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_INSTAGRAM'),
+			"fbinstagram" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_FBINSTAGRAM'),
+			"instagram" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_INSTAGRAM'), //TODO: del
 			"network" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_NETWORK'),
 
 			"botframework" => Loc::getMessage('IMCONNECTOR_NAME_CONNECTOR_BOTFRAMEWORK'),
@@ -204,6 +206,7 @@ class Connector
 		$components = array_merge($components, array(
 			'facebook' => 'bitrix:imconnector.facebook',
 			'facebookcomments' => 'bitrix:imconnector.facebookcomments',
+			'fbinstagram' => 'bitrix:imconnector.fbinstagram',
 			'instagram' => 'bitrix:imconnector.instagram',
 			'network' => 'bitrix:imconnector.network',
 			'botframework' => 'bitrix:imconnector.botframework',
@@ -777,6 +780,7 @@ class Connector
 			'facebookcomments' => 'fb-comments',
 			'facebookmessenger' => 'fb-messenger',
 			'instagram' => 'instagram',
+			'fbinstagram' => 'instagram-fb',
 			'network' => 'bitrix24',
 			'botframework' => 'microsoft',
 			'skypebot' => 'skype',
@@ -824,7 +828,7 @@ class Connector
 	public static function getAdditionalStyles()
 	{
 		$style = CustomConnectors::getStyleCss();
-		$style .= self::getServicesBackgroundColorCss();
+		//$style .= self::getServicesBackgroundColorCss();
 
 		return $style;
 	}
@@ -845,14 +849,16 @@ class Connector
 	}
 
 	/**
-	 * Get background color style from ui-icon styles for connectors
+	 * @deprecated
 	 *
 	 * @return string
 	 */
 	public static function getServicesBackgroundColorCss()
 	{
 		$style = '';
-		$cssFilePath = $_SERVER["DOCUMENT_ROOT"] . '/bitrix/js/ui/icons/ui.icons.css';
+		$cssFile = (file_exists($_SERVER['DOCUMENT_ROOT'].'/bitrix/js/ui/icons/service/ui.icons.service.css') ?
+			'/bitrix/js/ui/icons/service/ui.icons.service.css' : '/bitrix/js/ui/icons/ui.icons.css');
+		$cssFilePath = $_SERVER["DOCUMENT_ROOT"] . $cssFile;
 		$cssFile = file_get_contents($cssFilePath);
 
 		if (!empty($cssFile))
@@ -995,6 +1001,7 @@ class Connector
 						case 'vkgroup':
 						case 'facebook':
 						case 'facebookcomments':
+						case 'fbinstagram':
 						case 'instagram':
 						default:
 							$result->addError(new Error(Loc::getMessage('IMCONNECTOR_FEATURE_IS_NOT_SUPPORTED'), Library::ERROR_FEATURE_IS_NOT_SUPPORTED, __METHOD__, $connector));
@@ -1141,6 +1148,7 @@ class Connector
 						case 'vkgroup':
 						case 'facebook':
 						case 'facebookcomments':
+						case 'fbinstagram':
 						case 'instagram':
 						default:
 							$result->addError(new Error(Loc::getMessage('IMCONNECTOR_FEATURE_IS_NOT_SUPPORTED'), Library::ERROR_FEATURE_IS_NOT_SUPPORTED, __METHOD__, $connector));
@@ -1231,6 +1239,7 @@ class Connector
 						case 'telegrambot':
 						case 'botframework':
 						case 'facebookcomments':
+						case 'fbinstagram':
 						case 'instagram':
 							$output = new Output($connector, $line);
 							$rawDelete = $output->deleteConnector();

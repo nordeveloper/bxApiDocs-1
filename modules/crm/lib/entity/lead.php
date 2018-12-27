@@ -41,11 +41,101 @@ class Lead extends EntityBase
 			isset($params['options']) && is_array($params['options']) ? $params['options'] : array()
 		);
 	}
-	public function checkReadPermission($ID = 0, $userPermissions = null)
+	public function checkReadPermission($entityID = 0, $userPermissions = null)
 	{
-		return \CCrmLead::CheckReadPermission($ID, $userPermissions);
+		return \CCrmLead::CheckReadPermission($entityID, $userPermissions);
+	}
+	public function checkDeletePermission($entityID = 0, $userPermissions = null)
+	{
+		return \CCrmLead::CheckDeletePermission($entityID, $userPermissions);
 	}
 	//endregion
+
+	public function getTopIDs(array $params)
+	{
+		$order = isset($params['order']) && is_array($params['order']) ? $params['filter'] : array('ID' => 'ASC');
+		$filter = isset($params['filter']) && is_array($params['filter']) ? $params['filter'] : array();
+		$enablePermissionCheck = isset($params['enablePermissionCheck']) ? (bool)$params['enablePermissionCheck'] : true;
+		if(!$enablePermissionCheck)
+		{
+			$filter['CHECK_PERMISSIONS'] = 'N';
+		}
+		$limit = isset($params['limit']) ? (int)$params['limit'] : 0;
+
+		$dbResult = \CCrmLead::GetListEx(
+			$order,
+			$filter,
+			false,
+			$limit > 0 ? array('nTopCount' => $limit) : false,
+			array('ID')
+		);
+
+		$results = array();
+		while($fields = $dbResult->Fetch())
+		{
+			$results[] = (int)$fields['ID'];
+		}
+		return $results;
+	}
+
+	public function getCount(array $params)
+	{
+		$filter = isset($params['filter']) && is_array($params['filter']) ? $params['filter'] : array();
+		$enablePermissionCheck = isset($params['enablePermissionCheck']) ? (bool)$params['enablePermissionCheck'] : true;
+		if(!$enablePermissionCheck)
+		{
+			$filter['CHECK_PERMISSIONS'] = 'N';
+		}
+		return \CCrmLead::GetListEx(array(), $filter, array());
+	}
+
+	public function delete($entityID, array $options = array())
+	{
+		if(!isset($options['CHECK_DEPENDENCIES']))
+		{
+			$options['CHECK_DEPENDENCIES'] = true;
+		}
+		$entity = new \CCrmLead(false);
+		if(!$entity->Delete($entityID, $options))
+		{
+			return array('MESSAGE' => $entity->LAST_ERROR);
+		}
+		return null;
+	}
+
+	/**
+	 * Perform deferred cleaning of the related entities.
+	 * @param int $entityID Entity ID.
+	 * @return void
+	 */
+	public function cleanup($entityID)
+	{
+		if(!is_int($entityID))
+		{
+			$entityID = (int)$entityID;
+		}
+
+		if($entityID <= 0)
+		{
+			return;
+		}
+
+		$eventEntity = new \CCrmEvent();
+		$eventEntity->DeleteByElement(\CCrmOwnerType::LeadName, $entityID);
+	}
+
+	public static function getResponsibleID($entityID)
+	{
+		$dbResult = \CCrmLead::GetListEx(
+			array(),
+			array('=ID' => $entityID, 'CHECK_PERMISSIONS' => 'N'),
+			false,
+			false,
+			array('ID', 'ASSIGNED_BY_ID')
+		);
+		$fields = is_object($dbResult) ? $dbResult->Fetch() : null;
+		return is_array($fields) && isset($fields['ASSIGNED_BY_ID']) ? (int)$fields['ASSIGNED_BY_ID'] : 0;
+	}
 
 	public static function getSubsidiaryEntities($ID)
 	{

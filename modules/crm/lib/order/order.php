@@ -227,6 +227,9 @@ class Order extends Sale\Order
 		return $result;
 	}
 
+	/**
+	 * return void
+	 */
 	protected function appendBuyerGroups()
 	{
 		$userId = $this->getField('USER_ID');
@@ -639,6 +642,26 @@ class Order extends Sale\Order
 				$requisiteLink['MC_REQUISITE_ID'] ?: 0,
 				$requisiteLink['MC_BANK_DETAIL_ID'] ?: 0
 			);
+		}
+	}
+
+	/**
+	 * @param \SplObjectStorage $cloneEntity
+	 * @throws Main\ArgumentException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\SystemException
+	 */
+	protected function cloneEntities(\SplObjectStorage $cloneEntity)
+	{
+		parent::cloneEntities($cloneEntity);
+
+		/** @var Order $orderClone */
+		$orderClone = $cloneEntity[$this];
+
+		/** @var ContactCompanyCollection $contactCompanyCollection */
+		if ($contactCompanyCollection = $this->getContactCompanyCollection())
+		{
+			$orderClone->contactCompanyCollection = $contactCompanyCollection->createClone($cloneEntity);
 		}
 	}
 

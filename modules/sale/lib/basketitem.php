@@ -892,10 +892,6 @@ class BasketItem extends BasketItemBase
 
 		/** @var BasketItem $basketItemClone */
 		$basketItemClone = parent::createClone($cloneEntity);
-		if ($this->isClone() && $cloneEntity->contains($this))
-		{
-			return $cloneEntity[$this];
-		}
 
 		/** @var Internals\Fields $calculatedFields */
 		if ($calculatedFields = $this->calculatedFields)

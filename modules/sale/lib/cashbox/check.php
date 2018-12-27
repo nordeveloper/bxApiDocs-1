@@ -575,7 +575,7 @@ abstract class Check
 						'NAME' => $basketItem->getField('NAME'),
 						'BASE_PRICE' => $basketItem->getBasePriceWithVat(),
 						'PRICE' => $basketItem->getPriceWithVat(),
-						'SUM' => $basketItem->getFinalPrice(),
+						'SUM' => $basketItem->getPriceWithVat() * $shipmentItem->getQuantity(),
 						'QUANTITY' => (float)$shipmentItem->getQuantity(),
 						'VAT' => $this->getProductVatId($basketItem)
 					);

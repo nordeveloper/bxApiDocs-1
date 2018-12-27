@@ -54,9 +54,11 @@ class ItemAttributes
 
 	protected function setDefaultAttributes()
 	{
-		$this->attributes[] = 'data-viewer';
-		$this->attributes['data-viewer-type'] = static::getViewerTypeByFile($this->fileData);
-		$this->attributes['data-src'] = $this->sourceUri;
+		$this
+			->setAttribute('data-viewer')
+			->setAttribute('data-viewer-type', static::getViewerTypeByFile($this->fileData))
+			->setAttribute('data-src', $this->sourceUri)
+		;
 	}
 
 	/**
@@ -116,9 +118,7 @@ class ItemAttributes
 	 */
 	public function setTitle($title)
 	{
-		$this->attributes['data-title'] = htmlspecialcharsbx($title);
-
-		return $this;
+		return $this->setAttribute('data-title', htmlspecialcharsbx($title));
 	}
 
 	/**
@@ -128,9 +128,15 @@ class ItemAttributes
 	 */
 	public function setGroupBy($id)
 	{
-		$this->attributes['data-viewer-group-by'] = htmlspecialcharsbx($id);
+		return $this->setAttribute('data-viewer-group-by', htmlspecialcharsbx($id));
+	}
 
-		return $this;
+	/**
+	 * @return $this
+	 */
+	public function unsetGroupBy()
+	{
+		return $this->unsetAttribute('data-viewer-group-by');
 	}
 
 	/**
@@ -168,7 +174,7 @@ class ItemAttributes
 	{
 		if (!$this->issetAttribute('data-viewer-type'))
 		{
-			$this->attributes['data-viewer-type'] = static::getViewerTypeByFile($this->fileData);
+			$this->setAttribute('data-viewer-type', static::getViewerTypeByFile($this->fileData));
 		}
 
 		return $this->getAttribute('data-viewer-type');
@@ -180,9 +186,21 @@ class ItemAttributes
 	 *
 	 * @return $this
 	 */
-	public function setAttribute($name, $value)
+	public function setAttribute($name, $value = null)
 	{
 		$this->attributes[$name] = $value;
+
+		return $this;
+	}
+
+	/**
+	 * @param $name
+	 *
+	 * @return $this
+	 */
+	public function unsetAttribute($name)
+	{
+		unset($this->attributes[$name]);
 
 		return $this;
 	}

@@ -10,6 +10,7 @@ use Bitrix\Main\Loader;
 use Bitrix\Main\ModuleManager;
 use Bitrix\Main\Result;
 use Bitrix\Main\SystemException;
+use Bitrix\Main\Type\DateTime;
 use Bitrix\Transformer\Command;
 use Bitrix\Transformer\FileTransformer;
 
@@ -128,7 +129,7 @@ final class TransformerManager
 
 		$shouldSendPullTag = true;
 		$information = $this->getTransformationInformation($fileId);
-		if (!$information)
+		if ($this->shouldSendToTransformation($information))
 		{
 			$result = $transformer->transform(
 				(int)$fileId,
@@ -159,6 +160,29 @@ final class TransformerManager
 		}
 
 		return $result;
+	}
+
+	protected function shouldSendToTransformation($information)
+	{
+		if (!$information)
+		{
+			return true;
+		}
+
+		if (
+			isset($information['status']) &&
+			$information['status'] !== Command::STATUS_SUCCESS
+		)
+		{
+			/** @var DateTime $date */
+			$date = $information['time'];
+			if ($date && (time() - $date->getTimestamp()) > 24 * 3600)
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	protected function getTransformationInformation($fileId)

@@ -220,13 +220,8 @@ class Helper
 		{
 			$callFields['CRM_ACTIVITY_ID'] = (int)$fields['CRM_ACTIVITY_ID'];
 		}
-		if(is_array($fields['CRM_BINDINGS']))
-		{
-			$callFields['CRM_BINDINGS'] = $fields['CRM_BINDINGS'];
-		}
 
 		$call = Call::create($callFields);
-
 		if(isset($fields['CRM_ENTITY_TYPE']) && isset($fields['CRM_ENTITY_ID']))
 		{
 			$call->addCrmEntities([
@@ -237,6 +232,15 @@ class Helper
 					'IS_PRIMARY' => 'Y'
 				]
 			]);
+
+			if(is_array($fields['CRM_BINDINGS']))
+			{
+				$callFields['CRM_BINDINGS'] = \CVoxImplantCrmHelper::createActivityBindings([
+					'CRM_ENTITY_TYPE' => $fields['CRM_ENTITY_TYPE'],
+					'CRM_ENTITY_ID' => $fields['CRM_ENTITY_ID'],
+					'CRM_BINDINGS' => $fields['CRM_BINDINGS']
+				]);
+			}
 		}
 		else
 		{

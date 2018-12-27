@@ -47,6 +47,6 @@ class Command
 			return null;
 		}
 
-		return new $className();
+		return call_user_func("{$className}::getInstance");
 	}
 }

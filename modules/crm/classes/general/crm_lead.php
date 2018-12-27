@@ -6,6 +6,7 @@ use Bitrix\Crm\Binding\EntityBinding;
 use Bitrix\Crm\Binding\LeadContactTable;
 use Bitrix\Crm\CustomerType;
 use Bitrix\Crm\UtmTable;
+use Bitrix\Crm\Tracking;
 use Bitrix\Crm\Integrity\DuplicateCommunicationCriterion;
 use Bitrix\Crm\Integrity\DuplicatePersonCriterion;
 use Bitrix\Crm\Integrity\DuplicateOrganizationCriterion;
@@ -171,12 +172,10 @@ class CAllCrmLead
 					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
 				),
 				'COMPANY_ID' => array(
-					'TYPE' => 'crm_company',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'TYPE' => 'crm_company'
 				),
 				'CONTACT_ID' => array(
-					'TYPE' => 'crm_contact',
-					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+					'TYPE' => 'crm_contact'
 				),
 				'IS_RETURN_CUSTOMER' => array(
 					'TYPE' => 'char',
@@ -1176,11 +1175,22 @@ class CAllCrmLead
 		if (in_array($arFields['STATUS_ID'], self::$LEAD_STATUSES_BY_GROUP['FINISHED']))
 			$arFields['~DATE_CLOSED'] = $DB->CurrentTimeFunction();
 
+		$observerIDs = isset($arFields['OBSERVER_IDS']) && is_array($arFields['OBSERVER_IDS'])
+			? $arFields['OBSERVER_IDS'] : null;
+		unset($arFields['OBSERVER_IDS']);
+
 		$arAttr = array();
 
 		$arAttr['STATUS_ID'] = $arFields['STATUS_ID'];
 		if (!empty($arFields['OPENED']))
+		{
 			$arAttr['OPENED'] = $arFields['OPENED'];
+		}
+
+		if(!empty($observerIDs))
+		{
+			$arAttr['CONCERNED_USER_IDS'] = $observerIDs;
+		}
 
 		$sPermission = 'ADD';
 		if (isset($arFields['PERMISSION']))
@@ -1371,6 +1381,13 @@ class CAllCrmLead
 		$arFields['DATE_CREATE'] = $arFields['DATE_MODIFY'] = ConvertTimeStamp(time() + CTimeZone::GetOffset(), 'FULL');
 
 		CCrmPerms::UpdateEntityAttr('LEAD', $ID, $arEntityAttr);
+
+		//region Save Observers
+		if(!empty($observerIDs))
+		{
+			Crm\Observer\ObserverManager::registerBulk($observerIDs, \CCrmOwnerType::Lead, $ID);
+		}
+		//endregion
 
 		$companyTitle = isset($arFields['COMPANY_TITLE']) ? $arFields['COMPANY_TITLE'] : '';
 		if($companyTitle !== '')
@@ -1587,6 +1604,14 @@ class CAllCrmLead
 			$arResult[] = "STATUS_ID{$statusID}";
 		}
 
+		if(isset($arAttr['CONCERNED_USER_IDS']) && is_array($arAttr['CONCERNED_USER_IDS']))
+		{
+			foreach($arAttr['CONCERNED_USER_IDS'] as $concernedUserID)
+			{
+				$arResult[] = "CU{$concernedUserID}";
+			}
+		}
+
 		$arUserAttr = CCrmPerms::BuildUserEntityAttr($userID);
 		return array_merge($arResult, $arUserAttr['INTRANET']);
 	}
@@ -1748,6 +1773,10 @@ class CAllCrmLead
 				$arFields['ID'] = $ID;
 			}
 
+			$originalObserverIDs = Crm\Observer\ObserverManager::getEntityObserverIDs(CCrmOwnerType::Lead, $ID);
+			$observerIDs = isset($arFields['OBSERVER_IDS']) && is_array($arFields['OBSERVER_IDS'])
+				? $arFields['OBSERVER_IDS'] : null;
+
 			$enableSystemEvents = !isset($options['ENABLE_SYSTEM_EVENTS']) || $options['ENABLE_SYSTEM_EVENTS'] === true;
 			//region Before update event
 			if($enableSystemEvents)
@@ -1774,6 +1803,15 @@ class CAllCrmLead
 
 			$arAttr = array();
 			$arAttr['STATUS_ID'] = !empty($arFields['STATUS_ID']) ? $arFields['STATUS_ID'] : $arRow['STATUS_ID'];
+
+			if($observerIDs !== null && count($observerIDs) > 0)
+			{
+				$arAttr['CONCERNED_USER_IDS'] = $observerIDs;
+			}
+			elseif($observerIDs === null && count($originalObserverIDs) > 0)
+			{
+				$arAttr['CONCERNED_USER_IDS'] = $originalObserverIDs;
+			}
 
 			//region Semantic ID depends on Stage ID and can't be assigned directly
 			$syncStatusSemantics = isset($options['SYNCHRONIZE_STATUS_SEMANTICS']) && $options['SYNCHRONIZE_STATUS_SEMANTICS'];
@@ -1897,6 +1935,16 @@ class CAllCrmLead
 			}
 			//endregion
 
+			//region Observers
+			$addedObserverIDs = null;
+			$removedObserverIDs = null;
+			if(is_array($observerIDs))
+			{
+				$addedObserverIDs = array_diff($observerIDs, $originalObserverIDs);
+				$removedObserverIDs = array_diff($originalObserverIDs, $observerIDs);
+			}
+			//endregion
+			//
 			$sonetEventData = array();
 			if ($bCompare)
 			{
@@ -2130,6 +2178,27 @@ class CAllCrmLead
 			}
 			//endregion
 
+			//region Save Observers
+			if(!empty($addedObserverIDs))
+			{
+				Crm\Observer\ObserverManager::registerBulk(
+					$addedObserverIDs,
+					\CCrmOwnerType::Lead,
+					$ID,
+					count($originalObserverIDs)
+				);
+			}
+
+			if(!empty($removedObserverIDs))
+			{
+				Crm\Observer\ObserverManager::unregisterBulk(
+					$removedObserverIDs,
+					\CCrmOwnerType::Lead,
+					$ID
+				);
+			}
+			//endregion
+
 			//region Address
 			if(isset($arFields['ADDRESS'])
 				|| isset($arFields['ADDRESS_2'])
@@ -2360,6 +2429,17 @@ class CAllCrmLead
 				array('CURRENT_FIELDS' => $arFields, 'PREVIOUS_FIELDS' => $arRow)
 			);
 
+			Bitrix\Crm\Integration\Im\Chat::onEntityModification(
+				CCrmOwnerType::Lead,
+				$ID,
+				array(
+					'CURRENT_FIELDS' => $arFields,
+					'PREVIOUS_FIELDS' => $arRow,
+					'ADDED_OBSERVER_IDS' => $addedObserverIDs,
+					'REMOVED_OBSERVER_IDS' => $removedObserverIDs
+				)
+			);
+
 			$arFields['ID'] = $ID;
 			//region Social network
 			$registerSonetEvent = isset($options['REGISTER_SONET_EVENT']) && $options['REGISTER_SONET_EVENT'] === true;
@@ -2567,6 +2647,7 @@ class CAllCrmLead
 
 		$events = GetModuleEvents('crm', 'OnBeforeCrmLeadDelete');
 		while ($arEvent = $events->Fetch())
+		{
 			if(ExecuteModuleEventEx($arEvent, array($ID))===false)
 			{
 				$err = GetMessage("MAIN_BEFORE_DEL_ERR").' '.$arEvent['TO_NAME'];
@@ -2576,8 +2657,13 @@ class CAllCrmLead
 				$this->LAST_ERROR = $err;
 				return false;
 			}
+		}
 
-		//By defaut we need to clean up related bizproc entities
+		$enableDeferredMode = isset($arOptions['ENABLE_DEFERRED_MODE'])
+			? (bool)$arOptions['ENABLE_DEFERRED_MODE']
+			: \Bitrix\Crm\Settings\LeadSettings::getCurrent()->isDeferredCleaningEnabled();
+
+		//By default we need to clean up related bizproc entities
 		$processBizproc = isset($arOptions['PROCESS_BIZPROC']) ? (bool)$arOptions['PROCESS_BIZPROC'] : true;
 		if($processBizproc)
 		{
@@ -2602,8 +2688,19 @@ class CAllCrmLead
 			$CCrmFieldMulti = new CCrmFieldMulti();
 			$CCrmFieldMulti->DeleteByElement('LEAD', $ID);
 
-			$CCrmEvent = new CCrmEvent();
-			$CCrmEvent->DeleteByElement('LEAD', $ID);
+			if(!$enableDeferredMode)
+			{
+				$CCrmEvent = new CCrmEvent();
+				$CCrmEvent->DeleteByElement('LEAD', $ID);
+			}
+			else
+			{
+				Bitrix\Crm\Cleaning\CleaningManager::register(CCrmOwnerType::Lead, $ID);
+				if(!Bitrix\Crm\Agent\Routine\CleaningAgent::isActive())
+				{
+					Bitrix\Crm\Agent\Routine\CleaningAgent::activate();
+				}
+			}
 
 			Bitrix\Crm\History\LeadStatusHistoryEntry::unregister($ID);
 			Bitrix\Crm\Statistics\LeadSumStatisticEntry::unregister($ID);
@@ -2641,6 +2738,7 @@ class CAllCrmLead
 
 			// delete utm fields
 			UtmTable::deleteEntityUtm(CCrmOwnerType::Lead, $ID);
+			Tracking\Entity::deleteTrace(CCrmOwnerType::Lead, $ID);
 
 			$enableDupIndexInvalidation = is_array($arOptions) && isset($arOptions['ENABLE_DUP_INDEX_INVALIDATION'])
 				? (bool)$arOptions['ENABLE_DUP_INDEX_INVALIDATION'] : true;
@@ -2668,6 +2766,7 @@ class CAllCrmLead
 			CCrmActivity::DeleteByOwner(CCrmOwnerType::Lead, $ID);
 
 			\Bitrix\Crm\Pseudoactivity\WaitEntry::deleteByOwner(CCrmOwnerType::Lead, $ID);
+			\Bitrix\Crm\Observer\ObserverManager::deleteByOwner(CCrmOwnerType::Lead, $ID);
 			\Bitrix\Crm\Timeline\TimelineEntry::deleteByOwner(CCrmOwnerType::Lead, $ID);
 			\Bitrix\Crm\Timeline\LeadController::getInstance()->onDelete(
 				$ID,
@@ -2685,7 +2784,6 @@ class CAllCrmLead
 			CCrmContact::ProcessLeadDeletion($ID);
 			CCrmCompany::ProcessLeadDeletion($ID);
 			CCrmDeal::ProcessLeadDeletion($ID);
-
 
 			if(Bitrix\Crm\Settings\HistorySettings::getCurrent()->isLeadDeletionEventEnabled())
 			{
@@ -2806,6 +2904,11 @@ class CAllCrmLead
 					if(isset($arFields['STATUS_ID']) && $arFields['STATUS_ID'] !== $currentFields['STATUS_ID'])
 					{
 						$fieldsToCheck = array_merge($currentFields, $arFields);
+						if(isset($currentFields['FM']) && isset($arFields['FM']))
+						{
+							$fieldsToCheck['FM'] = array_merge($currentFields['FM'], $arFields['FM']);
+						}
+
 						if(self::GetSemanticID($arFields['STATUS_ID']) === Bitrix\Crm\PhaseSemantics::FAILURE)
 						{
 							//Disable required fields check for failure status due to backward compatibility.
@@ -2891,7 +2994,10 @@ class CAllCrmLead
 			&& $arFieldsOrig['TITLE'] != $arFieldsModif['TITLE'])
 			$arMsg[] = Array(
 				'ENTITY_FIELD' => 'TITLE',
-				'EVENT_NAME' => GetMessage('CRM_FIELD_COMPARE_TITLE'),
+				'EVENT_NAME' => GetMessage(
+					'CRM_LEAD_FIELD_COMPARE',
+					array('#FIELD_NAME#' => self::GetFieldCaption('TITLE'))
+				),
 				'EVENT_TEXT_1' => !empty($arFieldsOrig['TITLE'])? $arFieldsOrig['TITLE']: GetMessage('CRM_FIELD_COMPARE_EMPTY'),
 				'EVENT_TEXT_2' => !empty($arFieldsModif['TITLE'])? $arFieldsModif['TITLE']: GetMessage('CRM_FIELD_COMPARE_EMPTY'),
 			);
@@ -3673,6 +3779,26 @@ class CAllCrmLead
 			false,
 			false
 		);
+	}
+
+	public static function AddObserverIDs($ID, array $userIDs)
+	{
+		if(empty($userIDs))
+		{
+			return;
+		}
+
+		$observerIDs = array_unique(
+			array_merge(
+				Crm\Observer\ObserverManager::getEntityObserverIDs(CCrmOwnerType::Lead, $ID),
+				$userIDs
+			),
+			SORT_NUMERIC
+		);
+
+		$fields = array('OBSERVER_IDS' => $observerIDs);
+		$entity = new CCrmLead(false);
+		$entity->Update($ID,$fields);
 	}
 
 	public static function RebuildDuplicateIndex($IDs)

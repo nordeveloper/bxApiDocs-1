@@ -141,7 +141,8 @@ class CCalendarLocation
 				'TZ_TO' => $params['parentParams']['arFields']['TZ_TO'],
 				'SKIP_TIME' => $params['parentParams']['arFields']['SKIP_TIME'],
 				'NAME' => Loc::getMessage('EC_EDEV_EVENT').': '.$params['parentParams']['arFields']['NAME'],
-				'RRULE' => $params['parentParams']['arFields']['RRULE']
+				'RRULE' => $params['parentParams']['arFields']['RRULE'],
+				'EXDATE' => $params['parentParams']['arFields']['EXDATE']
 			)
 		));
 		return $roomEventId;
@@ -149,7 +150,6 @@ class CCalendarLocation
 
 	public static function checkAccessibility($location = '', $params = array())
 	{
-
 		$location = CCalendar::ParseLocation($location);
 		$res = true;
 		if ($location['room_id'] || $location['mrid'])

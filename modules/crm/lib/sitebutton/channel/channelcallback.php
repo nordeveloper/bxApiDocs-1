@@ -133,8 +133,13 @@ class ChannelCallback implements iProvider
 			'sort' => 200,
 			'useColors' => true,
 			'classList' => array('b24-widget-button-' . $type),
-			'show' => WebFormScript::getCrmButtonWidgetShower($id, $lang),
-			'hide' => 'BX.SiteButton.removeClass(document.getElementById(\'bx24_form_container_' . $id . '\'), \'open-sidebar\'); BX.SiteButton.onWidgetClose();',
+			'show' => WebFormScript::getCrmButtonWidgetShower(
+				$id, $lang,
+				[
+					'siteButton' => true,
+				]
+			),
+			'hide' => 'BX.SiteButton.classes.remove(document.getElementById(\'bx24_form_container_' . $id . '\'), \'open-sidebar\'); BX.SiteButton.onWidgetClose();',
 		);
 		$widgets[] = $widget;
 
@@ -145,11 +150,11 @@ class ChannelCallback implements iProvider
 	/**
 	 * Get resources.
 	 *
-	 * @return array
+	 * @return \Bitrix\Main\Web\WebPacker\Resource\Asset[]
 	 */
 	public static function getResources()
 	{
-		return array();
+		return [];
 	}
 
 	/**

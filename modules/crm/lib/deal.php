@@ -8,7 +8,11 @@
 namespace Bitrix\Crm;
 
 use Bitrix\Main;
+use Bitrix\Main\DB\SqlException;
+use Bitrix\Main\Entity\IntegerField;
+use Bitrix\Main\Entity\StringField;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Entity\ReferenceField;
 
 Loc::loadMessages(__FILE__);
 
@@ -28,7 +32,7 @@ class DealTable extends Main\ORM\Data\DataManager
 	{
 		global $DB;
 
-		return array(
+		$map = array(
 			'ID' => array(
 				'data_type' => 'integer',
 				'primary' => true
@@ -190,12 +194,22 @@ class DealTable extends Main\ORM\Data\DataManager
 				'data_type' => 'Contact',
 				'reference' => array('=this.CONTACT_ID' => 'ref.ID')
 			),
+			new ReferenceField(
+				'CONTACT',
+				ContactTable::getEntity(),
+				array('=this.CONTACT_ID' => 'ref.ID')
+			),
 			'COMPANY_ID' => array(
 				'data_type' => 'integer'
 			),
 			'COMPANY_BY' => array(
 				'data_type' => 'Company',
 				'reference' => array('=this.COMPANY_ID' => 'ref.ID')
+			),
+			new ReferenceField(
+				'COMPANY',
+				CompanyTable::getEntity(),
+				array('=this.COMPANY_ID' => 'ref.ID')
 			),
 			'IS_WORK' => array(
 				'data_type' => 'boolean',
@@ -275,7 +289,29 @@ class DealTable extends Main\ORM\Data\DataManager
 				'data_type' => 'ExternalSale',
 				'reference' => array('=this.ORIGINATOR_ID' => 'ref.ID')
 			),
-			new Main\Entity\StringField('LOCATION_ID'),
+			new StringField('LOCATION_ID'),
+			new StringField('IS_NEW'),
+			new IntegerField('WEBFORM_ID'),
+			new ReferenceField('CRM_DEAL_RECURRING', DealRecurTable::getEntity(), array(
+				'=this.ID' => 'ref.DEAL_ID'
+			)),
+			new ReferenceField('PRODUCT_ROW', ProductRowTable::getEntity(), array(
+				'=this.ID' => 'ref.OWNER_ID',
+				'=ref.OWNER_TYPE_ID' => new SqlException('?', \CCrmOwnerType::Deal),
+			))
 		);
+
+		$codeList = UtmTable::getCodeList();
+
+		foreach ($codeList as $fieldName)
+		{
+			$map[] = new ReferenceField($fieldName, UtmTable::getEntity(), array(
+				'=ref.ENTITY_TYPE_ID' => new SqlException('?', \CCrmOwnerType::Deal),
+				'=this.ID' => 'ref.ENTITY_ID',
+				'=ref.CODE' => new SqlException('?', $fieldName)
+			));
+		}
+
+		return $map;
 	}
 }

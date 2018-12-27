@@ -66,6 +66,10 @@ class CTasksReportHelper extends CReportHelper
 						if ($field['USER_TYPE_ID'] === 'datetime' && $field['MULTIPLE'] !== 'Y')
 							self::$ufInfo[$ufId][$field['FIELD_NAME'].self::UF_DATETIME_SHORT_POSTFIX] = $field;
 
+						$blPostfix = defined('self::UF_BOOLEAN_POSTFIX') ? self::UF_BOOLEAN_POSTFIX : '_BLINL';
+						if ($field['USER_TYPE_ID'] === 'boolean' && $field['MULTIPLE'] !== 'Y')
+							self::$ufInfo[$ufId][$field['FIELD_NAME'].$blPostfix] = $field;
+
 						if (($dbType === 'ORACLE' || $dbType === 'MSSQL') && $field['MULTIPLE'] === 'Y')
 							self::$ufInfo[$ufId][$field['FIELD_NAME'] . self::UF_TEXT_TRIM_POSTFIX] = $field;
 					}
@@ -215,6 +219,7 @@ class CTasksReportHelper extends CReportHelper
 		);
 
 		// Append user fields
+		$blPostfix = defined('self::UF_BOOLEAN_POSTFIX') ? self::UF_BOOLEAN_POSTFIX : '_BLINL';
 		self::prepareUFInfo();
 		if (is_array(self::$ufInfo) && count(self::$ufInfo) > 0)
 		{
@@ -223,8 +228,10 @@ class CTasksReportHelper extends CReportHelper
 			{
 				foreach (self::$ufInfo['TASKS_TASK'] as $ufKey => $uf)
 				{
-					if ($uf['USER_TYPE_ID'] !== 'datetime' || $uf['MULTIPLE'] === 'Y'
-						|| substr($ufKey, -strlen(self::UF_DATETIME_SHORT_POSTFIX)) === self::UF_DATETIME_SHORT_POSTFIX)
+					if (($uf['USER_TYPE_ID'] !== 'datetime' && $uf['USER_TYPE_ID'] !== 'boolean')
+						|| $uf['MULTIPLE'] === 'Y'
+						|| substr($ufKey, -strlen(self::UF_DATETIME_SHORT_POSTFIX)) === self::UF_DATETIME_SHORT_POSTFIX
+						|| substr($ufKey, -strlen($blPostfix)) === $blPostfix)
 					{
 						$columnList[] = $ufKey;
 					}
@@ -294,6 +301,7 @@ class CTasksReportHelper extends CReportHelper
 			),
 		), 'TAGS');
 
+		self::appendBooleanUserFieldsIfNull($entity);
 		self::appendDateTimeUserFieldsAsShort($entity);
 		self::appendTextUserFieldsAsTrimmed($entity);
 	}
@@ -1056,6 +1064,51 @@ class CTasksReportHelper extends CReportHelper
 		return '11.0.1';
 	}
 
+
+	public static function appendBooleanUserFieldsIfNull(\Bitrix\Main\Entity\Base $entity)
+	{
+		/** @var Bitrix\Main\DB\SqlHelper $sqlHelper */
+		$sqlHelper = null;
+
+		// Advanced fields for boolean user fields
+		$dateFields = array();
+		foreach($entity->getFields() as $field)
+		{
+			if ($field instanceof Bitrix\Main\Entity\ExpressionField)
+			{
+				$arUF = self::detectUserField($field);
+				if ($arUF['isUF'])
+				{
+					$ufDataType = self::getUserFieldDataType($arUF);
+					if ($ufDataType === 'boolean' && $arUF['ufInfo']['MULTIPLE'] !== 'Y')
+					{
+						if ($sqlHelper === null)
+						{
+							$sqlHelper = Main\Application::getConnection()->getSqlHelper();
+						}
+
+						$blPostfix = defined('self::UF_BOOLEAN_POSTFIX') ? self::UF_BOOLEAN_POSTFIX : '_BLINL';
+						$dateFields[] = array(
+							'def' => array(
+								'data_type' => 'boolean',
+								'expression' => array(
+									$sqlHelper->getIsNullFunction('%s', 0), $arUF['ufInfo']['FIELD_NAME']
+								)
+							),
+							'name' => $arUF['ufInfo']['FIELD_NAME'].$blPostfix
+						);
+					}
+				}
+			}
+		}
+		foreach ($dateFields as $fieldInfo)
+		{
+			if (!$entity->hasField($fieldInfo['name']))
+			{
+				$entity->addField($fieldInfo['def'], $fieldInfo['name']);
+			}
+		}
+	}
 
 	public static function appendDateTimeUserFieldsAsShort(\Bitrix\Main\Entity\Base $entity)
 	{

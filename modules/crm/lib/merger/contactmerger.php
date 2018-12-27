@@ -85,40 +85,102 @@ class ContactMerger extends EntityMerger
 			$recoveryData->setResponsibleID((int)$fields['ASSIGNED_BY_ID']);
 		}
 	}
+
 	/**
 	 * Merge entity fields. May be overridden by descendants.
-	 * @param array $seed
-	 * @param array $targ
-	 * @param array $fieldInfos
-	 * @param bool|false $skipEmpty
+	 * @param array &$seed Seed entity fields.
+	 * @param array &$targ Target entity fields.
+	 * @param array $fieldInfos Metadata fields.
+	 * @param bool $skipEmpty Skip empty fields flag. If is enabled then empty fields of "seed" will not be replaced by fields from "targ"
+	 * @param array $options Options array.
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
 	 */
-	protected function innerMergeEntityFields(array &$seed, array &$targ, array &$fieldInfos, $skipEmpty = false)
+	protected function innerMergeEntityFields(array &$seed, array &$targ, array &$fieldInfos, $skipEmpty = false, array $options = array())
 	{
 		self::mergeEntityFields($seed, $targ, $fieldInfos, $skipEmpty);
 		
 		//region Merge company bindings
 		$seedID = isset($seed['ID']) ? (int)$seed['ID'] : 0;
-		$seedBindings = $seedID > 0 ? Binding\ContactCompanyTable::getContactBindings($seedID) : array();
-
-		$targID = isset($targ['ID']) ? (int)$targ['ID'] : 0;
-		$targBindings = $targID > 0 ? Binding\ContactCompanyTable::getContactBindings($targID) : array();
-
-		if(empty($seedBindings))
+		if($seedID > 0)
 		{
-			//Prevent target companies from changing
-			unset($targ['COMPANY_ID']);
+			$seedBindings = Binding\ContactCompanyTable::getContactBindings($seedID);
+		}
+		elseif(isset($seed['COMPANY_BINDINGS']) && is_array($seed['COMPANY_BINDINGS']))
+		{
+			$seedBindings = $seed['COMPANY_BINDINGS'];
+		}
+		elseif(isset($seed['COMPANY_ID']) || (isset($seed['COMPANY_IDS']) && is_array($seed['COMPANY_IDS'])))
+		{
+			$seedBindings = Binding\EntityBinding::prepareEntityBindings(
+				\CCrmOwnerType::Company,
+				isset($seed['COMPANY_IDS']) && is_array($seed['COMPANY_IDS'])
+					? $seed['COMPANY_IDS']
+					: array($seed['COMPANY_ID'])
+			);
 		}
 		else
 		{
-			if(empty($targBindings))
+			$seedBindings = array();
+		}
+
+		$targID = isset($targ['ID']) ? (int)$targ['ID'] : 0;
+		if($targID > 0)
+		{
+			$targBindings = Binding\ContactCompanyTable::getContactBindings($targID);
+		}
+		elseif(isset($targ['COMPANY_BINDINGS']) && is_array($targ['COMPANY_BINDINGS']))
+		{
+			$targBindings = $targ['COMPANY_BINDINGS'];
+		}
+		elseif(isset($targ['COMPANY_ID']) || (isset($targ['COMPANY_IDS']) && is_array($targ['COMPANY_IDS'])))
+		{
+			$targBindings = Binding\EntityBinding::prepareEntityBindings(
+				\CCrmOwnerType::Company,
+				isset($targ['COMPANY_IDS']) && is_array($targ['COMPANY_IDS'])
+					? $targ['COMPANY_IDS']
+					: array($targ['COMPANY_ID'])
+			);
+		}
+		else
+		{
+			$targBindings = array();
+		}
+
+		//TODO: Rename SKIP_MULTIPLE_USER_FIELDS -> ENABLE_MULTIPLE_FIELDS_ENRICHMENT
+		$skipMultipleFields = isset($options['SKIP_MULTIPLE_USER_FIELDS']) && $options['SKIP_MULTIPLE_USER_FIELDS'];
+		if(!$skipMultipleFields)
+		{
+			if(empty($seedBindings))
 			{
-				$targBindings = $seedBindings;
+				//Prevent target companies from changing
+				unset($targ['COMPANY_ID']);
 			}
 			else
 			{
-				self::mergeEntityBindings(\CCrmOwnerType::Company, $seedBindings, $targBindings);
+				if(empty($targBindings))
+				{
+					$targBindings = $seedBindings;
+				}
+				else
+				{
+					self::mergeEntityBindings(\CCrmOwnerType::Company, $seedBindings, $targBindings);
+				}
+				$targ['COMPANY_BINDINGS'] = $targBindings;
 			}
-			$targ['COMPANY_BINDINGS'] = $targBindings;
+		}
+		elseif(empty($targBindings) && !$skipEmpty)
+		{
+			if(empty($seedBindings))
+			{
+				//Prevent target companies from changing
+				unset($targ['COMPANY_ID']);
+			}
+			else
+			{
+				$targ['COMPANY_BINDINGS'] = $seedBindings;
+			}
 		}
 		//endregion
 	}

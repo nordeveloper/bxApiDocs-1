@@ -14,10 +14,10 @@ class Auth
 
 	public static function getNotAuthorizedResponse()
 	{
-		return Array(
+		return [
 			"status" => "failed",
 			"bitrix_sessid"=>bitrix_sessid()
-		);
+		];
 	}
 
 

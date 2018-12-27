@@ -9,6 +9,7 @@ use Bitrix\Crm\Automation;
 use Bitrix\Crm\Binding;
 use Bitrix\Crm\Settings\LeadSettings;
 use Bitrix\Crm\Entity\Identificator;
+use Bitrix\Crm\Tracking;
 
 /**
  * Class EntityManageFacility
@@ -16,11 +17,6 @@ use Bitrix\Crm\Entity\Identificator;
  */
 class EntityManageFacility
 {
-	const TYPE_DEF = 'def';
-	const TYPE_MAIL = 'mail';
-	const TYPE_CALL = 'call';
-	const TYPE_TRACKER = 'tracker';
-
 	const UPDATE_MODE_NONE = 0;
 	const UPDATE_MODE_MERGE = 1; // merge all: contact & company
 	const UPDATE_MODE_REPLACE = 2; // replace all: contact & company
@@ -33,10 +29,14 @@ class EntityManageFacility
 	const DIRECTION_INCOMING = 1;
 	const DIRECTION_OUTGOING = 2;
 
-	/** @var string|null  */
-	protected $type = self::TYPE_DEF;
 	/** @var ActualEntitySelector|null  */
 	protected $selector;
+
+	/** @var Tracking\Trace $trace Trace instance. */
+	protected $trace;
+	/** @var int|null $traceId Trace ID. */
+	protected $traceId;
+
 	/** @var array  */
 	protected $errors = array();
 	/** @var null|array  */
@@ -63,58 +63,6 @@ class EntityManageFacility
 	/** @var bool  */
 	protected $isLeadEnabled = true;
 
-	/**
-	 * Create by fields and type.
-	 *
-	 * @param string $type Type
-	 * @param array $fields Fields
-	 *  <li>'NAME' => 'Mike',
-	 *  <li>'SECOND_NAME' => 'Julio',
-	 *  <li>'LAST_NAME' => 'Johnson',
-	 *  <li>'COMPANY_TITLE' => 'Example company name',
-	 *  <li>'FM' => array(
-	 *  <li>   'EMAIL' => array(array('VALUE' => 'name@example.com')),
-	 *  <li>   'PHONE' => array(array('VALUE' => '+98765432100')),
-	 *  <li>).
-	 * @return static
-	 * @throws ArgumentException
-	 */
-	public static function create($type, array $fields)
-	{
-		switch ($type)
-		{
-			case self::TYPE_DEF:
-				$searchParameters = array(
-					ActualEntitySelector::SEARCH_PARAM_PHONE,
-					ActualEntitySelector::SEARCH_PARAM_EMAIL,
-					ActualEntitySelector::SEARCH_PARAM_PERSON,
-					ActualEntitySelector::SEARCH_PARAM_ORGANIZATION
-				);
-				break;
-			case self::TYPE_TRACKER:
-				$searchParameters = array(
-					ActualEntitySelector::SEARCH_PARAM_PHONE,
-					ActualEntitySelector::SEARCH_PARAM_EMAIL,
-					ActualEntitySelector::SEARCH_PARAM_PERSON
-				);
-				break;
-			case self::TYPE_CALL:
-				$searchParameters = array(
-					ActualEntitySelector::SEARCH_PARAM_PHONE
-				);
-				break;
-			case self::TYPE_MAIL:
-				$searchParameters = array(
-					ActualEntitySelector::SEARCH_PARAM_EMAIL
-				);
-				break;
-			default:
-				throw new ArgumentException("Wrong type {$type}");
-		}
-
-		$selector = ActualEntitySelector::create($fields, $searchParameters);
-		return (new static($selector))->setType($type);
-	}
 
 	/**
 	 * EntityManageFacility constructor.
@@ -137,14 +85,67 @@ class EntityManageFacility
 	}
 
 	/**
-	 * Set type.
+	 * Set trace.
 	 *
-	 * @param string $type Type.
+	 * @param Tracking\Trace $trace Trace instance.
 	 * @return $this
 	 */
-	public function setType($type)
+	public function setTrace(Tracking\Trace $trace)
 	{
-		$this->type = $type;
+		$this->trace = $trace;
+		return $this;
+	}
+
+	/**
+	 * Set trace ID.
+	 *
+	 * @param int|null $traceId Trace ID.
+	 * @return $this
+	 */
+	public function setTraceId($traceId)
+	{
+		$this->traceId = $traceId;
+		return $this;
+	}
+
+	/**
+	 * Get trace instance.
+	 *
+	 * @return Tracking\Trace|null
+	 */
+	public function getTrace()
+	{
+		return $this->trace;
+	}
+
+	protected function traceEntity($entityTypeId, $entityId)
+	{
+		if ($this->direction !== self::DIRECTION_INCOMING)
+		{
+			return $this;
+		}
+
+		if (!$entityTypeId || !$entityId)
+		{
+			return $this;
+		}
+
+		if (!$this->trace && !$this->traceId)
+		{
+			return $this;
+		}
+
+		if (!$this->traceId)
+		{
+			$this->traceId = $this->trace->save();
+		}
+
+		if (!$this->traceId)
+		{
+			return $this;
+		}
+
+		Tracking\Trace::appendEntity($this->traceId, $entityTypeId, $entityId);
 		return $this;
 	}
 
@@ -453,6 +454,10 @@ class EntityManageFacility
 			{
 				$this->errors[] = $company->LAST_ERROR;
 			}
+			else
+			{
+				$this->traceEntity($this->registeredTypeId, $this->registeredId);
+			}
 		}
 		elseif ($this->canUpdate())
 		{
@@ -492,6 +497,10 @@ class EntityManageFacility
 			if (!$this->registeredId)
 			{
 				$this->errors[] = $contact->LAST_ERROR;
+			}
+			else
+			{
+				$this->traceEntity($this->registeredTypeId, $this->registeredId);
 			}
 		}
 		elseif ($this->canUpdate())
@@ -781,6 +790,8 @@ class EntityManageFacility
 			$this->updateClientFields($updateClientFields);
 		}
 
+		$this->traceEntity(\CCrmOwnerType::Lead, $leadId);
+
 		return $leadId;
 	}
 
@@ -834,6 +845,7 @@ class EntityManageFacility
 			return null;
 		}
 
+		$this->traceEntity(\CCrmOwnerType::Deal, $dealId);
 		return $dealId;
 	}
 

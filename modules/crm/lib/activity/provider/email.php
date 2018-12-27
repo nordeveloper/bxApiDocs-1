@@ -1,6 +1,7 @@
 <?php
 namespace Bitrix\Crm\Activity\Provider;
 
+use Bitrix\Crm\Automation\Trigger\EmailSentTrigger;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Crm\Activity;
 use Bitrix\Crm\Activity\CommunicationStatistics;
@@ -97,6 +98,12 @@ class Email extends Activity\Provider\Base
 		//region Mark incoming email as completed when reply message was sent.
 		$direction = isset($activityFields['DIRECTION']) ? (int)$activityFields['DIRECTION'] : \CCrmActivityDirection::Undefined;
 		$parentID = isset($activityFields['PARENT_ID']) ? (int)$activityFields['PARENT_ID'] : 0;
+
+		if ($direction === \CCrmActivityDirection::Outgoing)
+		{
+			EmailSentTrigger::execute($activityFields['BINDINGS'], $activityFields);
+		}
+
 		if(!($direction === \CCrmActivityDirection::Outgoing && $parentID > 0))
 		{
 			return;

@@ -28,12 +28,13 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	/** @var  Sale\PaySystem\Service */
 	protected $paySystem;
 
-	protected $isInner = null;
-
-	protected static $innerPaySystemId = null;
-
 	private static $eventClassName = null;
 
+	/**
+	 * Payment constructor.
+	 * @param array $fields
+	 * @throws Main\ArgumentNullException
+	 */
 	protected function __construct(array $fields = array())
 	{
 		$priceRoundedFields = ['SUM', 'PRICE_COD'];
@@ -131,6 +132,8 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	 * @param PaymentCollection $collection
 	 * @param PaySystem\Service|null $paySystem
 	 * @return Payment
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ObjectException
 	 */
 	public static function create(PaymentCollection $collection, Sale\PaySystem\Service $paySystem = null)
 	{
@@ -139,6 +142,12 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 			'PAID' => 'N',
 			'IS_RETURN' => 'N'
 		);
+
+		$order = $collection->getOrder();
+		if ($order)
+		{
+			$fields['CURRENCY'] = $order->getCurrency();
+		}
 
 		if ($paySystem != null)
 		{
@@ -170,13 +179,11 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 
 		$payments = array();
 
-		$paymentDataList = static::getList(
-			array(
-				'filter' => array('ORDER_ID' => $id)
-			)
-		);
+		$paymentDataList = static::getList(['filter' => ['=ORDER_ID' => $id]]);
 		while ($paymentData = $paymentDataList->fetch())
+		{
 			$payments[] = static::createPaymentObject($paymentData);
+		}
 
 		return $payments;
 	}
@@ -192,18 +199,54 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	{
 		$result = new Result();
 		
-		$paymentDataList = static::getList(
-			array(
-				"filter" => array("=ORDER_ID" => $idOrder),
-				"select" => array("ID")
-			)
-		);
+		$dbRes = static::getList([
+				"select" => ["ID"],
+				"filter" => ["=ORDER_ID" => $idOrder]
+		]);
 
-		while ($payment = $paymentDataList->fetch())	
+		while ($payment = $dbRes->fetch())
 		{
 			$r = static::deleteInternal($payment['ID']);
 			if (!$r->isSuccess())
+			{
 				$result->addErrors($r->getErrors());
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @return Result
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ObjectNotFoundException
+	 */
+	public function delete()
+	{
+		$result = new Result();
+
+		if ($this->isPaid())
+		{
+			$result->addError(new ResultError(Loc::getMessage('SALE_PAYMENT_DELETE_EXIST_PAID'), 'SALE_PAYMENT_DELETE_EXIST_PAID'));
+			return $result;
+		}
+
+		$r = $this->callEventOnBeforeEntityDeleted();
+		if (!$r->isSuccess())
+		{
+			return $result->addErrors($r->getErrors());
+		}
+
+		$r = parent::delete();
+		if (!$r->isSuccess())
+		{
+			$result->addErrors($r->getErrors());
+		}
+
+		$r = $this->callEventOnEntityDeleted();
+		if (!$r->isSuccess())
+		{
+			$result->addErrors($r->getErrors());
 		}
 
 		return $result;
@@ -212,14 +255,9 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	/**
 	 * @return Result
 	 */
-	public function delete()
+	private function callEventOnBeforeEntityDeleted()
 	{
 		$result = new Result();
-		if ($this->isPaid())
-		{
-			$result->addError(new ResultError(Loc::getMessage('SALE_PAYMENT_DELETE_EXIST_PAID'), 'SALE_PAYMENT_DELETE_EXIST_PAID'));
-			return $result;
-		}
 
 		if (self::$eventClassName === null)
 		{
@@ -256,21 +294,17 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 					$result->addError($errorMsg);
 				}
 			}
-
-			if (!$result->isSuccess())
-			{
-				return $result;
-			}
 		}
 
+		return $result;
+	}
 
-		$r = parent::delete();
-		if (!$r->isSuccess())
-		{
-			$result->addErrors($r->getErrors());
-		}
-
-
+	/**
+	 * @return Result
+	 */
+	private function callEventOnEntityDeleted()
+	{
+		$result = new Result();
 
 		/** @var array $oldEntityValues */
 		$oldEntityValues = $this->fields->getOriginalValues();
@@ -301,11 +335,6 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 
 					$result->addError($errorMsg);
 				}
-			}
-
-			if (!$result->isSuccess())
-			{
-				return $result;
 			}
 		}
 
@@ -438,8 +467,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 					$refResult = $service->refund($this);
 					if (!$refResult->isSuccess())
 					{
-						$result->addErrors($refResult->getErrors());
-						return $result;
+						return $result->addErrors($refResult->getErrors());
 					}
 				}
 			}
@@ -451,8 +479,6 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 						'SALE_ORDER_PAYMENT_RETURN_NO_SUPPORTED'
 					)
 				);
-
-				return $result;
 			}
 
 			$r = $this->setField('PAID', 'N');
@@ -468,8 +494,12 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 			{
 				$result = new Result();
 
-				$result->addError( new ResultError(Loc::getMessage('SALE_PAYMENT_NOT_ALLOWED_CHANGE_SUM'), 'SALE_PAYMENT_NOT_ALLOWED_CHANGE_SUM') );
-				return $result;
+				return $result->addError(
+					new ResultError(
+						Loc::getMessage('SALE_PAYMENT_NOT_ALLOWED_CHANGE_SUM'),
+						'SALE_PAYMENT_NOT_ALLOWED_CHANGE_SUM'
+					)
+				);
 			}
 		}
 		elseif ($name == "MARKED")
@@ -521,7 +551,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 
 		if ($this->isChanged())
 		{
-			$this->callEventOnBeforePaymentEntitySaved();
+			$this->callEventOnBeforeEntitySaved();
 		}
 
 		if ($id > 0)
@@ -561,7 +591,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 		{
 			if ($this->isPaid())
 			{
-				$this->callEventOnPaymentPaid();
+				$this->callEventOnPaid();
 
 				$registry = Registry::getInstance(static::getRegistryType());
 
@@ -577,7 +607,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 
 		if ($this->isChanged())
 		{
-			$this->callEventOnPaymentEntitySaved();
+			$this->callEventOnEntitySaved();
 		}
 
 		$this->callDelayedEvents();
@@ -636,10 +666,6 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 		$order = $collection->getOrder();
 
 		$this->setFieldNoDemand('ORDER_ID', $order->getId());
-		if (empty($this->getField('CURRENCY')))
-		{
-			$this->setFieldNoDemand('CURRENCY', $order->getCurrency());
-		}
 
 		$fields = $this->fields->getValues();
 
@@ -703,7 +729,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	/**
 	 * @return void;
 	 */
-	private function callEventOnPaymentPaid()
+	private function callEventOnPaid()
 	{
 		$oldEntityValues = $this->fields->getOriginalValues();
 
@@ -718,7 +744,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	/**
 	 * @return void;
 	 */
-	private function callEventOnBeforePaymentEntitySaved()
+	private function callEventOnBeforeEntitySaved()
 	{
 		if (self::$eventClassName === null)
 		{
@@ -737,7 +763,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	/**
 	 * @return void;
 	 */
-	private function callEventOnPaymentEntitySaved()
+	private function callEventOnEntitySaved()
 	{
 		if (self::$eventClassName === null)
 		{
@@ -943,34 +969,11 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	}
 
 	/**
-	 * @return bool|null
-	 * @throws Main\ObjectNotFoundException
+	 * @return bool
 	 */
 	public function isInner()
 	{
-
-		if ($this->isInner !== null)
-			return $this->isInner;
-
-
-		/** @var PaymentCollection $paymentCollection */
-		if (!$paymentCollection = $this->getCollection())
-		{
-			throw new Main\ObjectNotFoundException('Entity "PaymentCollection" not found');
-		}
-
-		/** @var Order $order */
-		if (!$order = $paymentCollection->getOrder())
-		{
-			throw new Main\ObjectNotFoundException('Entity "Order" not found');
-		}
-
-		if ( ($paySystemId = static::getInnerPaySystemId()) && intval($paySystemId) > 0)
-		{
-			$this->isInner = ($this->getPaymentSystemId() == $paySystemId);
-		}
-
-		return $this->isInner;
+		return (int)$this->getPaymentSystemId() === (int)Sale\PaySystem\Manager::getInnerPaySystemId();
 	}
 
 	/**
@@ -1088,20 +1091,6 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	}
 
 	/**
-	 * @return int|null
-	 */
-	protected static function getInnerPaySystemId()
-	{
-		if (static::$innerPaySystemId === null)
-		{
-			static::$innerPaySystemId = \Bitrix\Sale\PaySystem\Manager::getInnerPaySystemId();
-		}
-
-		return static::$innerPaySystemId;
-	}
-
-
-	/**
 	 * @return Result
 	 */
 	public function verify()
@@ -1177,6 +1166,8 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 				default:
 					/** @var PaymentCollection $collection */
 					$collection = $this->getCollection();
+
+					/** @var Order $order */
 					$order = $collection->getOrder();
 					if ($order)
 						$providerInstance = $order->getBusinessValueProviderInstance($mapping);
@@ -1210,9 +1201,9 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 
 	/**
 	 * @internal
-	 * @param \SplObjectStorage $cloneEntity
 	 *
-	 * @return Payment
+	 * @param \SplObjectStorage $cloneEntity
+	 * @return Internals\CollectableEntity|object
 	 */
 	public function createClone(\SplObjectStorage $cloneEntity)
 	{
@@ -1221,32 +1212,8 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 			return $cloneEntity[$this];
 		}
 
-		$paymentClone = clone $this;
-		$paymentClone->isClone = true;
-
-		/** @var Internals\Fields $fields */
-		if ($fields = $this->fields)
-		{
-			$paymentClone->fields = $fields->createClone($cloneEntity);
-		}
-
-		if (!$cloneEntity->contains($this))
-		{
-			$cloneEntity[$this] = $paymentClone;
-		}
-
-		if ($collection = $this->getCollection())
-		{
-			if (!$cloneEntity->contains($collection))
-			{
-				$cloneEntity[$collection] = $collection->createClone($cloneEntity);
-			}
-
-			if ($cloneEntity->contains($collection))
-			{
-				$paymentClone->collection = $cloneEntity[$collection];
-			}
-		}
+		/** @var Payment $paymentClone */
+		$paymentClone = parent::createClone($cloneEntity);
 
 		/** @var Sale\PaySystem\Service $paySystem */
 		if ($paySystem = $this->getPaySystem())
@@ -1302,7 +1269,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	 */
 	public function isMarked()
 	{
-		return ($this->getField('MARKED') == "Y");
+		return $this->getField('MARKED') == "Y";
 	}
 
 	/**
@@ -1354,20 +1321,7 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	 */
 	public function tryFixError($code)
 	{
-		$result = new Result();
-
-		$method = static::getFixMethod($code);
-		$r = call_user_func_array($method, array($this));
-		if (!$r->isSuccess())
-		{
-			$result->addErrors($r->getErrors());
-		}
-		elseif ($r->hasWarnings())
-		{
-			$result->addWarnings($r->getWarnings());
-		}
-
-		return $result;
+		return new Result();
 	}
 
 	/**
@@ -1398,7 +1352,8 @@ class Payment extends Internals\CollectableEntity implements IBusinessValueProvi
 	/**
 	 * @param $primary
 	 * @param array $data
-	 * @return Main\Entity\UpdateResult
+	 * @return Main\ORM\Data\UpdateResult
+	 * @throws \Exception
 	 */
 	protected function updateInternal($primary, array $data)
 	{

@@ -5,7 +5,7 @@ use Bitrix\Crm\Agent\EntityStepwiseAgent;
 
 class InvoiceAccountSyncAgent extends EntityStepwiseAgent
 {
-	const ITERATION_LIMIT = 200;
+	const ITERATION_LIMIT = 20;
 	/** @var InvoiceAccountSyncAgent|null */
 	private static $instance = null;
 	/**
@@ -18,10 +18,6 @@ class InvoiceAccountSyncAgent extends EntityStepwiseAgent
 			self::$instance = new InvoiceAccountSyncAgent();
 		}
 		return self::$instance;
-	}
-	public function getRegistrationName()
-	{
-		return __CLASS__.'::run();';
 	}
 	//region EntityTimelineBuildAgent
 	public function process(array $itemIDs)

@@ -773,23 +773,45 @@ class _CTimeManCalendarNew extends ITimeManCalendar
 			$arEvent = $arEvents[0];
 			if ($arEvent['IS_MEETING'])
 			{
-				$arGuests = $arEvent['~ATTENDEES'];
-				$arEvent['GUESTS'] = array();
-
-				foreach ($arGuests as $guest)
+				$arEvent['GUESTS'] = [];
+				if (is_array($arEvent['ATTENDEE_LIST']))
 				{
-					$arEvent['GUESTS'][] = array(
-						'id' => $guest['USER_ID'],
-						'name' => CUser::FormatName(CSite::GetNameFormat(false), $guest, true),
-						'status' => $guest['STATUS'],
-						'accessibility' => $guest['ACCESSIBILITY'],
-						'bHost' => $guest['USER_ID'] == $arEvent['MEETING_HOST'],
-
-					);
-
-					if ($guest['USER_ID'] == $USER->GetID())
+					$userIndex = CCalendarEvent::getUserIndex();
+					foreach ($arEvent['ATTENDEE_LIST'] as $attendee)
 					{
-						$arEvent['STATUS'] = $guest['STATUS'];
+						if (isset($userIndex[$attendee["id"]]))
+						{
+							$arEvent['GUESTS'][] = [
+								'id' => $attendee['id'],
+								'name' => $userIndex[$attendee["id"]]['DISPLAY_NAME'],
+								'status' => $attendee['status'],
+								'accessibility' => $arEvent['ACCESSIBILITY'],
+								'bHost' => $attendee['id'] == $arEvent['MEETING_HOST']
+							];
+
+							if ($attendee['id'] == $USER->GetID())
+							{
+								$arEvent['STATUS'] = $attendee['status'];
+							}
+						}
+					}
+				}
+				elseif(is_array($arEvent['~ATTENDEES']))
+				{
+					foreach ($arEvent['~ATTENDEES'] as $guest)
+					{
+						$arEvent['GUESTS'][] = array(
+							'id' => $guest['USER_ID'],
+							'name' => CUser::FormatName(CSite::GetNameFormat(false), $guest, true),
+							'status' => $guest['STATUS'],
+							'accessibility' => $guest['ACCESSIBILITY'],
+							'bHost' => $guest['USER_ID'] == $arEvent['MEETING_HOST']
+						);
+
+						if ($guest['USER_ID'] == $USER->GetID())
+						{
+							$arEvent['STATUS'] = $guest['STATUS'];
+						}
 					}
 				}
 			}

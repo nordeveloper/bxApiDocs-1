@@ -396,6 +396,7 @@ if($USER->IsAuthorized()):
 			echo GetMessage("prolog_main_timelimit11", array(
 				'#FINISH_DATE#' => $sWarnDate,
 				'#DAYS_AGO#' => $daysToExpire,
+				'#DAYS_AGO_TXT#' => ($daysToExpire == 0? GetMessage("prolog_main_today") : GetMessage('prolog_main_support_days', array('#N_DAYS_AGO#' => $daysToExpire))),
 			));
 			echo EndNote();
 		}

@@ -528,7 +528,7 @@ class CashboxAtolFarm extends Cashbox implements IPrintImmediately, ICheckable
 			$vatList = $dbRes->fetchAll();
 			if ($vatList)
 			{
-				$defaultVat = array(0 => 'vat0', 10 => 'vat10', 18 => 'vat18');
+				$defaultVat = array(0 => 'vat0', 10 => 'vat10', 18 => 'vat18', 20 => 'vat20');
 				foreach ($vatList as $vat)
 				{
 					$value = '';

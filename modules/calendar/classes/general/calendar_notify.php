@@ -606,6 +606,8 @@ class CCalendarNotify
 			);
 
 			$aId = isset($event['PARENT_ID']) ? $event['PARENT_ID'] : $event['ID'];
+
+			// Here we don't need info about users
 			$attendees = CCalendarEvent::GetAttendees($aId);
 			if (is_array($attendees) && is_array($attendees[$aId]))
 			{

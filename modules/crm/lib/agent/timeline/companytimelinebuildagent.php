@@ -20,18 +20,7 @@ class CompanyTimelineBuildAgent extends EntityTimelineBuildAgent
 		}
 		return self::$instance;
 	}
-	public static function activate()
-	{
-		\CAgent::AddAgent(
-			__CLASS__.'::run();',
-			'crm',
-			'Y',
-			2,
-			'',
-			'Y',
-			ConvertTimeStamp(time() + \CTimeZone::GetOffset(), 'FULL')
-		);
-	}
+
 	//region EntityTimelineBuildAgent
 	public function build(array $itemIDs)
 	{

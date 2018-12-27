@@ -92,6 +92,10 @@ class OrderBasket
 	public function getEdit($defTails = false)
 	{
 		$productAddBool = Option::get('sale', 'SALE_ADMIN_NEW_PRODUCT', 'N');
+		$siteId = htmlspecialcharsbx(
+			\CUtil::JSEscape(
+				$this->order->getSiteId()
+		));
 
 		$result = '
 			<div class="adm-s-gray-title" style="padding-right: 2px;">
@@ -99,7 +103,7 @@ class OrderBasket
 				<div class="adm-s-gray-title-btn-container">
 					<span
 						class="adm-btn adm-btn-green adm-btn-add"
-						onClick="'.$this->jsObjName.'.addProductSearch({lang: \''.LANGUAGE_ID.'\', siteId: \''.$this->order->getSiteId().'\', orderId: '.intval($this->order->getId()).'});"
+						onClick="'.$this->jsObjName.'.addProductSearch({lang: \''.LANGUAGE_ID.'\', siteId: \''.$siteId.'\', orderId: '.intval($this->order->getId()).'});"
 						>'.
 							Loc::getMessage("SALE_ORDER_BASKET_PRODUCT_ADD").
 					'</span>
@@ -169,7 +173,7 @@ class OrderBasket
 
 		$result .= '<span
 						class="adm-btn adm-btn-green adm-btn-add"
-						onClick="'.$this->jsObjName.'.addProductSearch({lang: \''.LANGUAGE_ID.'\', siteId: \''.$this->order->getSiteId().'\', index: 1, orderId: '.intval($this->order->getId()).'});"
+						onClick="'.$this->jsObjName.'.addProductSearch({lang: \''.LANGUAGE_ID.'\', siteId: \''.$siteId.'\', index: 1, orderId: '.intval($this->order->getId()).'});"
 						>'.
 						Loc::getMessage("SALE_ORDER_BASKET_PRODUCT_ADD").
 					'</span>

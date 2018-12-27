@@ -1841,6 +1841,11 @@ class CCrmUserType
 				$arHeaders[$FIELD_NAME]['BaseType'] = 'date';
 			}
 
+			if($userTypeID === 'boolean')
+			{
+				$arHeaders[$FIELD_NAME]['Type'] = $arHeaders[$FIELD_NAME]['BaseType'] = 'bool';
+			}
+
 			if($userTypeID === 'enumeration' || $userTypeID === 'crm')
 			{
 				$arHeaders[$FIELD_NAME.'_PRINTABLE'] = array(
@@ -1851,6 +1856,29 @@ class CCrmUserType
 					'Editable' => false,
 					'Multiple' => $arUserField['MULTIPLE'] == 'Y',
 					'Required' => false,
+				);
+			}
+
+			if ($userTypeID === 'resourcebooking')
+			{
+				$arHeaders[$FIELD_NAME]['Editable'] = false;
+
+				$arHeaders[$FIELD_NAME.'.SERVICE_NAME'] = array(
+					'Name' => $fieldTitle.': '.GetMessage("CRM_USERTYPE_RESOURCEBOOKING_SERVICE_NAME"),
+					'Type' => 'string',
+				);
+				$arHeaders[$FIELD_NAME.'.DATE_FROM'] = array(
+					'Name' => $fieldTitle.': '.GetMessage("CRM_USERTYPE_RESOURCEBOOKING_DATE_FROM"),
+					'Type' => 'datetime',
+				);
+				$arHeaders[$FIELD_NAME.'.DATE_TO'] = array(
+					'Name' => $fieldTitle.': '.GetMessage("CRM_USERTYPE_RESOURCEBOOKING_DATE_TO"),
+					'Type' => 'datetime',
+				);
+				$arHeaders[$FIELD_NAME.'.USERS'] = array(
+					'Name' => $fieldTitle.': '.GetMessage("CRM_USERTYPE_RESOURCEBOOKING_USERS"),
+					'Type' => 'user',
+					'Multiple' => true,
 				);
 			}
 		}

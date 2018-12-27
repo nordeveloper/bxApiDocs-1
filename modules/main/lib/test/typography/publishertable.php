@@ -35,6 +35,7 @@ class PublisherTable extends DataManager
 			(new StringField('TITLE')),
 
 			(new OneToMany('BOOKS', BookTable::class, 'PUBLISHER'))
+				->configureJoinType('left')
 		];
 	}
 

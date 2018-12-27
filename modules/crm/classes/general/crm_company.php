@@ -4,6 +4,7 @@ IncludeModuleLangFile(__FILE__);
 use Bitrix\Main;
 use Bitrix\Crm;
 use Bitrix\Crm\UtmTable;
+use Bitrix\Crm\Tracking;
 use Bitrix\Crm\EntityAddress;
 use Bitrix\Crm\CompanyAddress;
 use Bitrix\Crm\Binding\ContactCompanyTable;
@@ -1930,7 +1931,11 @@ class CAllCrmCompany
 				return false;
 			}
 
-		//By defaut we need to clean up related bizproc entities
+		$enableDeferredMode = isset($arOptions['ENABLE_DEFERRED_MODE'])
+			? (bool)$arOptions['ENABLE_DEFERRED_MODE']
+			: \Bitrix\Crm\Settings\CompanySettings::getCurrent()->isDeferredCleaningEnabled();
+
+		//By default we need to clean up related bizproc entities
 		$processBizproc = isset($arOptions['PROCESS_BIZPROC']) ? (bool)$arOptions['PROCESS_BIZPROC'] : true;
 		if($processBizproc)
 		{
@@ -1950,8 +1955,20 @@ class CAllCrmCompany
 
 			$CCrmFieldMulti = new CCrmFieldMulti();
 			$CCrmFieldMulti->DeleteByElement('COMPANY', $ID);
-			$CCrmEvent = new CCrmEvent();
-			$CCrmEvent->DeleteByElement('COMPANY', $ID);
+
+			if(!$enableDeferredMode)
+			{
+				$CCrmEvent = new CCrmEvent();
+				$CCrmEvent->DeleteByElement('COMPANY', $ID);
+			}
+			else
+			{
+				Bitrix\Crm\Cleaning\CleaningManager::register(CCrmOwnerType::Company, $ID);
+				if(!Bitrix\Crm\Agent\Routine\CleaningAgent::isActive())
+				{
+					Bitrix\Crm\Agent\Routine\CleaningAgent::activate();
+				}
+			}
 
 			EntityAddress::unregister(CCrmOwnerType::Company, $ID, EntityAddress::Primary);
 			EntityAddress::unregister(CCrmOwnerType::Company, $ID, EntityAddress::Registered);
@@ -1962,6 +1979,7 @@ class CAllCrmCompany
 
 			// delete utm fields
 			UtmTable::deleteEntityUtm(CCrmOwnerType::Company, $ID);
+			Tracking\Entity::deleteTrace(CCrmOwnerType::Company, $ID);
 
 			$requisite = new \Bitrix\Crm\EntityRequisite();
 			$requisite->deleteByEntity(CCrmOwnerType::Company, $ID);

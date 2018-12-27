@@ -119,5 +119,11 @@ class InvoiceRecurTable extends Entity\DataManager
 			}
 		}
 		return parent::delete($primary);
-	}	
+	}
+
+	public static function getFieldCaption($fieldName)
+	{
+		$result = Loc::getMessage("CRM_INVOICE_RECURRING_ENTITY_{$fieldName}_FIELD");
+		return is_string($result) ? $result : '';
+	}
 }

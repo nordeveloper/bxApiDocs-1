@@ -142,7 +142,7 @@ class Dialog
 		}
 
 		$chat = \Bitrix\Im\Model\ChatTable::getList(array(
-			'select' => ['ID', 'ENTITY_DATA_1', 'ENTITY_DATA_2', 'ENTITY_DATA_3'],
+			'select' => ['ID', 'DISK_FOLDER_ID', 'ENTITY_DATA_1', 'ENTITY_DATA_2', 'ENTITY_DATA_3'],
 			'filter' => array(
 				'=ENTITY_TYPE' => 'LIVECHAT',
 				'=ENTITY_ID' => $configId.'|'.$userId
@@ -156,14 +156,21 @@ class Dialog
 		}
 
 		$chatId = $chat['ID'];
+		$diskFolderId = $chat['DISK_FOLDER_ID'];
 		$sessionId = 0;
 		$sessionClosed = true;
 		$userVote = self::VOTE_NONE;
 
 		$operator = [
+			'ID' => 0,
 			'NAME' => '',
+			'FIRST_NAME' => '',
+			'LAST_NAME' => '',
+			'WORK_POSITION' => '',
+			'GENDER' => 'F',
 			'AVATAR' => '',
-			'ONLINE' => false,
+			'AVATAR_ID' => 0,
+			'ONLINE' => false
 		];
 
 		$sessionData =\Bitrix\Imopenlines\Model\SessionTable::getList(array(
@@ -172,7 +179,6 @@ class Dialog
 				'CLOSED',
 				'VOTE',
 				'CHAT_OPERATOR_ID' => 'CHAT.AUTHOR_ID',
-				'OPERATOR_NAME' => 'CHAT.AUTHOR.NAME',
 				'OPERATOR_AVATAR' => 'CHAT.AUTHOR.PERSONAL_PHOTO',
 				'OPERATOR_ONLINE' => 'CHAT.AUTHOR.IS_ONLINE'
 			],
@@ -185,6 +191,7 @@ class Dialog
 		if ($sessionData)
 		{
 			$sessionId = $sessionData['ID'];
+			$sessionData['VOTE'] = (int)$sessionData['VOTE'];
 
 			if ($sessionData['VOTE'] === \Bitrix\Imopenlines\Session::VOTE_LIKE)
 			{
@@ -199,42 +206,7 @@ class Dialog
 
 			if ($sessionData['CHAT_OPERATOR_ID'])
 			{
-				$operator['NAME'] = $sessionData['OPERATOR_NAME'];
-				if (empty($operator['NAME']))
-				{
-					$operator['NAME'] = Loc::getMessage('IMOL_WIDGET_OPERATOR_NAME');
-				}
-
-				if (function_exists('customImopenlinesOperatorNames')) // Temporary hack :(
-				{
-					$customName = Array(
-						'ID' => $sessionData['CHAT_OPERATOR_ID'],
-						'NAME' => $operator['NAME']
-					);
-					$customName = customImopenlinesOperatorNames($configId, $customName);
-					if ($customName && $customName['NAME'])
-					{
-						$operator['NAME'] = $customName['NAME'];
-					}
-				}
-
-				$operator['ONLINE'] = $sessionData['OPERATOR_ONLINE'] === 'Y';
-
-				if ($sessionData['OPERATOR_AVATAR'])
-				{
-					$resizedImage = \CFile::ResizeImageGet(
-						$sessionData["OPERATOR_AVATAR"],
-						array('width' => 100, 'height' => 100),
-						BX_RESIZE_IMAGE_EXACT,
-						false,
-						false,
-						true
-					);
-					if (!empty($resizedImage['src']))
-					{
-						$operator['AVATAR'] = $resizedImage['src'];
-					}
-				}
+				$operator = \Bitrix\ImOpenLines\Queue::getUserData($configId, $sessionData['CHAT_OPERATOR_ID']);
 			}
 		}
 
@@ -245,7 +217,9 @@ class Dialog
 		}
 
 		return [
+			'DIALOG_ID' => 'chat'.$chatId,
 			'CHAT_ID' => (int)$chatId,
+			'DISK_FOLDER_ID' => (int)$diskFolderId,
 			'SESSION_ID' => (int)$sessionId,
 			'SESSION_CLOSE' => $sessionClosed,
 			'USER_VOTE' => $userVote,

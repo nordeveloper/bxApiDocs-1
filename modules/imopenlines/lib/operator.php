@@ -455,47 +455,6 @@ class Operator
 		return false;
 	}
 
-	public static function getOperatorData($operatorId, $configId = null)
-	{
-		$operatorId = intval($operatorId);
-		if ($operatorId <= 0)
-		{
-			return [
-				'ID' => 0,
-				'NAME' => '',
-				'AVATAR' => '',
-				'ONLINE' => false,
-			];
-		}
-
-		$userData = \Bitrix\Im\User::getInstance($operatorId);
-
-		$operator['ID'] = $operatorId;
-		$operator['NAME'] = $userData->getName(false);
-		if (empty($operator['NAME']))
-		{
-			$operator['NAME'] = Loc::getMessage('IMOL_OPERATOR_USER_NAME');
-		}
-
-		if ($configId && function_exists('customImopenlinesOperatorNames')) // Temporary hack :(
-		{
-			$customName = Array(
-				'ID' => $operatorId,
-				'NAME' => $operator['NAME']
-			);
-			$customName = customImopenlinesOperatorNames($configId, $customName);
-			if ($customName && $customName['NAME'])
-			{
-				$operator['NAME'] = $customName['NAME'];
-			}
-		}
-
-		$operator['AVATAR'] = $userData->getAvatar();
-		$operator['ONLINE'] = $userData->isOnline();
-
-		return $operator;
-	}
-
 	public function getSessionHistory($sessionId)
 	{
 		$sessionId = intval($sessionId);
@@ -547,8 +506,26 @@ class Operator
 			return false;
 		}
 
+		$chatData = \Bitrix\Im\Model\ChatTable::getList(
+			array(
+				'select' => array('ENTITY_DATA_1'),
+				'filter' => array('ID' => $chatId)
+			)
+		)->fetch();
+		$crmEntityType = null;
+		$crmEntityId = null;
+		if ($chatData['ENTITY_DATA_1'])
+		{
+			$chatFieldData = explode('|', $chatData['ENTITY_DATA_1']);
+			if ($chatFieldData[0] == 'Y')
+			{
+				$crmEntityType = $chatFieldData[1];
+				$crmEntityId = $chatFieldData[2];
+			}
+		}
+
 		$result['sessionId'] = $sessionId;
-		$result['canJoin'] = \Bitrix\ImOpenLines\Config::canJoin($session['CONFIG_ID'])? 'Y':'N';
+		$result['canJoin'] = \Bitrix\ImOpenLines\Config::canJoin($session['CONFIG_ID'], $crmEntityType, $crmEntityId)? 'Y':'N';
 		$result['canVoteAsHead'] = \Bitrix\ImOpenLines\Config::canVoteAsHead($session['CONFIG_ID'])? 'Y':'N';
 		$result['sessionVoteHead'] = intval($session['VOTE_HEAD']);
 

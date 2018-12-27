@@ -87,12 +87,12 @@ class EntityHandler
 				}
 				else
 				{
-					$effiectiveValues = array();
+					$effectiveValues = array();
 					for($i = 0, $qty = count($entityData[$entityTypeName]); $i < $qty; $i++)
 					{
-						$effiectiveValues[] = "{$prefix}{$entityData[$entityTypeName][$i]}";
+						$effectiveValues[] = "{$prefix}{$entityData[$entityTypeName][$i]}";
 					}
-					$filter["={$fieldAlias}"] = $effiectiveValues;
+					$filter["={$fieldAlias}"] = $effectiveValues;
 				}
 			}
 		}

@@ -20,12 +20,15 @@ class ContactSettings
 	private $isOpened = null;
 	/** @var BooleanSetting  */
 	private $enableOutmodedRequisites = null;
+	/** @var BooleanSetting  */
+	private $enableDeferredCleaning = null;
 
 	function __construct()
 	{
 		$this->defaultListView = new IntegerSetting('contact_default_list_view', self::VIEW_LIST);
 		$this->isOpened = new BooleanSetting('contact_opened_flag', true);
 		$this->enableOutmodedRequisites = new BooleanSetting('~CRM_ENABLE_CONTACT_OUTMODED_FIELDS', false);
+		$this->enableDeferredCleaning = new BooleanSetting('enable_contact_deferred_cleaning', true);
 	}
 	/**
 	 * Get current instance
@@ -72,6 +75,23 @@ class ContactSettings
 	public function enableOutmodedRequisites($enabled)
 	{
 		$this->enableOutmodedRequisites->set($enabled);
+	}
+	/**
+	 * Return true if deferred cleaning of related entities during deletion operation is enabled.
+	 * @return bool
+	 */
+	public function isDeferredCleaningEnabled()
+	{
+		return $this->enableDeferredCleaning->get();
+	}
+	/**
+	 * Enable enable deferred cleaning of related entities during deletion operation.
+	 * @param bool $enabled Enabled Flag.
+	 * @return void
+	 */
+	public function enableDeferredCleaning($enabled)
+	{
+		$this->enableDeferredCleaning->set($enabled);
 	}
 	/**
 	 * Get current list view ID

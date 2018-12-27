@@ -890,9 +890,12 @@ class ShipmentItemCollection
 
 	/**
 	 * @internal
-	 * @param \SplObjectStorage $cloneEntity
 	 *
-	 * @return ShipmentItemCollection
+	 * @param \SplObjectStorage $cloneEntity
+	 * @return Internals\EntityCollection|object
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ObjectNotFoundException
 	 */
 	public function createClone(\SplObjectStorage $cloneEntity)
 	{
@@ -901,13 +904,8 @@ class ShipmentItemCollection
 			return $cloneEntity[$this];
 		}
 
-		$shipmentItemCollectionClone = clone $this;
-		$shipmentItemCollectionClone->isClone = true;
-
-		if (!$cloneEntity->contains($this))
-		{
-			$cloneEntity[$this] = $shipmentItemCollectionClone;
-		}
+		/** @var ShipmentItemCollection $shipmentItemCollectionClone */
+		$shipmentItemCollectionClone = parent::createClone($cloneEntity);
 
 		/** @var Shipment $shipment */
 		if ($shipment = $this->shipment)
@@ -921,22 +919,6 @@ class ShipmentItemCollection
 			{
 				$shipmentItemCollectionClone->shipment = $cloneEntity[$shipment];
 			}
-
-		}
-
-
-		/**
-		 * @var int key
-		 * @var ShipmentItem $shipmentItem
-		 */
-		foreach ($shipmentItemCollectionClone->collection as $key => $shipmentItem)
-		{
-			if (!$cloneEntity->contains($shipmentItem))
-			{
-				$cloneEntity[$shipmentItem] = $shipmentItem->createClone($cloneEntity);
-			}
-
-			$shipmentItemCollectionClone->collection[$key] = $cloneEntity[$shipmentItem];
 		}
 
 		return $shipmentItemCollectionClone;
@@ -950,6 +932,7 @@ class ShipmentItemCollection
 	public function getErrorEntity($value)
 	{
 		$className = null;
+
 		/** @var ShipmentItem $shipmentItem */
 		foreach ($this->collection as $shipmentItem)
 		{

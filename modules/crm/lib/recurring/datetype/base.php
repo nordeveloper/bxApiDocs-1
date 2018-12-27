@@ -11,6 +11,8 @@ abstract class Base
 	protected $startDate = null;
 	protected $params = [];
 
+	const FIELD_TYPE_NAME = 'TYPE';
+
 	public function __construct(array $params)
 	{
 		$this->params = $params;
@@ -32,7 +34,7 @@ abstract class Base
 
 	public function setStartDate(Date $startDate)
 	{
-		$this->startDate = $startDate;
+		$this->startDate = clone $startDate;
 	}
 
 	abstract protected function checkType($type);

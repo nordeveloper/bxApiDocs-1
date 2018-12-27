@@ -12,6 +12,7 @@ class ComponentManager
 {
 	private static $componentPath = "/bitrix/components/bitrix/mobile.jscomponent/jscomponents/";
 	private static $webComponentPath = "/bitrix/components/bitrix/mobile.webcomponent/webcomponents/";
+	const VERSION = 2;
 
 	public static function getComponentVersion($componentName)
 	{
@@ -20,10 +21,12 @@ class ComponentManager
 		$componentFile = new File($componentFolder->getPath()."/component.js");
 		$componentPhpFile = new File($componentFolder->getPath()."/component.php");
 		$version = 1;
+
 		if($versionFile->isExists())
 		{
 			$versionDesc = include($versionFile->getPath());
 			$version = $versionDesc["version"];
+			$version .= ".".self::VERSION;
 		}
 
 		if($componentFile->isExists())

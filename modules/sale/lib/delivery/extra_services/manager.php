@@ -92,7 +92,7 @@ class Manager
 		$classes = array(
 			'\Bitrix\Sale\Delivery\ExtraServices\Enum' => 'lib/delivery/extra_services/enum.php',
 			'\Bitrix\Sale\Delivery\ExtraServices\Store' => 'lib/delivery/extra_services/store.php',
-			'\Bitrix\Sale\Delivery\ExtraServices\String' => 'lib/delivery/extra_services/string.php',
+			//'\Bitrix\Sale\Delivery\ExtraServices\String' => 'lib/delivery/extra_services/string.php',
 			'\Bitrix\Sale\Delivery\ExtraServices\Quantity' => 'lib/delivery/extra_services/quantity.php',
 			'\Bitrix\Sale\Delivery\ExtraServices\Checkbox' => 'lib/delivery/extra_services/checkbox.php'
 		);

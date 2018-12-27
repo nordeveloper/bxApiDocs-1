@@ -738,7 +738,6 @@ EOS;
 			$arFieldName = array(
 				'Form' => null,
 				'Field' => null,
-				'ClassNamePrefix' => null,
 			);
 			foreach ($fieldName as $key => $val)
 			{
@@ -751,9 +750,6 @@ EOS;
 					case "FIELD":
 					case "1":
 						$arFieldName["Field"] = $val;
-						break;
-					case 'CLASSNAMEPREFIX':
-						$arFieldName["ClassNamePrefix"] = $val;
 						break;
 				}
 			}
@@ -776,12 +772,21 @@ EOS;
 		$fieldTypeObject = $this->getFieldTypeObject($parameterDocumentType, $arFieldType);
 		if ($fieldTypeObject)
 		{
-			$renderMode = $publicMode? 0 : FieldType::RENDER_MODE_DESIGNER;
+			$renderMode = $publicMode ? FieldType::RENDER_MODE_PUBLIC : FieldType::RENDER_MODE_DESIGNER;
 			if (defined('ADMIN_SECTION') && ADMIN_SECTION)
-				$renderMode = $renderMode | FieldType::RENDER_MODE_ADMIN;
+			{
+				$renderMode |= FieldType::RENDER_MODE_ADMIN;
+			}
 
 			if (defined('BX_MOBILE') && BX_MOBILE)
-				$renderMode = $renderMode | FieldType::RENDER_MODE_MOBILE;
+			{
+				$renderMode |= FieldType::RENDER_MODE_MOBILE;
+			}
+
+			if ($renderMode & FieldType::RENDER_MODE_PUBLIC)
+			{
+				CUtil::InitJSCore(['bp_field_type']);
+			}
 
 			return $fieldTypeObject->renderControl($arFieldName, $fieldValue, $bAllowSelection, $renderMode);
 		}

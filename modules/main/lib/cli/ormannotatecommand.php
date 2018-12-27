@@ -11,6 +11,7 @@ namespace Bitrix\Main\Cli;
 use Bitrix\Main\Application;
 use Bitrix\Main\Loader;
 use Bitrix\Main\ORM\Data\AddResult;
+use Bitrix\Main\ORM\Data\Result;
 use Bitrix\Main\ORM\Data\UpdateResult;
 use Bitrix\Main\ORM\Fields\BooleanField;
 use Bitrix\Main\ORM\Data\DataManager;
@@ -380,6 +381,7 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t *";
 		$code[] = "\t * @property-read \\".Entity::class." \$entity";
 		$code[] = "\t * @property-read array \$primary";
+		$code[] = "\t * @property-read int \$state @see \Bitrix\Main\ORM\Objectify\State";
 		$code[] = "\t * @method mixed get(\$fieldName)";
 		$code[] = "\t * @method mixed remindActual(\$fieldName)";
 		$code[] = "\t * @method mixed require(\$fieldName)";
@@ -392,7 +394,7 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t * @method void delete()";
 		$code[] = "\t * @method void fill(\$fields = \\".FieldTypeMask::class."::ALL) flag or array of field names";
 		$code[] = "\t * @method mixed[] collectValues(\$valuesType = \Bitrix\Main\ORM\Objectify\Values::ALL, \$fieldsMask = \Bitrix\Main\ORM\Fields\FieldTypeMask::ALL)";
-		$code[] = "\t * @method \\".AddResult::class."|\\".UpdateResult::class."|bool save()";
+		$code[] = "\t * @method \\".AddResult::class."|\\".UpdateResult::class."|\\".Result::class." save()";
 		$code[] = "\t * @method static {$objectClass} wakeUp(\$data)";
 		//$code[] = "\t *";
 		//$code[] = "\t * for parent class, @see \\".EntityObject::class;
@@ -401,6 +403,7 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\tclass {$objectDefaultClassName} {";
 		$code[] = "\t\t/* @var {$dataClass} */";
 		$code[] = "\t\tstatic public \$dataClass = '{$dataClass}';";
+		$code[] = "\t\tpublic function __construct(\$setDefaultValues = true) {}";
 		$code[] = "\t}"; // end class
 
 		// compatibility with default classes
@@ -476,14 +479,14 @@ class OrmAnnotateCommand extends Command
 		$code[] = "namespace {$entityNamespace} {"; // start namespace
 		$code[] = "\t/**";
 		$code[] = "\t * @method static {$queryClassName} query()";
-		$code[] = "\t * @method static {$resultClassName} getByPrimary()";
-		$code[] = "\t * @method static {$resultClassName} getById()";
-		$code[] = "\t * @method static {$resultClassName} getList()";
+		$code[] = "\t * @method static {$resultClassName} getByPrimary(\$primary, array \$parameters = array())";
+		$code[] = "\t * @method static {$resultClassName} getById(\$id)";
+		$code[] = "\t * @method static {$resultClassName} getList(array \$parameters = array())";
 		$code[] = "\t * @method static {$entityClassName} getEntity()";
 		$code[] = "\t * @method static {$objectClass} createObject(\$setDefaultValues = true)";
 		$code[] = "\t * @method static {$collectionClass} createCollection()";
-		$code[] = "\t * @method static {$objectClass} wakeUpObject()";
-		$code[] = "\t * @method static {$collectionClass} wakeUpCollection()";
+		$code[] = "\t * @method static {$objectClass} wakeUpObject(\$row)";
+		$code[] = "\t * @method static {$collectionClass} wakeUpCollection(\$rows)";
 		$code[] = "\t */";
 		$code[] = "\tclass {$dataClassName} {}";
 
@@ -503,8 +506,8 @@ class OrmAnnotateCommand extends Command
 		$code[] = "\t/**";
 		$code[] = "\t * @method {$objectClass} createObject(\$setDefaultValues = true)";
 		$code[] = "\t * @method {$collectionClass} createCollection()";
-		$code[] = "\t * @method {$objectClass} wakeUpObject()";
-		$code[] = "\t * @method {$collectionClass} wakeUpCollection()";
+		$code[] = "\t * @method {$objectClass} wakeUpObject(\$row)";
+		$code[] = "\t * @method {$collectionClass} wakeUpCollection(\$rows)";
 		$code[] = "\t */";
 		$code[] = "\tclass {$entityClassName} {}";
 
@@ -743,6 +746,8 @@ class OrmAnnotateCommand extends Command
 				return '\\boolean';
 			case FloatField::class:
 				return '\\float';
+			case ArrayField::class:
+				return 'array';
 			default:
 				return '\\string';
 		}

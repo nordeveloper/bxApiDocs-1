@@ -12,13 +12,42 @@ class Chat
 	const TYPE_GROUP = 'C';
 	const TYPE_OPEN_LINE = 'L';
 
+	const STATUS_UNREAD = 0;
+	const STATUS_NOTIFY = 1;
+	const STATUS_READ = 2;
+
 	const LIMIT_SEND_EVENT = 30;
 
 	const FILTER_LIMIT = 50;
 
-	public static function getChatTypes()
+	public static function getTypes()
 	{
 		return Array(self::TYPE_GROUP, self::TYPE_OPEN_LINE, self::TYPE_OPEN, self::TYPE_THREAD);
+	}
+
+	public static function getType($chatData)
+	{
+		$messageType = isset($chatData["TYPE"])? $chatData["TYPE"]: $chatData["CHAT_TYPE"];
+		$entityType = isset($chatData["ENTITY_TYPE"])? $chatData["ENTITY_TYPE"]: $chatData["CHAT_ENTITY_TYPE"];
+
+		$messageType = trim($messageType);
+		$entityType = trim($entityType);
+
+		if ($messageType == IM_MESSAGE_PRIVATE)
+		{
+			$result = 'private';
+		}
+		else if (!empty($entityType))
+		{
+			// convert to camelCase
+			$result = str_replace('_', '', lcfirst(ucwords(strtolower($entityType), '_')));
+		}
+		else
+		{
+			$result = $messageType == IM_MESSAGE_OPEN? 'open': 'chat';
+		}
+
+		return $result;
 	}
 
 	public static function getRelation($chatId, $params = [])
@@ -288,9 +317,13 @@ class Chat
 			'select' => Array(
 				'CHAT_ID' => 'ID',
 				'CHAT_TYPE' => 'TYPE',
+				'CHAT_ENTITY_TYPE' => 'ENTITY_TYPE',
+				'CHAT_ENTITY_ID' => 'ENTITY_ID',
 				'RELATION_USER_ID' => 'RELATION.USER_ID',
 				'RELATION_START_ID' => 'RELATION.START_ID',
-				'RELATION_LAST_ID' => 'RELATION.LAST_ID'
+				'RELATION_LAST_ID' => 'RELATION.LAST_ID',
+				'RELATION_STATUS' => 'RELATION.STATUS',
+				'RELATION_COUNTER' => 'RELATION.COUNTER'
 			),
 			'filter' => Array('=ID' => $chatId),
 			'runtime' => Array(
@@ -313,13 +346,36 @@ class Chat
 		$chatData['RELATION_START_ID'] = intval($chatData['RELATION_START_ID']);
 		$chatData['RELATION_LAST_ID'] = intval($chatData['RELATION_LAST_ID']);
 
+		if (isset($options['LIMIT']))
+		{
+			$options['LIMIT'] = intval($options['LIMIT']);
+			$limit = $options['LIMIT'] >= 50? 50: $options['LIMIT'];
+		}
+		else
+		{
+			$limit = 50;
+		}
+
 		$filter = Array(
 			'=CHAT_ID' => $chatId
 		);
 
+		$fileSort = 'ASC';
+		$startFromUnread = false;
+		if (
+			!isset($options['LAST_ID']) && !isset($options['FIRST_ID'])
+			&& $chatData['RELATION_STATUS'] != \Bitrix\Im\Chat::STATUS_READ
+			&& $chatData['RELATION_COUNTER'] > $limit
+		)
+		{
+			$startFromUnread = true;
+			$options['FIRST_ID'] = $chatData['RELATION_LAST_ID'];
+		}
+
 		if (isset($options['FIRST_ID']))
 		{
 			$order = array();
+
 			if ($chatData['RELATION_START_ID'] > 0 && intval($options['FIRST_ID']) < $chatData['RELATION_START_ID'])
 			{
 				$filter['>=ID'] = $chatData['RELATION_START_ID'];
@@ -334,6 +390,7 @@ class Chat
 		}
 		else
 		{
+			$fileSort = 'DESC';
 			$order = Array('CHAT_ID' => 'ASC', 'ID' => 'DESC');
 
 			if ($chatData['RELATION_START_ID'] > 0)
@@ -347,16 +404,6 @@ class Chat
 			}
 		}
 
-		if (isset($options['LIMIT']))
-		{
-			$options['LIMIT'] = intval($options['LIMIT']);
-			$limit = $options['LIMIT'] >= 50? 50: $options['LIMIT'];
-		}
-		else
-		{
-			$limit = 50;
-		}
-
 		$orm = \Bitrix\Im\Model\MessageTable::getList(array(
 			'filter' => $filter,
 			'select' => Array('ID', 'AUTHOR_ID', 'DATE_CREATE', 'MESSAGE'),
@@ -365,7 +412,17 @@ class Chat
 		));
 
 		$users = Array();
-		$userOptions = $options['JSON'] == 'Y'? Array('JSON' => 'Y'): Array();
+
+		$userOptions = Array();
+		if ($options['JSON'] == 'Y')
+		{
+			$userOptions['JSON'] = 'Y';
+		}
+		if ($chatData['CHAT_ENTITY_TYPE'] == 'LIVECHAT')
+		{
+			list($lineId) = explode('|', $chatData['CHAT_ENTITY_ID']);
+			$userOptions['LIVECHAT'] = $lineId;
+		}
 
 		$messages = Array();
 		while($message = $orm->fetch())
@@ -381,6 +438,10 @@ class Chat
 			if ($message['AUTHOR_ID'] && !isset($users[$message['AUTHOR_ID']]))
 			{
 				$users[$message['AUTHOR_ID']] = User::getInstance($message['AUTHOR_ID'])->getArray($userOptions);
+			}
+			if ($options['CONVERT_TEXT'] == 'Y')
+			{
+				$messages[$message['ID']]['TEXT_CONVERTED'] = \Bitrix\Im\Text::parse($message['MESSAGE']);
 			}
 		}
 
@@ -407,9 +468,19 @@ class Chat
 		$result = Array(
 			'CHAT_ID' => (int)$chatId,
 			'MESSAGES' => $messages,
-			'USERS' => $users,
-			'FILES' => $files,
+			'USERS' => array_values($users),
+			'FILES' => array_values($files),
 		);
+
+		if (count($files) && $fileSort == 'DESC')
+		{
+			$result['FILES'] = array_reverse($result['FILES']);
+		}
+
+		if ($startFromUnread)
+		{
+			$result['MESSAGES'] = array_reverse($result['MESSAGES']);
+		}
 
 		if ($options['JSON'])
 		{
@@ -446,6 +517,64 @@ class Chat
 		}
 
 		return $result;
+	}
+
+	public static function getById($id, $params = array())
+	{
+		$userId = \Bitrix\Im\Common::getUserId();
+		if (!$userId)
+		{
+			return false;
+		}
+
+		$chats = self::getList(Array(
+			'FILTER' => Array('=ID' => $id),
+ 		));
+		if ($chats)
+		{
+			$chat = $chats[0];
+		}
+		else
+		{
+			return false;
+		}
+
+		if (isset($params['LOAD_READED']) && $params['LOAD_READED'])
+		{
+			$userOptions = [];
+			if ($chat['ENTITY_TYPE'] == 'LIVECHAT')
+			{
+				list($lineId) = explode('|', $chat['CHAT_ENTITY_ID']);
+				$userOptions['LIVECHAT'] = $lineId;
+			}
+
+			$relations = self::getRelation($id);
+
+			$chat['READED_LIST'] = [];
+			foreach ($relations as $relation)
+			{
+				if (
+					$relation['USER_ID'] != $userId
+					&& $relation['STATUS'] == self::STATUS_READ
+				)
+				{
+					$user = \Bitrix\Im\User::getInstance($relation['USER_ID'])->getArray($userOptions);
+					$chat['READED_LIST'][] = [
+						'USER_ID' => (int)$relation['USER_ID'],
+						'USER_NAME' => $user['NAME'],
+						'MESSAGE_ID' => (int)$relation['LAST_ID'],
+						'DATE' => $relation['LAST_READ'],
+					];
+				}
+			}
+		}
+
+		if ($params['JSON'])
+		{
+			$chat = self::toJson($chat);
+		}
+
+		return $chat;
 	}
 
 	public static function getList($params = array())
@@ -504,35 +633,29 @@ class Chat
 		{
 			$avatar = \CIMChat::GetAvatarImage($row['AVATAR'], 100, false);
 			$color = strlen($row['COLOR']) > 0? Color::getColor($row['COLOR']): Color::getColorByNumber($row['ID']);
-			if ($row["TYPE"] == IM_MESSAGE_PRIVATE)
-			{
-				$chatType = 'private';
-			}
-			else if ($row["ENTITY_TYPE"] == 'CALL')
-			{
-				$chatType = 'call';
-			}
-			else if ($row["ENTITY_TYPE"] == 'LINES')
-			{
-				$chatType = 'lines';
-			}
-			else if ($row["ENTITY_TYPE"] == 'LIVECHAT')
-			{
-				$chatType = 'livechat';
-			}
-			else
-			{
-				if ($generalChatId == $row['ID'])
-				{
-					$row["ENTITY_TYPE"] = 'GENERAL';
-				}
-				$chatType = $row["TYPE"] == IM_MESSAGE_OPEN? 'open': 'chat';
-			}
 
+			$chatType = \Bitrix\Im\Chat::getType($row);
+
+			if ($generalChatId == $row['ID'])
+			{
+				$row["ENTITY_TYPE"] = 'GENERAL';
+			}
 			$muteList = Array();
 			if ($row['RELATION_NOTIFY_BLOCK'] == 'Y')
 			{
 				$muteList = Array($row['RELATION_USER_ID'] => true);
+			}
+
+			$counter = (int)$row['RELATION_COUNTER'];
+
+
+			$unreadId = 0;
+			$unreadLastId = 0;
+
+			if ($row['RELATION_STATUS'] != self::STATUS_READ)
+			{
+				$unreadId = (int)$row['RELATION_UNREAD_ID'];
+				$unreadLastId = (int)$row['LAST_MESSAGE_ID'];
 			}
 
 
@@ -544,6 +667,10 @@ class Chat
 				'AVATAR' => $avatar,
 				'COLOR' => $color,
 				'TYPE' => $chatType,
+				'COUNTER' => $counter,
+				'UNREAD_ID' => $unreadId,
+				'UNREAD_LAST_ID' => $unreadLastId,
+				'DISK_FOLDER_ID' => (int)$row['DISK_FOLDER_ID'],
 				'ENTITY_TYPE' => (string)$row['ENTITY_TYPE'],
 				'ENTITY_ID' => (string)$row['ENTITY_ID'],
 				'ENTITY_DATA_1' => (string)$row['ENTITY_DATA_1'],
@@ -558,25 +685,7 @@ class Chat
 
 		if ($params['JSON'])
 		{
-			foreach ($chats as $key => $chatData)
-			{
-				foreach ($chatData as $field => $value)
-				{
-					if ($value instanceof \Bitrix\Main\Type\DateTime)
-					{
-						$chats[$key][$field] = date('c', $value->getTimestamp());
-					}
-					else if (is_string($value) && $value && in_array($field, Array('AVATAR')) && strpos($value, 'http') !== 0)
-					{
-						$chats[$key][$field] = \Bitrix\Im\Common::getPublicDomain().$value;
-					}
-					else if (is_array($value))
-					{
-						$chats[$key][$field] = array_change_key_case($value, CASE_LOWER);
-					}
-				}
-				$chats[$key] = array_change_key_case($chats[$key], CASE_LOWER);;
-			}
+			$chats = self::toJson($chats);
 		}
 
 		return $chats;
@@ -600,7 +709,11 @@ class Chat
 		$filter = [];
 		$runtime = [];
 
-		if (isset($params['FILTER']['SEARCH']))
+		if (isset($params['FILTER']['ID']))
+		{
+			$filter['=ID'] = $params['FILTER']['ID'];
+		}
+		else if (isset($params['FILTER']['SEARCH']))
 		{
 			$find = $params['FILTER']['SEARCH'];
 
@@ -664,9 +777,37 @@ class Chat
 				'*',
 				'RELATION_USER_ID' => 'RELATION.USER_ID',
 				'RELATION_NOTIFY_BLOCK' => 'RELATION.NOTIFY_BLOCK',
+				'RELATION_COUNTER' => 'RELATION.COUNTER',
+				'RELATION_LAST_ID' => 'RELATION.LAST_ID',
+				'RELATION_STATUS' => 'RELATION.STATUS',
+				'RELATION_UNREAD_ID' => 'RELATION.UNREAD_ID',
 			],
 			'filter' => $filter,
 			'runtime' => $runtime
 		];
+	}
+
+	private static function toJson($array)
+	{
+		foreach ($array as $field => $value)
+		{
+			if (is_array($value))
+			{
+				$array[$field] = self::toJson($value);
+			}
+			else if ($value instanceof \Bitrix\Main\Type\DateTime)
+			{
+				$array[$field] = date('c', $value->getTimestamp());
+			}
+			else if (is_string($value) && $value && is_string($field) && in_array($field, Array('AVATAR')) && strpos($value, 'http') !== 0)
+			{
+				$array[$field] = \Bitrix\Im\Common::getPublicDomain().$value;
+			}
+			else if (is_array($value))
+			{
+				$array[$field] = array_change_key_case($value, CASE_LOWER);
+			}
+		}
+		return array_change_key_case($array, CASE_LOWER);
 	}
 }

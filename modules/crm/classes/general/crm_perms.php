@@ -288,8 +288,14 @@ class CCrmPerms
 		if (!isset($this->arUserPerms[$permEntity][$permType]))
 			return self::PERM_NONE;
 
-		if($permType === 'READ' && in_array(self::ATTR_READ_ALL, $arEntityAttr, true))
+		if($permType === 'READ'
+			&& (in_array(self::ATTR_READ_ALL, $arEntityAttr, true)
+				|| in_array('CU'.$this->userId, $arEntityAttr, true)
+			)
+		)
+		{
 			return self::PERM_ALL;
+		}
 
 		$icnt = count($this->arUserPerms[$permEntity][$permType]);
 
@@ -815,7 +821,8 @@ class CCrmPerms
 		$enableCummulativeMode = COption::GetOptionString('crm', 'enable_permission_cumulative_mode', 'Y') === 'Y';
 		$allAttrs = self::GetUserAttr($perms->GetUserID());
 		$intranetAttrs = array();
-		$allIntranetAttrs = isset($allAttrs['INTRANET']) && is_array($allAttrs['INTRANET']) && !empty($allAttrs['INTRANET']) ? $allAttrs['INTRANET'] : array();
+		$allIntranetAttrs = isset($allAttrs['INTRANET']) && is_array($allAttrs['INTRANET'])
+			? $allAttrs['INTRANET'] : array();
 		if(!empty($allIntranetAttrs))
 		{
 			foreach($allIntranetAttrs as $attr)
@@ -823,6 +830,20 @@ class CCrmPerms
 				if(preg_match('/^D\d+$/', $attr))
 				{
 					$intranetAttrs[] = "'{$attr}'";
+				}
+			}
+		}
+
+		$subIntranetAttrs = array();
+		$allSubIntranetAttrs = isset($allAttrs['SUBINTRANET']) && is_array($allAttrs['SUBINTRANET'])
+			? $allAttrs['SUBINTRANET'] : array();
+		if(!empty($allSubIntranetAttrs))
+		{
+			foreach($allSubIntranetAttrs as $attr)
+			{
+				if(preg_match('/^D\d+$/', $attr))
+				{
+					$subIntranetAttrs[] = "'{$attr}'";
 				}
 			}
 		}
@@ -837,6 +858,7 @@ class CCrmPerms
 
 			$permissionSet = array(
 				'USER' => '',
+				'CONCERNED_USER' => '',
 				'DEPARTMENTS' => array(),
 				'OPENED_ONLY' => '',
 				'SCOPES' => array()
@@ -858,6 +880,7 @@ class CCrmPerms
 				elseif(preg_match('/^U\d+$/', $attr))
 				{
 					$permissionSet['USER'] = "'{$attr}'";
+					$permissionSet['CONCERNED_USER'] = "'C{$attr}'";
 				}
 				elseif(preg_match('/^D\d+$/', $attr))
 				{
@@ -875,6 +898,7 @@ class CCrmPerms
 					{
 						$permissionSets[] = array(
 							'USER' => "'{$userAttr}'",
+							'CONCERNED_USER' => "'C{$userAttr}'",
 							'DEPARTMENTS' => array(),
 							'OPENED_ONLY' => '',
 							'SCOPES' => array()
@@ -886,7 +910,8 @@ class CCrmPerms
 						//OPENED ONLY mode - allow user department entities too.
 						$permissionSets[] = array(
 							'USER' => '',
-							'DEPARTMENTS' => $intranetAttrs,
+							'CONCERNED_USER' => '',
+							'DEPARTMENTS' => array_unique(array_merge($intranetAttrs, $subIntranetAttrs)),
 							'OPENED_ONLY' => '',
 							'SCOPES' => array()
 						);
@@ -909,6 +934,7 @@ class CCrmPerms
 							$permissionSets,
 							array(
 								'USER' => "'{$userAttr}'",
+								'CONCERNED_USER' => "'C{$userAttr}'",
 								'DEPARTMENTS' => array(),
 								'OPENED_ONLY' => '',
 								'SCOPES' => $permissionSet['SCOPES']
@@ -941,33 +967,39 @@ class CCrmPerms
 			$scopeQty = count($scopes);
 			if($scopeQty === 0)
 			{
-				$restrictionSql = '';
+				$restrictions = array();
 				if($permissionSet['OPENED_ONLY'] !== '')
 				{
 					$attr = $permissionSet['OPENED_ONLY'];
-					$restrictionSql = "{$sAliasPrefix}P.ATTR = {$attr}";
+					$restrictions[] = "{$sAliasPrefix}P.ATTR = {$attr}";
 				}
 				elseif($permissionSet['USER'] !== '')
 				{
-					$attr = $permissionSet['USER'];
-					$restrictionSql = "{$sAliasPrefix}P.ATTR = {$attr}";
+					$restrictions[] = $sAliasPrefix.'P.ATTR = '.$permissionSet['USER'];
+					if($permissionSet['CONCERNED_USER'] !== '')
+					{
+						$restrictions[] = $sAliasPrefix.'P.ATTR = '.$permissionSet['CONCERNED_USER'];
+					}
 				}
 				elseif(!empty($permissionSet['DEPARTMENTS']))
 				{
 					$departments = $permissionSet['DEPARTMENTS'];
-					$restrictionSql = count($departments) > 1
+					$restrictions[] = count($departments) > 1
 						? $sAliasPrefix.'P.ATTR IN('.implode(', ', $departments).')'
 						: $sAliasPrefix.'P.ATTR = '.$departments[0];
 				}
 
-				if($restrictionSql !== '')
+				if(!empty($restrictions))
 				{
-					$subQuery = "SELECT {$sAliasPrefix}P.ENTITY_ID FROM b_crm_entity_perms {$sAliasPrefix}P WHERE {$sAliasPrefix}P.ENTITY = '{$permEntity}' AND {$restrictionSql}";
-					if(!empty($effectiveEntityIDs))
+					foreach($restrictions as $restriction)
 					{
-						$subQuery .= " AND {$sAliasPrefix}P.ENTITY_ID IN (".implode(', ', $effectiveEntityIDs).")";
+						$subQuery = "SELECT {$sAliasPrefix}P.ENTITY_ID FROM b_crm_entity_perms {$sAliasPrefix}P WHERE {$sAliasPrefix}P.ENTITY = '{$permEntity}' AND {$restriction}";
+						if(!empty($effectiveEntityIDs))
+						{
+							$subQuery .= " AND {$sAliasPrefix}P.ENTITY_ID IN (".implode(', ', $effectiveEntityIDs).")";
+						}
+						$subQueries[] = $subQuery;
 					}
-					$subQueries[] = $subQuery;
 
 					if(!$isRestricted)
 					{
@@ -981,38 +1013,49 @@ class CCrmPerms
 					? $sAliasPrefix.'P2.ATTR IN ('.implode(', ', $scopes).')'
 					: $sAliasPrefix.'P2.ATTR = '.$scopes[0];
 
-				$restrictionSql = '';
+				$restrictions = array();
 				if($permissionSet['OPENED_ONLY'] !== '')
 				{
 					$attr = $permissionSet['OPENED_ONLY'];
-					$restrictionSql = "{$sAliasPrefix}P1.ATTR = {$attr}";
+					$restrictions[] = "{$sAliasPrefix}P1.ATTR = {$attr}";
 				}
 				elseif($permissionSet['USER'] !== '')
 				{
-					$attr = $permissionSet['USER'];
-					$restrictionSql = "{$sAliasPrefix}P1.ATTR = {$attr}";
+					$restrictions[] = $sAliasPrefix.'P1.ATTR = '.$permissionSet['USER'];
+					if($permissionSet['CONCERNED_USER'] !== '')
+					{
+						$restrictions[] = $sAliasPrefix.'P1.ATTR = '.$permissionSet['CONCERNED_USER'];
+					}
 				}
 				elseif(!empty($permissionSet['DEPARTMENTS']))
 				{
 					$departments = $permissionSet['DEPARTMENTS'];
-					$restrictionSql = count($departments) > 1
+					$restrictions[] = count($departments) > 1
 						? $sAliasPrefix.'P1.ATTR IN('.implode(', ', $departments).')'
 						: $sAliasPrefix.'P1.ATTR = '.$departments[0];
 				}
 
-				if($restrictionSql !== '')
+				if(!empty($restrictions))
 				{
-					$subQuery = "SELECT {$sAliasPrefix}P2.ENTITY_ID FROM b_crm_entity_perms {$sAliasPrefix}P1 INNER JOIN b_crm_entity_perms {$sAliasPrefix}P2 ON {$sAliasPrefix}P1.ENTITY = '{$permEntity}' AND {$sAliasPrefix}P2.ENTITY = '{$permEntity}' AND {$sAliasPrefix}P1.ENTITY_ID = {$sAliasPrefix}P2.ENTITY_ID AND {$restrictionSql} AND {$scopeSql}";
+					foreach($restrictions as $restriction)
+					{
+						$subQuery = "SELECT {$sAliasPrefix}P2.ENTITY_ID FROM b_crm_entity_perms {$sAliasPrefix}P1 INNER JOIN b_crm_entity_perms {$sAliasPrefix}P2 ON {$sAliasPrefix}P1.ENTITY = '{$permEntity}' AND {$sAliasPrefix}P2.ENTITY = '{$permEntity}' AND {$sAliasPrefix}P1.ENTITY_ID = {$sAliasPrefix}P2.ENTITY_ID AND {$restriction} AND {$scopeSql}";
+						if(!empty($effectiveEntityIDs))
+						{
+							$subQuery .= " AND {$sAliasPrefix}P2.ENTITY_ID IN (".implode(',', $effectiveEntityIDs).")";
+						}
+						$subQueries[] = $subQuery;
+					}
 				}
 				else
 				{
 					$subQuery = "SELECT {$sAliasPrefix}P2.ENTITY_ID FROM b_crm_entity_perms {$sAliasPrefix}P2 WHERE {$sAliasPrefix}P2.ENTITY = '{$permEntity}' AND {$scopeSql}";
+					if(!empty($effectiveEntityIDs))
+					{
+						$subQuery .= " AND {$sAliasPrefix}P2.ENTITY_ID IN (".implode(',', $effectiveEntityIDs).")";
+					}
+					$subQueries[] = $subQuery;
 				}
-				if(!empty($effectiveEntityIDs))
-				{
-					$subQuery .= " AND {$sAliasPrefix}P2.ENTITY_ID IN (".implode(',', $effectiveEntityIDs).")";
-				}
-				$subQueries[] = $subQuery;
 
 				if(!$isRestricted)
 				{

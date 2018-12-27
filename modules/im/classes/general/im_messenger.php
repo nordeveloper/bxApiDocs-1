@@ -108,7 +108,7 @@ class CIMMessenger
 		if (!isset($arFields['NOTIFY_EVENT']))
 			$arFields['NOTIFY_EVENT'] = 'default';
 
-		if (!isset($arFields['PARAMS']))
+		if (!isset($arFields['PARAMS']) || !is_array($arFields['PARAMS']))
 		{
 			$arFields['PARAMS'] = Array();
 		}
@@ -376,12 +376,12 @@ class CIMMessenger
 
 				if ($chatData['PARENT_MID'])
 				{
-					$chatData = IM\Model\ChatTable::getById($chatId)->fetch();
-					CIMMessageParam::set($chatData['PARENT_MID'], Array(
-						'CHAT_MESSAGE' => $chatData['MESSAGE_COUNT'],
+					$chatDataParent = IM\Model\ChatTable::getById($chatId)->fetch();
+					CIMMessageParam::set($chatDataParent['PARENT_MID'], Array(
+						'CHAT_MESSAGE' => $chatDataParent['MESSAGE_COUNT'],
 						'CHAT_LAST_DATE' => new \Bitrix\Main\Type\DateTime()
 					));
-					CIMMessageParam::SendPull($chatData['PARENT_MID'], Array('CHAT_MESSAGE', 'CHAT_LAST_DATE'));
+					CIMMessageParam::SendPull($chatDataParent['PARENT_MID'], Array('CHAT_MESSAGE', 'CHAT_LAST_DATE'));
 				}
 
 				if (empty($arFields['PARAMS']))
@@ -459,8 +459,13 @@ class CIMMessenger
 							$updateRelation = array(
 								"STATUS" => IM_STATUS_UNREAD,
 								"MESSAGE_STATUS" => IM_MESSAGE_STATUS_RECEIVED,
+								"UNREAD_ID" => $messageID,
 								"COUNTER" => $relation['COUNTER'],
 							);
+							if ($relation["UNREAD_ID"])
+							{
+								unset($updateRelation['UNREAD_ID']);
+							}
 							if ($incrementCounter !== true && !in_array($relation['USER_ID'], $incrementCounter))
 							{
 								unset($updateRelation['COUNTER']);
@@ -474,6 +479,7 @@ class CIMMessenger
 							$relationUpdate = array(
 								"STATUS" => IM_STATUS_READ,
 								"MESSAGE_STATUS" => IM_MESSAGE_STATUS_RECEIVED,
+								"UNREAD_ID" => 0,
 								"COUNTER" => 0,
 								"LAST_ID" => $messageID,
 								"LAST_SEND_ID" => $messageID,
@@ -498,6 +504,7 @@ class CIMMessenger
 							'module_id' => 'im',
 							'command' => 'message',
 							'params' => CIMMessage::GetFormatMessage(Array(
+								'TEMP_ID' => $arFields['TEMP_ID'],
 								'ID' => $messageID,
 								'CHAT_ID' => $chatId,
 								'TO_USER_ID' => $arParams['TO_USER_ID'],
@@ -576,6 +583,7 @@ class CIMMessenger
 						C.TITLE CHAT_TITLE,
 						C.AUTHOR_ID CHAT_AUTHOR_ID,
 						C.TYPE CHAT_TYPE,
+						C.AVATAR CHAT_AVATAR,
 						C.COLOR CHAT_COLOR,
 						C.ENTITY_TYPE CHAT_ENTITY_TYPE,
 						C.ENTITY_ID CHAT_ENTITY_ID,
@@ -831,11 +839,11 @@ class CIMMessenger
 					{
 						$relations[$id]['COUNTER'] = $relation['COUNTER'] = 0;
 
-
 						$relationUpdate = array(
 							"STATUS" => IM_STATUS_READ,
 							"MESSAGE_STATUS" => IM_MESSAGE_STATUS_RECEIVED,
 							"COUNTER" => 0,
+							"UNREAD_ID" => 0,
 							"LAST_ID" => $messageID,
 							"LAST_SEND_ID" => $messageID,
 							"LAST_READ" => new Bitrix\Main\Type\DateTime(),
@@ -851,9 +859,14 @@ class CIMMessenger
 					{
 						$updateRelation = array(
 							"STATUS" => IM_STATUS_UNREAD,
+							"UNREAD_ID" => $messageID,
 							"MESSAGE_STATUS" => IM_MESSAGE_STATUS_RECEIVED,
 							"COUNTER" => $relation['COUNTER'],
 						);
+						if ($relation["UNREAD_ID"])
+						{
+							unset($updateRelation['UNREAD_ID']);
+						}
 						if ($incrementCounter !== true && !in_array($relation['USER_ID'], $incrementCounter))
 						{
 							unset($updateRelation['COUNTER']);
@@ -893,6 +906,7 @@ class CIMMessenger
 					'module_id' => 'im',
 					'command' => 'messageChat',
 					'params' => CIMMessage::GetFormatMessage(Array(
+						'TEMP_ID' => $arFields['TEMP_ID'],
 						'ID' => $messageID,
 						'CHAT_ID' => $chatId,
 						'TO_CHAT_ID' => $arParams['TO_CHAT_ID'],
@@ -1175,6 +1189,7 @@ class CIMMessenger
 							'module_id' => 'im',
 							'command' => 'notify',
 							'params' => CIMNotify::GetFormatNotify(Array(
+								'TEMP_ID' => $arFields['TEMP_ID'],
 								'ID' => $messageID,
 								'DATE_CREATE' => time(),
 								'FROM_USER_ID' => intval($arFields['FROM_USER_ID']),
@@ -1379,7 +1394,8 @@ class CIMMessenger
 		$arPullMessage = Array(
 			'id' => (int)$arFields['ID'],
 			'type' => $arFields['MESSAGE_TYPE'] == IM_MESSAGE_PRIVATE? 'private': 'chat',
-			'text' => $pullMessage
+			'text' => $pullMessage,
+			'textOriginal' => $arFields['MESSAGE'],
 		);
 		$arBotInChat = Array();
 
@@ -1581,13 +1597,12 @@ class CIMMessenger
 
 		$arFields = $message;
 		$arFields['MESSAGE'] = GetMessage('IM_MESSAGE_DELETED_OUT', Array('#DATE#' => $date));
-		$arFields['DATE_MODIFY'] = time()+CTimeZone::GetOffset();
+		$arFields['DATE_MODIFY'] = new \Bitrix\Main\Type\DateTime();
 
 		$relations = CIMMessenger::GetRelationById($message['ID']);
 		$arPullMessage = Array(
 			'id' => (int)$arFields['ID'],
 			'type' => $arFields['MESSAGE_TYPE'] == IM_MESSAGE_PRIVATE? 'private': 'chat',
-			'date' => $arFields['DATE_MODIFY'],
 			'text' => GetMessage('IM_MESSAGE_DELETED'),
 			'params' => Array('IS_DELETED' => 'Y', 'URL_ID' => Array(), 'FILE_ID' => Array(), 'KEYBOARD' => 'N', 'ATTACH' => Array())
 		);
@@ -1714,6 +1729,7 @@ class CIMMessenger
 		if ($message['MESSAGE_TYPE'] == IM_MESSAGE_PRIVATE)
 		{
 			$arPullMessage['dialogId'] = (int)$arFields['FROM_USER_ID'];
+			$arPullMessage['chatId'] = (int)$message['CHAT_ID'];
 			$arPullMessage['fromUserId'] = (int)$arFields['FROM_USER_ID'];
 			$arPullMessage['toUserId'] = (int)$arFields['TO_USER_ID'];
 
@@ -1740,6 +1756,7 @@ class CIMMessenger
 		else
 		{
 			$arPullMessage['dialogId'] = 'chat'.$arPullMessage['chatId'];
+			$arPullMessage['chatId'] = (int)$message['CHAT_ID'];
 
 			\Bitrix\Pull\Event::add(array_keys($relations), Array(
 				'module_id' => 'im',
@@ -2174,7 +2191,7 @@ class CIMMessenger
 
 		$strSql = "
 			SELECT
-				R.USER_ID, U.EXTERNAL_AUTH_ID
+				R.USER_ID, U.EXTERNAL_AUTH_ID, M.CHAT_ID
 			FROM b_im_message M
 			LEFT JOIN b_im_relation R ON M.CHAT_ID = R.CHAT_ID
 			LEFT JOIN b_user U ON U.ID = R.USER_ID
@@ -2708,7 +2725,6 @@ class CIMMessenger
 		$phoneEnabled = false;
 		$chatExtendShowHistory = \COption::GetOptionInt('im', 'chat_extend_show_history');
 		$contactListLoad = \COption::GetOptionInt('im', 'contact_list_load');
-		$callServerEnabled = \COption::GetOptionString('im', 'call_server');
 		$phoneCanInterceptCall = self::CanInterceptCall();
 
 		if(!$phoneCanInterceptCall && \Bitrix\Main\Loader::includeModule('voximplant'))
@@ -2847,7 +2863,6 @@ class CIMMessenger
 						'phoneCanPerformCalls': '".($phoneCanPerformCalls? 'Y': 'N')."', 
 						'phoneCanCallUserNumber': '".($phoneCanCallUserNumber? 'Y': 'N')."', 
 						'phoneCanInterceptCall': ".($phoneCanInterceptCall? 'true': 'false').", 
-						'callServerEnabled': '".($callServerEnabled)."', 
 						'phoneCallCardRestApps': ".\Bitrix\Im\Common::objectEncode(self::GetCallCardRestApps()).",
 						'phoneLines': ".\Bitrix\Im\Common::objectEncode(self::GetTelephonyLines()).",
 						'phoneDefaultLineId': '".self::GetDefaultTelephonyLine()."',
@@ -3194,8 +3209,6 @@ class CIMMessenger
 
 		if ($userId > 0 && strlen($dialogId) > 0 && CModule::IncludeModule("pull"))
 		{
-			CPushManager::DeleteFromQueueBySubTag($userId, 'IM_MESS');
-
 			$chat = Array();
 			$relation = Array();
 			if (substr($dialogId, 0, 4) == 'chat')
@@ -3497,7 +3510,7 @@ class CIMMessenger
 
 		$pushText = $params['MESSAGE'];
 
-		$chatType = CIMChat::getChatType($params);
+		$chatType = \Bitrix\Im\Chat::getType($params);
 
 		$avatarUser = \Bitrix\Im\User::getInstance($params['FROM_USER_ID'])->getAvatar();
 		if ($avatarUser && strpos($avatarUser, 'http') !== 0)
@@ -3545,6 +3558,7 @@ class CIMMessenger
 
 		$chatTitle = substr(htmlspecialcharsback($params['params']['chat'][$params['params']['chatId']]['name']), 0, 32);
 		$chatType = $params['params']['chat'][$params['params']['chatId']]['type'];
+		$chatAvatar = $params['params']['chat'][$params['params']['chatId']]['avatar'];
 		$chatTypeLetter = $params['params']['chat'][$params['params']['chatId']]['message_type'];
 
 
@@ -3555,8 +3569,8 @@ class CIMMessenger
 		}
 		else
 		{
-			$userName = \Bitrix\Im\User::getInstance($params['FROM_USER_ID'])->getFullName(false);
-			$avatarUser = \Bitrix\Im\User::getInstance($params['FROM_USER_ID'])->getAvatar();
+			$userName = \Bitrix\Im\User::getInstance($params['params']['message']['senderId'])->getFullName(false);
+			$avatarUser = \Bitrix\Im\User::getInstance($params['params']['message']['senderId'])->getAvatar();
 			if ($avatarUser && strpos($avatarUser, 'http') !== 0)
 			{
 				$avatarUser = \Bitrix\Im\Common::getPublicDomain().$avatarUser;
@@ -3574,10 +3588,13 @@ class CIMMessenger
 			$params['params']['users'] = Array();
 		}
 
-		$avatarChat = \CIMChat::GetAvatarImage($params['CHAT_AVATAR'], 100, false);
-		if ($avatarChat && strpos($avatarChat, 'http') !== 0)
+		if ($chatAvatar == '/bitrix/js/im/images/blank.gif')
 		{
-			$avatarChat = \Bitrix\Im\Common::getPublicDomain().$avatarChat;
+			$chatAvatar = '';
+		}
+		else if ($chatAvatar && strpos($chatAvatar, 'http') !== 0)
+		{
+			$chatAvatar = \Bitrix\Im\Common::getPublicDomain().$chatAvatar;
 		}
 
 		unset($params['extra']);
@@ -3602,7 +3619,7 @@ class CIMMessenger
 		$result['push']['message'] = ($userName? $userName.': ': '').$pushText;
 		$result['push']['advanced_params'] = array(
 			"group"=> $chatType == 'lines'? 'im_lines_message': 'im_message',
-			"avatarUrl"=> $avatarChat? $avatarChat: $avatarUser,
+			"avatarUrl"=> $chatAvatar? $chatAvatar: $avatarUser,
 			"senderName" => $chatTitle,
 			"senderMessage" => ($userName? $userName.': ': '').$pushText,
 			"event" => $params,

@@ -7,7 +7,7 @@ use Bitrix\Crm\Agent\AgentBase;
 
 abstract class EntitySearchContentRebuildAgent extends AgentBase
 {
-	const ITEM_LIMIT = 10;
+	const ITEM_LIMIT = 20;
 
 	/**
 	 * @return EntitySearchContentRebuildAgent|null
@@ -15,6 +15,38 @@ abstract class EntitySearchContentRebuildAgent extends AgentBase
 	public static function getInstance()
 	{
 		return null;
+	}
+
+	public function isActive()
+	{
+		$dbResult = \CAgent::GetList(
+			array('ID' => 'DESC'),
+			array('NAME' => get_called_class().'::run(%')
+		);
+		return is_object($dbResult) && is_array($dbResult->Fetch());
+	}
+
+	public function activate($delay = 0)
+	{
+		if(!is_int($delay))
+		{
+			$delay = (int)$delay;
+		}
+
+		if($delay < 0)
+		{
+			$delay = 0;
+		}
+
+		\CAgent::AddAgent(
+			get_called_class().'::run();',
+			'crm',
+			'N',
+			0,
+			'',
+			'Y',
+			ConvertTimeStamp(time() + \CTimeZone::GetOffset() + $delay, 'FULL')
+		);
 	}
 
 	public abstract function isEnabled();

@@ -273,9 +273,13 @@ class Task implements \IBPWorkflowDocument
 				//'Editable' => true
 			],
 			'GROUP_ID' => [
-				'Name' => Loc::getMessage('TASKS_BP_DOCUMENT_GROUP_ID'),
+				'Name' => Loc::getMessage('TASKS_BP_DOCUMENT_GROUP_ID_INT'),
 				'Type' => 'int',
 				//'Editable' => true
+			],
+			'GROUP_ID_PRINTABLE' => [
+				'Name' => Loc::getMessage('TASKS_BP_DOCUMENT_GROUP_ID_PRINTABLE'),
+				'Type' => 'string',
 			],
 			'PARENT_ID' => [
 				'Name' => Loc::getMessage('TASKS_BP_DOCUMENT_PARENT_ID'),
@@ -546,8 +550,12 @@ class Task implements \IBPWorkflowDocument
 
 	public static function getDocumentName($documentId)
 	{
-		$task = \Bitrix\Tasks\Item\Task::getInstance($documentId, 1);
-		return $task->TITLE;
+		$res = \CTasks::GetList([], ['ID' => (int) $documentId, 'CHECK_PERMISSIONS' => 'N'], ['TITLE']);
+		if ($res && ($task = $res->Fetch()))
+		{
+			return $task['TITLE'];
+		}
+		return null;
 	}
 
 	public static function createAutomationTarget($documentType)
@@ -606,6 +614,22 @@ class Task implements \IBPWorkflowDocument
 			if ($deadlineTs <= time())
 			{
 				$fields['IS_EXPIRED'] = 'Y';
+			}
+		}
+
+		$fields['GROUP_ID_PRINTABLE'] = Loc::getMessage('TASKS_BP_DOCUMENT_GROUP_ID_PRINTABLE_DEFAULT');
+		if ($fields['GROUP_ID'] > 0)
+		{
+			$fields['GROUP_ID_PRINTABLE'] = $fields['GROUP_ID'];
+			if (Main\Loader::includeModule('socialnetwork'))
+			{
+				$res = \Bitrix\Socialnetwork\WorkgroupTable::getList(
+					['filter' => ['=ID' => $fields['GROUP_ID']], 'select' => ['NAME']]
+				);
+				if ($row = $res->fetch())
+				{
+					$fields['GROUP_ID_PRINTABLE'] = $row['NAME'];
+				}
 			}
 		}
 	}

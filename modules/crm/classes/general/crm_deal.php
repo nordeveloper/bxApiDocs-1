@@ -4,6 +4,7 @@ IncludeModuleLangFile(__FILE__);
 use Bitrix\Crm;
 use Bitrix\Crm\CustomerType;
 use Bitrix\Crm\UtmTable;
+use Bitrix\Crm\Tracking;
 use Bitrix\Crm\Category\DealCategory;
 use Bitrix\Crm\Category\DealCategoryChangeError;
 use Bitrix\Crm\Binding\EntityBinding;
@@ -351,9 +352,9 @@ class CAllCrmDeal
 				$recurringJoin = "LEFT JOIN b_crm_deal_recur DR ON DR.DEAL_ID = L.ID";
 				$result['CRM_DEAL_RECURRING_ACTIVE'] = array('FIELD' => 'DR.ACTIVE', 'TYPE' => 'string', 'FROM' => $recurringJoin);
 				$result['CRM_DEAL_RECURRING_COUNTER_REPEAT'] = array('FIELD' => 'DR.COUNTER_REPEAT', 'TYPE' => 'int', 'FROM' => $recurringJoin);
-				$result['CRM_DEAL_RECURRING_NEXT_EXECUTION'] = array('FIELD' => 'DR.NEXT_EXECUTION', 'TYPE' => 'datetime', 'FROM' => $recurringJoin);
-				$result['CRM_DEAL_RECURRING_START_DATE'] = array('FIELD' => 'DR.START_DATE', 'TYPE' => 'datetime', 'FROM' => $recurringJoin);
-				$result['CRM_DEAL_RECURRING_LIMIT_DATE'] = array('FIELD' => 'DR.LIMIT_DATE', 'TYPE' => 'datetime', 'FROM' => $recurringJoin);
+				$result['CRM_DEAL_RECURRING_NEXT_EXECUTION'] = array('FIELD' => 'DR.NEXT_EXECUTION', 'TYPE' => 'date', 'FROM' => $recurringJoin);
+				$result['CRM_DEAL_RECURRING_START_DATE'] = array('FIELD' => 'DR.START_DATE', 'TYPE' => 'date', 'FROM' => $recurringJoin);
+				$result['CRM_DEAL_RECURRING_LIMIT_DATE'] = array('FIELD' => 'DR.LIMIT_DATE', 'TYPE' => 'date', 'FROM' => $recurringJoin);
 				$result['CRM_DEAL_RECURRING_LIMIT_REPEAT'] = array('FIELD' => 'DR.LIMIT_REPEAT', 'TYPE' => 'int', 'FROM' => $recurringJoin);
 			}
 		}
@@ -1321,12 +1322,23 @@ class CAllCrmDeal
 			$arFields['IS_NEW'] = $arFields['STAGE_ID'] === self::GetStartStageID($categoryID) ? 'Y' : 'N';
 			//endregion
 
+			$observerIDs = isset($arFields['OBSERVER_IDS']) && is_array($arFields['OBSERVER_IDS'])
+				? $arFields['OBSERVER_IDS'] : null;
+			unset($arFields['OBSERVER_IDS']);
+
 			$arAttr = array();
 			if (!empty($arFields['STAGE_ID']))
+			{
 				$arAttr['STAGE_ID'] = $arFields['STAGE_ID'];
+			}
 			if (!empty($arFields['OPENED']))
+			{
 				$arAttr['OPENED'] = $arFields['OPENED'];
-
+			}
+			if(!empty($observerIDs))
+			{
+				$arAttr['CONCERNED_USER_IDS'] = $observerIDs;
+			}
 
 			$permissionEntityType = DealCategory::convertToPermissionEntityType($arFields['CATEGORY_ID']);
 			$sPermission = 'ADD';
@@ -1571,6 +1583,13 @@ class CAllCrmDeal
 			}
 			//endregion
 
+			//region Save Observers
+			if(!empty($observerIDs))
+			{
+				Crm\Observer\ObserverManager::registerBulk($observerIDs, \CCrmOwnerType::Deal, $ID);
+			}
+			//endregion
+
 			if(!empty($contactBindings))
 			{
 				$arFields['CONTACT_ID'] = EntityBinding::getPrimaryEntityID(CCrmOwnerType::Contact, $contactBindings);
@@ -1582,8 +1601,8 @@ class CAllCrmDeal
 			{
 				DealSumStatisticEntry::register($ID, $arFields);
 				DealInvoiceStatisticEntry::synchronize($ID, $arFields);
+				DealStageHistoryEntry::register($ID, $arFields, array('IS_NEW' => true));
 			}
-			DealStageHistoryEntry::register($ID, $arFields, array('IS_NEW' => true));
 
 			if(isset($arFields['LEAD_ID']) && $arFields['LEAD_ID'] > 0)
 			{
@@ -1935,6 +1954,14 @@ class CAllCrmDeal
 			$arResult[] = "STAGE_ID{$stageID}";
 		}
 
+		if(isset($arAttr['CONCERNED_USER_IDS']) && is_array($arAttr['CONCERNED_USER_IDS']))
+		{
+			foreach($arAttr['CONCERNED_USER_IDS'] as $concernedUserID)
+			{
+				$arResult[] = "CU{$concernedUserID}";
+			}
+		}
+
 		$arUserAttr = CCrmPerms::BuildUserEntityAttr($userID);
 		return array_merge($arResult, $arUserAttr['INTRANET']);
 	}
@@ -2092,8 +2119,11 @@ class CAllCrmDeal
 		$this->LAST_ERROR = '';
 		$this->checkExceptions = array();
 
-		$userID = isset($options['CURRENT_USER']) ? (int)$options['CURRENT_USER'] : 0;
-		if($userID <= 0)
+		if(isset($options['CURRENT_USER']))
+		{
+			$userID = intval($options['CURRENT_USER']);
+		}
+		else
 		{
 			$userID = CCrmSecurityHelper::GetCurrentUserID();
 		}
@@ -2188,6 +2218,10 @@ class CAllCrmDeal
 				$arFields['ID'] = $ID;
 			}
 
+			$originalObserverIDs = Crm\Observer\ObserverManager::getEntityObserverIDs(CCrmOwnerType::Deal, $ID);
+			$observerIDs = isset($arFields['OBSERVER_IDS']) && is_array($arFields['OBSERVER_IDS'])
+				? $arFields['OBSERVER_IDS'] : null;
+
 			$enableSystemEvents = !isset($options['ENABLE_SYSTEM_EVENTS']) || $options['ENABLE_SYSTEM_EVENTS'] === true;
 			//region Before update event
 			if($enableSystemEvents)
@@ -2215,6 +2249,16 @@ class CAllCrmDeal
 			$arAttr = array();
 			$arAttr['STAGE_ID'] = !empty($arFields['STAGE_ID']) ? $arFields['STAGE_ID'] : $arRow['STAGE_ID'];
 			$arAttr['OPENED'] = !empty($arFields['OPENED']) ? $arFields['OPENED'] : $arRow['OPENED'];
+
+			if($observerIDs !== null && count($observerIDs) > 0)
+			{
+				$arAttr['CONCERNED_USER_IDS'] = $observerIDs;
+			}
+			elseif($observerIDs === null && count($originalObserverIDs) > 0)
+			{
+				$arAttr['CONCERNED_USER_IDS'] = $originalObserverIDs;
+			}
+
 			$arEntityAttr = self::BuildEntityAttr($assignedByID, $arAttr);
 			$sEntityPerm = $this->cPerms->GetPermType($permissionEntityType, 'WRITE', $arEntityAttr);
 			self::PrepareEntityAttrs($arEntityAttr, $sEntityPerm);
@@ -2297,6 +2341,16 @@ class CAllCrmDeal
 					CCrmOwnerType::Contact,
 					$removedContactBindings
 				);
+			}
+			//endregion
+
+			//region Observers
+			$addedObserverIDs = null;
+			$removedObserverIDs = null;
+			if(is_array($observerIDs))
+			{
+				$addedObserverIDs = array_diff($observerIDs, $originalObserverIDs);
+				$removedObserverIDs = array_diff($originalObserverIDs, $observerIDs);
 			}
 			//endregion
 
@@ -2570,6 +2624,28 @@ class CAllCrmDeal
 			}
 			//endregion
 
+			//region Save Observers
+			if(!empty($addedObserverIDs))
+			{
+				Crm\Observer\ObserverManager::registerBulk(
+					$addedObserverIDs,
+					\CCrmOwnerType::Deal,
+					$ID,
+					count($originalObserverIDs)
+				);
+			}
+
+			if(!empty($removedObserverIDs))
+			{
+				Crm\Observer\ObserverManager::unregisterBulk(
+					$removedObserverIDs,
+					\CCrmOwnerType::Deal,
+					$ID
+				);
+
+			}
+			//endregion
+
 			self::SynchronizeCustomerData($ID, $arRow, array('ENABLE_SOURCE' => false));
 			self::SynchronizeCustomerData($ID, $currentFields);
 
@@ -2674,6 +2750,17 @@ class CAllCrmDeal
 					'PREVIOUS_FIELDS' => $arRow,
 					'CONTACT_BINDINGS' => $contactBindings,
 					'ADDED_CONTACT_BINDINGS' => $addedContactBindings
+				)
+			);
+
+			Bitrix\Crm\Integration\Im\Chat::onEntityModification(
+				CCrmOwnerType::Deal,
+				$ID,
+				array(
+					'CURRENT_FIELDS' => $arFields,
+					'PREVIOUS_FIELDS' => $arRow,
+					'ADDED_OBSERVER_IDS' => $addedObserverIDs,
+					'REMOVED_OBSERVER_IDS' => $removedObserverIDs
 				)
 			);
 
@@ -2954,7 +3041,11 @@ class CAllCrmDeal
 				return false;
 			}
 
-		//By defaut we need to clean up related bizproc entities
+		$enableDeferredMode = isset($arOptions['ENABLE_DEFERRED_MODE'])
+			? (bool)$arOptions['ENABLE_DEFERRED_MODE']
+			: \Bitrix\Crm\Settings\DealSettings::getCurrent()->isDeferredCleaningEnabled();
+
+		//By default we need to clean up related bizproc entities
 		$processBizproc = isset($arOptions['PROCESS_BIZPROC']) ? (bool)$arOptions['PROCESS_BIZPROC'] : true;
 		if($processBizproc)
 		{
@@ -2978,8 +3069,20 @@ class CAllCrmDeal
 
 			$CCrmFieldMulti = new CCrmFieldMulti();
 			$CCrmFieldMulti->DeleteByElement('DEAL', $ID);
-			$CCrmEvent = new CCrmEvent();
-			$CCrmEvent->DeleteByElement('DEAL', $ID);
+
+			if(!$enableDeferredMode)
+			{
+				$CCrmEvent = new CCrmEvent();
+				$CCrmEvent->DeleteByElement('DEAL', $ID);
+			}
+			else
+			{
+				Bitrix\Crm\Cleaning\CleaningManager::register(CCrmOwnerType::Deal, $ID);
+				if(!Bitrix\Crm\Agent\Routine\CleaningAgent::isActive())
+				{
+					Bitrix\Crm\Agent\Routine\CleaningAgent::activate();
+				}
+			}
 
 			if(!isset($arOptions['REGISTER_STATISTICS']) || $arOptions['REGISTER_STATISTICS'] === true)
 			{
@@ -3008,6 +3111,7 @@ class CAllCrmDeal
 
 			// delete utm fields
 			UtmTable::deleteEntityUtm(CCrmOwnerType::Deal, $ID);
+			Tracking\Entity::deleteTrace(CCrmOwnerType::Deal, $ID);
 
 			//Statistics & History -->
 			$leadID = isset($arFields['LEAD_ID']) ? (int)$arFields['LEAD_ID'] : 0;
@@ -3023,6 +3127,7 @@ class CAllCrmDeal
 			CCrmActivity::DeleteByOwner(CCrmOwnerType::Deal, $ID);
 			\Bitrix\Crm\Requisite\EntityLink::unregister(CCrmOwnerType::Deal, $ID);
 			\Bitrix\Crm\Pseudoactivity\WaitEntry::deleteByOwner(CCrmOwnerType::Deal, $ID);
+			\Bitrix\Crm\Observer\ObserverManager::deleteByOwner(CCrmOwnerType::Deal, $ID);
 			\Bitrix\Crm\Timeline\TimelineEntry::deleteByOwner(CCrmOwnerType::Deal, $ID);
 			\Bitrix\Crm\Timeline\DealController::getInstance()->onDelete(
 				$ID,
@@ -3084,7 +3189,10 @@ class CAllCrmDeal
 			&& $arFieldsOrig['TITLE'] != $arFieldsModif['TITLE'])
 			$arMsg[] = Array(
 				'ENTITY_FIELD' => 'TITLE',
-				'EVENT_NAME' => GetMessage('CRM_FIELD_COMPARE_TITLE'),
+				'EVENT_NAME' => GetMessage(
+					'CRM_DEAL_FIELD_COMPARE',
+					array('#FIELD_NAME#' => self::GetFieldCaption('TITLE'))
+				),
 				'EVENT_TEXT_1' => $arFieldsOrig['TITLE'],
 				'EVENT_TEXT_2' => $arFieldsModif['TITLE'],
 			);
@@ -4148,8 +4256,9 @@ class CAllCrmDeal
 		}
 
 		$connection = \Bitrix\Main\Application::getConnection();
+		$now = $connection->getSqlHelper()->getCurrentDateTimeFunction();
 		$connection->query(
-			"UPDATE b_crm_deal SET CATEGORY_ID = {$newCategoryID}, STAGE_ID = '{$newStageID}' WHERE ID = {$ID}"
+			"UPDATE b_crm_deal SET CATEGORY_ID = {$newCategoryID}, STAGE_ID = '{$newStageID}', DATE_MODIFY = {$now} WHERE ID = {$ID}"
 		);
 
 		//region Update Permissions
@@ -4228,6 +4337,26 @@ class CAllCrmDeal
 			false
 		);
 		return DealCategoryChangeError::NONE;
+	}
+
+	public static function AddObserverIDs($ID, array $userIDs)
+	{
+		if(empty($userIDs))
+		{
+			return;
+		}
+
+		$observerIDs = array_unique(
+			array_merge(
+				Crm\Observer\ObserverManager::getEntityObserverIDs(CCrmOwnerType::Deal, $ID),
+				$userIDs
+			),
+			SORT_NUMERIC
+		);
+
+		$fields = array('OBSERVER_IDS' => $observerIDs);
+		$entity = new CCrmDeal(false);
+		$entity->Update($ID,$fields);
 	}
 
 	public static function PullChange($type, $arParams)

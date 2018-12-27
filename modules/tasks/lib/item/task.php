@@ -66,6 +66,7 @@ final class Task extends \Bitrix\Tasks\Item
 			// override some tablet fields
 			'RESPONSIBLE_ID' => new Task\Field\Legacy\MemberOne(array(
 				'NAME' => 'RESPONSIBLE_ID',
+
 				'TYPE' => 'R', // todo: replace with constant
 
 				'SOURCE' => Field\Scalar::SOURCE_TABLET,
@@ -133,6 +134,11 @@ final class Task extends \Bitrix\Tasks\Item
 		));
 
 		return $map;
+	}
+
+	public static function getFieldsDescription()
+	{
+		return static::generateMap();
 	}
 
 	public function prepareData($result)
@@ -654,14 +660,24 @@ final class Task extends \Bitrix\Tasks\Item
 
 	/**
 	 * Set task status to 'completed' or 'awaiting approval'
+	 *
+	 * @param array $params
+	 *
+	 * @return $this
+	 * @throws \Bitrix\Main\SystemException
 	 */
-	public function complete()
+	public function complete(array $params = array())
 	{
-		throw new NotImplementedException();
-
 		if(!$this->isImmutable())
 		{
-			// todo
+			$status = 5;
+			if($this->taskControl == 'Y' && $this->userId == $this->responsibleId && $this->userId != $this->createdBy)
+			{
+				$status = 4;
+			}
+
+			$this->status = $status;
+			$this->save($params);
 		}
 
 		return $this;

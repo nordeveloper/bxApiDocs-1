@@ -692,10 +692,21 @@ class CCrmProduct
 		}
 		foreach ($arSelect as $v)
 		{
-			if ((isset($arProductFields[$v]) && $arProductFields[$v] !== false) || preg_match('/^PROPERTY_\d+$/', $v))
+			$isField = isset($arProductFields[$v]);
+			$isIblockField = ($isField && $arProductFields[$v] !== false);
+			if ($isIblockField)
+			{
 				$arSelectRewrited[] = $arProductFields[$v];
-			else if (isset($arProductFields[$v]))
+			}
+			else if ($isField)
+			{
 				$arAdditionalSelect[] = $v;
+			}
+			else if (preg_match('/^PROPERTY_\d+$/', $v))
+			{
+				$arSelectRewrited[] = $v;
+			}
+			unset($isField, $isIblockField);
 		}
 		if (!in_array('ID', $arSelectRewrited, true))
 			$arSelectRewrited[] = 'ID';

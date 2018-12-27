@@ -32,6 +32,8 @@ class LeadSettings
 	private $activityCompletionConfig = null;
 	/** @var ArraySetting */
 	private $freeModeConverterConfig = null;
+	/** @var BooleanSetting  */
+	private $enableDeferredCleaning = null;
 
 	function __construct()
 	{
@@ -40,6 +42,7 @@ class LeadSettings
 		$this->enableProductRowExport = new BooleanSetting('enable_lead_prod_row_export', true);
 		$this->enableAutoGenRc = new BooleanSetting('enable_auto_gen_rc', true);
 		$this->enableAutoUsingFinishedLead = new BooleanSetting('enable_auto_using_finished_lead', false);
+		$this->enableDeferredCleaning = new BooleanSetting('enable_lead_deferred_cleaning', true);
 
 		$completionConfig = array();
 		foreach(Activity\Provider\ProviderManager::getCompletableProviderList() as $providerInfo)
@@ -157,6 +160,23 @@ class LeadSettings
 		$this->freeModeConverterConfig->set($config);
 	}
 	/**
+	 * Return true if deferred cleaning of related entities during deletion operation is enabled.
+	 * @return bool
+	 */
+	public function isDeferredCleaningEnabled()
+	{
+		return $this->enableDeferredCleaning->get();
+	}
+	/**
+	 * Enable enable deferred cleaning of related entities during deletion operation.
+	 * @param bool $enabled Enabled Flag.
+	 * @return void
+	 */
+	public function enableDeferredCleaning($enabled)
+	{
+		$this->enableDeferredCleaning->set($enabled);
+	}
+	/**
 	 * Get current list view ID
 	 * @return int
 	 */
@@ -224,6 +244,10 @@ class LeadSettings
 	 */
 	public static function enableLead($enabled)
 	{
+		$currentValue = \Bitrix\Main\Config\Option::get('crm', 'crm_lead_enabled', "");
+		if ($currentValue === ($enabled ? "Y" : "N"))
+			return true;
+
 		$enabled = (bool)$enabled;
 		if ($enabled)
 		{
@@ -262,15 +286,6 @@ class LeadSettings
 			$isCrmAdmin = "Y";
 		}
 
-		$existActiveLeads = "N";
-
-		$dbRes = \CCrmLead::GetListEx(array('DATE_CREATE' => 'desc'), array("STATUS_SEMANTIC_ID" => \Bitrix\Crm\PhaseSemantics::PROCESS), false, array("nPageSize" => 1), array("ID"));
-		$dbRes->NavStart(1, false);
-		if ($dbRes->GetNext())
-		{
-			$existActiveLeads = "Y";
-		}
-
 		$arParams = array(
 			"ajaxPath" => "/bitrix/tools/crm_lead_mode.php",
 			"dealPath" => (\Bitrix\Crm\Settings\DealSettings::getCurrent()->getCurrentListViewID() == \Bitrix\Crm\Settings\DealSettings::VIEW_KANBAN)
@@ -279,7 +294,6 @@ class LeadSettings
 				? SITE_DIR."crm/lead/kanban/" : \CCrmOwnerType::GetListUrl(\CCrmOwnerType::Lead),
 			"isAdmin" => $isCrmAdmin,
 			"isLeadEnabled" => self::isEnabled() ? "Y" : "N",
-			"existActiveLeads" => $existActiveLeads,
 			"messages" => array(
 				"CRM_TYPE_TITLE" => GetMessage("CRM_TYPE_TITLE"),
 				"CRM_TYPE_SAVE" => GetMessage("CRM_TYPE_SAVE"),
@@ -297,7 +311,7 @@ class LeadSettings
 			)
 		);
 
-		return "BX.CrmLeadMode.init(".\CUtil::PhpToJSObject($arParams)."); BX.CrmLeadMode.showPopup();";
+		return "BX.CrmLeadMode.init(".\CUtil::PhpToJSObject($arParams)."); BX.CrmLeadMode.preparePopup();";
 	}
 	/**
 	 * Include language file

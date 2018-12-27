@@ -46,7 +46,7 @@ Loc::loadMessages(__FILE__);
  * @package Bitrix\Imopenlines
  **/
 
-class SessionTable extends Main\Entity\DataManager
+class SessionTable extends Main\ORM\Data\DataManager
 {
 	/**
 	 * Returns DB table name for entity.
@@ -125,7 +125,7 @@ class SessionTable extends Main\Entity\DataManager
 			),
 			'MESSAGE_COUNT' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('SESSION_ENTITY_MESSAGE_FIELD_NEW'),
+				'title' => Loc::getMessage('SESSION_ENTITY_MESSAGE_FIELD_NEW_NEW'),
 				'default_value' => '0',
 			),
 			'LIKE_COUNT' => array(
@@ -186,6 +186,10 @@ class SessionTable extends Main\Entity\DataManager
 				'title' => Loc::getMessage('SESSION_ENTITY_CRM_ACTIVITY_ID_FIELD'),
 				'default_value' => 0,
 			),
+			'CRM_TRACE_DATA' => array(
+				'data_type' => 'text',
+				'title' => Loc::getMessage('SESSION_ENTITY_CRM_TRACE_DATA_FIELD')
+			),
 			'DATE_CREATE' => array(
 				'data_type' => 'datetime',
 				'title' => Loc::getMessage('SESSION_ENTITY_DATE_CREATE_FIELD'),
@@ -202,11 +206,11 @@ class SessionTable extends Main\Entity\DataManager
 			),
 			'DATE_OPERATOR_ANSWER' => array(
 				'data_type' => 'datetime',
-				'title' => Loc::getMessage('SESSION_ENTITY_DATE_OPERATOR_ANSWER_FIELD'),
+				'title' => Loc::getMessage('SESSION_ENTITY_DATE_OPERATOR_ANSWER_FIELD_NEW'),
 			),
 			'DATE_OPERATOR_CLOSE' => array(
 				'data_type' => 'datetime',
-				'title' => Loc::getMessage('SESSION_ENTITY_DATE_OPERATOR_CLOSE_FIELD'),
+				'title' => Loc::getMessage('SESSION_ENTITY_DATE_OPERATOR_CLOSE_FIELD_NEW'),
 			),
 			'DATE_CLOSE' => array(
 				'data_type' => 'datetime',
@@ -214,7 +218,7 @@ class SessionTable extends Main\Entity\DataManager
 			),
 			'DATE_FIRST_ANSWER' => array(
 				'data_type' => 'datetime',
-				'title' => Loc::getMessage('SESSION_ENTITY_DATE_FIRST_ANSWER_FIELD'),
+				'title' => Loc::getMessage('SESSION_ENTITY_DATE_FIRST_ANSWER_FIELD_NEW'),
 			),
 			'DATE_LAST_MESSAGE' => array(
 				'data_type' => 'datetime',
@@ -227,12 +231,12 @@ class SessionTable extends Main\Entity\DataManager
 			),
 			'TIME_FIRST_ANSWER' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('SESSION_ENTITY_TIME_FIRST_ANSWER_FIELD'),
+				'title' => Loc::getMessage('SESSION_ENTITY_TIME_FIRST_ANSWER_FIELD_NEW'),
 				'default_value' => 0
 			),
 			'TIME_ANSWER' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('SESSION_ENTITY_TIME_ANSWER_FIELD'),
+				'title' => Loc::getMessage('SESSION_ENTITY_TIME_ANSWER_FIELD_NEW'),
 				'default_value' => 0
 			),
 			'TIME_CLOSE' => array(
@@ -260,7 +264,7 @@ class SessionTable extends Main\Entity\DataManager
 			'WAIT_ANSWER' => array(
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y'),
-				'title' => Loc::getMessage('SESSION_ENTITY_WAIT_ANSWER_FIELD'),
+				'title' => Loc::getMessage('SESSION_ENTITY_WAIT_ANSWER_FIELD_NEW'),
 				'default_value' => 'Y',
 			),
 			'CLOSED' => array(
@@ -323,6 +327,10 @@ class SessionTable extends Main\Entity\DataManager
 			'EXTRA_USER_LEVEL' => array(
 				'data_type' => 'string',
 				'validation' => array(__CLASS__, 'validateExtraUserLevel')
+			),
+			'EXTRA_PORTAL_TYPE' => array(
+				'data_type' => 'string',
+				'validation' => array(__CLASS__, 'validateExtraPortalType')
 			),
 			'EXTRA_TARIFF' => array(
 				'data_type' => 'string',
@@ -614,6 +622,18 @@ class SessionTable extends Main\Entity\DataManager
 	 * @throws Main\ArgumentTypeException
 	 */
 	public static function validateExtraUserLevel()
+	{
+		return array(
+			new Main\Entity\Validator\Length(null, 255),
+		);
+	}
+	/**
+	 * Returns validators for EXTRA_PORTAL_TYPE field.
+	 *
+	 * @return array
+	 * @throws Main\ArgumentTypeException
+	 */
+	public static function validateExtraPortalType()
 	{
 		return array(
 			new Main\Entity\Validator\Length(null, 255),

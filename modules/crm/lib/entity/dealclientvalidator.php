@@ -29,7 +29,7 @@ class DealClientValidator extends ClientValidator
 		{
 			$this->entityFields['CONTACT_IDS'] = array();
 		}
-		return $this->entityFields;
+		return $this->entityFields['CONTACT_IDS'];
 	}
 
 	public function isNeedToCheck()

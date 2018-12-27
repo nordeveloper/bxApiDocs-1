@@ -1,18 +1,15 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: maxyc
- * Date: 10.08.18
- * Time: 12:43
- */
-
 return array(
-	'controllers' => array(
-		'value' => array(
-			'namespaces' => array(
+	'controllers' => [
+		'value' => [
+			'namespaces' => [
 				'\\Bitrix\\Tasks\\Rest\\Controllers' => 'api',
-			),
-		),
+			],
+			'defaultNamespace' => '\\Bitrix\\Tasks\\Rest\\Controllers',
+			'restIntegration' => [
+				'enabled'=>true
+			],
+		],
 		'readonly' => true,
-	)
+	]
 );

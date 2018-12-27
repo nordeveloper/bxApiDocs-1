@@ -53,7 +53,7 @@ abstract class ContactCompanyEntity extends Sale\Internals\CollectableEntity
 	{
 		return array(
 			'ORDER_ID', 'ENTITY_ID', 'ENTITY_TYPE_ID',
-			'ROLE_ID', 'IS_PRIMARY', 'SORT'
+			'ROLE_ID', 'IS_PRIMARY', 'SORT', 'XML_ID'
 		);
 	}
 
@@ -83,13 +83,22 @@ abstract class ContactCompanyEntity extends Sale\Internals\CollectableEntity
 	public static function create(ContactCompanyCollection $collection)
 	{
 		$fields = array(
-			'ENTITY_TYPE_ID' => static::getEntityType()
+			'ENTITY_TYPE_ID' => static::getEntityType(),
+			'XML_ID' => static::generateXmlId(),
 		);
 
 		$contact = static::createEntityObject($fields);
 		$contact->setCollection($collection);
 
 		return $contact;
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function generateXmlId()
+	{
+		return uniqid('bx_');
 	}
 
 	/**

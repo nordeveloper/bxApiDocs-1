@@ -7,22 +7,68 @@ use Bitrix\Main,
 	Bitrix\Main\Localization\Loc,
 	Bitrix\Crm\DealRecurTable,
 	Bitrix\Crm\Automation,
+	Bitrix\Crm\Binding\DealContactTable,
 	Bitrix\Crm\Timeline\DealRecurringController,
 	Bitrix\Crm\Recurring\Calculator,
-	Bitrix\Crm\Recurring\DateType,
 	Bitrix\Crm\Recurring\Manager;
 
 class Deal extends Base
 {
+	/** @var Deal */
+	protected static $instance = null;
+
+	/** @var \CCrmDeal */
+	protected static $dealInstance = null;
+
+	/** @var \CCrmUserType */
+	protected static $ufInstance = null;
+
+	/**
+	 * @return Deal
+	 */
+	public static function getInstance()
+	{
+		if(self::$instance === null)
+		{
+			self::$instance = new Deal();
+		}
+		return self::$instance;
+	}
+
+	/**
+	 * @return \CCrmDeal
+	 */
+	protected function getDealInstance()
+	{
+		if(self::$dealInstance === null)
+		{
+			self::$dealInstance = new \CCrmDeal(false);
+		}
+		return self::$dealInstance;
+	}
+
+	/**
+	 * @return \CCrmUserType
+	 */
+	protected function getUserFieldInstance()
+	{
+		if(self::$ufInstance === null)
+		{
+			global $USER_FIELD_MANAGER;
+			self::$ufInstance = new \CCrmUserType($USER_FIELD_MANAGER, \CCrmDeal::GetUserFieldEntityID());
+		}
+		return self::$ufInstance;
+	}
+
 	public function getList(array $parameters = array())
 	{
 		return DealRecurTable::getList($parameters);
 	}
-	
+
 	public function createEntity(array $dealFields, array $recurringParams)
 	{
 		$result = new Main\Result();
-		$newDeal = new \CCrmDeal(false);
+		$newDeal = $this->getDealInstance();
 		if ((int)$dealFields['ID'] > 0)
 		{
 			$recurringParams['BASED_ID'] = $dealFields['ID'];
@@ -43,50 +89,20 @@ class Deal extends Base
 
 			if ((int)$parentDealId > 0)
 			{
-				$productRows = \CCrmDeal::LoadProductRows($parentDealId);
-				if (is_array($productRows) && !empty($productRows))
-				{
-					foreach ($productRows as &$product)
-					{
-						unset($product['ID'], $product['OWNER_ID']);
-					}
-					\CCrmDeal::SaveProductRows($idRecurringDeal, $productRows, true, true, false);
-				}
+				$this->copyDealProductRows($idRecurringDeal, $parentDealId);
 			}
-
-			$recurParams = $this->prepareDates($recurringParams);
-			$recurringParams = $this->prepareActivity($recurParams);
-
 			$recurringParams['DEAL_ID'] = $idRecurringDeal;
-
-			$r = DealRecurTable::add($recurringParams);
+			$r = $this->add($recurringParams);
 
 			if ($r->isSuccess())
 			{
-				Manager::initCheckAgent(Manager::DEAL);
-
-				DealRecurringController::getInstance()->onCreate(
-					$idRecurringDeal,
-					array(
-						'FIELDS' => $dealFields,
-						'RECURRING' => $recurringParams
-					)
-				);
-				$recurringParams['MODIFY_BY_ID'] = $dealFields['CREATED_BY_ID'];
-				DealRecurringController::getInstance()->onModify(
-					$idRecurringDeal,
-					$this->prepareTimelineModify($recurringParams)
-				);
-
+				$this->onAfterCreateEntity($idRecurringDeal, $dealFields, $recurringParams);
 				$result->setData(
 					array(
 						"DEAL_ID" => $idRecurringDeal,
 						"ID" => $r->getId()
 					)
 				);
-
-				$event = new Main\Event("crm", "OnCrmRecurringEntityModify", $recurringParams);
-				$event->send();
 			}
 			else
 			{
@@ -99,6 +115,56 @@ class Deal extends Base
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @param $dealId
+	 * @param $parentDealId
+	 *
+	 * @return bool
+	 */
+	protected function copyDealProductRows($dealId, $parentDealId)
+	{
+		$result = true;
+		$productRows = \CCrmDeal::LoadProductRows($parentDealId);
+		if (is_array($productRows) && !empty($productRows))
+		{
+			foreach ($productRows as &$product)
+			{
+				unset($product['ID'], $product['OWNER_ID']);
+			}
+			$result = \CCrmDeal::SaveProductRows($dealId, $productRows, true, true, false);
+		}
+		return $result;
+	}
+
+	/**
+	 * @param $dealId
+	 * @param $dealFields
+	 * @param $recurringFields
+	 */
+	protected function onAfterCreateEntity($dealId, array $dealFields, array $recurringFields)
+	{
+		Manager::initCheckAgent(Manager::DEAL);
+
+		if ($dealId > 0)
+		{
+			DealRecurringController::getInstance()->onCreate(
+				$dealId,
+				array(
+					'FIELDS' => $dealFields,
+					'RECURRING' => $recurringFields
+				)
+			);
+			$recurringFields['MODIFY_BY_ID'] = $dealFields['CREATED_BY_ID'];
+			DealRecurringController::getInstance()->onModify(
+				$dealId,
+				$this->prepareTimelineModify($recurringFields)
+			);
+		}
+
+		$event = new Main\Event("crm", "OnCrmRecurringEntityModify", $recurringFields);
+		$event->send();
 	}
 
 	/**
@@ -118,11 +184,8 @@ class Deal extends Base
 			return $result;
 		}
 
-		$data['NEXT_EXECUTION'] = null;
-
 		$recur = DealRecurTable::getById($primary);
 		$recurData = $recur->fetch();
-
 		if (!$recurData)
 		{
 			$result->addError(new Main\Error("Entity isn't recurring"));
@@ -133,8 +196,30 @@ class Deal extends Base
 			'NEXT_EXECUTION' => $recurData['NEXT_EXECUTION']
 		];
 		unset($recurData['ACTIVE'], $recurData['NEXT_EXECUTION']);
-		$data = array_merge($recurData, $data);
 
+		$data = $this->prepareUpdateFields(
+			array_merge($recurData, $data)
+		);
+
+		$resultUpdate = DealRecurTable::update($primary, $data);
+
+		if ($resultUpdate->isSuccess())
+		{
+			$recurData = array_merge($recurData, $previousData);
+			$this->onAfterUpdate($data, $recurData);
+		}
+
+		return $resultUpdate;
+	}
+
+	/**
+	 * @param array $data
+	 *
+	 * @return array
+	 */
+	protected function prepareUpdateFields(array $data)
+	{
+		$data['NEXT_EXECUTION'] = null;
 		$recurringParams = $data['PARAMS'];
 
 		if (is_array($recurringParams) && $data['ACTIVE'] !== 'N')
@@ -170,38 +255,39 @@ class Deal extends Base
 			$data = $this->prepareActivity($data);
 		}
 
-		$resultUpdate = DealRecurTable::update($primary, $data);
+		return $data;
+	}
 
-		$previousTimestamp = ($previousData['NEXT_EXECUTION'] instanceof Date) ? $previousData['NEXT_EXECUTION']->getTimestamp() : 0;
-		$currentTimestamp = ($data['NEXT_EXECUTION'] instanceof Date) ? $data['NEXT_EXECUTION']->getTimestamp() : 0;
-		if (
-			$resultUpdate->isSuccess()
-			&& ($previousData['ACTIVE'] !== $data['ACTIVE'] || $previousTimestamp !== $currentTimestamp)
-		)
+	/**
+	 * @param array $previousFields
+	 * @param array $currentFields
+	 */
+	protected function onAfterUpdate(array $currentFields, array $previousFields)
+	{
+		$previousTimestamp = ($previousFields['NEXT_EXECUTION'] instanceof Date) ? $previousFields['NEXT_EXECUTION']->getTimestamp() : 0;
+		$currentTimestamp = ($currentFields['NEXT_EXECUTION'] instanceof Date) ? $currentFields['NEXT_EXECUTION']->getTimestamp() : 0;
+		if ($previousFields['ACTIVE'] !== $currentFields['ACTIVE'] || $previousTimestamp !== $currentTimestamp)
 		{
-			$data['MODIFY_BY_ID'] = \CCrmSecurityHelper::GetCurrentUserID();
+			$currentFields['MODIFY_BY_ID'] = \CCrmSecurityHelper::GetCurrentUserID();
 			DealRecurringController::getInstance()->onModify(
-				$recurData['DEAL_ID'],
-				$this->prepareTimelineModify($data, $recurData)
+				$previousFields['DEAL_ID'],
+				$this->prepareTimelineModify($currentFields, $previousFields)
 			);
 
-			$event = new Main\Event("crm", "OnCrmRecurringEntityModify", $data);
+			$event = new Main\Event("crm", "OnCrmRecurringEntityModify", $currentFields);
 			$event->send();
 		}
-
-		return $resultUpdate;
 	}
 
 	/**
 	 * @param array $filter
 	 * @param null $limit
+	 * @param bool $recalculate
 	 *
 	 * @return Result
 	 */
-	public function expose(array $filter, $limit = null)
+	public function expose(array $filter, $limit = null, $recalculate = true)
 	{
-		global $USER_FIELD_MANAGER;
-
 		$result = new Main\Result();
 
 		$idDealsList = array();
@@ -230,25 +316,13 @@ class Deal extends Base
 
 		try
 		{
-			$newDeal = new \CCrmDeal(false);
-			$today = new Date();
-			$userType = new \CCrmUserType($USER_FIELD_MANAGER, \CCrmDeal::GetUserFieldEntityID());
+			$newDeal = $this->getDealInstance();
 			$idListChunks = array_chunk($idDealsList, 999);
 
 			foreach ($idListChunks as $idList)
 			{
-				$products = array();
-				$productRowData = \CCrmDeal::LoadProductRows($idList);
-
-				foreach ($productRowData as $row)
-				{
-					$ownerId = $row['OWNER_ID'];
-					unset($row['OWNER_ID'],$row['ID']);
-					$products[$ownerId][] = $row;
-				}
-
-				unset($row);
-
+				$products = $this->getProducts($idList);
+				$dealContactIds = $this->getContactIds($idList);
 				$dealsData = \CCrmDeal::GetList(
 					array(),
 					array(
@@ -259,57 +333,16 @@ class Deal extends Base
 
 				while ($deal = $dealsData->Fetch())
 				{
-					$recurData = $recurParamsList[$deal['ID']];
-					$deal['IS_RECURRING'] = 'N';
-					$deal['IS_NEW'] = 'Y';
-					if (isset($recurData['CATEGORY_ID']))
-					{
-						$deal['CATEGORY_ID'] = $recurData['CATEGORY_ID'];
-					}
-					$deal['PRODUCT_ROWS'] = $products[$deal['ID']];
-					$deal['STAGE_ID'] = \CCrmDeal::GetStartStageID($deal['CATEGORY_ID']);
-					$recurParam = $recurData['PARAMS'];
 					$recurringDealId = $deal['ID'];
-
-					$userFields = $userType->GetEntityFields($recurringDealId);
-					foreach($userFields as $key => $field)
-					{
-						if ($field["USER_TYPE"]["BASE_TYPE"] == "file" && !empty($field['VALUE']))
-						{
-							if (is_array($field['VALUE']))
-							{
-								$deal[$key] = array();
-								foreach ($field['VALUE'] as $value)
-								{
-									$fileData = \CFile::MakeFileArray($value);
-									if (is_array($fileData))
-									{
-										$deal[$key][] = $fileData;
-									}
-								}
-							}
-							else
-							{
-								$fileData = \CFile::MakeFileArray($field['VALUE']);
-								if (is_array($fileData))
-								{
-									$deal[$key] = $fileData;
-								}
-								else
-								{
-									$deal[$key] = $field['VALUE'];
-								}
-							}
-						}
-						else
-						{
-							$deal[$key] = $field['VALUE'];
-						}
-					}
-
-					unset($deal['ID'], $deal['DATE_CREATE']);
-					$reCalculate = false;
-					$resultId = $newDeal->Add($deal, $reCalculate, array(
+					$recurData = $recurParamsList[$recurringDealId];
+					$exposeParams = [
+						'PRODUCT_ROWS' => $products[$recurringDealId],
+						'RECURRING_FIELDS' => $recurData,
+						'CONTACT_IDS' => $dealContactIds[$recurringDealId]
+					];
+					$deal = $this->fillFieldsBeforeExpose($deal, $exposeParams);
+					$reCalculateDeal = false;
+					$resultId = $newDeal->Add($deal, $reCalculateDeal, array(
 						'DISABLE_TIMELINE_CREATION' => 'Y',
 						'DISABLE_USER_FIELD_CHECK' => true
 					));
@@ -325,50 +358,10 @@ class Deal extends Base
 						if (!empty($productRowSettings))
 							\CCrmProductRow::SaveSettings('D', $resultId, $productRowSettings);
 
-						\CCrmBizProcHelper::AutoStartWorkflows(
-							\CCrmOwnerType::Deal,
-							$resultId,
-							\CCrmBizProcEventType::Create,
-							$arErrors
-						);
-
-						Automation\Factory::runOnAdd(\CCrmOwnerType::Deal, $resultId);
-
 						$newDealIds[] = $resultId;
 
-						$deal['RECURRING_ID'] = $recurringDealId;
-						DealRecurringController::getInstance()->onExpose(
-							$resultId,
-							array(
-								'FIELDS' => $deal
-							)
-						);
-						$previousRecurData = $recurData;
-
-						$nextData = self::getNextDate($recurParam);
-
-						$recurData["LAST_EXECUTION"] = $today;
-						$recurData["COUNTER_REPEAT"] = (int)$recurData['COUNTER_REPEAT'] + 1;
-						$recurData["NEXT_EXECUTION"] = $nextData;
-						$recurData = $this->prepareActivity($recurData);
-
-						$updateData = array(
-							"LAST_EXECUTION" => $recurData["LAST_EXECUTION"],
-							"COUNTER_REPEAT" => $recurData["COUNTER_REPEAT"],
-							"NEXT_EXECUTION" => $recurData["NEXT_EXECUTION"],
-							"ACTIVE" => $recurData["ACTIVE"]
-						);
-
-						DealRecurTable::update($recurData['ID'], $updateData);
-
-						$updateData['MODIFY_BY_ID'] = $deal['MODIFY_BY_ID'];
-						DealRecurringController::getInstance()->onModify(
-							$recurData['DEAL_ID'],
-							$this->prepareTimelineModify($updateData, $previousRecurData)
-						);
-
-						$event = new Main\Event("crm", "OnCrmRecurringEntityModify", $updateData);
-						$event->send();
+						$options['RECALCULATE_NEXT_EXECUTION'] = $recalculate;
+						$this->onAfterDealExpose($resultId, $recurData, $options);
 					}
 					else
 					{
@@ -390,6 +383,202 @@ class Deal extends Base
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @param array $idList
+	 *
+	 * @return array
+	 */
+	protected function getContactIds(array $idList)
+	{
+		$dealContactIds = [];
+		$contactsRawData = DealContactTable::getList([
+			'filter' => ['DEAL_ID' => $idList],
+			'select' => ['DEAL_ID', 'CONTACT_ID']
+		]);
+
+		while ($contact = $contactsRawData->fetch())
+		{
+			$dealContactIds[$contact['DEAL_ID']][] = $contact['CONTACT_ID'];
+		}
+		return $dealContactIds;
+	}
+
+	/**
+	 * @param array $idList
+	 *
+	 * @return array
+	 */
+	protected function getProducts(array $idList)
+	{
+		$products = [];
+		$productRowData = \CCrmDeal::LoadProductRows($idList);
+
+		foreach ($productRowData as $row)
+		{
+			$ownerId = $row['OWNER_ID'];
+			unset($row['OWNER_ID'],$row['ID']);
+			$products[$ownerId][] = $row;
+		}
+
+		return $products;
+	}
+
+	/**
+	 * @param array $fields
+	 * @param array $params
+	 *
+	 * @return array
+	 */
+	protected function fillFieldsBeforeExpose(array $fields, array $params)
+	{
+		$recurData = $params['RECURRING_FIELDS'];
+		$fields['IS_RECURRING'] = 'N';
+		$fields['IS_NEW'] = 'Y';
+		if (isset($recurData['CATEGORY_ID']))
+		{
+			$fields['CATEGORY_ID'] = $recurData['CATEGORY_ID'];
+		}
+		$fields['PRODUCT_ROWS'] = is_array($params['PRODUCT_ROWS']) ? $params['PRODUCT_ROWS'] : [];
+		$fields['STAGE_ID'] = \CCrmDeal::GetStartStageID($fields['CATEGORY_ID']);
+
+		if (!empty($params['CONTACT_IDS']))
+		{
+			$fields['CONTACT_IDS'] = $params['CONTACT_IDS'];
+		}
+
+		$recurParam = $recurData['PARAMS'];
+		if ((int)$recurParam['BEGINDATE_TYPE'] === self::CALCULATED_FIELD_VALUE)
+		{
+			$beginDate = self::getNextDate([
+				'MODE' => Manager::MULTIPLY_EXECUTION,
+				'MULTIPLE_TYPE' => Calculator::SALE_TYPE_CUSTOM_OFFSET,
+				'MULTIPLE_CUSTOM_TYPE' => (int)$recurParam['OFFSET_BEGINDATE_TYPE'],
+				'MULTIPLE_CUSTOM_INTERVAL_VALUE' => (int)$recurParam['OFFSET_BEGINDATE_VALUE'],
+			]);
+			if ($beginDate instanceof Date)
+			{
+				$fields['BEGINDATE'] = $beginDate->toString();
+			}
+		}
+
+		if ((int)$recurParam['CLOSEDATE_TYPE'] === self::CALCULATED_FIELD_VALUE)
+		{
+			$closeDate = self::getNextDate([
+				'MODE' => Manager::MULTIPLY_EXECUTION,
+				'MULTIPLE_TYPE' => Calculator::SALE_TYPE_CUSTOM_OFFSET,
+				'MULTIPLE_CUSTOM_TYPE' => (int)$recurParam['OFFSET_CLOSEDATE_TYPE'],
+				'MULTIPLE_CUSTOM_INTERVAL_VALUE' => (int)$recurParam['OFFSET_CLOSEDATE_VALUE'],
+			]);
+			if ($closeDate instanceof Date)
+			{
+				$fields['CLOSEDATE'] = $closeDate->toString();
+			}
+		}
+
+		$userFields = $this->getUserFieldInstance()->GetEntityFields($fields['ID']);
+		foreach($userFields as $key => $field)
+		{
+			if ($field["USER_TYPE"]["BASE_TYPE"] == "file" && !empty($field['VALUE']))
+			{
+				if (is_array($field['VALUE']))
+				{
+					$fields[$key] = array();
+					foreach ($field['VALUE'] as $value)
+					{
+						$fileData = \CFile::MakeFileArray($value);
+						if (is_array($fileData))
+						{
+							$fields[$key][] = $fileData;
+						}
+					}
+				}
+				else
+				{
+					$fileData = \CFile::MakeFileArray($field['VALUE']);
+					if (is_array($fileData))
+					{
+						$fields[$key] = $fileData;
+					}
+					else
+					{
+						$fields[$key] = $field['VALUE'];
+					}
+				}
+			}
+			else
+			{
+				$fields[$key] = $field['VALUE'];
+			}
+		}
+
+		unset($fields['ID'], $fields['DATE_CREATE']);
+		return $fields;
+	}
+
+	/**
+	 * @param $newId
+	 * @param array $recurringFields
+	 * @param array $options
+	 */
+	protected function onAfterDealExpose($newId, array $recurringFields, array $options)
+	{
+		\CCrmBizProcHelper::AutoStartWorkflows(
+			\CCrmOwnerType::Deal,
+			$newId,
+			\CCrmBizProcEventType::Create,
+			$arErrors
+		);
+
+		Automation\Factory::runOnAdd(\CCrmOwnerType::Deal, $newId);
+
+		$deal['RECURRING_ID'] = $recurringFields['DEAL_ID'];
+		DealRecurringController::getInstance()->onExpose(
+			$newId,
+			array(
+				'FIELDS' => $deal
+			)
+		);
+		$previousRecurData = $recurringFields;
+
+		$recurringFields["LAST_EXECUTION"] = new Date();
+		$recurringFields["COUNTER_REPEAT"] = (int)$recurringFields['COUNTER_REPEAT'] + 1;
+		$updateData = array(
+			"LAST_EXECUTION" => $recurringFields["LAST_EXECUTION"],
+			"COUNTER_REPEAT" => $recurringFields["COUNTER_REPEAT"]
+		);
+
+		if ($options['RECALCULATE_NEXT_EXECUTION'])
+		{
+			$recurringFields["NEXT_EXECUTION"] = self::getNextDate($recurringFields['PARAMS']);
+			$updateData["NEXT_EXECUTION"] = $recurringFields["NEXT_EXECUTION"];
+			$recurringFields = $this->prepareActivity($recurringFields);
+			$updateData["ACTIVE"] = $recurringFields["ACTIVE"];
+		}
+
+		DealRecurTable::update($recurringFields['ID'], $updateData);
+
+		$updateData['MODIFY_BY_ID'] = $deal['MODIFY_BY_ID'];
+		DealRecurringController::getInstance()->onModify(
+			$recurringFields['DEAL_ID'],
+			$this->prepareTimelineModify($updateData, $previousRecurData)
+		);
+
+		$event = new Main\Event("crm", "OnCrmRecurringEntityModify", $updateData);
+		$event->send();
+	}
+
+	/**
+	 * @param array $fields
+	 *
+	 * @return Main\ORM\Data\AddResult
+	 */
+	public function add(array $fields)
+	{
+		$recurParams = $this->prepareDates($fields);
+		$recurringParams = $this->prepareActivity($recurParams);
+		return DealRecurTable::add($recurringParams);
 	}
 
 	/**
@@ -476,21 +665,14 @@ class Deal extends Base
 			throw new Main\ArgumentException('Wrong deal id.');
 		}
 
-		$recurringData = DealRecurTable::getList(
-			array(
-				"filter" => array("=DEAL_ID" => $dealId)
-			)
-		);
-
-		while ($recurring = $recurringData->fetch())
+		$recurringData = DealRecurTable::getById($dealId);
+		if ( $recurringData->fetch())
 		{
-			$this->update(
-				$recurring['ID'],
-				array(
-					"ACTIVE" => "N",
-					"NEXT_EXECUTION" => null
-				)
-			);
+			$inactiveFields = [
+				"ACTIVE" => "N",
+				"NEXT_EXECUTION" => null
+			];
+			DealRecurTable::update($dealId,	$inactiveFields);
 		}
 	}
 
@@ -569,6 +751,21 @@ class Deal extends Base
 	}
 
 	/**
+	 * @param array $params
+	 *
+	 * @return ParameterMapper\Map
+	 */
+	public static function getParameterMapper(array $params = [])
+	{
+		if (!empty($params['PERIOD_DEAL']))
+		{
+			return ParameterMapper\FirstFormDeal::getInstance();
+		}
+
+		return ParameterMapper\SecondFormDeal::getInstance();
+	}
+
+	/**
 	 * Return calculated date by recurring params
 	 *
 	 * @param array $params
@@ -578,101 +775,9 @@ class Deal extends Base
 	 */
 	public static function getNextDate(array $params, $startDate = null)
 	{
-		$result = array(
-			"PERIOD" => (int)$params['PERIOD'] ? (int)$params['PERIOD'] : null
-		);
-
-		if (
-			isset($params['PERIOD_DEAL']) && (int)$params['EXECUTION_TYPE'] === Manager::MULTIPLY_EXECUTION
-			|| isset($params['MODE']) && (int)$params['MODE'] === Manager::MULTIPLY_EXECUTION
-		)
-		{
-			$interval = 1;
-			if ((int)$params['PERIOD_DEAL'] > 0)
-			{
-				$period = (int)$params['PERIOD_DEAL'];
-			}
-			else
-			{
-				$period = (int)$params['MULTIPLE_TYPE'];
-				if ($period === Calculator::SALE_TYPE_CUSTOM_OFFSET)
-				{
-					$period = (int)$params['MULTIPLE_CUSTOM_TYPE'];
-					$interval = (int)$params['MULTIPLE_CUSTOM_INTERVAL_VALUE'];
-				}
-			}
-
-			switch($period)
-			{
-				case Calculator::SALE_TYPE_DAY_OFFSET:
-				{
-					$result['INTERVAL_DAY'] = $interval;
-					$result['TYPE'] = DateType\Day::TYPE_A_FEW_DAYS_AFTER;
-					break;
-				}
-				case Calculator::SALE_TYPE_WEEK_OFFSET:
-				{
-					$result['TYPE'] = DateType\Week::TYPE_A_FEW_WEEKS_AFTER;
-					$result['INTERVAL_WEEK'] = $interval;
-					break;
-				}
-				case Calculator::SALE_TYPE_MONTH_OFFSET:
-				{
-					$result['INTERVAL_MONTH'] = $interval;
-					$result['TYPE'] = DateType\Month::TYPE_A_FEW_MONTHS_AFTER;
-					break;
-				}
-				case Calculator::SALE_TYPE_YEAR_OFFSET:
-				{
-					$result['TYPE'] = DateType\Year::TYPE_ALTERNATING_YEAR;
-					$result['INTERVAL_YEARLY'] = $interval;
-					break;
-				}
-			}
-
-			$result['PERIOD'] = $period;
-		}
-		elseif (
-			isset($params['DEAL_TYPE_BEFORE']) && (int)$params['EXECUTION_TYPE'] === Manager::SINGLE_EXECUTION
-			|| isset($params['MODE']) && (int)$params['MODE'] === Manager::SINGLE_EXECUTION
-		)
-		{
-			if (isset($params['DEAL_TYPE_BEFORE']) && (int)$params['EXECUTION_TYPE'] === Manager::SINGLE_EXECUTION)
-			{
-				$typeName = 'DEAL_TYPE_BEFORE';
-				$intervalName = 'DEAL_COUNT_BEFORE';
-			}
-			else
-			{
-				$typeName = 'SINGLE_TYPE';
-				$intervalName = 'SINGLE_INTERVAL_VALUE';
-			}
-			$result['PERIOD'] = (int)$params[$typeName];
-
-			switch($result['PERIOD'])
-			{
-				case Calculator::SALE_TYPE_DAY_OFFSET:
-				{
-					$result['TYPE'] = DateType\Day::TYPE_A_FEW_DAYS_BEFORE;
-					$result['INTERVAL_DAY'] = (int)$params[$intervalName];
-					break;
-				}
-				case Calculator::SALE_TYPE_WEEK_OFFSET:
-				{
-					$result['TYPE'] = DateType\Week::TYPE_A_FEW_WEEKS_BEFORE;
-					$result['INTERVAL_WEEK'] = (int)$params[$intervalName];
-					break;
-				}
-				case Calculator::SALE_TYPE_MONTH_OFFSET:
-				{
-					$result['TYPE'] = DateType\Month::TYPE_A_FEW_MONTHS_BEFORE;
-					$result['INTERVAL_MONTH'] = (int)$params[$intervalName];
-					break;
-				}
-			}
-		}
-
-		return parent::getNextDate($result, $startDate);
+		$mapper = self::getParameterMapper($params);
+		$mapper->fillMap($params);
+		return parent::getNextDate($mapper->getPreparedMap(), $startDate);
 	}
 
 
@@ -686,5 +791,4 @@ class Deal extends Base
 
 		return true;
 	}
-
 }

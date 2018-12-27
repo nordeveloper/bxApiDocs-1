@@ -376,6 +376,33 @@ class ContactCompanyCollection extends Sale\Internals\EntityCollection
 	}
 
 	/**
+	 * @internal
+	 * @param \SplObjectStorage $cloneEntity
+	 *
+	 * @return ContactCompanyCollection
+	 */
+	public function createClone(\SplObjectStorage $cloneEntity)
+	{
+		if ($this->isClone() && $cloneEntity->contains($this))
+		{
+			return $cloneEntity[$this];
+		}
+
+		/** @var ContactCompanyCollection $contactCompanyCollection */
+		$contactCompanyCollection = parent::createClone($cloneEntity);
+
+		if ($this->order)
+		{
+			if ($cloneEntity->contains($this->order))
+			{
+				$contactCompanyCollection->order = $cloneEntity[$this->order];
+			}
+		}
+
+		return $contactCompanyCollection;
+	}
+
+	/**
 	 * @return mixed
 	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentTypeException

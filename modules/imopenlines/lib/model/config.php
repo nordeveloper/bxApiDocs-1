@@ -142,13 +142,13 @@ class ConfigTable extends Main\Entity\DataManager
 			'CHECKING_OFFLINE' => array(
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y'),
-				'title' => Loc::getMessage('CONFIG_ENTITY_CHECKING_OFFLINE_FIELD'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_CHECKING_OFFLINE_FIELD_NEW'),
 				'default_value' => 'N',
 			),
 			'CHECK_ONLINE' => array(
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y'),
-				'title' => Loc::getMessage('CONFIG_ENTITY_CHECKING_OFFLINE_FIELD'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_CHECK_ONLINE_FIELD_NEW'),
 				'default_value' => 'Y',
 			),
 			'WELCOME_BOT_ENABLE' => array(
@@ -165,7 +165,7 @@ class ConfigTable extends Main\Entity\DataManager
 			),
 			'WELCOME_MESSAGE_TEXT' => array(
 				'data_type' => 'text',
-				'title' => Loc::getMessage('CONFIG_ENTITY_WELCOME_MESSAGE_TEXT_FIELD'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_WELCOME_MESSAGE_TEXT_FIELD_NEW'),
 			),
 			'VOTE_MESSAGE' => array(
 				'data_type' => 'boolean',
@@ -176,7 +176,7 @@ class ConfigTable extends Main\Entity\DataManager
 			'VOTE_CLOSING_DELAY' => array(
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y'),
-				'title' => Loc::getMessage('CONFIG_ENTITY_VOTE_CLOSING_DELAY_FIELD'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_VOTE_CLOSING_DELAY_FIELD_NEW'),
 				'default_value' => 'N',
 			),
 			'VOTE_MESSAGE_1_TEXT' => array(
@@ -361,12 +361,12 @@ class ConfigTable extends Main\Entity\DataManager
 			),
 			'AUTO_CLOSE_TIME' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('CONFIG_ENTITY_AUTO_CLOSE_TIME_FIELD'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_AUTO_CLOSE_TIME_FIELD_NEW'),
 				'default_value' => '14400',
 			),
 			'AUTO_CLOSE_TEXT' => array(
 				'data_type' => 'text',
-				'title' => Loc::getMessage('CONFIG_ENTITY_AUTO_CLOSE_TEXT_FIELD'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_AUTO_CLOSE_TEXT_FIELD_NEW'),
 			),
 			'AUTO_EXPIRE_TIME' => array(
 				'data_type' => 'integer',
@@ -422,6 +422,12 @@ class ConfigTable extends Main\Entity\DataManager
 				'data_type' => 'integer',
 				'default_value' => '0',
 			),
+			'OPERATOR_DATA' => array(
+				'data_type' => 'string',
+				'validation' => array(__CLASS__, 'validateQueueType'),
+				'title' => Loc::getMessage('CONFIG_ENTITY_OPERATOR_DATA_FIELD'),
+				'default_value' => 'profile',
+			)
 		);
 	}
 	/**

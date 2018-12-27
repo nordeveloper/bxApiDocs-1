@@ -8,6 +8,7 @@ use Bitrix\Main\Event;
 use Bitrix\Main\EventResult;
 use Bitrix\Main\IO\Directory;
 use Bitrix\Main\IO\File;
+use Bitrix\Main\IO\Path;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Request;
 use Bitrix\Sale\Basket;
@@ -373,7 +374,7 @@ final class Manager
 									$psTitle .= ' ('.$handlerName.')';
 								}
 
-								$handlerName = str_replace($documentRoot, '', $handler->getPath());
+								$handlerName = str_replace(Path::normalize($documentRoot), '', $handler->getPath());
 							}
 							$group = (strpos($type, 'SYSTEM') !== false) ? 'SYSTEM' : 'USER';
 

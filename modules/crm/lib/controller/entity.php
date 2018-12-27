@@ -8,8 +8,9 @@ use Bitrix\Crm\Search\SearchEnvironment;
 
 class Entity extends Main\Engine\Controller
 {
+	//region Search
 	//BX.ajax.runAction("crm.api.entity.search", { data: { search: "John Smith", options: { scope: 'denomination', types: [ BX.CrmEntityType.names.contact ] } } });
-	public function searchAction($search, $options)
+	public static function searchAction($search, $options)
 	{
 		if(!is_array($options))
 		{
@@ -409,8 +410,9 @@ class Entity extends Main\Engine\Controller
 		Main\Type\Collection::sortByColumn($results, array('title' => SORT_ASC));
 		return $results;
 	}
-	//region LRU
+	//endregion
 
+	//region LRU
 	/**
 	 * Add items to LRU items.
 	 * @param string $category Category name (it's used for saving user option).
@@ -495,8 +497,6 @@ class Entity extends Main\Engine\Controller
 
 		return $items;
 	}
-	//endregion
-
 	/**
 	 * Expand source items by recently created items of specified entity type.
 	 * @param array $items Source items.
@@ -556,4 +556,248 @@ class Entity extends Main\Engine\Controller
 
 		$items = array_values($map);
 	}
+	//endregion
+
+	//region Delete
+	public static function deleteAction(array $params)
+	{
+		$gridID = isset($params['GRID_ID']) ? $params['GRID_ID'] : '';
+		$entityTypeID = isset($params['ENTITY_TYPE_ID']) ? (int)$params['ENTITY_TYPE_ID'] : \CCrmOwnerType::Undefined;
+		$entityIDs = isset($params['ENTITY_IDS']) && is_array($params['ENTITY_IDS']) ? $params['ENTITY_IDS'] : array();
+
+		if(!empty($entityIDs))
+		{
+			return self::deleteByIDs($gridID, $entityTypeID, $entityIDs);
+		}
+
+		$filterFields = isset($params['FILTER']) && is_array($params['FILTER']) ? $params['FILTER'] : array();
+		if(empty($filterFields))
+		{
+			$filterOptions = new Main\UI\Filter\Options($gridID);
+			$filterFields = $filterOptions->getFilter();
+			$entityFilter = Crm\Filter\Factory::createEntityFilter(
+				Crm\Filter\Factory::createEntitySettings($entityTypeID, $gridID)
+			);
+
+			$entityFilter->prepareListFilterParams($filterFields);
+			Crm\Search\SearchEnvironment::convertEntityFilterValues($entityTypeID, $filterFields);
+
+			\CCrmEntityHelper::PrepareMultiFieldFilter($filterFields, array(), '=%', false);
+		}
+		$extras = isset($params['EXTRAS']) && is_array($params['EXTRAS']) ? $params['EXTRAS'] : array();
+		return self::deleteByFilter($gridID, $entityTypeID, $filterFields, $extras);
+	}
+	public static function deleteByIDs($gridID, $entityTypeID, array $entityIDs)
+	{
+		sort($entityIDs, SORT_NUMERIC);
+		$hash = md5(
+			\CCrmOwnerType::ResolveName($entityTypeID).':'.strtoupper($gridID).':'.implode(',', $entityIDs)
+		);
+
+		if(!isset($_SESSION['CRM_ENTITY_DELETION_DATA']))
+		{
+			$_SESSION['CRM_ENTITY_DELETION_DATA'] = array();
+		}
+
+		$progressData = isset($_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID])
+			? $_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID] : null;
+
+		if(is_array($progressData) && !(isset($progressData['HASH']) && $progressData['HASH'] === $hash))
+		{
+			unset($_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID], $progressData);
+			$progressData = null;
+		}
+
+		if(!is_array($progressData))
+		{
+			$progressData = array(
+				'HASH' => $hash,
+				'ENTITY_TYPE_ID' => $entityTypeID,
+				'ENTITY_IDS' => $entityIDs,
+				'CURRENT_ENTITY_INDEX' => 0,
+				'PROCESSED_COUNT' => 0
+			);
+			$_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID] = $progressData;
+		}
+
+		$currentEntityIndex = isset($progressData['CURRENT_ENTITY_INDEX'])
+			? (int)$progressData['CURRENT_ENTITY_INDEX'] : 0;
+		$processedCount = isset($progressData['PROCESSED_COUNT'])
+			? (int)$progressData['PROCESSED_COUNT'] : 0;
+
+		$userPermissions = Crm\Security\EntityAuthorization::getUserPermissions(
+			Crm\Security\EntityAuthorization::getCurrentUserID()
+		);
+
+		$entity = Crm\Entity\EntityManager::resolveByTypeID($entityTypeID);
+
+		$totalCount = count($entityIDs);
+		if($currentEntityIndex < 0)
+		{
+			$currentEntityIndex = 0;
+		}
+		for($i = 0; $i < 10; $i++)
+		{
+			if($currentEntityIndex >= $totalCount)
+			{
+				break;
+			}
+
+			$currentEntityID = $entityIDs[$currentEntityIndex];
+			if($currentEntityID > 0 && $entity->checkDeletePermission($currentEntityID, $userPermissions))
+			{
+				$entity->delete($currentEntityID);
+			}
+
+			$processedCount++;
+			$currentEntityIndex++;
+		}
+
+		$isInProgress = $processedCount < $totalCount;
+		if($isInProgress)
+		{
+			$progressData['PROCESSED_COUNT'] = $processedCount;
+			$progressData['CURRENT_ENTITY_INDEX'] = $currentEntityIndex;
+
+			$_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID] = $progressData;
+		}
+		else
+		{
+			unset($_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID]);
+		}
+
+		return array(
+			'STATUS' => $isInProgress ? 'PROGRESS' : 'COMPLETED',
+			'PROCESSED_ITEMS' => $processedCount,
+			'TOTAL_ITEMS' => $totalCount
+		);
+	}
+	public static function deleteByFilter($gridID, $entityTypeID, array $filterFields, array $extras)
+	{
+		$entity = Crm\Entity\EntityManager::resolveByTypeID($entityTypeID);
+		if($entityTypeID === \CCrmOwnerType::Deal)
+		{
+			if(isset($extras['CATEGORY_ID']) && $extras['CATEGORY_ID'] >= 0)
+			{
+				$filterFields['CATEGORY_ID'] = (int)$extras['CATEGORY_ID'];
+			}
+
+			$filterFields['IS_RECURRING'] = isset($extras['IS_RECURRING']) && $extras['IS_RECURRING'] === 'Y' ? 'Y' : 'N';
+		}
+
+		ksort($filterFields, SORT_STRING);
+		$hash = md5(
+			\CCrmOwnerType::ResolveName($entityTypeID)
+			.':'.strtoupper($gridID)
+			.':'.implode(',', array_map(function($k, $v){ return "{$k}:{$v}"; }, array_keys($filterFields), $filterFields))
+		);
+
+		if(!isset($_SESSION['CRM_ENTITY_DELETION_DATA']))
+		{
+			$_SESSION['CRM_ENTITY_DELETION_DATA'] = array();
+		}
+
+		$progressData = isset($_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID])
+			? $_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID] : null;
+
+		if(is_array($progressData) && !(isset($progressData['HASH']) && $progressData['HASH'] === $hash))
+		{
+			unset($_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID], $progressData);
+			$progressData = null;
+		}
+
+		if(!is_array($progressData))
+		{
+			$totalCount = $entity->getCount(array('filter' => $filterFields));
+			$progressData = array(
+				'HASH' => $hash,
+				'ENTITY_TYPE_ID' => $entityTypeID,
+				'FILTER' => $filterFields,
+				'CURRENT_ENTITY_ID' => 0,
+				'PROCESSED_COUNT' => 0,
+				'TOTAL_COUNT' => $totalCount
+			);
+			$_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID] = $progressData;
+		}
+
+		$currentEntityID = isset($progressData['CURRENT_ENTITY_ID'])
+			? (int)$progressData['CURRENT_ENTITY_ID'] : 0;
+		$processedCount = isset($progressData['PROCESSED_COUNT'])
+			? (int)$progressData['PROCESSED_COUNT'] : 0;
+		$totalCount = isset($progressData['TOTAL_COUNT'])
+			? (int)$progressData['TOTAL_COUNT'] : 0;
+
+		$userPermissions = Crm\Security\EntityAuthorization::getUserPermissions(
+			Crm\Security\EntityAuthorization::getCurrentUserID()
+		);
+
+		$entityFilter = $filterFields;
+		if($currentEntityID > 0)
+		{
+			$entityFilter['>ID'] = $currentEntityID;
+		}
+
+		$entityIDs = $entity->getTopIDs(
+			array(
+				'order' => array('ID' => 'ASC'),
+				'filter' => $entityFilter,
+				'limit' => 10
+			)
+		);
+
+		$errors = array();
+		if(!empty($entityIDs))
+		{
+			foreach($entityIDs as $entityID)
+			{
+				$currentEntityID = $entityID;
+				if($entity->checkDeletePermission($currentEntityID, $userPermissions))
+				{
+					$error = $entity->delete($currentEntityID);
+					if(is_array($error))
+					{
+						\CCrmOwnerType::TryGetEntityInfo(
+							$entityTypeID,
+							$currentEntityID,
+							$entityInfo,
+							false
+						);
+						$error['INFO'] = $entityInfo;
+						$errors[] = $error;
+					}
+				}
+				$processedCount++;
+			}
+		}
+		elseif($processedCount !== $totalCount)
+		{
+			$processedCount = $totalCount;
+		}
+
+		$isInProgress = $processedCount < $totalCount;
+		if($isInProgress)
+		{
+			$progressData['PROCESSED_COUNT'] = $processedCount;
+			$progressData['CURRENT_ENTITY_ID'] = $currentEntityID;
+
+			$_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID] = $progressData;
+		}
+		else
+		{
+			unset($_SESSION['CRM_ENTITY_BATCH_DELETION_DATA'][$gridID]);
+		}
+
+		$resultData = array(
+			'STATUS' => $isInProgress ? 'PROGRESS' : 'COMPLETED',
+			'PROCESSED_ITEMS' => $processedCount,
+			'TOTAL_ITEMS' => $totalCount
+		);
+
+		if(!empty($errors))
+		{
+			$resultData['ERRORS'] = $errors;
+		}
+		return $resultData;
+	}
+	//endregion
 }

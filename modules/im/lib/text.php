@@ -9,6 +9,7 @@ Loc::loadMessages(__FILE__);
 class Text
 {
 	private static $replacements = Array();
+	private static $parsers = Array();
 
 	public static function parse($text, $params = Array())
 	{
@@ -36,11 +37,23 @@ class Text
 			"ALIGN" => "N"
 		);
 
-		$parser = new \CTextParser();
-		$parser->serverName = Common::getPublicDomain();
-		$parser->maxAnchorLength = intval($params['LINK_LIMIT'])? $params['LINK_LIMIT']: 55;
-		$parser->maxStringLen = intval($params['TEXT_LIMIT']);
-		$parser->allow = $allowTags;
+		$parseId = md5($params['LINK'].$params['SMILES'].$params['LINK_LIMIT'].$params['TEXT_LIMIT']);
+		if (isset(self::$parsers[$parseId]))
+		{
+			$parser = self::$parsers[$parseId];
+		}
+		else
+		{
+			$parser = new \CTextParser();
+			$parser->serverName = Common::getPublicDomain();
+			$parser->maxAnchorLength = intval($params['LINK_LIMIT'])? $params['LINK_LIMIT']: 55;
+			$parser->maxStringLen = intval($params['TEXT_LIMIT']);
+			$parser->allow = $allowTags;
+
+			self::$parsers[$parseId] = $parser;
+		}
+
+
 
 		$text = preg_replace_callback("/\[PUT(?:=(.+?))?\](.+?)?\[\/PUT\]/i", Array('\Bitrix\Im\Text', 'setReplacement'), $text);
 		$text = preg_replace_callback("/\[SEND(?:=(.+?))?\](.+?)?\[\/SEND\]/i", Array('\Bitrix\Im\Text', 'setReplacement'), $text);

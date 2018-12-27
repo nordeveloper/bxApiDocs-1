@@ -11,7 +11,16 @@ abstract class EntityBase
 	abstract protected function getDbEntity();
 	abstract protected function buildPermissionSql(array $params);
 
-	abstract public function checkReadPermission($ID = 0, $userPermissions = null);
+	abstract public function checkReadPermission($entityID = 0, $userPermissions = null);
+	abstract public function checkDeletePermission($entityID = 0, $userPermissions = null);
+
+	abstract public function getTopIDs(array $params);
+	abstract public function getCount(array $params);
+	abstract public function delete($entityID, array $options = array());
+	public function cleanup($entityID)
+	{
+		throw new Main\NotImplementedException('Method cleanup must be overridden');
+	}
 
 	public function getLastID($userID = 0, $enablePermissionCheck = true)
 	{

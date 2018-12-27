@@ -24,6 +24,8 @@ class DealSettings
 	private $enableProductRowExport = null;
 	/** @var BooleanSetting */
 	private $isOpened = null;
+	/** @var BooleanSetting  */
+	private $enableDeferredCleaning = null;
 
 	function __construct()
 	{
@@ -31,6 +33,7 @@ class DealSettings
 		$this->enableCloseDateSync = new BooleanSetting('enable_close_date_sync', true);
 		$this->enableProductRowExport = new BooleanSetting('enable_deal_prod_row_export', true);
 		$this->isOpened = new BooleanSetting('deal_opened_flag', true);
+		$this->enableDeferredCleaning = new BooleanSetting('enable_deal_deferred_cleaning', true);
 	}
 	/**
 	 * Get current instance
@@ -95,6 +98,24 @@ class DealSettings
 	{
 		$this->enableProductRowExport->set($enabled);
 	}
+	/**
+	 * Return true if deferred cleaning of related entities during deletion operation is enabled.
+	 * @return bool
+	 */
+	public function isDeferredCleaningEnabled()
+	{
+		return $this->enableDeferredCleaning->get();
+	}
+	/**
+	 * Enable enable deferred cleaning of related entities during deletion operation.
+	 * @param bool $enabled Enabled Flag.
+	 * @return void
+	 */
+	public function enableDeferredCleaning($enabled)
+	{
+		$this->enableDeferredCleaning->set($enabled);
+	}
+
 	/**
 	 * Get current list view ID
 	 * @return int

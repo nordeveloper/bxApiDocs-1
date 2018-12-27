@@ -1079,7 +1079,7 @@ $licensePrefix = CModule::IncludeModule("bitrix24") ? \CBitrix24::getLicensePref
 						{
 							?><div style="width: 500px;" class="invite-dialog-inv-text-bold">
 								<?=GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TEXT");?>
-								<input type="hidden" name="MESSAGE_TEXT" value="<?=htmlspecialcharsbx(GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TEXT"))?>">
+								<input type="hidden" name="MESSAGE_TEXT" value="<?=GetMessage("BX24_INVITE_DIALOG_INVITE_MESSAGE_TEXT")?>">
 							</div><?
 						}
 						?>
@@ -1362,6 +1362,7 @@ $licensePrefix = CModule::IncludeModule("bitrix24") ? \CBitrix24::getLicensePref
 								<tr>
 									<td class="invite-dialog-inv-form-l" style="vertical-align: top;" colspan="2">
 										<?=GetMessage("BX24_INVITE_DIALOG_INTEGRATOR_TEXT")?>
+										<a href="javascript:void(0)" onclick='top.BX.Helper.show("redirect=detail&code=7725333");'><?=GetMessage("BX24_INVITE_DIALOG_INTEGRATOR_MORE")?></a>
 									</td>
 								</tr>
 								<tr>

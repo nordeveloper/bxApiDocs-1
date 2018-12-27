@@ -118,7 +118,18 @@ class Date extends Base
 		$className = static::generateControlClassName($fieldType, $field);
 		$renderResult = '';
 
-		if ($renderMode & FieldType::RENDER_MODE_MOBILE)
+		if ($renderMode & FieldType::RENDER_MODE_PUBLIC && $allowSelection)
+		{
+			$renderResult = '<input name="'.htmlspecialcharsbx($name).'" type="text" '
+				.'class="'.htmlspecialcharsbx($className).'"
+					value="'.htmlspecialcharsbx($value).'"
+					placeholder="'.htmlspecialcharsbx($fieldType->getDescription()).'"
+					data-role="inline-selector-target"
+					data-selector-type="'.htmlspecialcharsbx($fieldType->getType()).'"
+					data-selector-write-mode="replace"
+				>';
+		}
+		elseif ($renderMode & FieldType::RENDER_MODE_MOBILE)
 		{
 			$renderResult = '<div><input type="hidden" value="'
 				.htmlspecialcharsbx($value).'" data-type="'
@@ -156,6 +167,87 @@ class Date extends Base
 
 		return $renderResult;
 	}
+
+	/**
+	 * @param FieldType $fieldType Document field type.
+	 * @param array $field Form field.
+	 * @param mixed $value Field value.
+	 * @param bool $allowSelection Allow selection flag.
+	 * @param int $renderMode Control render mode.
+	 * @return string
+	 */
+	public static function renderControlSingle(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
+	{
+		$allowSelectionOrig = $allowSelection;
+		if (($renderMode & FieldType::RENDER_MODE_PUBLIC))
+		{
+			$allowSelection = false;
+		}
+
+		$value = static::toSingleValue($fieldType, $value);
+		$selectorValue = null;
+
+		if ($allowSelection && \CBPActivity::isExpression($value))
+		{
+			$selectorValue = $value;
+			$value = null;
+		}
+
+		$renderResult = static::renderControl($fieldType, $field, $value, $allowSelectionOrig, $renderMode);
+
+		if ($allowSelection)
+		{
+			$renderResult .= static::renderControlSelector($field, $selectorValue, true, '', $fieldType);
+		}
+
+		return $renderResult;
+	}
+
+	public static function renderControlMultiple(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
+	{
+		$allowSelectionOrig = $allowSelection;
+		if ($renderMode & FieldType::RENDER_MODE_PUBLIC)
+		{
+			$allowSelection = false;
+		}
+
+		if (!is_array($value) || is_array($value) && \CBPHelper::isAssociativeArray($value))
+		{
+			$value = array($value);
+		}
+
+		if (empty($value))
+		{
+			$value[] = null;
+		}
+
+		$controls = [];
+
+		foreach ($value as $k => $v)
+		{
+			$singleField = $field;
+			$singleField['Index'] = $k;
+			$controls[] = static::renderControl(
+				$fieldType,
+				$singleField,
+				$v,
+				$allowSelectionOrig,
+				$renderMode
+			);
+		}
+
+		if ($renderMode & FieldType::RENDER_MODE_PUBLIC)
+		{
+			$renderResult = static::renderPublicMultipleWrapper($fieldType, $field, $controls);
+		}
+		else
+		{
+			$renderResult = static::wrapCloneableControls($controls, static::generateControlName($field));
+		}
+
+		return $renderResult;
+	}
+
 
 	/**
 	 * @param int $renderMode Control render mode.

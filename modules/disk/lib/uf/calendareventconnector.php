@@ -49,7 +49,7 @@ final class CalendarEventConnector extends StubConnector
 		{
 			if(is_array($event['ATTENDEE_LIST']))
 			{
-				$userIndex = CCalendarEvent::getUserIndex();
+				$userIndex = \CCalendarEvent::getUserIndex();
 				foreach($event['ATTENDEE_LIST'] as $attendee)
 				{
 					if (isset($userIndex[$attendee["id"]]))

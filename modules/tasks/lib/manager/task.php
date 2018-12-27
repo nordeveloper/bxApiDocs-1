@@ -30,7 +30,9 @@ use Bitrix\Tasks\Manager\Task\Responsible;
 use Bitrix\Tasks\Manager\Task\Tag;
 use Bitrix\Tasks\Manager\Task\Template;
 use Bitrix\Tasks\Util\Error\Collection;
+use Bitrix\Tasks\Util\Type\DateTime;
 use Bitrix\Tasks\Util\UserField\Task as UserField;
+use Bitrix\Tasks\Internals\Task\LogTable;
 
 final class Task extends \Bitrix\Tasks\Manager
 {
@@ -695,7 +697,7 @@ final class Task extends \Bitrix\Tasks\Manager
 			'FAVORITE.ADD' => true,
 			'FAVORITE.DELETE' => false,
 			'DAYPLAN.ADD' => !\Bitrix\Tasks\Integration\Extranet\User::isExtranet($userId)
-							 && \Bitrix\Tasks\Integration\Timeman::canUse()
+				&& \Bitrix\Tasks\Integration\Timeman::canUse()
 		);
 	}
 
@@ -779,6 +781,7 @@ final class Task extends \Bitrix\Tasks\Manager
 			$navParams = static::prepareNav(
 				$listParameters['limit'],
 				$listParameters['offset'],
+				$listParameters['page'],
 				$parameters['PUBLIC_MODE']
 			);
 
@@ -796,6 +799,25 @@ final class Task extends \Bitrix\Tasks\Manager
 			$params['SORTING_GROUP_ID'] = $listParameters[ 'legacyFilter' ]['GROUP_ID'];
 		}
 
+		if (array_key_exists('USE_MINIMAL_SELECT_LEGACY', $parameters))
+		{
+			$params['USE_MINIMAL_SELECT_LEGACY'] = $parameters[ 'USE_MINIMAL_SELECT_LEGACY'];
+		}
+
+		if(in_array('NEW_COMMENTS_COUNT', $listParameters[ 'select' ]))
+		{
+			$listParameters[ 'select' ][]='CREATED_DATE';
+			$listParameters[ 'select' ][]='VIEWED_DATE';
+		}
+
+		if (!array_key_exists('RETURN_ACCESS', $parameters) ||
+			(array_key_exists('RETURN_ACCESS', $parameters) && $parameters['RETURN_ACCESS'] != 'N'))
+		{
+			$listParameters[ 'select' ][]='ALLOW_CHANGE_DEADLINE';
+			$listParameters[ 'select' ][]='TASK_CONTROL';
+			$listParameters[ 'select' ][]='ALLOW_TIME_TRACKING';
+		}
+
 		// an exception about sql error may fall here
 		list($items, $res) = \CTaskItem::fetchListArray(
 			$userId,
@@ -805,26 +827,55 @@ final class Task extends \Bitrix\Tasks\Manager
 			$listParameters[ 'select' ]
 		);
 
-		if (is_array($items))
-		{
-//			$selected = array_flip((array) $listParameters['select']);
+		$filterLog = ['LOGIC' => 'OR'];
 
+		if (is_array($items) && !empty($items))
+		{
 			foreach ($items as $taskData)
 			{
-				// drop unwanted rubbish
-//				if(!empty($selected))
-//				{
-//					foreach($taskData as $k => $v)
-//					{
-//						if(!array_key_exists($k, $selected))
-//						{
-//							unset($taskData[$k]);
-//						}
-//					}
-//				}
+				if (!array_key_exists('RETURN_ACCESS', $parameters) ||
+					(array_key_exists('RETURN_ACCESS', $parameters) && $parameters['RETURN_ACCESS'] != 'N'))
+				{
+					$taskData['ACTION'] = $can[$taskData['ID']]['ACTION'] = static::translateAllowedActionNames(
+						\CTaskItem::getAllowedActionsArray($userId, $taskData, true)
+					);
+				}
 
-				$taskData[ 'ACTION' ] = $can[ $taskData[ 'ID' ] ][ 'ACTION' ] = static::translateAllowedActionNames(\CTaskItem::getAllowedActionsArray($userId, $taskData, true));
-				$data[ $taskData['ID'] ] = $taskData;
+				if (in_array('NEW_COMMENTS_COUNT', $listParameters['select']))
+				{
+					$taskData['NEW_COMMENTS_COUNT'] = 0;
+				}
+
+				$data[$taskData['ID']] = $taskData;
+
+				if (in_array('NEW_COMMENTS_COUNT', $listParameters['select']))
+				{
+					$str = $taskData['VIEWED_DATE'] ? $taskData['VIEWED_DATE'] : $taskData['CREATED_DATE'];
+
+					$filterLog[] = [
+						'>CREATED_DATE' => $str,
+						'TASK_ID' => $taskData['ID']
+					];
+				}
+			}
+
+
+
+			if (in_array('NEW_COMMENTS_COUNT', $listParameters['select']))
+			{
+				$result = LogTable::getList([
+					'select' => ['TASK_ID', 'FIELD', 'FROM_VALUE', 'TO_VALUE'],
+					'filter' => [
+						'!USER_ID' => $userId,
+						'FIELD' => ['COMMENT'],
+						$filterLog
+					]
+				]);
+
+				while ($row = $result->fetch())
+				{
+					$data[$row['TASK_ID']]['NEW_COMMENTS_COUNT']++;
+				}
 			}
 		}
 
@@ -838,7 +889,12 @@ final class Task extends \Bitrix\Tasks\Manager
 		);
 	}
 
-	private static function prepareNav($limit = false, $offset = false, $public = false)
+	public static function getCount(array $filter = array(), array $params = array())
+	{
+		return \CTasks::GetCountInt($filter, $params);
+	}
+
+	private static function prepareNav($limit = false, $offset = false, $page=1, $public = false)
 	{
 		$nav = array();
 
@@ -871,6 +927,7 @@ final class Task extends \Bitrix\Tasks\Manager
 		if ($offset !== false && $offset !== null)
 		{
 			$nav[ 'iNumPageSize' ] = intval($offset);
+			$nav[ 'iNumPage' ] = intval($page);
 		}
 
 		return $nav;
@@ -940,13 +997,13 @@ final class Task extends \Bitrix\Tasks\Manager
 				'TITLE',
 				'DESCRIPTION',
 				'CHECKLIST',
-//                'PRIORITY',
-//                'STATUS',
+				//                'PRIORITY',
+				//                'STATUS',
 				'RESPONSIBLE',
 				'ORIGINATOR',
 				'AUDITORS',
 				'ACCOMPLICES',
-//                'DEADLINE',
+				//                'DEADLINE',
 				'CRM',
 				'TAGS',
 				'GROUP'
@@ -1001,9 +1058,9 @@ final class Task extends \Bitrix\Tasks\Manager
 						}
 					}
 					break;
-//                case 'DEADLINE':
-//                    $index[] = (string) $arTask[$field];
-//                    break;
+				//                case 'DEADLINE':
+				//                    $index[] = (string) $arTask[$field];
+				//                    break;
 				case 'CRM':
 					if(\Bitrix\Main\ModuleManager::isModuleInstalled('crm'))
 					{

@@ -509,6 +509,8 @@ class QuoteConverter extends EntityConverter
 		}
 		elseif($this->currentPhase === QuoteConversionPhase::FINALIZATION)
 		{
+			$this->onFinalizationPhase();
+
 			//Do not update DEAL_ID field here. This field is used, then quote is created from deal.
 			return true;
 		}
@@ -541,5 +543,14 @@ class QuoteConverter extends EntityConverter
 		}
 
 		return (self::$maps[$entityTypeID] = $map);
+	}
+
+	/**
+	 * Get Supported Destination Types.
+	 * @return array
+	 */
+	public function getSupportedDestinationTypeIDs()
+	{
+		return array(\CCrmOwnerType::Deal, \CCrmOwnerType::Invoice);
 	}
 }

@@ -254,6 +254,55 @@ class OrderController extends EntityController
 		}
 	}
 
+	public function afterModifyExternalEntity($ownerID, array $params)
+	{
+		if(!is_int($ownerID))
+		{
+			$ownerID = (int)$ownerID;
+		}
+		if($ownerID <= 0)
+		{
+			throw new Main\ArgumentException('Owner ID must be greater than zero.', 'ownerID');
+		}
+
+		$historyEntryID = MarkEntry::create(
+			array(
+				'MARK_TYPE_ID'=>$params['TYPE'] == TimelineMarkType::SUCCESS? TimelineMarkType::SUCCESS:TimelineMarkType::FAILED,
+				'ENTITY_TYPE_ID' => \CCrmOwnerType::Order,
+				'ENTITY_ID' => $ownerID,
+				'AUTHOR_ID' => intval($GLOBALS["USER"]->GetID()),
+				'SETTINGS' => ['MESSAGE'=>$params['MESSAGE']<>''?$params['MESSAGE']:'']
+			)
+		);
+
+		$enableHistoryPush = $historyEntryID > 0;
+		if(($enableHistoryPush) && Main\Loader::includeModule('pull'))
+		{
+			$pushParams = array();
+			if($enableHistoryPush)
+			{
+				$historyFields = TimelineEntry::getByID($historyEntryID);
+				if(is_array($historyFields))
+				{
+					$pushParams['HISTORY_ITEM'] = $this->prepareHistoryDataModel(
+						$historyFields,
+						array('ENABLE_USER_INFO' => true)
+					);
+				}
+			}
+
+			$tag = $pushParams['TAG'] = TimelineEntry::prepareEntityPushTag(\CCrmOwnerType::Order, $ownerID);
+			\CPullWatch::AddToStack(
+				$tag,
+				array(
+					'module_id' => 'crm',
+					'command' => 'timeline_activity_add',
+					'params' => $pushParams,
+				)
+			);
+		}
+	}
+
 	public function onModify($ownerID, array $params)
 	{
 		if(!is_int($ownerID))
@@ -519,6 +568,11 @@ class OrderController extends EntityController
 			$data['ENTITIES'] = $entityInfos;
 			unset($data['SETTINGS']);
 
+		}
+		elseif($typeID === TimelineType::MARK)
+		{
+			$data['MESSAGE'] = isset($settings['MESSAGE']) ? $settings['MESSAGE'] : '';
+			unset($data['SETTINGS']);
 		}
 		return parent::prepareHistoryDataModel($data, $options);
 	}

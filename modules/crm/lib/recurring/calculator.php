@@ -13,11 +13,76 @@ class Calculator
 	const SALE_TYPE_YEAR_OFFSET = 4;
 	const SALE_TYPE_CUSTOM_OFFSET = 5;
 
+	const FIELD_PERIOD_NAME = 'PERIOD';
+
+	private static $instance = null;
+	private $params = [];
+	private $startDate = null;
+
+	/**
+	 * @return Calculator
+	 */
+	public static function getInstance()
+	{
+		if(self::$instance === null)
+		{
+			self::$instance = new Calculator();
+		}
+		return self::$instance;
+	}
+
+	/**
+	 * Calculator constructor.
+	 */
+	public function __construct()
+	{
+		$this->startDate = new Date();
+	}
+
+	/**
+	 * @param Date $date
+	 */
+	public function setStartDate(Date $date)
+	{
+		$this->startDate = $date;
+	}
+
+	/**
+	 * @param array $params
+	 */
+	public function setParams(array $params = [])
+	{
+		$this->params = $params;
+	}
+
+	/**
+	 * @return Date
+	 */
+	public function calculateDate()
+	{
+		$period = $this->params[self::FIELD_PERIOD_NAME];
+		$startDate = clone($this->startDate);
+		switch($period)
+		{
+			case static::SALE_TYPE_DAY_OFFSET:
+				return DateType\Day::calculateDate($this->params, $startDate);
+			case static::SALE_TYPE_WEEK_OFFSET:
+				return DateType\Week::calculateDate($this->params, $startDate);
+			case static::SALE_TYPE_MONTH_OFFSET:
+				return DateType\Month::calculateDate($this->params, $startDate);
+			case static::SALE_TYPE_YEAR_OFFSET:
+				return DateType\Year::calculateDate($this->params, $startDate);
+			default:
+				return null;
+		}
+	}
+
 	/**
 	 * @param array $params
 	 * @param Date $startDate
 	 *
 	 * @return Date
+	 * @deprecated
 	 */
 	public static function getNextDate(array $params, Date $startDate = null)
 	{
@@ -31,19 +96,10 @@ class Calculator
 		if ($params['PREPARE_PARAMS_CALCULATION'] !== 'N')
 			$params = static::prepareCalculationDate($params);
 
-		switch($params['PERIOD'])
-		{
-			case static::SALE_TYPE_DAY_OFFSET:
-				return DateType\Day::calculateDate($params, $startDate);
-			case static::SALE_TYPE_WEEK_OFFSET:
-				return DateType\Week::calculateDate($params, $startDate);
-			case static::SALE_TYPE_MONTH_OFFSET:
-				return DateType\Month::calculateDate($params, $startDate);
-			case static::SALE_TYPE_YEAR_OFFSET:
-				return DateType\Year::calculateDate($params, $startDate);
-			default:
-				return null;
-		}
+		$instance = self::getInstance();
+		$instance->setParams($params);
+		$instance->setStartDate($startDate);
+		return $instance->calculateDate();
 	}
 
 	/**
@@ -55,14 +111,14 @@ class Calculator
 	public static function prepareCalculationDate(array $params)
 	{
 		$result = array(
-			"PERIOD" => (int)$params['PERIOD'] ? (int)$params['PERIOD'] : null
+			"PERIOD" => (int)$params[self::FIELD_PERIOD_NAME] ? (int)$params[self::FIELD_PERIOD_NAME] : null
 		);
 
 		if (isset($params['PERIOD_DEAL']) && (int)$params['EXECUTION_TYPE'] === Manager::MULTIPLY_EXECUTION)
 		{
-			$result['PERIOD'] = (int)$params['PERIOD_DEAL'];
+			$result[self::FIELD_PERIOD_NAME] = (int)$params['PERIOD_DEAL'];
 
-			switch($result['PERIOD'])
+			switch($result[self::FIELD_PERIOD_NAME])
 			{
 				case self::SALE_TYPE_DAY_OFFSET:
 				{
@@ -71,7 +127,7 @@ class Calculator
 				}
 				case self::SALE_TYPE_WEEK_OFFSET:
 				{
-					$result['PERIOD'] = self::SALE_TYPE_DAY_OFFSET;
+					$result[self::FIELD_PERIOD_NAME] = self::SALE_TYPE_DAY_OFFSET;
 					$params['DAILY_INTERVAL_DAY'] = 8;
 					break;
 				}
@@ -92,9 +148,9 @@ class Calculator
 		}
 		elseif (isset($params['DEAL_TYPE_BEFORE']) && (int)$params['EXECUTION_TYPE'] === Manager::SINGLE_EXECUTION)
 		{
-			$result['PERIOD'] = (int)$params['DEAL_TYPE_BEFORE'];
+			$result[self::FIELD_PERIOD_NAME] = (int)$params['DEAL_TYPE_BEFORE'];
 
-			switch($result['PERIOD'])
+			switch($result[self::FIELD_PERIOD_NAME])
 			{
 				case self::SALE_TYPE_DAY_OFFSET:
 				{
@@ -117,7 +173,7 @@ class Calculator
 			}
 		}
 
-		switch($result['PERIOD'])
+		switch($result[self::FIELD_PERIOD_NAME])
 		{
 			case static::SALE_TYPE_DAY_OFFSET:
 				$result['INTERVAL_DAY'] = $params['DAILY_INTERVAL_DAY'];
@@ -142,13 +198,13 @@ class Calculator
 				$result['INTERVAL_DAY'] = $params['MONTHLY_INTERVAL_DAY'];
 				if ((int)$params['MONTHLY_TYPE'] === DateType\Month::TYPE_DAY_OF_ALTERNATING_MONTHS)
 				{
-					$result['INTERVAL_MONTH'] = $params['MONTHLY_MONTH_NUM_1'] - 1;
+					$result['INTERVAL_MONTH'] = $params['MONTHLY_MONTH_NUM_1'];
 					$result['IS_WORKDAY'] = $params['MONTHLY_WORKDAY_ONLY'];
 				}
 				elseif ((int)$params['MONTHLY_TYPE'] === DateType\Month::TYPE_WEEKDAY_OF_ALTERNATING_MONTHS)
 				{
 					$result['INTERVAL_WEEK'] = $params['MONTHLY_WEEKDAY_NUM'];
-					$result['INTERVAL_MONTH'] = $params['MONTHLY_MONTH_NUM_2'] - 1;
+					$result['INTERVAL_MONTH'] = $params['MONTHLY_MONTH_NUM_2'];
 					$result['WEEKDAY'] = $params['MONTHLY_WEEK_DAY'];
 				}
 				$result['TYPE'] = $params['MONTHLY_TYPE'];

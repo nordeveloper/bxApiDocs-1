@@ -9,6 +9,7 @@ namespace Bitrix\Crm;
 
 use Bitrix\Main;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\ORM\Fields\FloatField;
 
 Loc::loadMessages(__FILE__);
 
@@ -32,7 +33,7 @@ class LeadTable extends Main\ORM\Data\DataManager
 	{
 		global $DB, $DBType;
 
-		return array(
+		$map = array(
 			'ID' => array(
 				'data_type' => 'integer',
 				'primary' => true,
@@ -391,8 +392,30 @@ class LeadTable extends Main\ORM\Data\DataManager
 			'SEARCH_CONTENT' => array(
 				'data_type' => 'string'
 			),
-			new Main\Entity\IntegerField('FACE_ID')
+			new Main\Entity\IntegerField('FACE_ID'),
+			new Main\Entity\ReferenceField('ADDRESS_ENTITY', AddressTable::getEntity(), array(
+				'=this.ID' => 'ref.ENTITY_ID',
+				'=ref.TYPE_ID' => new Main\DB\SqlException('?', EntityAddress::Primary),
+				'=ref.ENTITY_TYPE_ID' => new Main\DB\SqlException('?', \CCrmOwnerType::Lead)
+			)),
+			new Main\Entity\ReferenceField('PRODUCT_ROW', ProductRowTable::getEntity(), array(
+				'=this.ID' => 'ref.OWNER_ID',
+				'=ref.OWNER_TYPE_ID' => new Main\DB\SqlException('?', \CCrmOwnerType::Lead),
+			))
 		);
+
+		$codeList = UtmTable::getCodeList();
+
+		foreach ($codeList as $fieldName)
+		{
+			$map[] = new Main\Entity\ReferenceField($fieldName, UtmTable::getEntity(), array(
+				'=ref.ENTITY_TYPE_ID' => new Main\DB\SqlException('?', \CCrmOwnerType::Lead),
+				'=this.ID' => 'ref.ENTITY_ID',
+				'=ref.CODE' => new Main\DB\SqlException('?', $fieldName)
+			));
+		}
+
+		return $map;
 	}
 
 	private static function ensureStatusesLoaded()

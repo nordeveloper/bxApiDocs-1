@@ -2,6 +2,7 @@
 namespace Bitrix\ImConnector\Rest;
 
 use \Bitrix\ImConnector\Model\CustomConnectorsTable;
+use \Bitrix\Rest\PlacementTable;
 
 /**
  * Class Helper
@@ -42,6 +43,11 @@ class Helper
 				'COMPONENT' => $params['COMPONENT'],
 				'REST_APP_ID' => $params['REST_APP_ID'],
 			);
+			$placementParams = array(
+				'REST_APP_ID' => $params['REST_APP_ID'],
+				'PLACEMENT_HANDLER' => $params['PLACEMENT_HANDLER'],
+				'TITLE' => $params['TITLE']
+			);
 
 			if(isset($params['ICON_DISABLED']))
 			{
@@ -74,6 +80,17 @@ class Helper
 			if(isset($params['CHAT_GROUP']))
 			{
 				$changeParams['CHAT_GROUP'] = $params['CHAT_GROUP'];
+			}
+			if (isset($params['COMMENT']))
+			{
+				$placementParams['COMMENT'] = $params['COMMENT'];
+			}
+
+			$placementId = self::registerPlacement($placementParams);
+
+			if ($placementId > 0)
+			{
+				$changeParams['REST_PLACEMENT_ID'] = $placementId;
 			}
 
 			if($row = $raw->fetch())
@@ -116,17 +133,112 @@ class Helper
 			}
 
 			$raw = CustomConnectorsTable::getList(array(
-				'select' => array('ID'),
+				'select' => array('ID', 'REST_PLACEMENT_ID'),
 				'filter' => $filter
 			));
 
 			while ($row = $raw->fetch())
 			{
 				CustomConnectorsTable::delete($row['ID']);
+				self::unRegisterPlacement($row['REST_PLACEMENT_ID']);
 			}
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @param $params
+	 *
+	 * @return int
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	protected static function registerPlacement($params)
+	{
+		$placementBind = array(
+			'APP_ID' => $params['REST_APP_ID'],
+			'PLACEMENT' => self::PLACEMENT_SETTING_CONNECTOR,
+			'PLACEMENT_HANDLER' => $params['PLACEMENT_HANDLER'],
+		);
+		$placement = PlacementTable::getList(
+			array(
+				'filter' => $placementBind
+			)
+		)->fetch();
+
+		$result = ($placement['ID'] > 0) ? $placement['ID'] : self::addPlacement($params)->getId();
+
+		return intval($result);
+	}
+
+	/**
+	 * @param $params
+	 *
+	 * @return \Bitrix\Main\ORM\Data\AddResult
+	 * @throws \Exception
+	 */
+	protected static function addPlacement($params)
+	{
+		$placementBind = array(
+			'APP_ID' => $params['REST_APP_ID'],
+			'PLACEMENT' => self::PLACEMENT_SETTING_CONNECTOR,
+			'PLACEMENT_HANDLER' => $params['PLACEMENT_HANDLER'],
+		);
+
+		if(!empty($params['TITLE']))
+		{
+			$placementBind['TITLE'] = trim($params['TITLE']);
+		}
+
+		if(!empty($params['COMMENT']))
+		{
+			$placementBind['COMMENT'] = trim($params['COMMENT']);
+		}
+
+		$result = PlacementTable::add($placementBind);
+
+		return $result;
+	}
+
+	/**
+	 * @param $placementId
+	 *
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	protected static function unRegisterPlacement($placementId)
+	{
+		if (intval($placementId) > 0)
+		{
+			$connectors = CustomConnectorsTable::getList(
+				array(
+					'filter' => array('REST_PLACEMENT_ID' => $placementId)
+				)
+			)->fetchAll();
+
+			//count == 0 because this method is called after delete of connector
+			if (count($connectors) == 0)
+			{
+				self::deletePlacement($placementId);
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param $placementId
+	 *
+	 * @return \Bitrix\Main\ORM\Data\DeleteResult
+	 * @throws \Exception
+	 */
+	protected static function deletePlacement($placementId)
+	{
+		return PlacementTable::delete($placementId);
 	}
 
 	/**

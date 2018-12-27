@@ -80,7 +80,6 @@ class User extends \IRestService
 			}
 
 
-
 			$depsData = self::userDepartmentData($user["ID"], $user["UF_DEPARTMENT"], $resize);
 
 			if ($user["PERSONAL_BIRTHDAY"])
@@ -137,20 +136,27 @@ class User extends \IRestService
 
 	private static function getUserPhoto($id, $size)
 	{
-		$result = [];
+		$result = ["PERSONAL_PHOTO"=>""];
 		if ($id)
 		{
-			$avatar = \CFile::ResizeImageGet($id, $size, BX_RESIZE_IMAGE_EXACT, false, false, true, 70);
-			$original = \CFile::GetByID($id)->fetch();
-			$result["PERSONAL_PHOTO"] = $avatar["src"];
-			$uploadDirName = Option::get("main", "upload_dir", "upload");
-			$src = "/".$uploadDirName."/".$original["SUBDIR"]."/".$original["FILE_NAME"];
-			$result["PERSONAL_PHOTO_ORIGINAL"] = $src;
+			$dbRes = \CFile::GetList([], ['@ID' => $id]);
+			if($arRes = $dbRes->Fetch())
+			{
+				if($size)
+				{
+					$fileArray = \CFile::GetFileArray($id);
+					$resizeResult = \CFile::ResizeImageGet($fileArray, $size, BX_RESIZE_IMAGE_EXACT, false, false, false, 70);
+					$result["PERSONAL_PHOTO"] = \CHTTP::URN2URI($resizeResult['src']);
+				}
+
+				$result["PERSONAL_PHOTO_ORIGINAL"] = \CHTTP::URN2URI(\CFile::GetFileSrc($arRes));
+			}
 		}
 
 		return $result;
 	}
-	private static function userDepartmentData ($userId, $departmentIDs = [], $photoSize = false)
+
+	private static function userDepartmentData($userId, $departmentIDs = [], $photoSize = false)
 	{
 		$data = [];
 		$data["EMPLOYEES"] = [];
@@ -161,9 +167,9 @@ class User extends \IRestService
 		$data["HEAD"] = \CUser::FormatName(\CSite::GetNameFormat(false), $heads[0]);
 		$photoData = self::getUserPhoto($heads[0]["PERSONAL_PHOTO"], $photoSize);
 		$headData = [
-			"name"=>$data["HEAD"],
-			"id"=>$heads[0]["ID"],
-			"position"=>$heads[0]["WORK_POSITION"],
+			"name" => $data["HEAD"],
+			"id" => $heads[0]["ID"],
+			"position" => $heads[0]["WORK_POSITION"],
 		];
 		$data["HEAD_DATA"] = array_merge($headData, $photoData);
 

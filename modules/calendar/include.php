@@ -62,11 +62,14 @@ CModule::AddAutoloadClasses(
 CJSCore::RegisterExt('userfield_resourcebooking', array(
 	'js' => array(
 		'/bitrix/js/calendar/userfield/resourcebooking.js',
-		'/bitrix/js/calendar/userfield/crm_entity_editor_resourcebooking.js',
+		'/bitrix/js/calendar/userfield/resourcebooking-webform-field.js',
+		'/bitrix/js/calendar/userfield/resourcebooking-webform-live.js',
+		'/bitrix/js/calendar/userfield/resourcebooking-webform-settings.js',
+		'/bitrix/js/calendar/userfield/resourcebooking-crm-entity-editor.js',
 	),
 	'css' => array('/bitrix/js/calendar/userfield/resourcebooking.css'),
 	'lang' => '/bitrix/modules/calendar/lang/'.LANGUAGE_ID.'/lib/userfield/resourcebooking.php',
-	'rel' => array('uf', 'popup')
+	'rel' => array('uf', 'popup', 'translit')
 ));
 
 $basePath = '/bitrix/js/calendar/new/';
@@ -107,6 +110,6 @@ CJSCore::RegisterExt('calendar_planner', array(
 	),
 	'css' => '/bitrix/js/calendar/planner.css',
 	'lang' => '/bitrix/modules/calendar/classes/general/calendar_planner.php',
-	'rel' => array('date', 'dnd')
+	'rel' => array('date', 'dnd', 'helper')
 ));
 ?>

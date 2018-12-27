@@ -2105,20 +2105,29 @@ class CBPHelper
 
 	public static function getBool($value)
 	{
-		return (empty($value) || is_int($value) && ($value == 0) || (strtoupper($value) == 'N')) ? false : true;
+		if (empty($value) || $value === 'false' || is_int($value) && ($value == 0) || (strtoupper($value) == 'N'))
+		{
+			return false;
+		}
+
+		return (bool)$value;
 	}
 
 	public static function isEmptyValue($value)
 	{
 		$filter = function ($value)
 		{
-			return ($value !== null && $value !== '');
+			return ($value !== null && $value !== '' && $value !== 0 && $value !== '0');
 		};
 
 		return (
 				$value === null
 				||
 				$value === ''
+				||
+				$value === 0
+				||
+				$value === '0'
 				||
 				is_array($value) && count(array_filter($value, $filter)) === 0
 		);

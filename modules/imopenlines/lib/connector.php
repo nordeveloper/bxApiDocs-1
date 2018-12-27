@@ -1,5 +1,4 @@
 <?php
-
 namespace Bitrix\ImOpenLines;
 
 use \Bitrix\Main,
@@ -13,6 +12,8 @@ class Connector
 	const TYPE_LIVECHAT = 'livechat';
 	const TYPE_NETWORK = 'network';
 	const TYPE_CONNECTOR = 'connector';
+
+	const EVENT_IMOPENLINE_MESSAGE_SEND = 'OnImopenlineMessageSend';
 
 	static $noVote = array(
 		//self::TYPE_LIVECHAT,
@@ -54,12 +55,23 @@ class Connector
 		return $this->moduleLoad;
 	}
 
+	/**
+	 * @param $params
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	public function addMessage($params)
 	{
 		if (empty($params))
 		{
 			return false;
 		}
+
+		$finishSession = false;
 
 		$voteSession = false;
 		if (
@@ -177,26 +189,54 @@ class Connector
 
 		if ($session->isNowCreated())
 		{
+			$customDataMessage = '';
+			$customDataAttach = null;
+
+			if (!empty($_SESSION['LIVECHAT']['CUSTOM_DATA']))
+			{
+				$customDataAttach = \CIMMessageParamAttach::GetAttachByJson($_SESSION['LIVECHAT']['CUSTOM_DATA']);
+				if ($customDataAttach && $customDataAttach->IsEmpty())
+				{
+					$customDataAttach = null;
+				}
+				else
+				{
+					$customDataMessage = '[B]'.Loc::getMessage('IMOL_CONNECTOR_RECEIVED_DATA').'[/B]';
+				}
+			}
+			else // TODO remove this after delete old livechat - see \Bitrix\ImOpenLines\Connector::saveCustomData
+			{
+				if ($params['connector']['connector_id'] == self::TYPE_LIVECHAT)
+				{
+					$orm = \Bitrix\Im\Model\ChatTable::getById($params['chat']['id']);
+					$guestChatData = $orm->fetch();
+				}
+				else
+				{
+					$guestChatData = $session->getChat()->getData();
+				}
+
+				if ($guestChatData && strlen($guestChatData['DESCRIPTION']))
+				{
+					$customDataMessage = '[B]'.Loc::getMessage('IMOL_CONNECTOR_RECEIVED_DATA').'[/B][BR] '.$guestChatData['DESCRIPTION'];
+				}
+			}
+
 			if ($params['connector']['connector_id'] == self::TYPE_LIVECHAT)
 			{
-				$orm = \Bitrix\Im\Model\ChatTable::getById($params['chat']['id']);
-				$guestChatData = $orm->fetch();
-
 				$chat = new \Bitrix\ImOpenLines\Chat($params['chat']['id']);
 				$chat->updateFieldData([\Bitrix\ImOpenLines\Chat::FIELD_LIVECHAT => [
 					'SESSION_ID' => $session->getData('ID'),
 					'SHOW_FORM' => 'Y'
 				]]);
 			}
-			else
-			{
-				$guestChatData = $session->getChat()->getData();
-			}
-			if ($guestChatData && strlen($guestChatData['DESCRIPTION']))
+
+			if ($customDataMessage)
 			{
 				Im::addMessage(Array(
 					"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-					'MESSAGE' => '[B]'.Loc::getMessage('IMOL_CONNECTOR_RECEIVED_DATA').'[/B][BR] '.$guestChatData['DESCRIPTION'],
+					'MESSAGE' => $customDataMessage,
+					'ATTACH' => $customDataAttach,
 					'SYSTEM' => 'Y',
 					'SKIP_COMMAND' => 'Y',
 					"PARAMS" => Array(
@@ -244,16 +284,7 @@ class Connector
 
 				if($session->getConfig('VOTE_CLOSING_DELAY') == 'Y')
 				{
-					$updateSession = array(
-						'WAIT_ANSWER' => 'N',
-						'DATE_MODIFY' => new \Bitrix\Main\Type\DateTime(),
-						'DATE_CLOSE' => new \Bitrix\Main\Type\DateTime(),
-						'CLOSED' => 'Y'
-					);
-				}
-				else
-				{
-					$updateSession = array();
+					$finishSession = true;
 				}
 
 				\Bitrix\ImOpenLines\Chat::sendRatingNotify(\Bitrix\ImOpenLines\Chat::RATING_TYPE_CLIENT, $session->getData('ID'), $voteValue, $session->getData('OPERATOR_ID'), $session->getData('USER_ID'));
@@ -362,7 +393,11 @@ class Connector
 
 		if (!$session->isNowCreated())
 		{
-			if($session->getConfig('CHECKING_OFFLINE') == 'Y' &&
+			if($finishSession === true)
+			{
+				$session->finish(true);
+			}
+			else if($session->getConfig('CHECKING_OFFLINE') == 'Y' &&
 				$session->getData('PAUSE') != 'Y' &&
 				!empty($session->getData('OPERATOR_ID')))
 			{
@@ -382,10 +417,41 @@ class Connector
 			}
 		}
 
-		return Array(
+		$this->callMessageTrigger($session);
+
+		return [
 			'SESSION_ID' => $session->isNowCreated()? $session->getData('ID'): 0,
 			'MESSAGE_ID' => $messageId
-		);
+		];
+	}
+
+	/**
+	 * @param Session $session
+	 *
+	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	protected function callMessageTrigger(Session $session)
+	{
+		$crm = new Crm($session);
+		$result = new Result();
+
+		if ($session->getData('CRM') == 'Y' && $session->getData('CRM_ACTIVITY_ID') > 0)
+		{
+			$crm->registrationChanges();
+			$result = $crm->executeAutomationMessageTrigger(
+				$crm->getEntityManageFacility()->getActivityBindings(),
+				array(
+					'CONFIG_ID' => $session->getData('CONFIG_ID')
+				)
+			);
+		}
+
+		return $result;
 	}
 
 	public function updateMessage($params)
@@ -568,9 +634,9 @@ class Connector
 			$network = new Network();
 			$network->sendStatusWriting($fields['connector']['line_id'], $fields);
 		}
-		else if ($fields['connector']['connector_id'] == 'livechat')
+		else if (\Bitrix\ImOpenLines\Connector::isLiveChat($fields['connector']['connector_id']))
 		{
-			\CIMMessenger::StartWriting('chat'.$fields['connector']['chat_id'], $user['id'], "", true);
+			\CIMMessenger::StartWriting('chat'.$fields['connector']['chat_id'], $user['id'], $user['name'], true);
 		}
 
 		return false;
@@ -598,7 +664,7 @@ class Connector
 			$chat = new \CIMChat();
 			$chat->SetReadMessage($connector['chat_id'], $maxId, true);
 		}
-		else if ($connector['connector_id'] == 'livechat')
+		else if (\Bitrix\ImOpenLines\Connector::isLiveChat($connector['connector_id']))
 		{
 			Log::write(array($connector, $messages, $event), 'STATUS READ');
 
@@ -670,7 +736,7 @@ class Connector
 			{
 				$result = Array(
 					'result' => false,
-					'reason' => Loc::getMessage('IMOL_CONNECTOR_STATUS_ERROR')
+					'reason' => Loc::getMessage('IMOL_CONNECTOR_STATUS_ERROR_NEW')
 				);
 			}
 		}
@@ -690,7 +756,7 @@ class Connector
 		if ($messageFields['CHAT_ENTITY_TYPE'] == 'LINES')
 		{
 		}
-		else if ($messageFields['CHAT_ENTITY_TYPE'] == 'LIVECHAT')
+		else if (\Bitrix\ImOpenLines\Connector::isLiveChat($messageFields['CHAT_ENTITY_TYPE']))
 		{
 			$connectorId = self::TYPE_LIVECHAT;
 		}
@@ -713,7 +779,7 @@ class Connector
 			&& !empty($messageFields['PARAMS']['CONNECTOR_MID']) && is_array($messageFields['PARAMS']['CONNECTOR_MID'])
 		)
 		{
-			if ($messageFields['SYSTEM'] != 'Y' && self::isEnableSendMessageWithSignature($connectorId) && $messageFields['AUTHOR_ID'] > 0)
+			if ($messageFields['SYSTEM'] != 'Y' && self::isEnableSendMessageWithSignature($connectorId, $lineId) && $messageFields['AUTHOR_ID'] > 0)
 			{
 				$flags['TEXT'] = '[b]' . htmlspecialchars_decode(self::getOperatorName($lineId, $messageFields['AUTHOR_ID'])) . ':[/b]'.(strlen($flags['TEXT'])>0? '[br] '.$flags['TEXT']: '');
 			}
@@ -758,7 +824,7 @@ class Connector
 		{
 			list($connectorType, $lineId, $connectorChatId) = explode("|", $messageFields['CHAT_ENTITY_ID']);
 		}
-		else if ($messageFields['CHAT_ENTITY_TYPE'] == 'LIVECHAT')
+		else if (\Bitrix\ImOpenLines\Connector::isLiveChat($messageFields['CHAT_ENTITY_TYPE']))
 		{
 			$connectorType = self::TYPE_LIVECHAT;
 		}
@@ -844,6 +910,13 @@ class Connector
 			return false;
 
 		list($connectorId, $lineId, $connectorChatId, $connectorUserId) = explode('|', $messageFields['CHAT_ENTITY_ID']);
+
+		$event = new Main\Event('imopenlines', self::EVENT_IMOPENLINE_MESSAGE_SEND, $messageFields);
+		$event->send();
+
+		$eventMessageFields = $event->getParameters();
+		$messageFields['MESSAGE'] = $eventMessageFields['MESSAGE'];
+		$messageFields['PARAMS'] = $eventMessageFields['PARAMS'];
 
 		if ($connectorId == self::TYPE_LIVECHAT)
 		{
@@ -1001,7 +1074,7 @@ class Connector
 			if (empty($attaches) && empty($files) && empty($messageFields['MESSAGE']) && $messageFields['MESSAGE'] !== "0")
 				return false;
 
-			if ($messageFields['SYSTEM'] != 'Y' && self::isEnableSendMessageWithSignature($connectorId) && $messageFields['AUTHOR_ID'] > 0)
+			if ($messageFields['SYSTEM'] != 'Y' && self::isEnableSendMessageWithSignature($connectorId, $lineId) && $messageFields['AUTHOR_ID'] > 0)
 			{
 				$messageFields['MESSAGE'] = '[b]' . htmlspecialchars_decode(self::getOperatorName($lineId, $messageFields['AUTHOR_ID'])) . ':[/b]'.(strlen($messageFields['MESSAGE'])>0? '[br] '.$messageFields['MESSAGE']: '');
 			}
@@ -1098,7 +1171,7 @@ class Connector
 		);
 
 		$manager = new self();
-		return $manager->sendStatusWriting($fields, $userData->getFields());
+		return $manager->sendStatusWriting($fields, $userData->getArray(['LIVECHAT' => $lineId, 'JSON' => 'Y']));
 	}
 
 	public static function onChatRead($params)
@@ -1396,7 +1469,7 @@ class Connector
 			$connectorList = array_keys(\Bitrix\ImConnector\Connector::getListConnector()); // TODO change method to getListConnectorShowDeliveryStatus()
 			foreach ($connectorList as $key => $connectorId)
 			{
-				if ($connectorId == 'network' || $connectorId == 'livechat')
+				if ($connectorId == 'network' || \Bitrix\ImOpenLines\Connector::isLiveChat($connectorId))
 				{
 					unset($connectorList[$key]);
 				}
@@ -1446,38 +1519,24 @@ class Connector
 		return $connectorList;
 	}
 
-	public static function getOperatorName($lineId, $userId, $array = false)
+	public static function getOperatorName($lineId, $userId, $returnArray = false)
 	{
-		$user = \Bitrix\Im\User::getInstance($userId);
-
-		$userArray = Array(
-			'ID' => $user->getId(),
-			'NAME' => $user->getName(),
-			'LAST_NAME' => $user->getLastName(),
-			'PERSONAL_GENDER' => $user->getGender(),
-			'PERSONAL_PHOTO' => ''
-		);
-
-		if (function_exists('customImopenlinesOperatorNames') && !$user->isExtranet()) // Temporary hack :(
+		$userArray = Queue::getUserData($lineId, $userId);
+		if (!$userArray)
 		{
-			$userArray = customImopenlinesOperatorNames($lineId, $userArray);
+			return $returnArray? []: '';
 		}
 
-		$nameTemplateSite = \CSite::GetNameFormat(false);
-		$userName = \CUser::FormatName($nameTemplateSite, $userArray, true, false);
-
-		if ($array)
+		if ($returnArray)
 		{
-			$userFields = $user->getFields();
-			$userFields['first_name'] = $userArray['NAME'];
-			$userFields['last_name'] = $userArray['LAST_NAME'];
-			$userFields['name'] = $userName;
-
-			return $userFields;
+			return array_merge(
+				\Bitrix\Im\User::getInstance($userId)->getFields(),
+				array_change_key_case($userArray, CASE_LOWER)
+			);
 		}
 		else
 		{
-			return $userName;
+			return $userArray['NAME'];
 		}
 	}
 
@@ -1499,7 +1558,31 @@ class Connector
 		return $result;
 	}
 
-	public static function isEnableSendMessageWithSignature($connectorId)
+	public static function isEnableSendMessageWithSignature($connectorId, $lineId = 0)
+	{
+		$lineId = intval($lineId);
+		if ($lineId > 0)
+		{
+			$isShowOperatorData = Config::isShowOperatorData($lineId);
+
+			if ($isShowOperatorData)
+			{
+				$result = self::isConnectorSendMessageWithSignature($connectorId);
+			}
+			else
+			{
+				$result = false;
+			}
+		}
+		else
+		{
+			$result = self::isConnectorSendMessageWithSignature($connectorId);
+		}
+
+		return $result;
+	}
+
+	public static function isConnectorSendMessageWithSignature($connectorId)
 	{
 		if (in_array($connectorId, array(self::TYPE_LIVECHAT, self::TYPE_NETWORK)))
 		{
@@ -1528,6 +1611,56 @@ class Connector
 			$result = false;
 		}
 		return $result;
+	}
+
+	/**
+	 * @param $idConnector
+	 * @return bool
+	 */
+	public static function isLiveChat($idConnector)
+	{
+		$result = false;
+
+		$idConnector = strtolower($idConnector);
+
+		if($idConnector == self::TYPE_LIVECHAT)
+		{
+			$result = true;
+		}
+
+		return $result;
+	}
+
+	public static function saveCustomData($chatId, $customData)
+	{
+		$customDataMessage = '';
+		$customDataAttach = null;
+
+		if (!empty($customData))
+		{
+			$customDataAttach = \CIMMessageParamAttach::GetAttachByJson($customData);
+			if ($customDataAttach->IsEmpty())
+			{
+				$customDataAttach = null;
+			}
+			else
+			{
+				$customDataMessage = '[B]'.Loc::getMessage('IMOL_CONNECTOR_RECEIVED_DATA').'[/B]';
+			}
+		}
+		if ($customDataMessage)
+		{
+			Im::addMessage(Array(
+				"TO_CHAT_ID" => $chatId,
+				'MESSAGE' => $customDataMessage,
+				'ATTACH' => $customDataAttach,
+				'SYSTEM' => 'Y',
+				'SKIP_COMMAND' => 'Y',
+				"PARAMS" => Array(
+					"CLASS" => "bx-messenger-content-item-system"
+				),
+			));
+		}
 	}
 
 	public function getError()

@@ -12,6 +12,9 @@ abstract class Base
 	const LIMITED_BY_DATE = 'D';
 	const LIMITED_BY_TIMES = 'T';
 
+	const SETTLED_FIELD_VALUE = 0;
+	const CALCULATED_FIELD_VALUE = 1;
+
 	abstract public function createEntity(array $entityFields, array $recurringParams);
 	abstract public function update($primary, array $data);
 	abstract public function expose(array $entityFields, $recurringParams);
@@ -132,7 +135,18 @@ abstract class Base
 	 */
 	public static function getNextDate(array $params, $startDate = null)
 	{
-		$params['PREPARE_PARAMS_CALCULATION'] = 'N';
-		return Calculator::getNextDate($params, $startDate);
+		if (!($startDate instanceof Date))
+		{
+			$startDate = new Date();
+		}
+		$instance = Calculator::getInstance();
+		$instance->setStartDate($startDate);
+		$instance->setParams($params);
+		return $instance->calculateDate();
+	}
+
+	public static function getInstance()
+	{
+		return null;
 	}
 }

@@ -119,9 +119,9 @@ class Product extends DataConverter
 
 //		validate LENGTH
 		$this->result['description'] = $this->validateDescription($this->result['description'], $logger);
+		$this->result['NAME'] = self::convertQuotes($this->result['NAME']);
 		$this->result['NAME'] = $this->validateName($this->result['NAME'], $logger);
 //		VK don't understand specialchars-quotes. Change them to the yolochki
-		$this->result['NAME'] = self::convertQuotes($this->result['NAME']);
 		
 		return array($data["ID"] => $this->result);
 	}
@@ -142,14 +142,18 @@ class Product extends DataConverter
 		{
 			$newName = str_pad($name, self::NAME_LENGHT_MIN, "_");
 			if ($logger)
+			{
 				$logger->addError('PRODUCT_SHORT_NAME', $this->result["BX_ID"]);
+			}
 		}
 		
 		if (strlen($name) > self::NAME_LENGHT_MAX)
 		{
-			$newName = substr($name, 0, self::NAME_LENGHT_MAX - 1);
+			$newName = substr($name, 0, self::NAME_LENGHT_MAX - 1 - 4) . ' ...';
 			if ($logger)
+			{
 				$logger->addError('PRODUCT_LONG_NAME', $this->result["BX_ID"]);
+			}
 		}
 		
 		return $newName;

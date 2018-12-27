@@ -112,6 +112,20 @@ class ButtonTable extends \Bitrix\Main\Entity\DataManager
 		);
 	}
 
+	public static function getLocationCode($id)
+	{
+		$map = [
+			self::ENUM_LOCATION_TOP_LEFT => 'top-left',
+			self::ENUM_LOCATION_TOP_MIDDLE => 'top-middle',
+			self::ENUM_LOCATION_TOP_RIGHT => 'top-right',
+			self::ENUM_LOCATION_BOTTOM_LEFT => 'bottom-left',
+			self::ENUM_LOCATION_BOTTOM_MIDDLE => 'bottom-middle',
+			self::ENUM_LOCATION_BOTTOM_RIGHT => 'bottom-right',
+		];
+
+		return $map[intval($id)];
+	}
+
 	public static function getLocationList()
 	{
 		return array(

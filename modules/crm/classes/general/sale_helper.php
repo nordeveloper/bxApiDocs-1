@@ -663,8 +663,6 @@ class CCrmSaleHelper
 		}
 		else
 		{
-			$cache->startDataCache();
-
 			$objectQuery = CCrmRole::getRelation();
 			while ($relation = $objectQuery->fetch())
 			{
@@ -755,7 +753,10 @@ class CCrmSaleHelper
 
 			if (!empty($listUserId))
 			{
-				$cache->endDataCache($listUserId);
+				if ($cache->startDataCache())
+				{
+					$cache->endDataCache($listUserId);
+				}
 			}
 		}
 

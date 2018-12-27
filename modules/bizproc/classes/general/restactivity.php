@@ -383,7 +383,7 @@ class CBPRestActivity
 		$activityDocumentType = is_array($activityData['DOCUMENT_TYPE']) ? $activityData['DOCUMENT_TYPE'] : $dialog->getDocumentType();
 		$properties = isset($activityData['PROPERTIES']) && is_array($activityData['PROPERTIES']) ? $activityData['PROPERTIES'] : array();
 
-		$currentValues = $dialog->getCurrentValues(true, true);
+		$currentValues = $dialog->getCurrentValues();
 
 		ob_start();
 		foreach ($properties as $name => $property):
@@ -419,7 +419,7 @@ class CBPRestActivity
 			<tr>
 				<td align="right" width="40%" valign="top"><span class=""><?= Loc::getMessage("BPRA_PD_USER_ID") ?>:</span></td>
 				<td width="60%">
-					<?=CBPDocument::ShowParameterField("user", 'authuserid', $currentValues['authuserid'], Array('rows'=>'1'))?>
+					<?=$dialog->renderFieldControl('AuthUserId', $currentValues['authuserid'], true, 0)?>
 				</td>
 			</tr>
 		<?endif?>

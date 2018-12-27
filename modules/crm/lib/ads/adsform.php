@@ -479,14 +479,16 @@ class AdsForm extends AdsService
 	}
 
 	/**
-	 * Get background color style from ui-icon styles for services
+	 * @deprecated
 	 *
 	 * @return string
 	 */
 	public static function getServicesBackgroundColorCss()
 	{
 		$style = '';
-		$cssFilePath = $_SERVER["DOCUMENT_ROOT"] . '/bitrix/js/ui/icons/ui.icons.css';
+		$cssFile = (file_exists($_SERVER['DOCUMENT_ROOT'].'/bitrix/js/ui/icons/service/ui.icons.service.css') ?
+			'/bitrix/js/ui/icons/service/ui.icons.service.css' : '/bitrix/js/ui/icons/ui.icons.css');
+		$cssFilePath = $_SERVER["DOCUMENT_ROOT"] . $cssFile;
 		$cssFile = file_get_contents($cssFilePath);
 
 		if (!empty($cssFile))

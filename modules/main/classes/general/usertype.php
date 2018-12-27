@@ -4384,12 +4384,13 @@ class CUserFieldEnum
 
 		/*check unique XML_ID*/
 		$arAdded = array();
+		$salt = RandString(8);
 		foreach($values as $key=>$value)
 		{
 			if(strncmp($key, "n", 1)===0 && $value["DEL"]!="Y" && strlen($value["VALUE"])>0)
 			{
 				if(strlen($value["XML_ID"])<=0)
-					$value["XML_ID"] = md5($value["VALUE"]);
+					$value["XML_ID"] = md5($salt.$value["VALUE"]);
 
 				if(array_key_exists($value["XML_ID"], $arAdded))
 				{

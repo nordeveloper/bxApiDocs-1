@@ -10,6 +10,8 @@ class Year extends Base
 	const TYPE_WEEKDAY_OF_CERTAIN_MONTH = 2;
 	const TYPE_ALTERNATING_YEAR = 3;
 
+	const FIELD_INTERVAL_NAME = 'INTERVAL_YEAR';
+
 	/**
 	 * @param array $params
 	 * @param Date $startDate
@@ -19,9 +21,9 @@ class Year extends Base
 	public static function calculateDate(array $params, Date $startDate)
 	{
 		$year = new self($params);
-		$year->setType($params['TYPE']);
+		$year->setType($params[self::FIELD_TYPE_NAME]);
 		$year->setStartDate($startDate);
-		$year->setInterval($params['INTERVAL_YEAR']);
+		$year->setInterval($params[self::FIELD_INTERVAL_NAME]);
 		return $year->calculate();
 	}
 
@@ -84,12 +86,12 @@ class Year extends Base
 			return $this->startDate;
 		}
 
-		$params['TYPE'] = $monthType;
-		$month = (int)$params['INTERVAL_MONTH'];
-		$params['INTERVAL_MONTH'] = (int)$params['INTERVAL_MONTH'] < 12 ? (int)$params['INTERVAL_MONTH'] : 12;
+		$params[self::FIELD_TYPE_NAME] = $monthType;
+		$monthValue = (int)$params[Month::FIELD_INTERVAL_NAME];
+		$params[Month::FIELD_INTERVAL_NAME] = $monthValue < 12 ? $monthValue : 12;
 
 		$yearValue = (int)$this->startDate->format("Y");
-		if ($month < (int)$this->startDate->format("n"))
+		if ($monthValue < (int)$this->startDate->format("n"))
 		{
 			$yearValue++;
 		}
@@ -98,7 +100,7 @@ class Year extends Base
 		$date = Date::createFromTimestamp($date);
 
 		$month = new Month($params);
-		$month->setInterval($params['INTERVAL_MONTH']);
+		$month->setInterval($params[Month::FIELD_INTERVAL_NAME]);
 		$month->setStartDate($date);
 		$month->setType($monthType);
 		$resultDate = $month->calculate();

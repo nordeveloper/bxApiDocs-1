@@ -63,7 +63,6 @@ class Mail
 		return true;
 	}
 
-
 	public static function sendOperatorAnswerAgent($sessionId)
 	{
 		self::sendOperatorAnswer($sessionId);
@@ -146,6 +145,7 @@ class Mail
 			"EMAIL_TO" => $email,
 			"EMAIL_TITLE" => $title,
 			"TEMPLATE_SERVER_ADDRESS" => \Bitrix\ImOpenLines\Common::getServerAddress(),
+			"TEMPLATE_CONFIG_ID" => $session['CONFIG_ID'],
 			"TEMPLATE_SESSION_ID" => $sessionId,
 			"TEMPLATE_ACTION_TITLE" => $actionTitle,
 			"TEMPLATE_ACTION_DESC" => $actionDesc,
@@ -254,7 +254,6 @@ class Mail
 
 		return $messages;
 	}
-
 
 	public static function sendSessionHistory($sessionId, $email)
 	{
@@ -415,14 +414,22 @@ class Mail
 			}
 
 			$currentDate = new \Bitrix\Main\Type\DateTime();
-			$date = \Bitrix\Main\Type\DateTime::createFromTimestamp($message['date']);
-			if ($date->format('Ymd') == $currentDate->format('Ymd'))
+			if (is_object($message['date']))
 			{
-				$messageDate = \FormatDate($mess['IMOL_MAIL_TIME_FORMAT'], $message['date']+intval($userTzOffset));
+				$date = $message['date'];
 			}
 			else
 			{
-				$messageDate = \FormatDate($mess['IMOL_MAIL_DATETIME_FORMAT'], $message['date']+intval($userTzOffset));
+				$date = \Bitrix\Main\Type\DateTime::createFromTimestamp($message['date']);
+			}
+
+			if ($date->format('Ymd') == $currentDate->format('Ymd'))
+			{
+				$messageDate = \FormatDate($mess['IMOL_MAIL_TIME_FORMAT'], $message['date']->getTimestamp()+intval($userTzOffset));
+			}
+			else
+			{
+				$messageDate = \FormatDate($mess['IMOL_MAIL_DATETIME_FORMAT'], $message['date']->getTimestamp()+intval($userTzOffset));
 			}
 
 			if (isset($message['params']['IMOL_VOTE']))

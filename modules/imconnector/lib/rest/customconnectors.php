@@ -271,6 +271,7 @@ if(Loader::includeModule('rest'))
 					'ICON' => $params['ICON'],
 					'COMPONENT' => Library::COMPONENT_NAME_REST,
 					'REST_APP_ID' => $appId,
+					'PLACEMENT_HANDLER' => $params['PLACEMENT_HANDLER']
 				);
 
 				if(isset($params['ICON_DISABLED']))
@@ -304,6 +305,10 @@ if(Loader::includeModule('rest'))
 				if(isset($params['CHAT_GROUP']))
 				{
 					$registerParams['CHAT_GROUP'] = $params['CHAT_GROUP'];
+				}
+				if(isset($params['COMMENT']))
+				{
+					$registerParams['COMMENT'] = $params['COMMENT'];
 				}
 
 				if(Helper::registerApp($registerParams))

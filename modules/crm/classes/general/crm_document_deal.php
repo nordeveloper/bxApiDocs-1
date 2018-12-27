@@ -302,6 +302,21 @@ class CCrmDocumentDeal extends CCrmDocument
 				"Required" => false,
 				"Multiple" => false,
 			),
+			'SOURCE_ID' => array(
+				'Name' => GetMessage('CRM_DOCUMENT_FIELD_SOURCE_ID'),
+				'Type' => 'select',
+				'Options' => CCrmStatus::GetStatusListEx('SOURCE'),
+				'Filterable' => true,
+				'Editable' => true,
+				'Required' => false,
+			),
+			'SOURCE_DESCRIPTION' => array(
+				'Name' => GetMessage('CRM_DOCUMENT_FIELD_SOURCE_DESCRIPTION'),
+				'Type' => 'text',
+				'Filterable' => false,
+				'Editable' => true,
+				'Required' => false,
+			),
 			"DATE_CREATE" => array(
 				"Name" => GetMessage("CRM_DEAL_EDIT_FIELD_DATE_CREATE"),
 				"Type" => "datetime",
@@ -330,6 +345,8 @@ class CCrmDocumentDeal extends CCrmDocument
 				'Editable' => false,
 			),
 		);
+
+		$arResult += static::getCommunicationFields();
 
 		global $USER_FIELD_MANAGER;
 		$CCrmUserType = new CCrmUserType($USER_FIELD_MANAGER, 'CRM_DEAL');

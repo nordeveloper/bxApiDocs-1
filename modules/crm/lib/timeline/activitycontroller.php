@@ -14,6 +14,8 @@ class ActivityController extends EntityController
 {
 	/** @var \CTextParser|null  */
 	private static $parser = null;
+	/** @var int|null  */
+	private static $userID = null;
 	/** @var  \CCrmPerms|null */
 	private static $userPermissions = null;
 
@@ -408,6 +410,24 @@ class ActivityController extends EntityController
 	}
 	//endregion
 
+	public static function getUsePermissions()
+	{
+		if(self::$userPermissions === null)
+		{
+			self::$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
+		}
+		return self::$userPermissions;
+	}
+
+	public static function getUserID()
+	{
+		if(self::$userID === null)
+		{
+			self::$userID  = \CCrmSecurityHelper::GetCurrentUserID();
+		}
+		return self::$userID;
+	}
+
 	public static function isActivitySupported(array $fields)
 	{
 		$typeID = isset($fields['TYPE_ID']) ? (int)$fields['TYPE_ID'] : \CCrmActivityType::Undefined;
@@ -465,10 +485,7 @@ class ActivityController extends EntityController
 			$options = array();
 		}
 
-		if(self::$userPermissions === null)
-		{
-			self::$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
-		}
+		$permissions = self::getUsePermissions();
 
 		\CCrmActivity::PrepareDescriptionFields(
 			$data,
@@ -501,8 +518,9 @@ class ActivityController extends EntityController
 		}
 
 		$data['PERMISSIONS'] = array(
-			'POSTPONE' => \CCrmActivity::CheckItemPostponePermission($data, self::$userPermissions),
-			'COMPLETE' => \CCrmActivity::CheckItemCompletePermission($data, self::$userPermissions)
+			'USER_ID' => self::getUserID(),
+			'POSTPONE' => \CCrmActivity::CheckItemPostponePermission($data, $permissions),
+			'COMPLETE' => \CCrmActivity::CheckItemCompletePermission($data, $permissions)
 		);
 
 		$typeID = isset($data['TYPE_ID']) ? $data['TYPE_ID'] : '';

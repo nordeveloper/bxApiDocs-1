@@ -9,47 +9,229 @@
 
 namespace Bitrix\Crm\Integration\Im;
 
+use Bitrix\Main;
+use Bitrix\Crm;
+use Bitrix\Im;
 use Bitrix\Main\Localization\Loc;
 
 class Chat
 {
 	const CHAT_ENTITY_TYPE = "CRM";
 
-	public static function getChatId($params = [])
+	public static function getEntityUserIDs($entityTypeID, $entityID)
+	{
+		$results = [];
+
+		$responsibleID = 0;
+		if($entityTypeID === \CCrmOwnerType::Lead)
+		{
+			$responsibleID = Crm\Entity\Lead::getResponsibleID($entityID);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Deal)
+		{
+			$responsibleID = Crm\Entity\Deal::getResponsibleID($entityID);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Contact)
+		{
+			$responsibleID = Crm\Entity\Contact::getResponsibleID($entityID);
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Company)
+		{
+			$responsibleID = Crm\Entity\Contact::getResponsibleID($entityID);
+		}
+
+		if($responsibleID > 0)
+		{
+			$results[] = $responsibleID;
+		}
+
+		$results = array_merge($results, Crm\Observer\ObserverManager::getEntityObserverIDs($entityTypeID, $entityID));
+		return array_unique($results);
+	}
+
+	public static function prepareUserInfos(array $userIDs)
+	{
+		if (!Main\Loader::includeModule('im'))
+		{
+			return [];
+		}
+
+		$userInfos = [];
+		foreach ($userIDs as $userID)
+		{
+			$userInfos[$userID] = Im\User::getInstance($userID)->getArray(['JSON' => 'Y']);
+		}
+		return $userInfos;
+	}
+
+	public static function onAddChatUser(array $eventArgs)
+	{
+		$chatID = isset($eventArgs['CHAT_ID']) ? (int)$eventArgs['CHAT_ID'] : 0;
+		if($chatID <= 0)
+		{
+			return;
+		}
+
+		$userIDs = isset($eventArgs['NEW_USERS']) && is_array($eventArgs['NEW_USERS']) ? $eventArgs['NEW_USERS'] : null;
+		if(empty($userIDs))
+		{
+			return;
+		}
+
+		$chatData = Im\Model\ChatTable::getList(
+			[ 'select' => [ 'ID', 'ENTITY_TYPE', 'ENTITY_ID' ], 'filter' => [ '=ID' => $chatID ] ]
+		)->fetch();
+		if(!is_array($chatData))
+		{
+			return;
+		}
+
+		if(!(isset($chatData['ENTITY_TYPE']) && $chatData['ENTITY_TYPE'] === self::CHAT_ENTITY_TYPE))
+		{
+			return;
+		}
+
+		$entityInfo = Crm\Integration\Im\Chat::resolveEntityInfo(
+			isset($chatData['ENTITY_ID']) ? $chatData['ENTITY_ID'] : ''
+		);
+
+		if(!is_array($entityInfo))
+		{
+			return;
+		}
+
+		if($entityInfo['ENTITY_TYPE_ID'] === \CCrmOwnerType::Deal)
+		{
+			\CCrmDeal::AddObserverIDs($entityInfo['ENTITY_ID'], $userIDs);
+		}
+		elseif($entityInfo['ENTITY_TYPE_ID'] === \CCrmOwnerType::Lead)
+		{
+			\CCrmLead::AddObserverIDs($entityInfo['ENTITY_ID'], $userIDs);
+		}
+	}
+
+	public static function onEntityModification($entityTypeID, $entityID, array $params)
+	{
+		if (!Main\Loader::includeModule('im'))
+		{
+			return;
+		}
+
+		$chatID = self::getChatId($entityTypeID, $entityID);
+		if($chatID <= 0)
+		{
+			return;
+		}
+
+		$currentFields = isset($params['CURRENT_FIELDS']) && is_array($params['CURRENT_FIELDS'])
+			? $params['CURRENT_FIELDS'] : array();
+		$previousFields = isset($params['PREVIOUS_FIELDS']) && is_array($params['PREVIOUS_FIELDS'])
+			? $params['PREVIOUS_FIELDS'] : array();
+		$removedObserverIDs = isset($params['REMOVED_OBSERVER_IDS']) && is_array($params['REMOVED_OBSERVER_IDS'])
+			? $params['REMOVED_OBSERVER_IDS'] : array();
+
+		$currentOwnerID = 0;
+		$currentTitle = '';
+
+		if($entityTypeID === \CCrmOwnerType::Lead || $entityTypeID === \CCrmOwnerType::Deal)
+		{
+			$previousResponsibleID = isset($previousFields['ASSIGNED_BY_ID']) ? $previousFields['ASSIGNED_BY_ID'] : 0;
+			if(isset($currentFields['ASSIGNED_BY_ID']) && $currentFields['ASSIGNED_BY_ID'] != $previousResponsibleID)
+			{
+				$currentOwnerID = (int)$currentFields['ASSIGNED_BY_ID'];
+			}
+
+			$previousTitle = isset($previousFields['TITLE']) ? $previousFields['TITLE'] : '';
+			if(isset($currentFields['TITLE']) && $currentFields['TITLE'] != $previousTitle)
+			{
+				$currentTitle = $currentFields['TITLE'];
+			}
+		}
+
+		if($currentOwnerID > 0 || $currentTitle !== '' || !empty($removedObserverIDs))
+		{
+			$chat = new \CIMChat(0);
+			if($currentOwnerID > 0)
+			{
+				$chat->AddUser($chatID, [ $currentOwnerID ], false, false);
+				$chat->SetOwner($chatID, $currentOwnerID, false);
+			}
+
+			if($currentTitle !== '')
+			{
+				$currentTitle = self::buildChatName(
+					[
+						'ENTITY_TYPE' => \CCrmOwnerType::ResolveName($entityTypeID),
+						'ENTITY_TITLE' => $currentTitle,
+					]
+				);
+				$chat->Rename($chatID, $currentTitle, false, false);
+			}
+
+			foreach($removedObserverIDs as $removedObserverID)
+			{
+				$chat->DeleteUser($chatID, $removedObserverID, false, false);
+			}
+		}
+	}
+
+	//protected
+
+	protected static function resolveEntityInfo($entitySlug)
+	{
+		$parts = explode('|', $entitySlug);
+		if(!(is_array($parts) && count($parts) >= 2))
+		{
+			return null;
+		}
+
+		return
+			[
+				'ENTITY_TYPE_NAME' => $parts[0],
+				'ENTITY_TYPE_ID' => \CCrmOwnerType::ResolveID($parts[0]),
+				'ENTITY_ID' => (int)$parts[1]
+			];
+	}
+
+	public static function getChatId($entityTypeID, $entityID)
 	{
 		if (!\Bitrix\Main\Loader::includeModule('im'))
 		{
-			return false;
+			return 0;
 		}
 
-		$entityType = $params['ENTITY_TYPE'];
-		$entityId = intval($params['ENTITY_ID']);
-
-		if (empty($entityType) || empty($entityId))
+		if (!\CCrmOwnerType::IsDefined($entityTypeID) || $entityID <= 0)
 		{
-			return false;
+			return 0;
 		}
 
-		if (false)
+		$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);
+		$chatData = \Bitrix\Im\Model\ChatTable::getList(
+			[
+				'select' => ['ID'],
+				'filter' => [ '=ENTITY_TYPE' => self::CHAT_ENTITY_TYPE,  '=ENTITY_ID' => $entityTypeName.'|'.$entityID ],
+			]
+		)->fetch();
+		return is_array($chatData) && isset($chatData['ID']) ? (int)$chatData['ID'] : 0;
+	}
+
+	protected static function checkPermission($entityTypeID, $entityID, $userId = 0)
+	{
+		if($userId <= 0)
 		{
-			// check user permission to $entityType & $entityId
-			// if user hasn't access return false
-			return false;
+			$userId = Crm\Security\EntityAuthorization::getCurrentUserID();
 		}
 
-		$chatData = \Bitrix\Im\Model\ChatTable::getList(Array(
-			'select' => ['ID'],
-			'filter' => [
-				'=ENTITY_TYPE' => self::CHAT_ENTITY_TYPE,
-				'=ENTITY_ID' => $entityType.'|'.$entityId,
-			],
-		))->fetch();
-		if ($chatData)
+		if(Crm\Security\EntityAuthorization::IsAdmin($userId))
 		{
-			return $chatData['ID'];
+			return true;
 		}
 
-		return false;
+		return Crm\Security\EntityAuthorization::checkReadPermission(
+			$entityTypeID,
+			$entityID,
+			Crm\Security\EntityAuthorization::getUserPermissions($userId)
+		);
 	}
 
 	public static function joinChat($params = [])
@@ -60,21 +242,19 @@ class Chat
 		}
 
 		$entityType = $params['ENTITY_TYPE'];
-		$entityId = intval($params['ENTITY_ID']);
-		$userId = intval($params['USER_ID']);
+		$entityTypeId = \CCrmOwnerType::ResolveID($entityType);
+		$entityId = (int)$params['ENTITY_ID'];
+		$userId = (int)$params['USER_ID'];
 
 		if (empty($entityType) || empty($entityId) || empty($userId))
 		{
 			return false;
 		}
 
-		if (false)
+		if (!self::checkPermission($entityTypeId, $entityId, $userId))
 		{
-			// check user permission to $entityType & $entityId
-			// if user hasn't access return false
 			return false;
 		}
-
 
 		$chatData = \Bitrix\Im\Model\ChatTable::getList(Array(
 			'select' => [
@@ -113,10 +293,9 @@ class Chat
 				'ENTITY_TYPE' => $entityType,
 				'ENTITY_ID' => $entityId,
 				'USER_ID' => $userId,
-				'SKIP_CHECK' => true,
+				'ENABLE_PERMISSION_CHECK' => false,
 			]);
 		}
-
 	}
 
 	public static function createChat($params = [])
@@ -127,18 +306,19 @@ class Chat
 		}
 
 		$entityType = $params['ENTITY_TYPE'];
-		$entityId = $params['ENTITY_ID'];
-		$userId = intval($params['USER_ID']);
+		$entityTypeId = \CCrmOwnerType::ResolveID($entityType);
+		$entityId = (int)$params['ENTITY_ID'];
+		$userId = (int)$params['USER_ID'];
 
 		if (empty($entityType) || empty($entityId) || empty($userId))
 		{
 			return false;
 		}
 
-		if (false && $params['SKIP_CHECK'] !== true)
+		$enablePermissionCheck = isset($params['ENABLE_PERMISSION_CHECK'])
+			? (bool)$params['ENABLE_PERMISSION_CHECK'] : true;
+		if ($enablePermissionCheck && !self::checkPermission($entityTypeId, $entityId, $userId))
 		{
-			// check user permission to $entityType & $entityId
-			// if user hasn't access return false
 			return false;
 		}
 
@@ -183,11 +363,12 @@ class Chat
 			$crmEntityTitle = '#'.$entityId;;
 		}
 
-		$crmResponsibleId = intval($entityData['ASSIGNED_BY_ID']);;
-
-		$joinUserList = [$userId];
-		// select users from crm entity and merge with $joinUserList
-		// $joinUserList = array_merge($joinUserList, $crmUserList);
+		$authorId = (int)$entityData['ASSIGNED_BY_ID'];
+		if($authorId <= 0)
+		{
+			$authorId = $userId;
+		}
+		$joinUserList = array_unique(array_merge([ $userId ], self::getEntityUserIDs($entityTypeId, $entityId)));
 
 		$chatFields = array(
 			'TITLE' => self::buildChatName([
@@ -198,7 +379,7 @@ class Chat
 			'ENTITY_TYPE' => self::CHAT_ENTITY_TYPE,
 			'ENTITY_ID' => $entityType.'|'.$entityId,
 			'SKIP_ADD_MESSAGE' => 'Y',
-			'AUTHOR_ID' => $crmResponsibleId,
+			'AUTHOR_ID' => $authorId,
 			'USERS' => $joinUserList
 		);
 		if ($crmEntityAvatarId)
@@ -209,6 +390,28 @@ class Chat
 		$chat = new \CIMChat(0);
 		$chatId = $chat->add($chatFields);
 
+		$users = [];
+		foreach ($joinUserList as $uid)
+		{
+			$users[$uid] = \Bitrix\Im\User::getInstance($uid)->getArray(['JSON' => 'Y']);
+		}
+
+		if (Main\Loader::includeModule('pull'))
+		{
+			$tag = Crm\Timeline\TimelineEntry::prepareEntityPushTag($entityTypeId, $entityId);
+			\CPullWatch::AddToStack(
+				$tag,
+				array(
+					'module_id' => 'crm',
+					'command' => 'timeline_chat_create',
+					'params' => array(
+						'CHAT_DATA' => array('CHAT_ID' => $chatId, 'USER_INFOS' => $users),
+						'TAG' => $tag
+					),
+				)
+			);
+		}
+
 		// first message in chat, if you delete this message, need set SKIP_ADD_MESSAGE = N in creating chat props
 		\CIMChat::AddMessage([
 			"TO_CHAT_ID" => $chatId,
@@ -217,25 +420,6 @@ class Chat
 			"SYSTEM" => 'Y',
 			"ATTACH" => self::getEntityCard($entityType, $entityId, $entityData)
 		]);
-
-		$users = [];
-		foreach ($joinUserList as $uid)
-		{
-			$users[$uid] = \Bitrix\Im\User::getInstance($uid)->getArray(['JSON' => 'Y']);
-		}
-
-		// Better to use watch code (CPullWatch) for timeline
-		\Bitrix\Pull\Event::add(array_keys($users), Array(
-			'module_id' => 'crm',
-			'command' => 'chatCreate',
-			'params' => Array(
-				'entityType' => $entityType,
-				'entityId' => $entityId,
-				'chatId' => $chatId,
-				'users' => $users,
-			),
-			'extra' => \Bitrix\Im\Common::getPullExtra()
-		));
 
 		return $chatId;
 	}
@@ -275,11 +459,11 @@ class Chat
 				: LANGUAGE_ID
 		);
 
-		$localizePhrase = 'CRM_INTEGRATION_IM_CHAT_TITLE_'.$entityType;
-
-		return Loc::getMessage($localizePhrase, array(
-			"#TITLE#" => $entityTitle
-		), $siteLanguageId);
+		return Loc::getMessage(
+			'CRM_INTEGRATION_IM_CHAT_TITLE_'.$entityType,
+			array("#TITLE#" => $entityTitle),
+			$siteLanguageId
+		);
 	}
 
 	public static function getEntityCard($entityType, $entityId, $entityData = null)

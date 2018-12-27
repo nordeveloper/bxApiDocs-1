@@ -4,13 +4,13 @@ namespace Bitrix\ImOpenLines;
 
 use \Bitrix\Main,
 	\Bitrix\Main\Loader,
-	\Bitrix\Main\Localization\Loc,
-	\Bitrix\Main\PhoneNumber\Parser as PhoneParser;
+	\Bitrix\Main\Localization\Loc;
 
 use \Bitrix\Crm\Binding\LeadContactTable,
 	\Bitrix\Crm\Binding\ContactCompanyTable;
 
-use \Bitrix\ImOpenLines\Model\TrackerTable;
+use \Bitrix\ImOpenLines\Tools,
+	\Bitrix\ImOpenLines\Model\TrackerTable;
 
 Loc::loadMessages(__FILE__);
 Crm::loadMessages();
@@ -626,45 +626,22 @@ class Tracker
 	//END OLD
 
 	/**
-	 * TODO: доработать до нормального состояния
 	 * @param $messageText
 	 * @return array
+	 * @throws Main\LoaderException
 	 */
 	protected static function checkMessage($messageText)
 	{
 		$result = Array(
-			'PHONES' => Array(),
-			'EMAILS' => Array(),
+			'PHONES' => [],
+			'EMAILS' => [],
 		);
 
 		//Phone
-		$phoneParserManager = PhoneParser::getInstance();
-
-		preg_match_all('/' . $phoneParserManager->getValidNumberPattern() . '/i', $messageText, $matchesPhones);
-		if (!empty($matchesPhones[0]))
-		{
-			foreach ($matchesPhones[0] as $phone)
-			{
-				$phoneNumberManager = $phoneParserManager->parse($phone);
-				if($phoneNumberManager->isValid())
-				{
-					$phone = $phoneNumberManager->format();
-
-					$result['PHONES'][$phone] = $phone;
-				}
-			}
-		}
+		$result['PHONES'] = Tools\Phone::parseText($messageText);
 
 		//Email
-		preg_match_all("/[^\s]+@[^\s]+/i", $messageText, $matchesEmails);
-		if (!empty($matchesEmails[0]))
-		{
-			foreach ($matchesEmails[0] as $email)
-			{
-				$email = trim($email);
-				$result['EMAILS'][$email] = $email;
-			}
-		}
+		$result['EMAILS'] = Tools\Email::parseText($messageText);
 
 		return $result;
 	}

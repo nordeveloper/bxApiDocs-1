@@ -665,7 +665,8 @@ class CIMMessage
 				M.AUTHOR_ID FROM_USER_ID,
 				U2.LOGIN FROM_USER_LOGIN,
 				U2.NAME FROM_USER_NAME,
-				U2.LAST_NAME FROM_USER_LAST_NAME
+				U2.LAST_NAME FROM_USER_LAST_NAME,
+				U2.EXTERNAL_AUTH_ID FROM_EXTERNAL_AUTH_ID
 			FROM b_im_relation R
 			INNER JOIN b_im_message M ON M.ID > R.LAST_ID AND M.ID > R.LAST_SEND_ID AND M.CHAT_ID = R.CHAT_ID AND IMPORT_ID IS NULL AND R.USER_ID != M.AUTHOR_ID
 			LEFT JOIN b_user U1 ON U1.ID = R.USER_ID
@@ -875,7 +876,7 @@ class CIMMessage
 
 		$updateCounters = false;
 		$relations = \Bitrix\Im\Chat::getRelation($chatId, Array(
-			'SELECT' => Array('ID', 'LAST_ID', 'LAST_SEND_ID', 'STATUS', 'USER_ID'),
+			'SELECT' => Array('ID', 'CHAT_ID', 'LAST_ID', 'LAST_SEND_ID', 'STATUS', 'USER_ID'),
 			'FILTER' => Array(
 				'USER_ID' => $userId
 			),
@@ -910,6 +911,17 @@ class CIMMessage
 			if ($relation['STATUS'] == IM_STATUS_READ)
 			{
 				$relation["STATUS"] = $update["STATUS"] = IM_STATUS_UNREAD;
+
+				$firstUnreadMessage = \Bitrix\Im\Model\MessageTable::getList([
+					'select' => ['ID'],
+					'filter' => [
+						'=CHAT_ID' => $relation['CHAT_ID'],
+						'>ID' => $lastId
+					],
+					'limit' => 1
+				])->fetch();
+
+				$relation["UNREAD_ID"] = $update["UNREAD_ID"] = $firstUnreadMessage? $firstUnreadMessage['ID']: $lastId;
 			}
 		}
 		else
@@ -917,6 +929,7 @@ class CIMMessage
 			if ($relation['STATUS'] != IM_STATUS_READ)
 			{
 				$relation["STATUS"] = $update["STATUS"] = IM_STATUS_READ;
+				$relation["UNREAD_ID"] = $update["UNREAD_ID"] = 0;
 			}
 		}
 
@@ -1173,6 +1186,15 @@ class CIMMessage
 			}
 		}
 
+		if (isset($arParams['TEMP_ID']))
+		{
+			$arParams['TEMP_ID'] = is_numeric($arParams['TEMP_ID'])? (int)$arParams['TEMP_ID']: (string)$arParams['TEMP_ID'];
+		}
+		else
+		{
+			$arParams['TEMP_ID'] = '';
+		}
+
 		return Array(
 			'chatId' => $arParams['CHAT_ID'],
 			'chat' => isset($arChat['chat'])? $arChat['chat']: [],
@@ -1181,6 +1203,7 @@ class CIMMessage
 			'userBlockChat' => $arChat['userChatBlockStatus']? $arChat['userChatBlockStatus']: [],
 			'users' => $arUsers['users'],
 			'message' => Array(
+				'tempId' => $arParams['TEMP_ID'],
 				'id' => $arParams['ID'],
 				'chatId' => $arParams['CHAT_ID'],
 				'senderId' => $arParams['FROM_USER_ID'],
@@ -1188,6 +1211,7 @@ class CIMMessage
 				'system' => $arParams['SYSTEM'] == 'Y'? 'Y': 'N',
 				'date' => \Bitrix\Main\Type\DateTime::createFromTimestamp($arParams['DATE_CREATE']),
 				'text' => \Bitrix\Im\Text::parse($arParams['MESSAGE']),
+				'textOriginal' => $arParams['MESSAGE'],
 				'params' => $arParams['PARAMS']
 			),
 			'files' => isset($arParams['FILES'])? $arParams['FILES']: [],

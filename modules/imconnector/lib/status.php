@@ -255,21 +255,24 @@ class Status
 			foreach ($listLine as $line => $value)
 			{
 				$connector = self::$instance[$currentConnector][$line];
-				$fields = array();
+				if(!empty($connector) && $connector instanceof \Bitrix\ImConnector\Status && !empty($connector->id))
+				{
+					$fields = array();
 
-				if(!empty($connector->active))
-					$fields["ACTIVE"] = $connector->active;
-				if(!empty($connector->connection))
-					$fields["CONNECTION"] = $connector->connection;
-				if(!empty($connector->register))
-					$fields["REGISTER"] = $connector->register;
-				if(!empty($connector->error))
-					$fields["ERROR"] = $connector->error;
-				if($connector->data !== false)
-					$fields["DATA"] = $connector->data;
+					if(!empty($connector->active))
+						$fields["ACTIVE"] = $connector->active;
+					if(!empty($connector->connection))
+						$fields["CONNECTION"] = $connector->connection;
+					if(!empty($connector->register))
+						$fields["REGISTER"] = $connector->register;
+					if(!empty($connector->error))
+						$fields["ERROR"] = $connector->error;
+					if($connector->data !== false)
+						$fields["DATA"] = $connector->data;
 
-				StatusConnectorsTable::update($connector->id, $fields);
-				self::cleanCache($currentConnector, $line);
+					StatusConnectorsTable::update($connector->id, $fields);
+					self::cleanCache($currentConnector, $line);
+				}
 			}
 		}
 	}

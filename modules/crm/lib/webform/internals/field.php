@@ -34,6 +34,7 @@ class FieldTable extends Entity\DataManager
 	const TYPE_ENUM_BOOL = 'boolean';
 	const TYPE_ENUM_HR = 'hr';
 	const TYPE_ENUM_BR = 'br';
+	const TYPE_ENUM_RESOURCEBOOKING = 'resourcebooking';
 
 	public static function getTableName()
 	{
@@ -97,6 +98,10 @@ class FieldTable extends Entity\DataManager
 			),
 			'VALUE' => array(
 				'data_type' => 'string',
+			),
+			'SETTINGS_DATA' => array(
+				'data_type' => 'text',
+				'serialized' => true
 			)
 		);
 	}
@@ -105,13 +110,11 @@ class FieldTable extends Entity\DataManager
 	{
 		return array(
 			self::TYPE_ENUM_SECTION => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_SECTION'),
-
 			self::TYPE_ENUM_EMAIL => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_EMAIL'),
 			self::TYPE_ENUM_INT => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_INT1'),
 			self::TYPE_ENUM_FLOAT => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_FLOAT'),
 			self::TYPE_ENUM_PHONE => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_PHONE'),
 			self::TYPE_ENUM_LIST => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_LIST'),
-
 			self::TYPE_ENUM_DATE => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_DATE'),
 			self::TYPE_ENUM_DATETIME => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_DATETIME'),
 			self::TYPE_ENUM_CHECKBOX => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_CHECKBOX'),
@@ -123,6 +126,7 @@ class FieldTable extends Entity\DataManager
 			self::TYPE_ENUM_STRING => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_STRING'),
 			self::TYPE_ENUM_TYPED_STRING => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_TYPED_STRING'),
 			self::TYPE_ENUM_PRODUCT => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_PRODUCT'),
+			self::TYPE_ENUM_RESOURCEBOOKING => Loc::getMessage('CRM_WEBFORM_FIELD_TYPE_RESOURCEBOOKING')
 		);
 	}
 

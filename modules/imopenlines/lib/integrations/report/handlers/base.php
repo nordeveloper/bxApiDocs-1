@@ -597,7 +597,7 @@ abstract class Base extends BaseReport
 					break;
 				case self::GROUP_BY_RESPONSIBLE:
 					$result[$data['operator_id']]['value'][] = $this->getPreparedDemoRow($data)['value'];
-					$result[$data['operator_id']]['label'] = Loc::getMessage('REPORT_OPERATOR_DEMO_NAME_PREFIX') . '-' . $data['operator_id'];
+					$result[$data['operator_id']]['label'] = Loc::getMessage('REPORT_OPERATOR_DEMO_NAME_PREFIX_NEW') . '-' . $data['operator_id'];
 					break;
 				default:
 					$result['withoutGrouping']['value'][] =  $this->getPreparedDemoRow($data)['value'];

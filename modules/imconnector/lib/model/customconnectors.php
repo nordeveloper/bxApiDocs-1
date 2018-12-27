@@ -102,6 +102,7 @@ class CustomConnectorsTable extends DataManager
 			new IntegerField('REST_APP_ID', array(
 				'required' => true,
 			)),
+			new IntegerField('REST_PLACEMENT_ID', array()),
 		);
 	}
 

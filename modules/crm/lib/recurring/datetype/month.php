@@ -13,6 +13,10 @@ class Month extends Base
 	const TYPE_A_FEW_MONTHS_AFTER = 4;
 	const FIRST_MONTH_DAY = 1;
 	const LAST_MONTH_DAY = 0;
+	const LAST_WEEK_IN_MONTH_VALUE = 4;
+
+	const FIELD_INTERVAL_NAME = 'INTERVAL_MONTH';
+	const FIELD_WEEKDAY_NAME = 'WEEKDAY';
 
 	/** @var $monthBeginning Date */
 	private $monthBeginning = null;
@@ -26,9 +30,9 @@ class Month extends Base
 	public static function calculateDate(array $params, Date $startDate)
 	{
 		$month = new self($params);
-		$month->setType($params['TYPE']);
+		$month->setType($params[self::FIELD_TYPE_NAME]);
 		$month->setStartDate($startDate);
-		$month->setInterval($params['INTERVAL_MONTH']);
+		$month->setInterval($params[self::FIELD_INTERVAL_NAME]);
 		return $month->calculate();
 	}
 
@@ -52,7 +56,7 @@ class Month extends Base
 	 */
 	private function isWorkdayType()
 	{
-		return $this->params['IS_WORKDAY'] === 'Y';
+		return $this->params[Day::FIELD_IS_WORKDAY_NAME] === 'Y';
 	}
 
 	/**
@@ -100,7 +104,12 @@ class Month extends Base
 	 */
 	private function setMonthBeginning()
 	{
-		$monthValue = (int)$this->startDate->format("n") + $this->interval;
+		$monthValue = (int)$this->startDate->format("n");
+		if ($this->interval > 1 || (int)$this->startDate->format("j") < (int)date('j'))
+		{
+			$monthValue += $this->interval;
+		}
+
 		$yearValue = (int)$this->startDate->format("Y");
 
 		$ratio = $monthValue / 12;
@@ -186,20 +195,20 @@ class Month extends Base
 
 		$numWeekDay = (int)$date->format('N');
 
-		if ($numWeekDay <= $params['WEEKDAY'])
+		if ($numWeekDay <= $params[self::FIELD_WEEKDAY_NAME])
 		{
-			$offset = $params['WEEKDAY'] - $numWeekDay;
+			$offset = $params[self::FIELD_WEEKDAY_NAME] - $numWeekDay;
 		}
 		else
 		{
-			$offset = 7 + $params['WEEKDAY'] - $numWeekDay;
+			$offset = 7 + $params[self::FIELD_WEEKDAY_NAME] - $numWeekDay;
 		}
 
 		$date->add("+{$offset} days");
 
-		if ((int)$params['INTERVAL_WEEK'] <= 3)
+		if ((int)$params[Week::FIELD_INTERVAL_NAME] < self::LAST_WEEK_IN_MONTH_VALUE)
 		{
-			$date->add("+" . (int)$params['INTERVAL_WEEK'] . " weeks");
+			$date->add("+" . (int)$params[Week::FIELD_INTERVAL_NAME] . " weeks");
 		}
 		else
 		{
@@ -223,7 +232,7 @@ class Month extends Base
 		{
 			$this->setMonthBeginning();
 		}
-		$intervalDay = (int)$this->params['INTERVAL_DAY'];
+		$intervalDay = (int)$this->params[Day::FIELD_INTERVAL_NAME];
 		$countMonthDays = $this->monthBeginning->format('t');
 		
 		if ($intervalDay > $countMonthDays)

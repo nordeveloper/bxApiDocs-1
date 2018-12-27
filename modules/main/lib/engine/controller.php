@@ -313,9 +313,9 @@ class Controller implements Errorable, Controllerable
 		}
 	}
 
-	final public function getFullEventName($eventName)
+	final public static function getFullEventName($eventName)
 	{
-		return $this::className() . '::' . $eventName;
+		return get_called_class() . '::' . $eventName;
 	}
 
 	/**
@@ -375,7 +375,7 @@ class Controller implements Errorable, Controllerable
 	{
 		$event = new Event(
 			'main',
-			$this->getFullEventName(static::EVENT_ON_BEFORE_ACTION),
+			static::getFullEventName(static::EVENT_ON_BEFORE_ACTION),
 			array(
 				'action' => $action,
 				'controller' => $this,
@@ -417,7 +417,7 @@ class Controller implements Errorable, Controllerable
 	{
 		$event = new Event(
 			'main',
-			$this->getFullEventName(static::EVENT_ON_AFTER_ACTION),
+			static::getFullEventName(static::EVENT_ON_AFTER_ACTION),
 			array(
 				'result' => $result,
 				'action' => $action,
@@ -649,7 +649,7 @@ class Controller implements Errorable, Controllerable
 
 			$eventManager->addEventHandler(
 				'main',
-				$this->getFullEventName(static::EVENT_ON_BEFORE_ACTION),
+				static::getFullEventName(static::EVENT_ON_BEFORE_ACTION),
 				array($filter, 'onBeforeAction')
 			);
 
@@ -668,7 +668,7 @@ class Controller implements Errorable, Controllerable
 
 			$eventManager->addEventHandler(
 				'main',
-				$this->getFullEventName(static::EVENT_ON_AFTER_ACTION),
+				static::getFullEventName(static::EVENT_ON_AFTER_ACTION),
 				array($filter, 'onAfterAction')
 			);
 		}

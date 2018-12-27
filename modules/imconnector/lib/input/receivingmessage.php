@@ -228,7 +228,7 @@ class ReceivingMessage
 			{
 				if($this->connector == 'facebookcomments')
 					$message['chat']['description'] = Loc::getMessage("IMCONNECTOR_LINK_TO_ORIGINAL_POST_IN_FACEBOOK", array('#LINK#' => $message['chat']['url']));
-				elseif($this->connector == 'instagram')
+				elseif($this->connector == 'instagram' || $this->connector == 'fbinstagram')
 					$message['chat']['description'] = Loc::getMessage("IMCONNECTOR_LINK_TO_ORIGINAL_POST_IN_INSTAGRAM", array('#LINK#' => $message['chat']['url']));
 				else
 					$message['chat']['description'] = Loc::getMessage("IMCONNECTOR_LINK_TO_ORIGINAL_POST", array('#LINK#' => $message['chat']['url']));

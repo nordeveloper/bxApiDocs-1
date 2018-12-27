@@ -49,6 +49,12 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 			AdvancePaymentCheck::getType() => 3,
 			AdvanceReturnCashCheck::getType() => 3,
 			AdvanceReturnCheck::getType() => 3,
+			PrepaymentCheck::getType() => 2,
+			PrepaymentReturnCheck::getType() => 2,
+			PrepaymentReturnCashCheck::getType() => 2,
+			FullPrepaymentCheck::getType() => 1,
+			FullPrepaymentReturnCheck::getType() => 1,
+			FullPrepaymentReturnCashCheck::getType() => 1,
 			CreditCheck::getType() => 6,
 			CreditReturnCheck::getType() => 6,
 			CreditPaymentCheck::getType() => 7,
@@ -619,7 +625,7 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 			$vatList = $dbRes->fetchAll();
 			if ($vatList)
 			{
-				$defaultVat = array(0 => 5, 10 => 2, 18 => 1);
+				$defaultVat = array(0 => 5, 10 => 2, 18 => 1, 20 => 1);
 				foreach ($vatList as $vat)
 				{
 					$value = '';

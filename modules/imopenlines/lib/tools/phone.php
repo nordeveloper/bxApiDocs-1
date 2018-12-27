@@ -70,6 +70,38 @@ class Phone
 	}
 
 	/**
+	 * @param $text
+	 * @return array
+	 * @throws \Bitrix\Main\LoaderException
+	 */
+	public static function parseText($text)
+	{
+		$result = [];
+		$matchesPhones = [];
+		$phoneParserManager = PhoneNumber\Parser::getInstance();
+		preg_match_all('/' . $phoneParserManager->getValidNumberPattern() . '/i', $text, $matchesPhones);
+
+		if (!empty($matchesPhones[0]))
+		{
+			foreach ($matchesPhones[0] as $phone)
+			{
+				$phoneNumberManager = $phoneParserManager->parse($phone);
+				if($phoneNumberManager->isValid())
+				{
+					$result[] = self::normalize($phone);
+				}
+			}
+
+			if(!empty($result))
+			{
+				$result = array_unique($result);
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * @param $phones
 	 * @param $searchPhone
 	 * @return bool

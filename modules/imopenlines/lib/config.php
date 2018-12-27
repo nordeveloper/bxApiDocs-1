@@ -38,8 +38,14 @@ class Config
 	const BOT_LEFT_QUEUE = 'queue';
 	const BOT_LEFT_CLOSE = 'close';
 
+	const OPERATOR_DATA_PROFILE = 'profile';
+	const OPERATOR_DATA_QUEUE = 'queue';
+	const OPERATOR_DATA_HIDE = 'hide';
+
 	const EVENT_IMOPENLINE_CREATE = 'OnImopenlineCreate';
 	const EVENT_IMOPENLINE_DELETE = 'OnImopenlineDelete';
+
+	const CONFIG_CACHE_TIME = 86400;
 
 	private $error = null;
 
@@ -311,6 +317,15 @@ class Config
 			$fields['WELCOME_MESSAGE_TEXT'] = Loc::getMessage('IMOL_CONFIG_WELCOME_MESSAGE', Array('#COMPANY_NAME#' => $companyName));
 		}
 
+		if (isset($params['OPERATOR_DATA']))
+		{
+			$fields['OPERATOR_DATA'] = in_array($params['OPERATOR_DATA'], Array(self::OPERATOR_DATA_PROFILE, self::OPERATOR_DATA_QUEUE, self::OPERATOR_DATA_HIDE))? $params['OPERATOR_DATA']: self::OPERATOR_DATA_PROFILE;
+		}
+		else if ($mode == self::MODE_ADD)
+		{
+			$fields['OPERATOR_DATA'] = self::OPERATOR_DATA_PROFILE;
+		}
+
 		$defaultAuthFormId = $this->getFormForAuth();
 		$defaultRatingFormId = $this->getFormForRating();
 		$formValues = $this->getFormValues();
@@ -348,7 +363,7 @@ class Config
 		}
 		else if ($mode == self::MODE_ADD)
 		{
-			$fields['NO_ANSWER_TEXT'] = Loc::getMessage('IMOL_CONFIG_NO_ANSWER', Array('#COMPANY_NAME#' => $companyName));
+			$fields['NO_ANSWER_TEXT'] = Loc::getMessage('IMOL_CONFIG_NO_ANSWER_NEW', Array('#COMPANY_NAME#' => $companyName));
 		}
 
 		if (isset($params['WORKTIME_ENABLE']))
@@ -680,14 +695,13 @@ class Config
 		$id = $result->getId();
 		$data = $result->getData();
 
-		Model\ConfigStatisticTable::add(Array(
-			'CONFIG_ID' => $id
-		));
+
+		ConfigStatistic::add($id);
 
 		$queueManager = new QueueManager($id);
 		if (isset($params['QUEUE']) && is_array($params['QUEUE']) && !empty($params['QUEUE']))
 		{
-			$queueManager->updateUsers($params['QUEUE']);
+			$queueManager->updateUsers($params['QUEUE'], $params['QUEUE_USERS_FIELDS']);
 		}
 		else
 		{
@@ -751,7 +765,7 @@ class Config
 		if (isset($params['QUEUE']) && is_array($params['QUEUE']))
 		{
 			$queueManager = new QueueManager($id);
-			$queueManager->updateUsers($params['QUEUE']);
+			$queueManager->updateUsers($params['QUEUE'], $params['QUEUE_USERS_FIELDS']);
 		}
 
 		if($config['QUICK_ANSWERS_IBLOCK_ID'] != $fields['QUICK_ANSWERS_IBLOCK_ID'] && $config['QUICK_ANSWERS_IBLOCK_ID'] > 0)
@@ -815,7 +829,7 @@ class Config
 			return false;
 
 		Model\ConfigTable::delete($id);
-		Model\ConfigStatisticTable::delete($id);
+		ConfigStatistic::delete($id);
 
 		if($config['QUICK_ANSWERS_IBLOCK_ID'] > 0)
 		{
@@ -845,6 +859,24 @@ class Config
 			if (\Bitrix\Main\Loader::includeModule('imconnector'))
 			{
 				\Bitrix\ImConnector\Output::deleteLine($id);
+			}
+
+			if (\Bitrix\Main\Loader::includeModule('im'))
+			{
+				$aliases = \Bitrix\Im\Model\AliasTable::getList(
+					Array(
+						'filter' => Array(
+							'=ALIAS' => \Bitrix\Im\Alias::ENTITY_TYPE_OPEN_LINE,
+							'=ENTITY_ID' => $id)
+					)
+				);
+				while ($alias = $aliases->fetch())
+				{
+					\Bitrix\Im\Alias::delete($alias['ID']);
+				}
+
+				$livechatManager = new LiveChatManager($id);
+				$livechatManager->delete();
 			}
 		}
 		catch (\Exception $e)
@@ -994,20 +1026,21 @@ class Config
 		$config['WORKTIME_HOLIDAYS'] = explode(",", $config["WORKTIME_HOLIDAYS"]);
 
 		$config['QUEUE'] = Array();
+		$config['QUEUE_USERS_FIELDS'] = Array();
 		$config['QUEUE_ONLINE'] = 'N';
 		if ($withQueue)
 		{
 			if ($showOffline)
 			{
 				$orm = Queue::getList(Array(
-					'select' => Array('USER_ID', 'IS_ONLINE_CUSTOM'),
+					'select' => Array('USER_ID', 'IS_ONLINE_CUSTOM', 'USER_NAME', 'USER_WORK_POSITION', 'USER_AVATAR', 'USER_AVATAR_ID'),
 					'filter' => Array('=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y'),
 				));
 			}
 			else
 			{
 				$orm = Queue::getList(Array(
-					'select' => Array('USER_ID'),
+					'select' => Array('USER_ID', 'USER_NAME', 'USER_WORK_POSITION', 'USER_AVATAR', 'USER_AVATAR_ID'),
 					'filter' => Array('=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y', '=IS_ONLINE_CUSTOM' => 'Y'),
 				));
 			}
@@ -1021,6 +1054,12 @@ class Config
 						$config['QUEUE_ONLINE'] = 'Y';
 					}
 					$config['QUEUE'][] = $row['USER_ID'];
+					$config['QUEUE_USERS_FIELDS'][$row['USER_ID']] = array(
+						'USER_NAME' => $row['USER_NAME'],
+						'USER_WORK_POSITION' => $row['USER_WORK_POSITION'],
+						'USER_AVATAR' => $row['USER_AVATAR'],
+						'USER_AVATAR_ID' => $row['USER_AVATAR_ID']
+					);
 				}
 			}
 			else
@@ -1029,6 +1068,12 @@ class Config
 				{
 					$config['QUEUE'][] = $row['USER_ID'];
 					$config['QUEUE_ONLINE'] = 'Y';
+					$config['QUEUE_USERS_FIELDS'][$row['USER_ID']] = array(
+						'USER_NAME' => $row['USER_NAME'],
+						'USER_WORK_POSITION' => $row['USER_WORK_POSITION'],
+						'USER_AVATAR' => $row['USER_AVATAR'],
+						'USER_AVATAR_ID' => $row['USER_AVATAR_ID']
+					);
 				}
 			}
 
@@ -1062,12 +1107,19 @@ class Config
 			if ($withQueue)
 			{
 				$config['QUEUE'] = Array();
+				$config['QUEUE_USERS_FIELDS'] = Array();
 				$ormQueue = Model\QueueTable::getList(array(
 					'filter' => Array('=CONFIG_ID' => $config['ID'])
 				));
 				while ($row = $ormQueue->fetch())
 				{
 					$config['QUEUE'][] = $row['USER_ID'];
+					$config['QUEUE_USERS_FIELDS'][$row['USER_ID']] = array(
+						'USER_NAME' => $row['USER_NAME'],
+						'USER_WORK_POSITION' => $row['USER_WORK_POSITION'],
+						'USER_AVATAR' => $row['USER_AVATAR'],
+						'USER_AVATAR_ID' => $row['USER_AVATAR_ID']
+					);
 				}
 			}
 
@@ -1300,5 +1352,56 @@ class Config
 	public function getError()
 	{
 		return $this->error;
+	}
+
+	/**
+	 * Return queue operator data config type
+	 *
+	 * @param $configId
+	 *
+	 * @return mixed|string
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public static function operatorDataConfig($configId)
+	{
+		$result = '';
+
+		$configId = intval($configId);
+
+		if ($configId > 0)
+		{
+			$config = Model\ConfigTable::getByPrimary(
+				$configId,
+				array(
+					'cache' => array('ttl' => self::CONFIG_CACHE_TIME)
+				)
+			)->fetch();
+
+			if (!empty($config) && is_array($config))
+			{
+				$result = $config['OPERATOR_DATA'];
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Return bool param to show or not to show operator data in chat
+	 *
+	 * @param $configId
+	 *
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	public static function isShowOperatorData($configId)
+	{
+		$operatorDataConfig = self::operatorDataConfig($configId);
+
+		return $operatorDataConfig !== self::OPERATOR_DATA_HIDE;
 	}
 }

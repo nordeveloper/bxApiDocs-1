@@ -88,14 +88,17 @@ class Deal extends ProductsDataProvider implements Nameable, Filterable
 		if($this->contacts === null)
 		{
 			$this->contacts = [];
-			$contactBindings = DealContactTable::getDealBindings($this->source);
-			foreach($contactBindings as $binding)
+			if(intval($this->source) > 0)
 			{
-				$contact = DataProviderManager::getInstance()->getDataProvider(Contact::class, $binding['CONTACT_ID'], [
-					'isLightMode' => true,
-					'DISABLE_MY_COMPANY' => true,
-				], $this);
-				$this->contacts[] = $contact;
+				$contactBindings = DealContactTable::getDealBindings($this->source);
+				foreach($contactBindings as $binding)
+				{
+					$contact = DataProviderManager::getInstance()->getDataProvider(Contact::class, $binding['CONTACT_ID'], [
+						'isLightMode' => true,
+						'DISABLE_MY_COMPANY' => true,
+					], $this);
+					$this->contacts[] = $contact;
+				}
 			}
 		}
 

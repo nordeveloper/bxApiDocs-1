@@ -37,7 +37,7 @@ class User
 		}
 		if (isset($userFields['EMAIL']) && trim($userFields['EMAIL']))
 		{
-			$fields['ADMIN_NOTES'] = trim($userFields['EMAIL']);
+			$fields['EMAIL'] = trim($userFields['EMAIL']);
 		}
 		if (isset($userFields['PERSONAL_WWW']) && trim($userFields['PERSONAL_WWW']))
 		{
@@ -93,7 +93,7 @@ class User
 				$errorMessage = $exception->GetString();
 			}
 
-			self::setError(__METHOD__, 'CHAT_ERROR', Loc::getMessage('IMOL_WIDGET_USER_ERROR_CREATE'), ['CODE' => $errorCode, 'MSG' => $errorMessage]);
+			self::setError(__METHOD__, 'USER_REGISTER_ERROR', Loc::getMessage('IMOL_WIDGET_USER_ERROR_CREATE'), ['CODE' => $errorCode, 'MSG' => $errorMessage]);
 			return false;
 		}
 
@@ -105,6 +105,11 @@ class User
 
 	public static function get($userId)
 	{
+		if (!\Bitrix\Main\Loader::includeModule('im'))
+		{
+			return [];
+		}
+
 		$userData = \Bitrix\Main\UserTable::getById($userId)->fetch();
 
 		$avatar = '';
@@ -124,13 +129,26 @@ class User
 			}
 		}
 
+		if ($userData['NAME'] || $userData['LAST_NAME'])
+		{
+			$name = \Bitrix\Im\User::formatFullNameFromDatabase($userData);
+			$firstName = \Bitrix\Im\User::formatNameFromDatabase($userData);
+		}
+		else
+		{
+			$name = '';
+			$firstName = '';
+		}
+
 		return [
 			'ID' => (int)$userData['ID'],
 			'HASH' => substr($userData['XML_ID'], strlen(Auth::AUTH_TYPE)+1),
-			'NAME' => $userData['NAME'],
+			'NAME' => $name,
+			'FIRST_NAME' => $firstName,
 			'LAST_NAME' => $userData['LAST_NAME'],
 			'AVATAR' => $avatar,
-			'EMAIL' => $userData['ADMIN_NOTES'],
+			'EMAIL' => $userData['EMAIL'],
+			'PHONE' => $userData['PERSONAL_MOBILE'],
 			'WWW' => $userData['PERSONAL_WWW'],
 			'GENDER' => $userData['PERSONAL_GENDER'],
 			'POSITION' => $userData['WORK_POSITION'],

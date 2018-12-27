@@ -43,6 +43,9 @@ class ManyToMany extends Relation
 	/** @var string Name of reference from mediator to target entity */
 	protected $remoteReferenceName;
 
+	/** @var string */
+	protected $joinType = 'left';
+
 	/**
 	 * @param string        $name
 	 * @param string|Entity $referenceEntity
@@ -254,7 +257,7 @@ class ManyToMany extends Relation
 
 				// local reference
 				$localReference = (new Reference($this->getLocalReferenceName(), $this->getEntity(), $localReferenceConditions))
-					->configureJoinType('inner');
+					->configureJoinType($this->joinType);
 				$fields[] = $localReference;
 
 				// remote entity primary
@@ -285,7 +288,7 @@ class ManyToMany extends Relation
 
 				// remote reference
 				$remoteReference = (new Reference($this->getRemoteReferenceName(), $this->getRefEntity(), $remoteReferenceConditions))
-					->configureJoinType('inner');
+					->configureJoinType($this->joinType);
 				$fields[] = $remoteReference;
 
 				// set table name

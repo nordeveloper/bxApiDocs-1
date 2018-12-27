@@ -29,6 +29,7 @@ use Bitrix\Main\ArgumentException;
  *
  * @property-read \Bitrix\Main\ORM\Entity $entity
  * @property-read array $primary
+ * @property-read int $state @see State
  *
  * @package    bitrix
  * @subpackage main
@@ -67,6 +68,9 @@ abstract class EntityObject implements \ArrayAccess
 	 * @var mixed[]
 	 */
 	protected $_runtimeValues = [];
+
+	/** @var callable[] */
+	protected $_onPrimarySetListeners = [];
 
 	/**
 	 * Cache for lastName => LAST_NAME transforming
@@ -176,6 +180,9 @@ abstract class EntityObject implements \ArrayAccess
 			{
 				$this->sysSetActual($primaryName, $primaryValue);
 			}
+
+			// on primary gain event
+			$this->sysOnPrimarySet();
 		}
 		elseif ($this->_state == State::CHANGED)
 		{
@@ -613,7 +620,7 @@ abstract class EntityObject implements \ArrayAccess
 	 *
 	 * @param $name
 	 *
-	 * @return array|Entity
+	 * @return mixed
 	 * @throws ArgumentException
 	 * @throws SystemException
 	 */
@@ -625,6 +632,8 @@ abstract class EntityObject implements \ArrayAccess
 				return $this->sysGetEntity();
 			case 'primary':
 				return $this->sysGetPrimary();
+			case 'state':
+				return $this->sysGetState();
 			case 'dataClass':
 				throw new SystemException('Property `dataClass` should be received as static.');
 		}
@@ -649,6 +658,7 @@ abstract class EntityObject implements \ArrayAccess
 			case 'entity':
 			case 'primary':
 			case 'dataClass':
+			case 'state':
 				throw new SystemException(sprintf(
 					'Property `%s` for object `%s` is read-only', $name, get_called_class()
 				));
@@ -1235,7 +1245,44 @@ abstract class EntityObject implements \ArrayAccess
 			$this->sysChangeState(State::CHANGED);
 		}
 
+		// on primary gain event
+		$this->sysOnPrimarySet();
+
 		return $this;
+	}
+
+	public function sysHasPrimary()
+	{
+		foreach ($this->primary as $primaryValue)
+		{
+			if ($primaryValue === null)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	public function sysOnPrimarySet()
+	{
+		// call subscribers
+		if ($this->sysHasPrimary())
+		{
+			foreach ($this->_onPrimarySetListeners as $listener)
+			{
+				call_user_func($listener, $this);
+			}
+		}
+	}
+
+	/**
+	 * @param callable $callback
+	 */
+	public function sysAddOnPrimarySetListener($callback)
+	{
+		// add to listeners
+		$this->_onPrimarySetListeners[] = $callback;
 	}
 
 	/**

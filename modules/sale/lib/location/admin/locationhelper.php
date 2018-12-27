@@ -160,13 +160,20 @@ final class LocationHelper extends NameHelper
 
 		if(is_array($data['NAME']) && !empty($data['NAME']))
 		{
+			$hasValidName = false;
+
 			foreach($data['NAME'] as $lang => $fields)
 			{
-				if(isset($fields['NAME']) && strlen($fields['NAME']) <= 0)
+				if(!empty($fields['NAME']))
 				{
-					$errors[] = Loc::getMessage('SALE_LOCATION_ADMIN_LOCATION_HELPER_ENTITY_NAME_EMPTY_ERROR');
+					$hasValidName = true;
 					break;
 				}
+			}
+
+			if(!$hasValidName)
+			{
+				$errors[] = Loc::getMessage('SALE_LOCATION_ADMIN_LOCATION_HELPER_ENTITY_NAME_EMPTY_ERROR');
 			}
 		}
 

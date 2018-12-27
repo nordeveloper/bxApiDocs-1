@@ -1249,9 +1249,9 @@ class OrderCompatibility extends Internals\EntityCompatibility
 				array(
 					'select' => array("ID"),
 					'filter' => array(
-						'ACTIVE' => 'Y',
-						'PERSON_TYPE_ID' => $personTypeId,
-						'ENTITY_REGISTRY_TYPE' => static::getRegistryType()
+						'=ACTIVE' => 'Y',
+						'=PERSON_TYPE_ID' => $personTypeId,
+						'=ENTITY_REGISTRY_TYPE' => static::getRegistryType()
 					),
 					'order' => array('SORT'),
 					'limit' => 1
@@ -1268,8 +1268,8 @@ class OrderCompatibility extends Internals\EntityCompatibility
 			array(
 				'select' => array("ID"),
 				'filter' => array(
-					'ACTIVE' => 'Y',
-					'ENTITY_REGISTRY_TYPE' => static::getRegistryType()
+					'=ACTIVE' => 'Y',
+					'=ENTITY_REGISTRY_TYPE' => static::getRegistryType()
 				),
 				'order' => array('SORT'),
 				'limit' => 1

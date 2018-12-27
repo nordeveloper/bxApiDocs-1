@@ -19,8 +19,12 @@ class Auth
 		'imopenlines.widget.user.register',
 		'imopenlines.widget.user.get',
 		'imopenlines.widget.config.get',
+		'imopenlines.widget.dialog.get',
+		'im.dialog.messages.get',
+		'im.chat.get',
 		'server.time',
 		'pull.config.get',
+		'smile.get',
 	];
 
 	const METHODS_WITH_AUTH = [
@@ -28,27 +32,33 @@ class Auth
 		'imopenlines.widget.dialog.get',
 		'imopenlines.widget.user.get',
 		'imopenlines.widget.user.consent.apply',
-		'imopenlines.widget.user.vote',
+		'imopenlines.widget.vote.send',
+		'imopenlines.widget.form.send',
 		// pull
 		'server.time',
 		'pull.config.get',
 		'pull.watch.extend',
 		// im
-		'im.counters.get',
+		'im.chat.get',
+		'im.chat.sendtyping',
 		'im.message.add',
 		'im.message.update',
 		'im.message.delete',
 		'im.message.like',
-		'im.chat.sendtyping',
 		'im.dialog.messages.get',
+		'im.dialog.read',
 		'im.disk.folder.get',
 		'im.disk.file.commit',
 		// disk
-		'disk.folder.uploadfile', // @documentation https://dev.1c-bitrix.ru/rest_help/disk/folder/disk_folder_uploadfile.php
+		'disk.folder.uploadfile',
 	];
 
+	const AUTH_ID_PARAM = 'livechat_auth_id';
+	const AUTH_UID_PARAM = 'livechat_user_id';
+	const AUTH_CUSTOM_ID_PARAM = 'livechat_custom_auth_id';
+
 	protected static $authQueryParams = [
-		'livechat_auth_id',
+		self::AUTH_ID_PARAM,
 	];
 
 	public static function onRestCheckAuth(array $query, $scope, &$res)
@@ -68,7 +78,19 @@ class Auth
 			return null;
 		}
 
+		define('BX24_REST_SKIP_SEND_HEADERS', true);
+		$origin = \Bitrix\Main\Context::getCurrent()->getServer()->get('HTTP_ORIGIN');
+		if ($origin)
+		{
+			header('Access-Control-Allow-Origin: ' . $origin);
+			header('Access-Control-Allow-Credentials: true');
+		}
+
 		global $USER;
+		if (!$USER->IsAuthorized())
+		{
+			$USER->LoginByCookies();
+		}
 
 		if ($authCode == self::AUTH_CODE_GUEST)
 		{
@@ -78,18 +100,27 @@ class Auth
 				{
 					if ($USER->GetParam('EXTERNAL_AUTH_ID') == User::EXTERNAL_AUTH_ID && substr($USER->GetParam('XML_ID'), 0, strlen(self::AUTH_TYPE)) == self::AUTH_TYPE)
 					{
-						$res = array(
-							'error' => 'LIVECHAT_AUTH_WIDGET_USER',
-							'error_description' => 'Livechat: you are authorized with a different user',
-							'additional' => array('hash' => substr($USER->GetParam('XML_ID'), strlen(self::AUTH_TYPE)+1))
-						);
-						return false;
+						$customAuthCode = \Bitrix\Main\Application::getInstance()->getContext()->getRequest()->get(self::AUTH_CUSTOM_ID_PARAM);
+						if ($customAuthCode && preg_match("/^[a-fA-F0-9]{32}$/i", $customAuthCode))
+						{
+							$res = self::getSuccessfulResult();
+							return true;
+						}
+						else
+						{
+							$res = array(
+								'error' => 'LIVECHAT_AUTH_WIDGET_USER',
+								'error_description' => 'Livechat: you are authorized with a different user [1]',
+								'additional' => array('hash' => substr($USER->GetParam('XML_ID'), strlen(self::AUTH_TYPE)+1))
+							);
+							return false;
+						}
 					}
 					else
 					{
 						$res = array(
 							'error' => 'LIVECHAT_AUTH_PORTAL_USER',
-							'error_description' => 'Livechat: you are authorized with a portal user',
+							'error_description' => 'Livechat: you are authorized with a portal user [1]',
 							'additional' => array()
 						);
 						return false;
@@ -153,7 +184,7 @@ class Auth
 				{
 					$res = array(
 						'error' => 'LIVECHAT_AUTH_WIDGET_USER',
-						'error_description' => 'Livechat: you are authorized with a different user',
+						'error_description' => 'Livechat: you are authorized with a different user [2]',
 						'additional' => array('hash' => substr($USER->GetParam('XML_ID'), strlen(self::AUTH_TYPE)+1))
 					);
 					return false;
@@ -163,7 +194,7 @@ class Auth
 			{
 				$res = array(
 					'error' => 'LIVECHAT_AUTH_PORTAL_USER',
-					'error_description' => 'Livechat: you are authorized with a portal user',
+					'error_description' => 'Livechat: you are authorized with a portal user [2]',
 					'additional' => array()
 				);
 				return false;
@@ -177,7 +208,7 @@ class Auth
 
 		if($userData && $userData['EXTERNAL_AUTH_ID'] == User::EXTERNAL_AUTH_ID)
 		{
-			$USER->Authorize($userData['ID'], false, false, 'public');
+			self::authorizeById($userData['ID']);
 
 			$res = self::getSuccessfulResult();
 
@@ -195,6 +226,86 @@ class Auth
 		$_SESSION['LIVECHAT']['AUTH_ERROR'] += 1;
 
 		return false;
+	}
+
+	public static function onDiskCheckAuth(\Bitrix\Main\Event $event)
+	{
+		global $USER;
+		if ($USER->IsAuthorized())
+		{
+			return false;
+		}
+
+		$request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
+
+		$authCode = $request->get(self::AUTH_ID_PARAM);
+		$authUid = (int)$request->get(self::AUTH_UID_PARAM);
+		$authFileId = (int)$request->get('fileId');
+
+		if (!$authCode || !$authUid || !$authFileId || !preg_match("/^[a-fA-F0-9]{32}$/i", $authCode))
+		{
+			return false;
+		}
+
+		/** @var \Bitrix\Main\Engine\Action $action */
+		$action = $event->getParameter('action');
+		if (!in_array(strtolower($action->getName()), ['download', 'showimage']))
+		{
+			return false;
+		}
+
+		$userData = \Bitrix\Main\UserTable::getList([
+			'select' => ['ID', 'EXTERNAL_AUTH_ID', 'XML_ID'],
+			'filter' => ['ID' => $authUid]
+		])->fetch();
+
+		if($userData && $userData['EXTERNAL_AUTH_ID'] == User::EXTERNAL_AUTH_ID)
+		{
+			if ($authCode === md5($userData['ID'].'|'.$authFileId.'|'.str_replace(self::AUTH_TYPE."|", '', $userData['XML_ID'])))
+			{
+				self::authorizeById($userData['ID'], false);
+				setSessionExpired(true);
+				return false;
+			}
+		}
+	}
+
+	public static function authorizeById($userId, $setCookie = null, $skipAuthorizeCheck = false)
+	{
+		global $USER;
+
+		if (!$skipAuthorizeCheck && $USER->IsAuthorized())
+		{
+			return false;
+		}
+
+		$context = \Bitrix\Main\Context::getCurrent();
+
+		if (is_null($setCookie))
+		{
+			$setCookie = false;
+			if ($context->getRequest()->getCookieRaw('BITRIX_LIVECHAT_AUTH'))
+			{
+				$setCookie = true;
+			}
+		}
+
+		if ($USER->GetID() != $userId)
+		{
+			$USER->Authorize($userId, $setCookie, $setCookie, 'public');
+		}
+
+		$cookie = new \Bitrix\Main\Web\Cookie('BITRIX_LIVECHAT_AUTH', 'Y', null, false);
+		$cookie->setHttpOnly(false);
+		$context->getResponse()->addCookie($cookie);
+
+		$authCode = str_replace(self::AUTH_TYPE.'|', '', $_SESSION["SESS_AUTH"]["XML_ID"]);
+
+		$cookie = new \Bitrix\Main\Web\Cookie('LIVECHAT_HASH', $authCode, null, false);
+		$cookie->setHttpOnly(false);
+		$context->getResponse()->addCookie($cookie);
+
+		return true;
 	}
 
 	private static function getSuccessfulResult()

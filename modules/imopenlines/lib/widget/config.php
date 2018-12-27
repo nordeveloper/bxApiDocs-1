@@ -44,22 +44,22 @@ class Config
 		$config = $configManager->get($result['CONFIG_ID']);
 
 		$queue = [];
+		$operatorDataType = \Bitrix\ImOpenLines\Config::operatorDataConfig($result['CONFIG_ID']);
+
 		foreach ($config['QUEUE'] as $userId)
 		{
-			$user = \Bitrix\Im\User::getInstance($userId);
-			$userArray = Array(
-				'ID' => $user->getId(),
-				'NAME' => $user->getName(false),
-				'LAST_NAME' => $user->getLastName(false),
-				'GENDER' => $user->getGender(),
-				'AVATAR' => $user->getAvatar()
-			);
-			if (function_exists('customImopenlinesOperatorNames') && !$user->isExtranet()) // Temporary hack :(
+			$userArray = \Bitrix\ImOpenLines\Queue::getUserData($result['CONFIG_ID'], $userId);
+			if (!$userArray)
 			{
-				$userArray = customImopenlinesOperatorNames($result['CONFIG_ID'], $userArray);
+				continue;
 			}
 
 			$queue[] = $userArray;
+
+			if ($operatorDataType == \Bitrix\ImOpenLines\Config::OPERATOR_DATA_HIDE)
+			{
+				break;
+			}
 		}
 
 		$connectors = Array();
@@ -68,7 +68,7 @@ class Config
 		$classMap = \Bitrix\ImConnector\Connector::getIconClassMap();
 		foreach ($activeConnectors as $code => $params)
 		{
-			if ($code == 'livechat' || empty($params['url']))
+			if (\Bitrix\ImOpenLines\Connector::isLiveChat($code) || empty($params['url']))
 				continue;
 
 			$connectors[] = Array(
@@ -79,14 +79,24 @@ class Config
 			);
 		}
 
+		$maxFileSize = \CUtil::Unformat(ini_get("post_max_size"));
+		if ($maxFileSize > 5242880)
+		{
+			$maxFileSize = 5242880;
+		}
+
 		return [
 			'CONFIG_ID' => (int)$config['ID'],
 			'CONFIG_NAME' => $config['LINE_NAME'],
 			'VOTE_ENABLE' => $config['VOTE_MESSAGE'] === 'Y',
-			'CONSENT_URL' => $config['AGREEMENT_ID'] && $config['AGREEMENT_MESSAGE'] == 'Y'? \Bitrix\ImOpenLines\Common::getAgreementLink($config['AGREEMENT_ID'], true): '',
+			'CONSENT_URL' => $config['AGREEMENT_ID'] && $config['AGREEMENT_MESSAGE'] == 'Y'? \Bitrix\ImOpenLines\Common::getAgreementLink($config['AGREEMENT_ID'], $config['LANGUAGE_ID'], true): '',
 			'OPERATORS' => $queue,
 			'ONLINE' => $config['QUEUE_ONLINE'] === 'Y',
 			'CONNECTORS' => $connectors,
+			'DISK' => [
+				'ENABLED' => IsModuleInstalled('disk'),
+				'MAX_FILE_SIZE' => $maxFileSize
+			]
 		];
 	}
 

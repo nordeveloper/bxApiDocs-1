@@ -875,6 +875,7 @@ class CIntranetInviteDialog
 		{
 			$event->SendImmediate("EXTRANET_INVITATION", $siteIdByDepartmentId, array(
 				"USER_ID" => $arUser["ID"],
+				"USER_ID_FROM" => $USER->GetID(),
 				"CHECKWORD" => $arUser["CONFIRM_CODE"],
 				"EMAIL" => $arUser["EMAIL"],
 				"USER_TEXT" => $messageText
@@ -921,6 +922,8 @@ class CIntranetInviteDialog
 
 	public static function ReinviteExtranetUser($SITE_ID, $USER_ID)
 	{
+		global $USER;
+
 		$USER_ID = intval($USER_ID);
 
 		$rsUser = CUser::GetList(
@@ -934,6 +937,7 @@ class CIntranetInviteDialog
 			$event = new CEvent;
 			$arFields = Array(
 				"USER_ID" => $USER_ID,
+				"USER_ID_FROM" => $USER->GetID(),
 				"CHECKWORD" => $arUser["CONFIRM_CODE"],
 				"EMAIL" => $arUser["EMAIL"],
 				"USER_TEXT" => self::getInviteMessageText()

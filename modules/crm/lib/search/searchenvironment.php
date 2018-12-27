@@ -16,6 +16,35 @@ class SearchEnvironment
 		return $builder->prepareEntityFilter($params);
 	}
 
+	public static function prepareSearchFilter ($entityTypeID, &$filter)
+	{
+		if (!is_array($filter))
+		{
+			return;
+		}
+
+		foreach ($filter as $key => &$value)
+		{
+			if (is_array($value))
+			{
+				self::prepareSearchFilter($entityTypeID, $value);
+			}
+		}
+
+		if(isset($filter['SEARCH_CONTENT']) && !is_array($filter['SEARCH_CONTENT']) && $filter['SEARCH_CONTENT'] !== '')
+		{
+			$searchFilter = SearchEnvironment::prepareEntityFilter(
+				$entityTypeID,
+				array(
+					'SEARCH_CONTENT' => SearchEnvironment::prepareSearchContent($filter['SEARCH_CONTENT'])
+				)
+			);
+			unset($filter['SEARCH_CONTENT']);
+			$filter[] = $searchFilter;
+			unset($searchFilter);
+		}
+	}
+
 	public static function convertEntityFilterValues($entityTypeID, array &$fields)
 	{
 		$builder = SearchContentBuilderFactory::create($entityTypeID);

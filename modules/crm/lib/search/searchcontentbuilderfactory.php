@@ -25,6 +25,10 @@ class SearchContentBuilderFactory
 		{
 			return new QuoteSearchContentBuilder();
 		}
+		elseif($entityTypeID === \CCrmOwnerType::Invoice)
+		{
+			return new InvoiceSearchContentBuilder();
+		}
 		elseif($entityTypeID === \CCrmOwnerType::Activity)
 		{
 			return new ActivitySearchContentBuilder();

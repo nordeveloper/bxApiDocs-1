@@ -288,9 +288,9 @@ class OrderPayment
 
 		$saleModulePermissions = $APPLICATION->GetGroupRight("sale");
 
-		$paid = ($post) ? $post['PAID'] : $data['PAID'];
-		$id = ($post) ? $post['PAYMENT_ID'] : $data['ID'];
-		$priceCod = ($post) ? $post['PRICE_COD'] : $data['PRICE_COD'];
+		$paid = ($post) ? htmlspecialcharsbx($post['PAID']) : $data['PAID'];
+		$id = ($post) ? (int)$post['PAYMENT_ID'] : $data['ID'];
+		$priceCod = ($post) ? htmlspecialcharsbx($post['PRICE_COD']) : $data['PRICE_COD'];
 		$paidString = ($paid == 'Y') ? 'YES' : 'NO';
 		if (!$post)
 		{

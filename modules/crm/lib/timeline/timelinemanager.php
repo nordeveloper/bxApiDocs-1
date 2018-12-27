@@ -106,7 +106,7 @@ class TimelineManager
 		self::prepareDisplayData($items);
 		$item = $items[0];
 	}
-	public static function prepareDisplayData(array &$items)
+	public static function prepareDisplayData(array &$items, $userID = 0, $userPermissions = null)
 	{
 		$entityMap = array();
 		foreach($items as $ID => $item)
@@ -135,6 +135,16 @@ class TimelineManager
 			}
 
 			$entityMap[$assocEntityTypeID][$assocEntityID]['ITEM_IDS'][] = $ID;
+		}
+
+		if($userID <= 0)
+		{
+			$userID = \CCrmSecurityHelper::GetCurrentUserID();
+		}
+
+		if($userPermissions === null)
+		{
+			$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
 		}
 
 		foreach($entityMap as $entityTypeID => $entityInfos)
@@ -175,7 +185,8 @@ class TimelineManager
 					false,
 					false,
 					array(
-						'ID', 'OWNER_ID', 'OWNER_TYPE_ID', 'TYPE_ID', 'PROVIDER_ID', 'PROVIDER_TYPE_ID', 'PROVIDER_PARAMS',
+						'ID', 'OWNER_ID', 'OWNER_TYPE_ID', 'TYPE_ID', 'RESPONSIBLE_ID',
+						'PROVIDER_ID', 'PROVIDER_TYPE_ID', 'PROVIDER_PARAMS',
 						'ASSOCIATED_ENTITY_ID', 'DIRECTION', 'SUBJECT', 'STATUS', 'DEADLINE',
 						'DESCRIPTION', 'DESCRIPTION_TYPE', 'ASSOCIATED_ENTITY_ID',
 						'STORAGE_TYPE_ID', 'STORAGE_ELEMENT_IDS', 'ORIGIN_ID', 'SETTINGS'
@@ -184,11 +195,20 @@ class TimelineManager
 				while($fields = $dbResult->Fetch())
 				{
 					$assocEntityID = (int)$fields['ID'];
-					if(isset($entityInfos[$assocEntityID]))
+					if(!isset($entityInfos[$assocEntityID]))
 					{
-						$itemIDs = isset($entityInfos[$assocEntityID]['ITEM_IDS'])
-							? $entityInfos[$assocEntityID]['ITEM_IDS'] : array();
+						continue;
+					}
 
+					$responsibleID = isset($fields['RESPONSIBLE_ID']) ? (int)$fields['RESPONSIBLE_ID'] : 0;
+					$isPermitted = $responsibleID === $userID
+						|| \CCrmActivity::CheckReadPermission($fields['OWNER_TYPE_ID'], $fields['OWNER_ID'], $userPermissions);
+
+					$itemIDs = isset($entityInfos[$assocEntityID]['ITEM_IDS'])
+						? $entityInfos[$assocEntityID]['ITEM_IDS'] : array();
+
+					if($isPermitted)
+					{
 						$fields = ActivityController::prepareEntityDataModel(
 							$assocEntityID,
 							$fields,
@@ -198,6 +218,13 @@ class TimelineManager
 						foreach($itemIDs as $itemID)
 						{
 							$items[$itemID]['ASSOCIATED_ENTITY'] = $fields;
+						}
+					}
+					else
+					{
+						foreach($itemIDs as $itemID)
+						{
+							unset($items[$itemID]);
 						}
 					}
 				}
@@ -212,7 +239,10 @@ class TimelineManager
 
 						foreach($itemIDs as $itemID)
 						{
-							$items[$itemID]['ASSOCIATED_ENTITY']['COMMUNICATION'] = $info;
+							if(isset($items[$itemID]) && isset($items[$itemID]['ASSOCIATED_ENTITY']))
+							{
+								$items[$itemID]['ASSOCIATED_ENTITY']['COMMUNICATION'] = $info;
+							}
 						}
 					}
 				}

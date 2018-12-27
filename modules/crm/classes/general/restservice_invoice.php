@@ -1235,6 +1235,19 @@ class CCrmInvoiceRestService extends IRestService
 				"filter" => true,
 				"order" => true
 			),
+			"IS_RECURRING" => array(
+				"type" => "string",
+				"size" => "1",
+				"level" => 0,
+				"required" => false,
+				"readonly" => false,
+				"get" => true,
+				"add" => true,
+				"update" => true,
+				"list" => true,
+				"filter" => true,
+				"order" => true
+			),
 			"UF_COMPANY_ID" => array(
 				"type" => "integer",
 				"size" => "20",
@@ -1775,7 +1788,7 @@ class CCrmInvoiceRestService extends IRestService
 									}
 									else
 									{
-										$datetimeValue = CRestUtil::unConvertDateTime($value);
+										$datetimeValue = CRestUtil::unConvertDateTime($value, true);
 										if (is_string($datetimeValue))
 										{
 											$arFilter[$key] = $datetimeValue;
@@ -3077,7 +3090,7 @@ class CCrmRestVat extends IRestService
 							switch ($fieldsInfo[$field]['type'])
 							{
 								case 'datetime':
-									$arFilter[$key] = CRestUtil::unConvertDateTime($value);
+									$arFilter[$key] = CRestUtil::unConvertDateTime($value, true);
 									break;
 
 								case 'date':

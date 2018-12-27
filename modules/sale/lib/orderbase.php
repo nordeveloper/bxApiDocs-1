@@ -293,6 +293,8 @@ abstract class OrderBase extends Internals\Entity
 			$result['order'] = $parameters['order'];
 		if (isset($parameters['offset']))
 			$result['offset'] = $parameters['offset'];
+		if (isset($parameters['runtime']))
+			$result['runtime'] = $parameters['runtime'];
 
 		return $result;
 	}
@@ -1269,10 +1271,14 @@ abstract class OrderBase extends Internals\Entity
 
 		$currentDateTime = new Type\DateTime();
 		if (!$this->getField('DATE_INSERT'))
+		{
 			$this->setField('DATE_INSERT', $currentDateTime);
+		}
 
 		if (!$this->getField('DATE_UPDATE'))
+		{
 			$this->setField('DATE_UPDATE', $currentDateTime);
+		}
 
 		$fields = $this->fields->getValues();
 
@@ -1292,12 +1298,13 @@ abstract class OrderBase extends Internals\Entity
 		$r = $this->addInternal($fields);
 		if (!$r->isSuccess())
 		{
-			$result->addWarnings($r->getErrors());
-			return $result;
+			return $result->addErrors($r->getErrors());
 		}
 
 		if ($resultData = $r->getData())
+		{
 			$result->setData($resultData);
+		}
 
 		$id = $r->getId();
 		$this->setFieldNoDemand('ID', $id);
@@ -1342,8 +1349,7 @@ abstract class OrderBase extends Internals\Entity
 
 			if (!$r->isSuccess())
 			{
-				$result->addWarnings($r->getErrors());
-				return $result;
+				return $result->addErrors($r->getErrors());
 			}
 
 			if ($resultData = $r->getData())

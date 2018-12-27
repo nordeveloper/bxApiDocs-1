@@ -2,6 +2,7 @@
 namespace Bitrix\Bizproc\Automation\Engine;
 
 use Bitrix\Bizproc\Automation\Target\BaseTarget;
+use Bitrix\Bizproc\FieldType;
 
 class Condition
 {
@@ -86,9 +87,10 @@ class Condition
 	 * @param mixed $needle The field value to check.
 	 * @param string $fieldType Type of the field.
 	 * @param BaseTarget $target Automation target.
+	 * @param null|FieldType $fieldTypeObject
 	 * @return bool
 	 */
-	public function check($needle, $fieldType, BaseTarget $target)
+	public function check($needle, $fieldType, BaseTarget $target, FieldType $fieldTypeObject = null)
 	{
 		$operator = $this->getOperator();
 
@@ -255,25 +257,33 @@ class Condition
 				$f1 = $v1 = null;
 			}
 
+			/** @var \Bitrix\Bizproc\BaseType\Base $classType */
+			$classType = \Bitrix\Bizproc\BaseType\Base::class;
+			if ($fieldTypeObject)
+			{
+				$classType = $fieldTypeObject->getTypeClass();
+			}
+			$compareResult = $classType::compareValues($f1, $v1);
+
 			switch ($operator)
 			{
 				case '>':
-					$result = ($f1 > $v1);
+					$result = ($compareResult === 1);
 					break;
 				case '>=':
-					$result = ($f1 >= $v1);
+					$result = ($compareResult >= 0);
 					break;
 				case '<':
-					$result = ($f1 < $v1);
+					$result = ($compareResult === -1);
 					break;
 				case '<=':
-					$result = ($f1 <= $v1);
+					$result = ($compareResult <= 0);
 					break;
 				case '!=':
-					$result = ($f1 != $v1);
+					$result = ($compareResult !== 0);
 					break;
 				default:
-					$result = ($f1 == $v1);
+					$result = ($compareResult === 0);
 			}
 
 			if (!$result)

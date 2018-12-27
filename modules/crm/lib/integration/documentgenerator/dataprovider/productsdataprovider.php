@@ -25,26 +25,29 @@ abstract class ProductsDataProvider extends CrmEntityDataProvider
 		{
 			parent::getFields();
 
-			$this->fields['PRODUCTS'] = [
-				'PROVIDER' => ArrayDataProvider::class,
-				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCTS_TITLE'),
-				'OPTIONS' => [
-					'ITEM_PROVIDER' => Product::class,
-					'ITEM_NAME' => 'PRODUCT',
-					'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCT_TITLE'),
-				],
-				'VALUE' => [$this, 'loadProducts'],
-			];
-			$this->fields['TAXES'] = [
-				'PROVIDER' => ArrayDataProvider::class,
-				'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAXES_TITLE'),
-				'OPTIONS' => [
-					'ITEM_PROVIDER' => Tax::class,
-					'ITEM_NAME' => 'TAX',
-					'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAX_TITLE'),
-				],
-				'VALUE' => [$this, 'loadTaxes'],
-			];
+			if(!$this->isLightMode())
+			{
+				$this->fields['PRODUCTS'] = [
+					'PROVIDER' => ArrayDataProvider::class,
+					'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCTS_TITLE'),
+					'OPTIONS' => [
+						'ITEM_PROVIDER' => Product::class,
+						'ITEM_NAME' => 'PRODUCT',
+						'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_PRODUCT_TITLE'),
+					],
+					'VALUE' => [$this, 'loadProducts'],
+				];
+				$this->fields['TAXES'] = [
+					'PROVIDER' => ArrayDataProvider::class,
+					'TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAXES_TITLE'),
+					'OPTIONS' => [
+						'ITEM_PROVIDER' => Tax::class,
+						'ITEM_NAME' => 'TAX',
+						'ITEM_TITLE' => GetMessage('CRM_DOCGEN_PRODUCTSDATAPROVIDER_TAX_TITLE'),
+					],
+					'VALUE' => [$this, 'loadTaxes'],
+				];
+			}
 			$this->fields['CURRENCY_ID'] = [
 				'VALUE' => [$this, 'getCurrencyId'],
 			];

@@ -644,7 +644,7 @@ class CCrmLiveFeed
 
 			if (is_array($arComponentReturn) && !empty($arComponentReturn["CACHED_JS_PATH"]))
 			{
-				$arResult["CACHED_JS_PATH"][] = $arComponentReturn["CACHED_JS_PATH"];			
+				$arResult["CACHED_JS_PATH"][] = $arComponentReturn["CACHED_JS_PATH"];
 			}
 		}
 
@@ -654,7 +654,7 @@ class CCrmLiveFeed
 			&& $arActivity["DIRECTION"] == CCrmActivityDirection::Incoming
 		)
 		{
-			$arResult['CREATED_BY']['FORMATTED'] = CCrmOwnerType::GetCaption($arActivity['OWNER_TYPE_ID'], $arActivity['OWNER_ID'], false);
+			$arResult['CREATED_BY']['FORMATTED'] = htmlspecialcharsbx(CCrmOwnerType::GetCaption($arActivity['OWNER_TYPE_ID'], $arActivity['OWNER_ID'], false));
 		}
 		else
 		{

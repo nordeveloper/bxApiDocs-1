@@ -279,7 +279,7 @@ class Script
 		return ob_get_clean();
 	}
 
-	public static function getCrmButtonWidgetShower($formId, $lang = null)
+	public static function getCrmButtonWidgetShower($formId, $lang = null, array $options = [])
 	{
 		$formData = FormTable::getRowById($formId);
 		$sec = $formData['SECURITY_CODE'];
@@ -288,7 +288,14 @@ class Script
 		{
 			$lang = Application::getInstance()->getContext()->getLanguage();
 		}
+
 		$url = self::getDomain() . '/bitrix/js/crm/form_loader.js';
+		$options += [
+			"borders" => false,
+			"logo" => false
+		];
+		$options = Json::encode($options);
+
 		return '
 			(function(w,d,u,b){w[\'Bitrix24FormObject\']=b;w[b] = w[b] || function(){arguments[0].ref=u;
 				(w[b].forms=w[b].forms||[]).push(arguments[0])};
@@ -302,10 +309,7 @@ class Script
 					"id":"' . $formId . '","lang":"' . $lang .'","sec":"' . $sec . '","type":"inline_widget", 
 					"node": document.getElementById("bx24_form_inline_loader_container_' . $formId . '"),
 					"isCallbackForm": ' . ($isCallbackForm ? 'true' : 'false') . ',
-					"options": {
-						"borders": false, 
-						"logo": false
-					},
+					"options": ' . $options . ',
 					"handlers": {
 						"init": function (form){
 							BX.SiteButton.onWidgetFormInit(form);
@@ -331,7 +335,7 @@ class Script
 			bx24FormCont=document.getElementById("bx24_form_container_' . $formId . '");
 			if (bx24FormCont) 
 			{
-				BX.SiteButton.addClass(bx24FormCont, "open-sidebar");
+				BX.SiteButton.classes.add(bx24FormCont, "open-sidebar");
 			}
 		';
 	}

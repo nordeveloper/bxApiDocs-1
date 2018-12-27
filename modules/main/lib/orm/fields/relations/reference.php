@@ -26,7 +26,7 @@ class Reference extends Relation
 	/** @var array|Filter */
 	protected $reference;
 
-	protected $join_type = 'LEFT';
+	protected $joinType = 'LEFT';
 
 	const ELEMENTAL_THIS = 1;
 	const ELEMENTAL_REF = 2;
@@ -69,7 +69,7 @@ class Reference extends Relation
 
 			if (in_array($join_type, array('LEFT', 'INNER', 'RIGHT'), true))
 			{
-				$this->join_type = $join_type;
+				$this->joinType = $join_type;
 			}
 		}
 	}
@@ -77,29 +77,6 @@ class Reference extends Relation
 	public function getTypeMask()
 	{
 		return FieldTypeMask::REFERENCE;
-	}
-
-	/**
-	 * @param $type
-	 *
-	 * @return $this
-	 * @throws ArgumentException
-	 */
-	public function configureJoinType($type)
-	{
-		$type = strtoupper($type);
-
-		if (!in_array($type, ['LEFT', 'INNER', 'RIGHT'], true))
-		{
-			throw new ArgumentException(sprintf(
-				'Unknown join type `%s` in reference `%s` of `%s` entity',
-				$type, $this->name, $this->entity->getDataClass()
-			));
-		}
-
-		$this->join_type = $type;
-
-		return $this;
 	}
 
 	/**
@@ -134,11 +111,6 @@ class Reference extends Relation
 	public function getReference()
 	{
 		return $this->reference;
-	}
-
-	public function getJoinType()
-	{
-		return $this->join_type;
 	}
 
 	/**

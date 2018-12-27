@@ -14,6 +14,7 @@ class CBPRuntime
 	const REST_ACTIVITY_PREFIX = 'rest_';
 
 	private $isStarted = false;
+	/** @var CBPRuntime $instance*/
 	private static $instance;
 	private static $featuresCache = array();
 
@@ -73,16 +74,22 @@ class CBPRuntime
 	}
 
 	/**
-	* Static method returns runtime object. Singleton pattern.
-	*
-	* @return CBPRuntime
-	*/
-	public static function GetRuntime()
+	 * Static method returns runtime object. Singleton pattern.
+	 *
+	 * @param bool $autoStart Starts runtime.
+	 * @return CBPRuntime
+	 */
+	public static function GetRuntime($autoStart = false)
 	{
 		if (!isset(self::$instance))
 		{
 			$c = __CLASS__;
 			self::$instance = new $c;
+		}
+
+		if ($autoStart)
+		{
+			self::$instance->StartRuntime();
 		}
 
 		return self::$instance;

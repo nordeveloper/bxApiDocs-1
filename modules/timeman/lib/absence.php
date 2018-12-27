@@ -90,13 +90,13 @@ class Absence
 
 	public static function isReportEnable()
 	{
-		$requestReport = (bool)\Bitrix\Main\Config\Option::get('timeman', 'request_report', false);
+		$requestReport = (bool)\Bitrix\Main\Config\Option::get('timeman', 'request_report', "0");
 		return $requestReport !== false;
 	}
 
 	public static function getOptionReportEnableType()
 	{
-		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', false);
+		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', "0");
 		if ($requestReport == "1")
 		{
 			return self::TYPE_ALL;
@@ -115,7 +115,7 @@ class Absence
 	{
 		if (self::getOptionReportEnableType() == self::TYPE_FOR_USER)
 		{
-			$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', false);
+			$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', "0");
 			return Json::decode($requestReport);
 		}
 		else
@@ -136,7 +136,7 @@ class Absence
 			return false;
 		}
 
-		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', false);
+		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', "0");
 		if ($requestReport == "1")
 		{
 			$result = true;
@@ -181,7 +181,7 @@ class Absence
 
 	public static function getOptionReportListSimpleType()
 	{
-		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_simple', true);
+		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_simple', "1");
 		if ($requestReport == "1")
 		{
 			return self::TYPE_ALL;
@@ -196,7 +196,7 @@ class Absence
 	{
 		if (self::getOptionReportListSimpleType() == self::TYPE_FOR_USER)
 		{
-			$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_simple', true);
+			$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_simple', "1");
 			return Json::decode($requestReport);
 		}
 		else
@@ -256,7 +256,7 @@ class Absence
 
 	public static function getOptionReportListFullType()
 	{
-		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_full', true);
+		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_full', "0");
 		if ($requestReport == "1")
 		{
 			return self::TYPE_ALL;
@@ -271,7 +271,7 @@ class Absence
 	{
 		if (self::getOptionReportListFullType() == self::TYPE_FOR_USER)
 		{
-			$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_full', true);
+			$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report_list_full', "0");
 			return Json::decode($requestReport);
 		}
 		else
@@ -763,10 +763,10 @@ class Absence
 			return false;
 
 		$year = intval($year);
-		$year = $year > 3000 || $year < 1900? 1900: $year;
+		$year = $year > 3000 || $year < 1900? date('Y'): $year;
 
 		$month = intval($month);
-		$month = $month > 12 || $month < 1? 1: $month;
+		$month = $month > 12 || $month < 1? date('n'): $month;
 
 		$idleMinutes = !is_null($idleMinutes)? intval($idleMinutes): self::getMinimumIdleForReport();
 		$idleMinutes = $idleMinutes > 0? $idleMinutes: 0;
@@ -1539,7 +1539,7 @@ class Absence
 			'=USER.IS_ONLINE' => 'Y',
 		);
 
-		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', false);
+		$requestReport = \Bitrix\Main\Config\Option::get('timeman', 'request_report', "0");
 		if ($requestReport == "1")
 		{
 		}

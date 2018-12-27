@@ -74,6 +74,7 @@ class Invoice extends ProductsDataProvider implements Nameable
 			'UF_COMPANY_ID',
 			'UF_CONTACT_ID',
 			'UF_MYCOMPANY_ID',
+			'INVOICE_UTS',
 		]);
 	}
 

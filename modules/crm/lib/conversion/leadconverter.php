@@ -902,6 +902,10 @@ class LeadConverter extends EntityConverter
 					}
 				}
 				//endregion
+
+				//region Call finalization phase common action from parent
+				$this->onFinalizationPhase();
+				//endregion
 			}
 
 			return true;

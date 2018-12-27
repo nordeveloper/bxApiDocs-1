@@ -100,15 +100,14 @@ class Manager
 	public static function getListPlain()
 	{
 		$parameters = array();
-		// TODO: uncomment when will support in main
-		//$parameters["cache"] = array("ttl" => 3600);
+		$parameters["cache"] = array("ttl" => 3600);
 		return Internals\FormTable::getList($parameters)->fetchAll();
 	}
 
 	/**
 	 * Get list form names list.
 	 *
-	 * @return string
+	 * @return array
 	 */
 	public static function getListNames()
 	{

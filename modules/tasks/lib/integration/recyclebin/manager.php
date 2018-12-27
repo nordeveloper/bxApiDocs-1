@@ -1,11 +1,4 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: maxyc
- * Date: 21.05.18
- * Time: 9:07
- */
-
 namespace Bitrix\Tasks\Integration\Recyclebin;
 
 use Bitrix\Main\EventResult;

@@ -214,6 +214,8 @@ class CCrmDocumentCompany extends CCrmDocument
 			),
 		);
 
+		$arResult += static::getCommunicationFields();
+
 		$ar =  CCrmFieldMulti::GetEntityTypeList();
 		foreach ($ar as $typeId => $arFields)
 		{

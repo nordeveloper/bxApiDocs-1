@@ -31,33 +31,42 @@ class Network
 		$userArray = Array();
 		if ($fields['message']['user_id'] > 0)
 		{
-			$user = \Bitrix\Im\User::getInstance($fields['message']['user_id']);
-
-			$avatarUrl = '';
-			if ($user->getAvatarId())
+			$imolUserData = Queue::getUserData($lineId, $fields['message']['user_id']);
+			if ($imolUserData)
 			{
-				$arFileTmp = \CFile::ResizeImageGet(
-					$user->getAvatarId(),
-					array('width' => 300, 'height' => 300),
-					BX_RESIZE_IMAGE_EXACT,
-					false,
-					false,
-					true
+				$userArray = Array(
+					'ID' => $imolUserData['ID'],
+					'NAME' => $imolUserData['FIRST_NAME'],
+					'LAST_NAME' => $imolUserData['LAST_NAME'],
+					'PERSONAL_GENDER' => $imolUserData['GENDER'],
+					'PERSONAL_PHOTO' => $imolUserData['AVATAR']
 				);
-				$avatarUrl = substr($arFileTmp['src'], 0, 4) == 'http'? $arFileTmp['src']: \Bitrix\ImOpenLines\Common::getServerAddress().$arFileTmp['src'];
 			}
-
-			$userArray = Array(
-				'ID' => $user->getId(),
-				'NAME' => $user->getName(false),
-				'LAST_NAME' => $user->getLastName(false),
-				'PERSONAL_GENDER' => $user->getGender(),
-				'PERSONAL_PHOTO' => $avatarUrl
-			);
-
-			if (function_exists('customImopenlinesOperatorNames') && !$user->isExtranet()) // Temporary hack :(
+			else
 			{
-				$userArray = customImopenlinesOperatorNames($lineId, $userArray);
+				$user = \Bitrix\Im\User::getInstance($fields['message']['user_id']);
+
+				$avatarUrl = '';
+				if ($user->getAvatarId())
+				{
+					$arFileTmp = \CFile::ResizeImageGet(
+						$user->getAvatarId(),
+						array('width' => 300, 'height' => 300),
+						BX_RESIZE_IMAGE_EXACT,
+						false,
+						false,
+						true
+					);
+					$avatarUrl = substr($arFileTmp['src'], 0, 4) == 'http'? $arFileTmp['src']: \Bitrix\ImOpenLines\Common::getServerAddress().$arFileTmp['src'];
+				}
+
+				$userArray = Array(
+					'ID' => $user->getId(),
+					'NAME' => $user->getName(false),
+					'LAST_NAME' => $user->getLastName(false),
+					'PERSONAL_GENDER' => $user->getGender(),
+					'PERSONAL_PHOTO' => $avatarUrl
+				);
 			}
 		}
 
@@ -129,33 +138,42 @@ class Network
 		$userArray = Array();
 		if ($fields['user'] > 0)
 		{
-			$user = \Bitrix\Im\User::getInstance($fields['message']['user_id']);
-
-			$avatarUrl = '';
-			if ($user->getAvatarId())
+			$imolUserData = Queue::getUserData($lineId, $fields['user']);
+			if ($imolUserData)
 			{
-				$arFileTmp = \CFile::ResizeImageGet(
-					$user->getAvatarId(),
-					array('width' => 300, 'height' => 300),
-					BX_RESIZE_IMAGE_EXACT,
-					false,
-					false,
-					true
+				$userArray = Array(
+					'ID' => $imolUserData['ID'],
+					'NAME' => $imolUserData['FIRST_NAME'],
+					'LAST_NAME' => $imolUserData['LAST_NAME'],
+					'PERSONAL_GENDER' => $imolUserData['GENDER'],
+					'PERSONAL_PHOTO' => $imolUserData['AVATAR']
 				);
-				$avatarUrl = substr($arFileTmp['src'], 0, 4) == 'http'? $arFileTmp['src']: \Bitrix\ImOpenLines\Common::getServerAddress().$arFileTmp['src'];
 			}
-
-			$userArray = Array(
-				'ID' => $user->getId(),
-				'NAME' => $user->getName(false),
-				'LAST_NAME' => $user->getLastName(false),
-				'PERSONAL_GENDER' => $user->getGender(),
-				'PERSONAL_PHOTO' => $avatarUrl
-			);
-
-			if (function_exists('customImopenlinesOperatorNames') && !$user->isExtranet()) // Temporary hack :(
+			else
 			{
-				$userArray = customImopenlinesOperatorNames($lineId, $userArray);
+				$user = \Bitrix\Im\User::getInstance($fields['user']);
+
+				$avatarUrl = '';
+				if ($user->getAvatarId())
+				{
+					$arFileTmp = \CFile::ResizeImageGet(
+						$user->getAvatarId(),
+						array('width' => 300, 'height' => 300),
+						BX_RESIZE_IMAGE_EXACT,
+						false,
+						false,
+						true
+					);
+					$avatarUrl = substr($arFileTmp['src'], 0, 4) == 'http'? $arFileTmp['src']: \Bitrix\ImOpenLines\Common::getServerAddress().$arFileTmp['src'];
+				}
+
+				$userArray = Array(
+					'ID' => $user->getId(),
+					'NAME' => $user->getName(false),
+					'LAST_NAME' => $user->getLastName(false),
+					'PERSONAL_GENDER' => $user->getGender(),
+					'PERSONAL_PHOTO' => $avatarUrl
+				);
 			}
 		}
 
@@ -237,6 +255,15 @@ class Network
 		return true;
 	}
 
+	/**
+	 * @param $params
+	 * @return bool
+	 * @throws Main\ArgumentException
+	 * @throws Main\LoaderException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
 	private function executeClientChangeLicence($params)
 	{
 		\Bitrix\ImOpenLines\Log::write($params, 'NETWORK CHANGE LICENCE');
@@ -284,7 +311,7 @@ class Network
 			$result = $session->start(array_merge($row, Array(
 				'SKIP_CREATE' => 'Y',
 			)));
-			if (!$result)
+			if(!$result->isSuccess() || $result->getResult() != true)
 			{
 				return false;
 			}
@@ -352,7 +379,7 @@ class Network
 		}
 		if (isset($params['USER']['EMAIL']) && !empty($params['USER']['EMAIL']))
 		{
-			$description .= '[B]'.Loc::getMessage('IMOL_NETWORK_EMAIL').'[/B]: '.$params['USER']['EMAIL'].'[BR]';
+			$description .= '[B]'.Loc::getMessage('IMOL_NETWORK_EMAIL_NEW').'[/B]: '.$params['USER']['EMAIL'].'[BR]';
 		}
 		if (isset($params['USER']['TARIFF_LEVEL']) && !empty($params['USER']['TARIFF_LEVEL']))
 		{
@@ -371,6 +398,11 @@ class Network
 		{
 			$description .= '[B]'.Loc::getMessage('IMOL_NETWORK_USER_LEVEL').'[/B]: '.Loc::getMessage('IMOL_NETWORK_USER_LEVEL_'.$params['USER']['USER_LEVEL']).'[BR]';
 			$extraFields['EXTRA_USER_LEVEL'] = $params['USER']['USER_LEVEL'];
+		}
+		if (isset($params['USER']['PORTAL_TYPE']) && in_array($params['USER']['PORTAL_TYPE'], Array('PRODUCTION', 'STAGE')))
+		{
+			$description .= '[B]'.Loc::getMessage('IMOL_NETWORK_PORTAL_TYPE').'[/B]: '.Loc::getMessage('IMOL_NETWORK_PORTAL_TYPE_'.$params['USER']['PORTAL_TYPE']).'[BR]';
+			$extraFields['EXTRA_PORTAL_TYPE'] = $params['USER']['PORTAL_TYPE'];
 		}
 		if (isset($params['USER']['REGISTER']) && !empty($params['USER']['REGISTER']))
 		{

@@ -26,12 +26,22 @@ class ContactDuplicateIndexRebuildAgent extends EntityDuplicateIndexRebuildAgent
 	{
 		$result = false;
 
-		$res = \CAgent::GetList(array("ID" => "DESC"), array('NAME' => '\\'.__CLASS__.'::run();', 'ACTIVE' => 'Y'));
+		$res = \CAgent::GetList(array("ID" => "DESC"), array('=NAME' => __CLASS__.'::run();', 'ACTIVE' => 'Y'));
 		if (is_object($res))
 		{
 			$row = $res->Fetch();
 			if (is_array($row) && !empty($row))
 				$result = true;
+		}
+		if (!$result)
+		{
+			$res = \CAgent::GetList(array("ID" => "DESC"), array('=NAME' => '\\'.__CLASS__.'::run();', 'ACTIVE' => 'Y'));
+			if (is_object($res))
+			{
+				$row = $res->Fetch();
+				if (is_array($row) && !empty($row))
+					$result = true;
+			}
 		}
 
 		return $result;

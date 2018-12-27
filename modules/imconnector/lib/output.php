@@ -246,11 +246,11 @@ final class Output
 					//Hack is designed for the Microsoft Bot Framework
 					$value = BotFramework::sendMessageProcessing($value, $this->connector);
 					//Hack is designed for the Viber
-					$value = Viber::sendMessageProcessing($value, $this->connector);
+					$value = Viber::sendMessageProcessing($value, $this->connector, $this->line);
 					//Hack is designed for the Instagram
 					$value = Instagram::sendMessageProcessing($value, $this->connector);
 					//Hack is designed for the Yandex
-					$value = Yandex::sendMessageProcessing($value, $this->connector);
+					$value = Yandex::sendMessageProcessing($value, $this->connector, $this->line);
 
 					$data[$cell] = $value;
 				}

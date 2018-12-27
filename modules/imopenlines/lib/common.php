@@ -14,6 +14,9 @@ class Common
 	const TYPE_BITRIX24 = 'B24';
 	const TYPE_CP = 'CP';
 
+	const MODE_AGENT = 'agent';
+	const MODE_CRON = 'cron';
+
 	const CACHE_TTL_MONTH = 2700000;
 
 	/**
@@ -70,6 +73,16 @@ class Common
 		return $maxSessionCount;
 	}
 
+	public static function getExecMode()
+	{
+		$execMode = \Bitrix\Main\Config\Option::get("imopenlines", "exec_mode");
+
+		if (!empty($execMode) && in_array($execMode, array(self::MODE_AGENT, self::MODE_CRON)))
+			return $execMode;
+		else
+			return self::MODE_AGENT;
+	}
+
 	public static function deleteBrokenSession()
 	{
 		$orm = \Bitrix\ImOpenLines\Model\SessionTable::getList(array(
@@ -123,14 +136,14 @@ class Common
 		return true;
 	}
 
-	public static function getAgreementLink($agreementId, $iframe = false)
+	public static function getAgreementLink($agreementId, $languageId = null, $iframe = false)
 	{
 		$agreementId = intval($agreementId);
 
 		$ag = new \Bitrix\Main\UserConsent\Agreement($agreementId);
 		$data = $ag->getData();
 
-		return \Bitrix\ImOpenLines\Common::getServerAddress().'/pub/imol.php?id='.$agreementId.'&sec='.$data['SECURITY_CODE'].($iframe? '&iframe=Y': '');
+		return \Bitrix\ImOpenLines\Common::getServerAddress().'/pub/imol.php?id='.$agreementId.'&sec='.$data['SECURITY_CODE'].($iframe? '&iframe=Y': '').($languageId? '&user_lang='.$languageId: '');
 	}
 
 	public static function getHistoryLink($sessionId, $configId)

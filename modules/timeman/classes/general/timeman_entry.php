@@ -118,7 +118,7 @@ class CAllTimeManEntry
 			}
 		}
 
-		 //ts_start and ts_finish are with correct time but for server timezone offset
+		//ts_start and ts_finish are with correct time but for server timezone offset
 		if ($ts_start > 0 && !isset($arFields['TIME_START']))
 			$arFields['TIME_START'] = (($ts_start+date('Z')) % 86400);
 		if ($ts_finish > 0 && !isset($arFields['TIME_FINISH']))
@@ -180,8 +180,7 @@ class CAllTimeManEntry
 			$arFields['LON_CLOSE'] = doubleval($arFields['LON_CLOSE']);
 		}
 
-		if ($action == 'UPDATE')
-			$arFields['~TIMESTAMP_X'] = $DB->GetNowFunction();
+		$arFields['~TIMESTAMP_X'] = $DB->GetNowFunction();
 
 		return true;
 	}

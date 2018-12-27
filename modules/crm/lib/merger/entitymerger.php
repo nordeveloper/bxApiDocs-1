@@ -267,6 +267,7 @@ abstract class EntityMerger
 	 * @param array &$seed Seed entity fields.
 	 * @param array &$targ Target entity fields.
 	 * @param bool $skipEmpty Skip empty fields flag. If is enabled then empty fields of "seed" will not be replaced by fields from "targ"
+	 * @param array $options Options array.
 	 * @return void
 	 */
 	public function mergeFields(array &$seed, array &$targ, $skipEmpty = false, array $options = array())
@@ -274,7 +275,7 @@ abstract class EntityMerger
 		$entityFieldInfos = $this->getEntityFieldsInfo();
 		$userFieldInfos = $this->getEntityUserFieldsInfo();
 
-		$this->innerMergeEntityFields($seed, $targ, $entityFieldInfos, $skipEmpty);
+		$this->innerMergeEntityFields($seed, $targ, $entityFieldInfos, $skipEmpty, $options);
 		EntityMerger::mergeUserFields($seed, $targ, $userFieldInfos, $options);
 
 		$seedMultiFields = isset($seed['FM']) && is_array($seed['FM']) ? $seed['FM'] : array();
@@ -606,12 +607,13 @@ abstract class EntityMerger
 	}
 	/**
 	 * Merge entity fields. May be overridden by descendants.
-	 * @param array $seed
-	 * @param array $targ
-	 * @param array $fieldInfos
-	 * @param bool|false $skipEmpty
+	 * @param array &$seed Seed entity fields.
+	 * @param array &$targ Target entity fields.
+	 * @param array $fieldInfos Metadata fields.
+	 * @param bool $skipEmpty Skip empty fields flag. If is enabled then empty fields of "seed" will not be replaced by fields from "targ"
+	 * @param array $options Options array.
 	 */
-	protected function innerMergeEntityFields(array &$seed, array &$targ, array &$fieldInfos, $skipEmpty = false)
+	protected function innerMergeEntityFields(array &$seed, array &$targ, array &$fieldInfos, $skipEmpty = false, array $options = array())
 	{
 		self::mergeEntityFields($seed, $targ, $fieldInfos, $skipEmpty);
 	}

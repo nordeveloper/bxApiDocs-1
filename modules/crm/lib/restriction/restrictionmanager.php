@@ -270,7 +270,7 @@ class RestrictionManager
 
 		if(!self::$permissionControlRestriction->load())
 		{
-			self::$permissionControlRestriction->permit(!Bitrix24Manager::isEnabled()
+			self::$permissionControlRestriction->permit($isFree
 				|| Main\Config\Option::get('crm', 'crm_enable_permission_control', 'Y', '') === 'Y'
 			);
 		}

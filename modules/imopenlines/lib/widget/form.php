@@ -40,10 +40,19 @@ class Form
 	 * @param $chatId
 	 * @param $userId
 	 */
-	public function __construct($chatId, $userId)
+	public function __construct($chatId, $userId = null)
 	{
 		$this->chatId = intval($chatId);
-		$this->userId = intval($userId);
+
+		if ($userId)
+		{
+			$this->userId = intval($userId);
+		}
+		else
+		{
+			global $USER;
+			$this->userId = $USER->GetID();
+		}
 	}
 
 	/**
@@ -313,10 +322,12 @@ class Form
 
 						\Bitrix\ImOpenLines\Mail::sendSessionHistory($chatFieldSession['SESSION_ID'], $fields['EMAIL']);
 					}
+					/*
 					$liveChat->updateFieldData([Chat::FIELD_LIVECHAT => [
 						'SESSION_ID' => 0,
 						'SHOW_FORM' => 'N'
 					]]);
+					*/
 				}
 
 				// update user entity
@@ -350,11 +361,19 @@ class Form
 						$session = new Session();
 						$sessionStart = $session->load(Array(
 							'USER_CODE' => $chat->getData('ENTITY_ID'),
+							'SKIP_CREATE' => 'Y'
 						));
 					}
 					$messageParams['TO_CHAT_ID'] = $chat->getData('ID');
 
-					$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+					if($session->getData('OPERATOR_ID') > 0)
+					{
+						$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+					}
+					else
+					{
+						$userViewChat  = true;
+					}
 
 					$messageParams['RECENT_ADD'] = $session->isNowCreated() || $userViewChat? 'Y': 'N';
 
@@ -382,7 +401,7 @@ class Form
 						));
 					}
 
-					if ($sessionStart)
+					if ($sessionStart && $session->getConfig('CRM') == 'Y') //additionally check line config not create crm
 					{
 						$crmManager = new Crm($session);
 						$crmFieldsManager = $crmManager->getFields();

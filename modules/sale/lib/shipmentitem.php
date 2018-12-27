@@ -1107,9 +1107,16 @@ class ShipmentItem
 
 	/**
 	 * @internal
-	 * @param \SplObjectStorage $cloneEntity
 	 *
-	 * @return ShipmentItem
+	 * @param \SplObjectStorage $cloneEntity
+	 * @return Internals\CollectableEntity|ShipmentItem|object
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectNotFoundException
 	 */
 	public function createClone(\SplObjectStorage $cloneEntity)
 	{
@@ -1118,19 +1125,8 @@ class ShipmentItem
 			return $cloneEntity[$this];
 		}
 
-		$shipmentItemClone = clone $this;
-		$shipmentItemClone->isClone = true;
-
-		/** @var Internals\Fields $fields */
-		if ($fields = $this->fields)
-		{
-			$shipmentItemClone->fields = $fields->createClone($cloneEntity);
-		}
-
-		if (!$cloneEntity->contains($this))
-		{
-			$cloneEntity[$this] = $shipmentItemClone;
-		}
+		/** @var ShipmentItem $shipmentItemClone */
+		$shipmentItemClone = parent::createClone($cloneEntity);
 
 		/** @var BasketItem $basketItem */
 		if ($basketItem = $this->getBasketItem())
@@ -1157,19 +1153,6 @@ class ShipmentItem
 			if ($cloneEntity->contains($shipmentItemStoreCollection))
 			{
 				$shipmentItemClone->shipmentItemStoreCollection = $cloneEntity[$shipmentItemStoreCollection];
-			}
-		}
-
-		if ($collection = $this->getCollection())
-		{
-			if (!$cloneEntity->contains($collection))
-			{
-				$cloneEntity[$collection] = $collection->createClone($cloneEntity);
-			}
-
-			if ($cloneEntity->contains($collection))
-			{
-				$shipmentItemClone->collection = $cloneEntity[$collection];
 			}
 		}
 

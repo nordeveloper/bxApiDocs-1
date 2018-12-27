@@ -46,6 +46,7 @@ class CIMRestService extends IRestService
 				'im.chat.mute' => array(__CLASS__, 'chatMute'),
 
 				'im.dialog.messages.get' => array(__CLASS__, 'dialogMessagesGet'),
+				'im.dialog.read' => array(__CLASS__, 'dialogRead'),
 
 				'im.message.add' => array(__CLASS__, 'messageAdd'),
 				'im.message.delete' => array(__CLASS__, 'messageDelete'),
@@ -356,6 +357,11 @@ class CIMRestService extends IRestService
 	{
 		$arParams = array_change_key_case($arParams, CASE_UPPER);
 
+		if (isset($arParams['CHAT_ID']) && intval($arParams['CHAT_ID']) > 0)
+		{
+			$arParams['DIALOG_ID'] = 'chat'.$arParams['CHAT_ID'];
+		}
+
 		if (!\Bitrix\Im\Common::isDialogId($arParams['DIALOG_ID']))
 		{
 			throw new Bitrix\Rest\RestException("Dialog ID can't be empty", "DIALOG_ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
@@ -370,16 +376,45 @@ class CIMRestService extends IRestService
 
 		if (isset($arParams['FIRST_ID']))
 		{
+			if (!preg_match('/^\d{1,}$/i', $arParams['FIRST_ID']))
+			{
+				throw new Bitrix\Rest\RestException("First ID can't be string", "FIRST_ID_STRING", CRestServer::STATUS_WRONG_REQUEST);
+			}
 			$options['FIRST_ID'] = intval($arParams['FIRST_ID']);
 		}
-		else
+		else if (isset($arParams['LAST_ID']))
 		{
-			$options['LAST_ID'] = isset($arParams['LAST_ID']) && intval($arParams['LAST_ID']) > 0? intval($arParams['LAST_ID']): 0;
+			if (!preg_match('/^\d{1,}$/i', $arParams['LAST_ID']))
+			{
+				throw new Bitrix\Rest\RestException("Last ID can't be string", "LAST_ID_STRING", CRestServer::STATUS_WRONG_REQUEST);
+			}
+			$options['LAST_ID'] = intval($arParams['LAST_ID']) > 0? intval($arParams['LAST_ID']): 0;
 		}
 		$options['LIMIT'] = isset($arParams['LIMIT'])? (intval($arParams['LIMIT']) > 50? 50: intval($arParams['LIMIT'])): 20;
+		$options['CONVERT_TEXT'] = isset($arParams['CONVERT_TEXT']) && $arParams['CONVERT_TEXT'] == 'Y';
 		$options['JSON'] = 'Y';
 
 		return \Bitrix\Im\Chat::getMessages($chatId, null, $options);
+	}
+
+	public static function dialogRead($arParams, $n, CRestServer $server)
+	{
+		$arParams = array_change_key_case($arParams, CASE_UPPER);
+
+		$arParams['LAST_ID'] = intval($arParams['LAST_ID']);
+		if ($arParams['LAST_ID'] <= 0)
+		{
+			throw new Bitrix\Rest\RestException("Last message id can't be empty", "LAST_ID_ERROR", CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		if (!\Bitrix\Im\Common::isDialogId($arParams['DIALOG_ID']))
+		{
+			throw new Bitrix\Rest\RestException("Dialog ID can't be empty", "DIALOG_ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
+		}
+
+		\Bitrix\Im\Dialog::read($arParams['DIALOG_ID'], $arParams['LAST_ID']);
+
+		return true;
 	}
 
 
@@ -822,9 +857,38 @@ class CIMRestService extends IRestService
 
 	public static function chatGet($arParams, $n, CRestServer $server)
 	{
+		global $USER;
+		if (!$USER->IsAuthorized())
+		{
+			throw new \Bitrix\Rest\RestException("Method not available for guest session.", "AUTHORIZE_ERROR", \CRestServer::STATUS_FORBIDDEN);
+		}
+
 		$arParams = array_change_key_case($arParams, CASE_UPPER);
 
-		if (
+		if (isset($arParams['DIALOG_ID']))
+		{
+			if (!\Bitrix\Im\Common::isDialogId($arParams['DIALOG_ID']))
+			{
+				throw new Bitrix\Rest\RestException("Dialog ID can't be empty", "DIALOG_ID_EMPTY", CRestServer::STATUS_WRONG_REQUEST);
+			}
+
+			if (!\Bitrix\Im\Dialog::hasAccess($arParams['DIALOG_ID']))
+			{
+				throw new Bitrix\Rest\RestException("You do not have access to the specified dialog", "ACCESS_ERROR", CRestServer::STATUS_FORBIDDEN);
+			}
+
+			$chatId = \Bitrix\Im\Dialog::getChatId($arParams['DIALOG_ID']);
+			if (!$chatId)
+			{
+				throw new Bitrix\Rest\RestException("You don't have access to this chat", "ACCESS_ERROR", CRestServer::STATUS_WRONG_REQUEST);
+			}
+
+			$result = \Bitrix\Im\Chat::getById($chatId, ['LOAD_READED' => true, 'JSON' => true]);
+			$result['dialog_id'] = $arParams['DIALOG_ID'];
+
+			return $result;
+		}
+		else if (
 			isset($arParams['ENTITY_TYPE']) && isset($arParams['ENTITY_ID'])
 			&& !empty($arParams['ENTITY_TYPE']) && !empty($arParams['ENTITY_ID'])
 		)
@@ -1510,13 +1574,18 @@ class CIMRestService extends IRestService
 			$arMessageFields['URL_PREVIEW'] = 'N';
 		}
 
+		if (isset($arParams['TEMP_ID']) && !empty($arParams['TEMP_ID']))
+		{
+			$arMessageFields['TEMP_ID'] = substr((string)$arParams['TEMP_ID'], 0, 255);
+		}
+
 		$id = CIMMessenger::Add($arMessageFields);
 		if (!$id)
 		{
 			throw new Bitrix\Rest\RestException("Message isn't added", "PARAMS_ERROR", CRestServer::STATUS_WRONG_REQUEST);
 		}
 
-		return $id;
+		return (int)$id;
 
 	}
 
@@ -4584,6 +4653,57 @@ class CIMRestService extends IRestService
 		}
 
 		return $arParams['BOT_ID'];
+	}
+
+	/* Utils */
+	public static function objectEncode($data, $options = [])
+	{
+		if (!is_array($options['IMAGE_FIELD']))
+		{
+			$options['IMAGE_FIELD'] = ['AVATAR', 'AVATAR_HR'];
+		}
+
+
+		if (is_array($data))
+		{
+			$result = [];
+			foreach ($data as $key => $value)
+			{
+				if (is_array($value))
+				{
+					$value = self::objectEncode($value, $options);
+				}
+				else if ($value instanceof \Bitrix\Main\Type\DateTime)
+				{
+					$value = date('c', $value->getTimestamp());
+				}
+				else if (is_string($key) && in_array($key, $options['IMAGE_FIELD']) && is_string($value) && $value && strpos($value, 'http') !== 0)
+				{
+					$value = self::getServerAddress().$value;
+				}
+
+				$key = str_replace('_', '', lcfirst(ucwords(strtolower($key), '_')));
+
+				$result[$key] = $value;
+			}
+			$data = $result;
+		}
+
+		return $data;
+	}
+
+	public static function getServerAddress()
+	{
+		$publicUrl = \Bitrix\Main\Config\Option::get('main', 'last_site_url', '');
+
+		if ($publicUrl)
+		{
+			return $publicUrl;
+		}
+		else
+		{
+			return (\Bitrix\Main\Context::getCurrent()->getRequest()->isHttps() ? "https" : "http")."://".$_SERVER['SERVER_NAME'].(in_array($_SERVER['SERVER_PORT'], Array(80, 443))?'':':'.$_SERVER['SERVER_PORT']);
+		}
 	}
 }
 ?>

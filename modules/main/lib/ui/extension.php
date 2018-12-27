@@ -187,11 +187,13 @@ class Extension
 			'css' => [],
 			'lang' => [],
 			'lang_additional' => [],
+			'layout' => [],
+			'options' => [],
 		];
 
 		foreach ($extensions as $extension)
 		{
-			foreach (['js', 'css', 'lang', 'lang_additional'] as $key)
+			foreach (['js', 'css', 'lang', 'lang_additional', 'layout', 'options'] as $key)
 			{
 				if (array_key_exists($key, $extension[1]))
 				{

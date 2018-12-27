@@ -164,7 +164,6 @@ class UserFieldEnumerationSynchronizer extends UserFieldCustomSynchronizer
 
 				$dstMap[$key] = $srcMap[$key];
 				$dstMap[$key]['ID'] = "n{$i}";
-				unset($dstMap[$key]['USER_FIELD_ID'], $dstMap[$key]['XML_ID']);
 				if(!$isChanged)
 				{
 					$isChanged = true;

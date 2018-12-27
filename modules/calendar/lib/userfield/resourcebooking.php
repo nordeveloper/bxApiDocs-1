@@ -1,6 +1,7 @@
 <?php
 namespace Bitrix\Calendar\UserField;
 
+use Bitrix\Main;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Type;
 use Bitrix\Calendar\Internals;
@@ -193,21 +194,28 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 				unset($fields['ID']);
 			}
 
-			$resourceBookingId = self::saveResource(
-				$entryId,
-				$value['type'],
-				$value['id'],
-				$fields,
-				array(
-					'userField' => $userField,
-					'serviceName' => $serviceName
-				)
-			);
+//			try
+//			{
+				$resourceBookingId = self::saveResource(
+					$entryId,
+					$value['type'],
+					$value['id'],
+					$fields,
+					array(
+						'userField' => $userField,
+						'serviceName' => $serviceName
+					)
+				);
 
-			if ($resourceBookingId)
-			{
-				$valuesToSave[] = $resourceBookingId;
-			}
+				if ($resourceBookingId)
+				{
+					$valuesToSave[] = $resourceBookingId;
+				}
+//			}
+//			catch(Main\SystemException $e)
+//			{
+//
+//			}
 		}
 
 		foreach ($currentEntriesIndex as $resourceEntry)
@@ -239,9 +247,21 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		}
 	}
 
-	public static function saveResource($id, $resourceType, $resourceId, $eventFields = array(), $params = array())
+	/**
+	 * Saves resource of given type.
+	 *
+	 * @param integer $id id of current booking.
+	 * @param string $resourceType resource type.
+	 * @param integer $resourceId resource id.
+	 * @param array $eventFields calendar event fields.
+	 * @param array $params additional params.
+	 *
+	 * @return integer, id of resource booking or null
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function saveResource($id, $resourceType, $resourceId, $eventFields = [], $params = [])
 	{
-		$valueToSave = false;
+		$valueToSave = null;
 		$currentUserId = \CCalendar::getCurUserId();
 
 		$eventFields["EVENT_TYPE"] = '#resourcebooking#';
@@ -258,39 +278,47 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			{
 				$sectionId = \CCalendar::getMeetingSection($resourceId, true);
 			}
-
 			if ($sectionId)
 			{
-				$eventFields['SECTIONS'] = array($sectionId);
+				$eventFields['SECTIONS'] = [$sectionId];
 			}
 
 			// Userfields for event
-			$userFields = array();
+			$userFields = [];
 			if ($params['userField']['ENTITY_ID'] == 'CRM_DEAL')
 			{
-				$userFields['UF_CRM_CAL_EVENT'] = array("D_".$params['userField']['VALUE_ID']);
+				$userFields['UF_CRM_CAL_EVENT'] = ["D_".$params['userField']['VALUE_ID']];
 			}
 			elseif ($params['userField']['ENTITY_ID'] == 'CRM_LEAD')
 			{
-				$userFields['UF_CRM_CAL_EVENT'] = array("L_".$params['userField']['VALUE_ID']);
+				$userFields['UF_CRM_CAL_EVENT'] = ["L_".$params['userField']['VALUE_ID']];
 			}
 
-			$entryId = \CCalendar::saveEvent(array(
+//			if (!self::isUserAvailable([
+//				'DATE_FROM' => $eventFields["DATE_FROM"],
+//				'DATE_TO' => $eventFields["DATE_TO"],
+//
+//			]))
+//			{
+//				throw new Main\SystemException('Resource can\'t be booked');
+//			}
+
+			$entryId = \CCalendar::saveEvent([
 				'arFields' => $eventFields,
 				'UF' => $userFields,
 				'silentErrorMode' => false,
 				'autoDetectSection' => true,
 				'autoCreateSection' => true,
 				'checkPermission' => false
-			));
+			]);
 		}
 		else
 		{
 			$eventFields["CAL_TYPE"] = $resourceType;
 			$eventFields["SECTIONS"] = $resourceId;
-			$entryId = \CCalendarEvent::edit(array(
+			$entryId = \CCalendarEvent::edit([
 				'arFields' => $eventFields
-			));
+			]);
 		}
 
 		if ($entryId)
@@ -317,7 +345,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 //				$to->setTimeZone(new \DateTimeZone($userTimezoneName));
 //			}
 
-			$resourceTableFields = array(
+			$resourceTableFields = [
 				'EVENT_ID' => $entryId,
 				'CAL_TYPE' => $eventFields["CAL_TYPE"],
 				'RESOURCE_ID' => $resourceId,
@@ -335,7 +363,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 				'TZ_OFFSET_TO' => \CCalendar::getTimezoneOffset($eventFields['TZ_TO'], \CCalendar::timestamp($eventFields["DATE_TO"])),
 				'CREATED_BY' => $currentUserId,
 				'SERVICE_NAME' => $params['serviceName']
-			);
+			];
 
 			if ($id)
 			{
@@ -354,14 +382,70 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 			{
 				\CCalendar::deleteEvent(intVal($entryId), false);
 			}
+
+			foreach(\Bitrix\Main\EventManager::getInstance()->findEventHandlers("calendar", "onAfterResourceBookingAdd") as $event)
+			{
+				ExecuteModuleEventEx($event, [
+					'userFieldValueId' => $valueToSave,
+					'bookingEventId' => $entryId,
+					'resourceType' => $resourceType,
+					'resourceId' => $resourceId,
+					'serviceName' => $params['serviceName'],
+					'dateFrom' => $from,
+					'dateTo' => $to,
+					'skipTime' => $eventFields['SKIP_TIME'],
+					'timezoneFrom' => $eventFields['TZ_FROM'],
+					'timezoneTo' => $eventFields['TZ_TO']
+				]);
+			}
 		}
 
 		return $valueToSave;
 	}
 
+	private static function isUserAvailable($params)
+	{
+		$fromTs = \CCalendar::Timestamp($params["DATE_FROM"]);
+		$toTs = \CCalendar::Timestamp($params["DATE_TO"]);
+		$fromTs = $fromTs - \CCalendar::GetTimezoneOffset($params["TZ_FROM"], $fromTs);
+		$toTs = $toTs - \CCalendar::GetTimezoneOffset($params["TZ_TO"], $toTs);
+
+		$accessibility = \CCalendar::GetAccessibilityForUsers(array(
+			'users' => [$params['id']],
+			'from' => \CCalendar::Date($fromTs), // date or datetime in UTC
+			'to' => \CCalendar::Date($toTs), // date or datetime in UTC
+			'getFromHR' => true,
+			'checkPermissions' => false
+		));
+
+		if ($accessibility[$params['id']])
+		{
+			foreach($accessibility[$params['id']] as $entry)
+			{
+				$entFromTs = \CCalendar::Timestamp($entry["DATE_FROM"]);
+				$entToTs = \CCalendar::Timestamp($entry["DATE_TO"]);
+
+				$entFromTs -= \CCalendar::GetTimezoneOffset($entry['TZ_FROM'], $entFromTs);
+				$entToTs -= \CCalendar::GetTimezoneOffset($entry['TZ_TO'], $entToTs);
+
+				if ($entFromTs < $toTs && $entToTs > $fromTs)
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	private static function isResourceAvailable()
+	{
+
+	}
+
 	public static function releaseResource($entry)
 	{
-		\CCalendar::deleteEvent(intVal($entry['EVENT_ID']), false, array('checkPermissions' => false));
+		\CCalendar::deleteEvent(intVal($entry['EVENT_ID']), true, array('checkPermissions' => false));
 		Internals\ResourceTable::delete($entry['ID']);
 	}
 
@@ -425,6 +509,14 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		return $result;
 	}
 
+	public static function prepareValue($type, $id, $from, $duration, $serviceName = '')
+	{
+		$type = $type == 'user' || $type == 'resource' ? $type : 'user';
+		$id = intval($id) > 0 ? $id : 1;
+		$duration = intval($duration) > 0 ? $duration : 60;
+		return $type.'|'.$id.'|'.$from.'|'.$duration.'|'.$serviceName;
+	}
+
 	public static function parseValue($value)
 	{
 		$res = false;
@@ -442,7 +534,7 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 		return $res;
 	}
 
-	function getSettingsHTML($userField = false, $htmlControl, $varsFromForm)
+	function getSettingsHTML($userField = false, $htmlControl = [], $varsFromForm = false)
 	{
 		static::initDisplay(array('userfield_resourcebooking', 'calendar_planner', 'socnetlogdest', 'helper'));
 
@@ -899,5 +991,198 @@ class ResourceBooking extends \Bitrix\Main\UserField\TypeBase
 	public static function getResourceEntriesList($idList = [])
 	{
 		return self::fetchFieldValue($idList);
+	}
+
+	public static function getUserFieldByFieldName($fieldName = '', $selectedUsers = [])
+	{
+		$resultData = null;
+		if ($fieldName)
+		{
+			$r = \CUserTypeEntity::getList(array("ID" => "ASC"), array("FIELD_NAME" => $fieldName));
+			if ($r)
+			{
+				$resultData = $r->fetch();
+			}
+		}
+
+		if (!is_array($selectedUsers))
+		{
+			$selectedUsers = [];
+		}
+		if (is_array($resultData) && isset($resultData['SETTINGS']['SELECTED_USERS']))
+		{
+			$selectedUsers = array_merge($selectedUsers, $resultData['SETTINGS']['SELECTED_USERS']);
+		}
+
+		array_walk($selectedUsers, 'intval');
+		$selectedUsers = array_unique($selectedUsers);
+
+		if (!empty($selectedUsers))
+		{
+			$dbUsers = \CUser::getList($by = 'ID', $order = 'ASC',
+				[
+					'ID'=> implode(' | ', $selectedUsers)
+				],
+				['FIELDS' => ['ID', 'LOGIN', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'EMAIL']]
+			);
+
+			$resultData['SETTINGS']['USER_INDEX'] = [];
+			while($user = $dbUsers->fetch())
+			{
+				$resultData['SETTINGS']['USER_INDEX'][$user['ID']] = [
+					'id' => $user['ID'],
+					'displayName' => \CCalendar::getUserName($user)
+				];
+			}
+		}
+
+		return $resultData;
+	}
+
+	public static function getFillFormData($data = [], $params = [])
+	{
+		global $USER;
+		$resultData = [];
+		$curUserId = $USER->GetID();
+
+		$fromTs = (isset($params['from']) && $params['from']) ? \CCalendar::timestamp($params['from']) : time();
+		$from = \CCalendar::date($fromTs, false);
+		$to = (isset($params['to']) && $params['to'])
+			? \CCalendar::date(\CCalendar::timestamp($params['to']), false)
+			: \CCalendar::date($fromTs + \CCalendar::DAY_LENGTH * 60, false);
+
+		if (isset($params['timezone']))
+		{
+			$deltaOffset = \CCalendar::GetTimezoneOffset($params['timezone']) - \CCalendar::GetCurrentOffsetUTC($curUserId);
+		}
+		else
+		{
+			$deltaOffset = 0;
+		}
+
+		// Fetch fetch UF properties
+		if ($params['fieldName'])
+		{
+			$r = \CUserTypeEntity::getList(array("ID" => "ASC"), array("FIELD_NAME" => $params['fieldName']));
+			if ($r)
+			{
+				$fieldProperties = $r->fetch();
+				$resultData['fieldSettings'] = $fieldProperties['SETTINGS'];
+			}
+		}
+
+		if (isset($data['users']))
+		{
+			$userIdList = explode('|', $data['users']['value']);
+			array_walk($userIdList, 'intval');
+
+			$resultData['usersAccessibility'] = [];
+			$accessibility = \CCalendar::getAccessibilityForUsers(array(
+				'users' => $userIdList,
+				'from' => $from, // date or datetime in UTC
+				'to' => $to, // date or datetime in UTC
+				'getFromHR' => true,
+				'checkPermissions' => false
+			));
+
+			foreach($accessibility as $userId => $entries)
+			{
+				$resultData['usersAccessibility'][$userId] = [];
+
+				foreach($entries as $entry)
+				{
+					if (isset($entry['DT_FROM']) && !isset($entry['DATE_FROM']))
+					{
+						$resultData['usersAccessibility'][$userId][] = array(
+							'id' => $entry['ID'],
+							'dateFrom' => $entry['DT_FROM'],
+							'dateTo' => $entry['DT_TO'],
+						);
+					}
+					else
+					{
+						$fromTs = \CCalendar::Timestamp($entry['DATE_FROM']);
+						$toTs = \CCalendar::Timestamp($entry['DATE_TO']);
+
+						if ($entry['DT_SKIP_TIME'] !== "Y")
+						{
+							$fromTs -= $entry['~USER_OFFSET_FROM'];
+							$toTs -= $entry['~USER_OFFSET_TO'];
+							$fromTs += $deltaOffset;
+							$toTs += $deltaOffset;
+						}
+
+						$resultData['usersAccessibility'][$userId][] = array(
+							'id' => $entry['ID'],
+							'dateFrom' => \CCalendar::Date($fromTs, $entry['DT_SKIP_TIME'] != 'Y'),
+							'dateTo' => \CCalendar::Date($toTs, $entry['DT_SKIP_TIME'] != 'Y'),
+							'fullDay' => $entry['DT_SKIP_TIME'] === "Y"
+						);
+					}
+				}
+			}
+
+			// User Index
+			$dbUsers = \CUser::getList($by = 'ID', $order = 'ASC',
+				[
+					'ID'=> implode(' | ', $userIdList)
+				],
+				['FIELDS' => ['ID', 'LOGIN', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'EMAIL']]
+			);
+
+			while($user = $dbUsers->fetch())
+			{
+				$resultData['userIndex'][$user['ID']] = [
+					'id' => $user['ID'],
+					'displayName' => \CCalendar::getUserName($user)
+				];
+			}
+		}
+
+		if (isset($data['resources']))
+		{
+			$resultData['resourcesAccessibility'] = [];
+
+			$resourceIdList = explode('|', $data['resources']['value']);
+			array_walk($resourceIdList, 'intval');
+
+			$resEntries = \CCalendarEvent::getList(
+				array(
+					'arFilter' => array(
+						"FROM_LIMIT" => $from,
+						"TO_LIMIT" => $to,
+						"CAL_TYPE" => 'resource',
+						"ACTIVE_SECTION" => "Y",
+						"SECTION" => $resourceIdList
+					),
+					'parseRecursion' => true,
+					'setDefaultLimit' => false
+				)
+			);
+
+			foreach($resEntries as $row)
+			{
+				$fromTs = \CCalendar::timestamp($row["DATE_FROM"]);
+				$toTs = \CCalendar::timestamp($row['DATE_TO']);
+				if ($row['DT_SKIP_TIME'] !== "Y")
+				{
+					$fromTs -= $row['~USER_OFFSET_FROM'];
+					$toTs -= $row['~USER_OFFSET_TO'];
+					$fromTs += $deltaOffset;
+					$toTs += $deltaOffset;
+				}
+				$resultData['resourcesAccessibility'][$row['SECT_ID']][] = array(
+					'id' => $row["ID"],
+					'dateFrom' => \CCalendar::date($fromTs, $row['DT_SKIP_TIME'] != 'Y'),
+					'dateTo' => \CCalendar::date($toTs, $row['DT_SKIP_TIME'] != 'Y'),
+					'fullDay' => $row['DT_SKIP_TIME'] === "Y"
+				);
+			}
+		}
+
+		$resultData['workTimeStart'] = \COption::GetOptionString('calendar', 'work_time_start', 9);
+		$resultData['workTimeEnd'] = \COption::GetOptionString('calendar', 'work_time_end', 19);
+
+		return $resultData;
 	}
 }

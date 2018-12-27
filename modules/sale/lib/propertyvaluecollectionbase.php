@@ -292,27 +292,35 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	 */
 	public function checkErrors($fields, $files, $skipUtils = false)
 	{
-		$fields = Input\File::getPostWithFiles($fields, $files);
-
 		$result = new Result();
 
-		/** @var PropertyValueBase $property */
-		foreach ($this->collection as $property)
+		$fields = Input\File::getPostWithFiles($fields, $files);
+
+		/** @var PropertyValueBase $propertyValue */
+		foreach ($this->collection as $propertyValue)
 		{
-			if ($skipUtils && $property->isUtil())
+			if ($skipUtils && $propertyValue->isUtil())
+			{
 				continue;
+			}
 
-			$propertyData = $property->getProperty();
+			if ($propertyValue->getField('ORDER_PROPS_ID') > 0)
+			{
+				$key = $propertyValue->getField('ORDER_PROPS_ID');
+			}
+			else
+			{
+				$key = "n".$propertyValue->getInternalIndex();
+			}
 
-			$key = isset($propertyData["ID"]) ? $propertyData["ID"] : "n".$property->getId();
 			$value = isset($fields['PROPERTIES'][$key]) ? $fields['PROPERTIES'][$key] : null;
 
 			if (!isset($fields['PROPERTIES'][$key]))
 			{
-				$value = $property->getValue();
+				$value = $propertyValue->getValue();
 			}
 
-			$r = $property->checkValue($key, $value);
+			$r = $propertyValue->checkValue($key, $value);
 			if (!$r->isSuccess())
 			{
 				$result->addErrors($r->getErrors());
@@ -332,12 +340,17 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 	{
 		$result = new Result();
 
-		/** @var PropertyValueBase $property */
-		foreach ($this->collection as $property)
+		/** @var PropertyValueBase $propertyValue */
+		foreach ($this->collection as $propertyValue)
 		{
-			$propertyData = $property->getProperty();
-
-			$key = isset($propertyData["ID"]) ? $propertyData["ID"] : "n".$property->getId();
+			if ($propertyValue->getField('ORDER_PROPS_ID') > 0)
+			{
+				$key = $propertyValue->getField('ORDER_PROPS_ID');
+			}
+			else
+			{
+				$key = "n".$propertyValue->getInternalIndex();
+			}
 
 			if (!in_array($key, $rules))
 			{
@@ -347,10 +360,10 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 			$value = isset($fields['PROPERTIES'][$key]) ? $fields['PROPERTIES'][$key] : null;
 			if (!isset($fields['PROPERTIES'][$key]))
 			{
-				$value = $property->getValue();
+				$value = $propertyValue->getValue();
 			}
 
-			$r = $property->checkRequiredValue($key, $value);
+			$r = $propertyValue->checkRequiredValue($key, $value);
 			if (!$r->isSuccess())
 			{
 				$result->addErrors($r->getErrors());
@@ -439,7 +452,16 @@ abstract class PropertyValueCollectionBase extends Internals\EntityCollection
 			$p = $propertyValue->getProperty();
 
 			if (!isset($p["ID"]))
-				$p["ID"] = "n".$propertyValue->getId();
+			{
+				if ($propertyValue->getField("ORDER_PROPS_ID") > 0)
+				{
+					$p["ID"] = $propertyValue->getField('ORDER_PROPS_ID');
+				}
+				else
+				{
+					$p["ID"] = "n".$propertyValue->getInternalIndex();
+				}
+			}
 
 			$value = $propertyValue->getValue();
 

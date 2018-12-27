@@ -181,7 +181,7 @@ class Filter extends Common
 			$arrFilter['GROUP_ID'] = $this->getGroupId();
 		}
 
-		//echo '<pre>'.print_r($arrFilter, true).'</pre>';
+//		echo '<pre>'.print_r($arrFilter, true).'</pre>';
 
 		return $arrFilter;
 	}
@@ -947,13 +947,17 @@ class Filter extends Common
 						}
 
 						$arrFilter['DEADLINE'] = '';
+
+						$arrFilter['<REAL_STATUS'] = \CTasks::STATE_SUPPOSEDLY_COMPLETED;
 						break;
 					case Counter\Type::TYPE_EXPIRED:
 						$arrFilter['<=DEADLINE'] = Counter::getExpiredTime();
+						$arrFilter['<REAL_STATUS'] = \CTasks::STATE_SUPPOSEDLY_COMPLETED;
 						break;
 					case Counter\Type::TYPE_EXPIRED_CANDIDATES:
 						$arrFilter['>=DEADLINE'] = Counter::getExpiredTime();
 						$arrFilter['<=DEADLINE'] = Counter::getExpiredSoonTime();
+						$arrFilter['<REAL_STATUS'] = \CTasks::STATE_SUPPOSEDLY_COMPLETED;
 
 						if (!$roleId && $this->getGroupId() == 0)
 						{
@@ -975,6 +979,7 @@ class Filter extends Common
 						$arrFilter['=CREATED_BY'] = $this->getUserId();
 						break;
 					case Counter\Type::TYPE_NEW:
+						$arrFilter['<REAL_STATUS'] = \CTasks::STATE_SUPPOSEDLY_COMPLETED;
 						$arrFilter['VIEWED'] = 0;
 						$arrFilter['VIEWED_BY'] = $this->getUserId();
 

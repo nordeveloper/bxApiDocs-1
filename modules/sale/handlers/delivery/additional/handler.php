@@ -265,10 +265,17 @@ class AdditionalHandler extends Base
 
 		if($res->isSuccess())
 		{
+			$logo = false;
 			$logoId = intval($this->getLogoFileId());
+
+			if($logoId > 0)
+			{
+				$logo = \CFile::GetByID($logoId)->Fetch();
+			}
+
 			$result = $res->getData();
 
-			if($logoId <= 0 && !empty($result['LOGOTIP']['CONTENT']) && !empty($result['LOGOTIP']['NAME']))
+			if(($logoId <= 0 || !$logo) && !empty($result['LOGOTIP']['CONTENT']) && !empty($result['LOGOTIP']['NAME']))
 			{
 				$tmpDir = \CTempFile::GetDirectoryName();
 				CheckDirPath($tmpDir);
@@ -844,7 +851,7 @@ class AdditionalHandler extends Base
 		$weight = 0;
 
 		/** @var \Bitrix\Sale\ShipmentItem $shipmentItem */
-		foreach($shipment->getShipmentItemCollection() as $shipmentItem)
+		foreach($shipment->getShipmentItemCollection()->getShippableItems() as $shipmentItem)
 		{
 			$basketItem = $shipmentItem->getBasketItem();
 

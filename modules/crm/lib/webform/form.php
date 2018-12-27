@@ -619,7 +619,7 @@ class Form
 				$preparedField = array(
 					'type' => $field['TYPE'],
 					'type_original' => $field['TYPE_ORIGINAL'],
-					'name' => $field['CODE'], // 'wf_field_' . $field['ID'],
+					'name' => $field['CODE'], // 'uf_field_' . $field['ID'],
 					'entity_name' => $field['ENTITY_NAME'],
 					'entity_field_name' => $field['ENTITY_FIELD_NAME'],
 					'caption' => $field['CAPTION'] ? $field['CAPTION'] : $field['ENTITY_FIELD_CAPTION'],
@@ -630,6 +630,7 @@ class Form
 					'placeholder' => $field['PLACEHOLDER'],
 					'value' => $field['VALUE'],
 					'value_type' => $field['VALUE_TYPE'],
+					'settings_data' => $field['SETTINGS_DATA']
 				);
 
 				if(isset($field['ITEMS']))

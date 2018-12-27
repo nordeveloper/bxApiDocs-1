@@ -19,6 +19,18 @@ class Invoice extends Base
 	const UNSET_DATE_PAY_BEFORE = 0;
 	const SET_DATE_PAY_BEFORE = 1;
 
+	/** @var Invoice */
+	protected static $instance = null;
+
+	public static function getInstance()
+	{
+		if(self::$instance === null)
+		{
+			self::$instance = new Invoice();
+		}
+		return self::$instance;
+	}
+
 	public function getList(array $parameters = array())
 	{
 		return InvoiceRecurTable::getList($parameters);
@@ -55,19 +67,8 @@ class Invoice extends Base
 			}
 
 			$this->linkInvoiceRequisite($invoiceFields, $idRecurringInvoice);
-			$recurParams = $this->prepareDates($recurParams);
-			$recurParams = $this->prepareActivity($recurParams);
-
-			$recurParams['EMAIL_ID'] = ((int)$recurParams['EMAIL_ID'] > 0) ? (int)$recurParams['EMAIL_ID'] : null;
-
-			if (is_null((int)$recurParams['EMAIL_ID']))
-			{
-				$recurParams['SEND_BILL'] = 'N';
-			}
-
 			$recurParams['INVOICE_ID'] = $idRecurringInvoice;
-
-			$r = InvoiceRecurTable::add($recurParams);
+			$r = $this->add($recurParams);
 
 			if ($r->isSuccess())
 			{
@@ -94,6 +95,25 @@ class Invoice extends Base
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @param array $fields
+	 *
+	 * @return Main\ORM\Data\AddResult
+	 */
+	public function add(array $fields)
+	{
+		$fields = $this->prepareDates($fields);
+		$fields = $this->prepareActivity($fields);
+
+		$fields['EMAIL_ID'] = ((int)$fields['EMAIL_ID'] > 0) ? (int)$fields['EMAIL_ID'] : null;
+		if (is_null((int)$fields['EMAIL_ID']))
+		{
+			$fields['SEND_BILL'] = 'N';
+		}
+
+		return InvoiceRecurTable::add($fields);
 	}
 
 	/**
@@ -172,11 +192,12 @@ class Invoice extends Base
 	 *
 	 * @param $filter
 	 * @param $limit
+	 * @param bool $recalculate
 	 *
 	 * @return Main\Result
 	 * @throws Main\ArgumentException
 	 */
-	public function expose(array $filter, $limit = null)
+	public function expose(array $filter, $limit = null, $recalculate = true)
 	{
 		global $USER_FIELD_MANAGER;
 
@@ -334,9 +355,8 @@ class Invoice extends Base
 							$invoice['DATE_PAY_BEFORE'] = $datePayBefore;
 					}
 
-					$reCalculate = false;
-
-					$resultInvoiceId = $newInvoice->Add($invoice, $reCalculate, $invoice['LID']);
+					$reCalculateInvoice = false;
+					$resultInvoiceId = $newInvoice->Add($invoice, $reCalculateInvoice, $invoice['LID']);
 
 					if ($resultInvoiceId)
 					{
@@ -353,20 +373,20 @@ class Invoice extends Base
 						
 						$newInvoiceIds[] = $resultInvoiceId;
 
-						$nextData = self::getNextDate($recurParam, $tomorrow);
-
 						$recurData["LAST_EXECUTION"] = $today;
 						$recurData["COUNTER_REPEAT"] = (int)$recurData['COUNTER_REPEAT'] + 1;
-						$recurData["NEXT_EXECUTION"] = $nextData;
-
-						$recurData = $this->prepareActivity($recurData);
-
 						$updateData = array(
 							"LAST_EXECUTION" => $recurData["LAST_EXECUTION"],
-							"COUNTER_REPEAT" => $recurData["COUNTER_REPEAT"],
-							"NEXT_EXECUTION" => $recurData["NEXT_EXECUTION"],
-							"ACTIVE" => $recurData["ACTIVE"]
+							"COUNTER_REPEAT" => $recurData["COUNTER_REPEAT"]
 						);
+
+						if ($recalculate)
+						{
+							$recurData["NEXT_EXECUTION"] = self::getNextDate($recurParam, clone($tomorrow));
+							$updateData["NEXT_EXECUTION"] = $recurData["NEXT_EXECUTION"];
+							$recurData = $this->prepareActivity($recurData);
+							$updateData["ACTIVE"] = $recurData["ACTIVE"];
+						}
 
 						if ($recurData['SEND_BILL'] === 'Y' && (int)$recurData['EMAIL_ID'] > 0)
 						{
@@ -412,7 +432,7 @@ class Invoice extends Base
 	/**
 	 * @param $invoiceId
 	 *
-	 * @return Main\Entity\UpdateResult
+	 * @return Main\ORM\Data\UpdateResult
 	 * @throws Main\ArgumentException
 	 */
 	public function deactivate($invoiceId)
@@ -715,6 +735,16 @@ class Invoice extends Base
 	}
 
 	/**
+	 * @param array $params
+	 *
+	 * @return ParameterMapper\Map
+	 */
+	public static function getParameterMapper(array $params = [])
+	{
+		return ParameterMapper\FirstFormInvoice::getInstance();
+	}
+
+	/**
 	 * Calculate next exposing date.
 	 *
 	 * @param array $params
@@ -724,64 +754,8 @@ class Invoice extends Base
 	 */
 	public static function getNextDate(array $params, $startDate = null)
 	{
-		$result = array(
-			"PERIOD" => (int)$params['PERIOD'] ? (int)$params['PERIOD'] : null
-		);
-
-		switch($result['PERIOD'])
-		{
-			case Calculator::SALE_TYPE_DAY_OFFSET:
-				$result['INTERVAL_DAY'] = $params['DAILY_INTERVAL_DAY'];
-				$result['IS_WORKDAY'] = $params['DAILY_WORKDAY_ONLY'];
-				if (empty($params['DAILY_TYPE']))
-				{
-					$params['DAILY_TYPE'] = DateType\Day::TYPE_ALTERNATING_DAYS;
-				}
-				$result['TYPE'] = $params['DAILY_TYPE'];
-				break;
-			case Calculator::SALE_TYPE_WEEK_OFFSET:
-
-				$result['WEEKDAYS'] = $params['WEEKLY_WEEK_DAYS'];
-				$result['INTERVAL_WEEK'] = $params['WEEKLY_INTERVAL_WEEK'];
-				if (!isset($params['WEEKLY_TYPE']))
-				{
-					$params['WEEKLY_TYPE'] = DateType\Week::TYPE_ALTERNATING_WEEKDAYS;
-				}
-				$result['TYPE'] = $params['WEEKLY_TYPE'];
-				break;
-			case Calculator::SALE_TYPE_MONTH_OFFSET:
-				$result['INTERVAL_DAY'] = $params['MONTHLY_INTERVAL_DAY'];
-				if ((int)$params['MONTHLY_TYPE'] === DateType\Month::TYPE_DAY_OF_ALTERNATING_MONTHS)
-				{
-					$result['INTERVAL_MONTH'] = $params['MONTHLY_MONTH_NUM_1'] - 1;
-					$result['IS_WORKDAY'] = $params['MONTHLY_WORKDAY_ONLY'];
-				}
-				elseif ((int)$params['MONTHLY_TYPE'] === DateType\Month::TYPE_WEEKDAY_OF_ALTERNATING_MONTHS)
-				{
-					$result['INTERVAL_WEEK'] = $params['MONTHLY_WEEKDAY_NUM'];
-					$result['INTERVAL_MONTH'] = $params['MONTHLY_MONTH_NUM_2'] - 1;
-					$result['WEEKDAY'] = $params['MONTHLY_WEEK_DAY'];
-				}
-				$result['TYPE'] = $params['MONTHLY_TYPE'];
-				break;
-			case Calculator::SALE_TYPE_YEAR_OFFSET:
-				$result['INTERVAL_DAY'] = $params['YEARLY_INTERVAL_DAY'];
-
-				if ((int)$params['YEARLY_TYPE'] === DateType\Year::TYPE_DAY_OF_CERTAIN_MONTH)
-				{
-					$result['INTERVAL_DAY'] = $params['YEARLY_INTERVAL_DAY'];
-					$result['INTERVAL_MONTH'] = $params['YEARLY_MONTH_NUM_1'];
-					$result['IS_WORKDAY'] = $params['YEARLY_WORKDAY_ONLY'];
-				}
-				elseif ((int)$params['YEARLY_TYPE'] === DateType\Year::TYPE_WEEKDAY_OF_CERTAIN_MONTH)
-				{
-					$result['INTERVAL_WEEK'] = $params['YEARLY_WEEK_DAY_NUM'];
-					$result['INTERVAL_MONTH'] = $params['YEARLY_MONTH_NUM_2'];
-					$result['WEEKDAY'] = $params['YEARLY_WEEK_DAY'];
-				}
-				$result['TYPE'] = (int)$params['YEARLY_TYPE'];
-		}
-
-		return parent::getNextDate($result, $startDate);
+		$mapper = self::getParameterMapper($params);
+		$mapper->fillMap($params);
+		return parent::getNextDate($mapper->getPreparedMap(), $startDate);
 	}
 }

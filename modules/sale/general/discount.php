@@ -1578,6 +1578,7 @@ class CAllSaleDiscount
 								'Value' => (string)roundEx($arFields['DISCOUNT_VALUE'], SALE_VALUE_PRECISION),
 								'Unit' => 'Perc',
 								'All' => 'AND',
+								'True' => 'True'
 							),
 							'CHILDREN' => array(
 							),
@@ -1593,6 +1594,7 @@ class CAllSaleDiscount
 								'Value' => (string)$dblValue,
 								'Unit' => 'CurAll',
 								'All' => 'AND',
+								'True' => 'True'
 							),
 							'CHILDREN' => array(
 							),

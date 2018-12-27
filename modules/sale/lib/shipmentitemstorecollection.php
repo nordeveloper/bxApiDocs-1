@@ -547,8 +547,8 @@ class ShipmentItemStoreCollection extends Internals\EntityCollection
 			return $cloneEntity[$this];
 		}
 
-		$shipmentItemStoreCollectionClone = clone $this;
-		$shipmentItemStoreCollectionClone->isClone = true;
+		/** @var ShipmentItemStoreCollection $shipmentItemStoreCollectionClone */
+		$shipmentItemStoreCollectionClone = parent::createClone($cloneEntity) ;
 
 		/** @var ShipmentItem $shipmentItem */
 		if ($shipmentItem = $this->shipmentItem)
@@ -562,27 +562,6 @@ class ShipmentItemStoreCollection extends Internals\EntityCollection
 			{
 				$shipmentItemStoreCollectionClone->shipmentItem = $cloneEntity[$shipmentItem];
 			}
-			
-		}
-
-		if (!$cloneEntity->contains($this))
-		{
-			$cloneEntity[$this] = $shipmentItemStoreCollectionClone;
-		}
-
-
-		/**
-		 * @var int key
-		 * @var ShipmentItemStore $shipmentItemStore
-		 */
-		foreach ($shipmentItemStoreCollectionClone->collection as $key => $shipmentItemStore)
-		{
-			if (!$cloneEntity->contains($shipmentItemStore))
-			{
-				$cloneEntity[$shipmentItemStore] = $shipmentItemStore->createClone($cloneEntity);
-			}
-
-			$shipmentItemStoreCollectionClone->collection[$key] = $cloneEntity[$shipmentItemStore];
 		}
 
 		return $shipmentItemStoreCollectionClone;

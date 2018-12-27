@@ -421,7 +421,7 @@ class DuplicateOrganizationCriterion extends DuplicateCriterion
 		}
 		else
 		{
-			$filter['%TITLE'] = new \CSQLWhereExpression('?s', $this->title.'%');
+			$filter['=%TITLE'] = "{$this->title}%";
 		}
 
 		if(\CCrmOwnerType::IsDefined($entityTypeID))

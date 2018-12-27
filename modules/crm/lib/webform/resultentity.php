@@ -24,6 +24,7 @@ use Bitrix\Crm\Integration\Channel\WebFormTracker;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\UserConsent\Consent;
 use Bitrix\Crm\Settings\LayoutSettings;
+use Bitrix\Crm\Tracking;
 
 Loc::loadMessages(__FILE__);
 
@@ -52,6 +53,7 @@ class ResultEntity
 	protected $assignedById = null;
 	protected $activityFields = array();
 	protected $invoiceSettings = array();
+	protected $isDealDuplicateControlEnabled = false;
 
 	protected $isCallback = false;
 	protected $callbackPhone = null;
@@ -106,6 +108,13 @@ class ResultEntity
 				$rowId = $this->selector->getContactId();
 				break;
 
+			case \CCrmOwnerType::DealName:
+				$rowId = $this->isDealDuplicateControlEnabled ?
+					$this->selector->getDealId()
+					:
+					null;
+				break;
+
 			case \CCrmOwnerType::LeadName:
 				$rowId = $this->selector->getReturnCustomerLeadId();
 				if ($rowId)
@@ -140,17 +149,21 @@ class ResultEntity
 		$entityObject = new $entity['CLASS_NAME'](false);
 
 		$entityMultiFields = array();
-		$multiFields = \CCrmFieldMulti::GetEntityFields($entityTypeName, $rowId, null);
-		foreach($multiFields as $multiField)
+		$hasMultiFields = !empty($entity['HAS_MULTI_FIELDS']);
+		if ($hasMultiFields)
 		{
-			$entityMultiFields[$multiField['TYPE_ID']] = array(
-				$multiField['ID'] => array(
-					'VALUE' => $multiField['VALUE'],
-					'VALUE_TYPE' => $multiField['VALUE_TYPE'],
-				)
-			);
+			$multiFields = \CCrmFieldMulti::GetEntityFields($entityTypeName, $rowId, null);
+			foreach($multiFields as $multiField)
+			{
+				$entityMultiFields[$multiField['TYPE_ID']] = array(
+					$multiField['ID'] => array(
+						'VALUE' => $multiField['VALUE'],
+						'VALUE_TYPE' => $multiField['VALUE_TYPE'],
+					)
+				);
+			}
+			unset($multiFields);
 		}
-		unset($multiFields);
 
 		/** @var  $merger \Bitrix\Crm\Merger\EntityMerger */
 		$mergerClass = $entity['DUPLICATE_CHECK']['MERGER_CLASS_NAME'];
@@ -165,7 +178,10 @@ class ResultEntity
 					array('*', 'UF_*')
 				);
 				$entityFields = $entityFieldsDb->Fetch();
-				$entityFields['FM'] = $entityMultiFields;
+				if ($hasMultiFields)
+				{
+					$entityFields['FM'] = $entityMultiFields;
+				}
 				$merger = new $mergerClass(0, false);
 				$merger->mergeFields($fields, $entityFields, false, array('ENABLE_UPLOAD' => true));
 
@@ -173,7 +189,11 @@ class ResultEntity
 				break;
 
 			case self::DUPLICATE_CONTROL_MODE_REPLACE:
-				$entityFields = array('FM' => $entityMultiFields);
+				$entityFields = [];
+				if ($hasMultiFields)
+				{
+					$entityFields['FM'] = $entityMultiFields;
+				}
 				$merger = new $mergerClass(0, false);
 				$merger->mergeFields($fields, $entityFields, false, array('ENABLE_UPLOAD' => true));
 				$entityObject->Update($rowId, $entityFields);
@@ -496,26 +516,33 @@ class ResultEntity
 			}
 
 
-			$this->resultEntityPack[] = [
+			$resultEntityInfo = [
 				'RESULT_ID' => $this->resultId,
 				'ENTITY_NAME' => $entityName,
 				'ITEM_ID' => $id,
-				'IS_DUPLICATE' => !$isEntityAdded
+				'IS_DUPLICATE' => !$isEntityAdded,
+				'IS_AUTOMATION_RUN' => false,
 			];
 
 			if ($isEntityLead && $isEntityAdded)
 			{
-				$facility->convertLead($id);
+				if ($facility->convertLead($id))
+				{
+					$resultEntityInfo['IS_AUTOMATION_RUN'] = true;
+				}
 				foreach ($facility->getRegisteredEntities() as $complex)
 				{
 					$this->resultEntityPack[] = [
 						'RESULT_ID' => $this->resultId,
 						'ENTITY_NAME' => \CCrmOwnerType::resolveName($complex->getTypeId()),
 						'ITEM_ID' => $complex->getId(),
-						'IS_DUPLICATE' => false
+						'IS_DUPLICATE' => false,
+						'IS_AUTOMAION_RUN' => false,
 					];
 				}
 			}
+
+			$this->resultEntityPack[] = $resultEntityInfo;
 
 			if (
 				!$isEntityAdded
@@ -554,9 +581,14 @@ class ResultEntity
 			}
 		}
 
-		if(is_array($this->formData['FORM_SETTINGS']) && $this->formData['FORM_SETTINGS']['DEAL_CATEGORY'])
+		if(is_array($this->formData['FORM_SETTINGS']) && isset($this->formData['FORM_SETTINGS']['DEAL_CATEGORY']))
 		{
 			$params['FIELDS']['CATEGORY_ID'] = $this->formData['FORM_SETTINGS']['DEAL_CATEGORY'];
+		}
+
+		if(is_array($this->formData['FORM_SETTINGS']) && isset($this->formData['FORM_SETTINGS']['DEAL_DC_ENABLED']))
+		{
+			$this->isDealDuplicateControlEnabled = $this->formData['FORM_SETTINGS']['DEAL_DC_ENABLED'] === 'Y';
 		}
 
 		$params['SET_PRODUCTS'] = true;
@@ -763,6 +795,48 @@ class ResultEntity
 		);
 	}
 
+	protected function addTrace()
+	{
+		$entities = [];
+		foreach($this->resultEntityPack as $entity)
+		{
+			if ($entity['IS_DUPLICATE'])
+			{
+				continue;
+			}
+
+			$entities[] = [
+				'ENTITY_TYPE_ID' => \CCrmOwnerType::ResolveID($entity['ENTITY_NAME']),
+				'ENTITY_ID' => $entity['ITEM_ID']
+			];
+		}
+
+		if (empty($entities))
+		{
+			return;
+		}
+
+		$string = isset($this->commonData['TRACE']) ? $this->commonData['TRACE'] : null;
+		$trace = Tracking\Trace::create($string);
+		if ($this->isCallback)
+		{
+			$trace->addChannel(new Tracking\Channel\Callback($this->formId));
+		}
+		else
+		{
+			$trace->addChannel(new Tracking\Channel\Form($this->formId));
+		}
+		$traceId = $trace->save();
+		foreach ($entities as $entity)
+		{
+			Tracking\Trace::appendEntity(
+				$traceId,
+				$entity['ENTITY_TYPE_ID'],
+				$entity['ENTITY_ID']
+			);
+		}
+	}
+
 	protected function addActivity()
 	{
 		// prepare bindings
@@ -961,7 +1035,7 @@ class ResultEntity
 				$errors
 			);
 
-			if($isEntityAdded)
+			if($isEntityAdded && empty($entity['IS_AUTOMATION_RUN']))
 			{
 				Automation\Factory::runOnAdd(\CCrmOwnerType::ResolveID($entityTypeName), $entityId);
 			}
@@ -970,6 +1044,13 @@ class ResultEntity
 				'OWNER_ID' => $entity['ITEM_ID'],
 				'OWNER_TYPE_ID' => \CCrmOwnerType::ResolveID($entity['ENTITY_NAME'])
 			);
+		}
+
+		if ($this->isCallback)
+		{
+			Automation\Trigger\CallBackTrigger::execute($bindings, array(
+				'WEBFORM_ID' => $this->formId
+			));
 		}
 
 		Automation\Trigger\WebFormTrigger::execute($bindings, array(
@@ -1125,6 +1206,7 @@ class ResultEntity
 					break;
 			}
 
+			$this->addTrace();
 			$this->addActivity();
 			$this->addConsent();
 			$this->runAutomation();

@@ -85,4 +85,41 @@ class Factory
 			);
 		}
 	}
+
+	public static function createEntitySettings($entityTypeID, $filterID)
+	{
+		if($entityTypeID === \CCrmOwnerType::Lead)
+		{
+			return new LeadSettings(array('ID' => $filterID));
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Deal)
+		{
+			return new DealSettings(array('ID' => $filterID));
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Contact)
+		{
+			return new ContactSettings(array('ID' => $filterID));
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Company)
+		{
+			return new CompanySettings(array('ID' => $filterID));
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Quote)
+		{
+			return new QuoteSettings(array('ID' => $filterID));
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Invoice)
+		{
+			return new InvoiceSettings(array('ID' => $filterID));
+		}
+		elseif($entityTypeID === \CCrmOwnerType::Order)
+		{
+			return new OrderSettings(array('ID' => $filterID));
+		}
+
+		$entityTypeName = \CCrmOwnerType::ResolveName($entityTypeID);
+		throw new Main\NotSupportedException(
+			"Entity type: '{$entityTypeName}' is not supported in current context."
+		);
+	}
 }

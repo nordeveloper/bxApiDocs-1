@@ -10,6 +10,7 @@ namespace Bitrix\Sale;
 use Bitrix\Main\Entity;
 use Bitrix\Main;
 use Bitrix\Main\Type;
+use Bitrix\Sale\Cashbox;
 use Bitrix\Sale\Internals;
 use Bitrix\Main\Localization\Loc;
 
@@ -30,6 +31,9 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	/** @var TradeBindingCollection */
 	protected $tradeBindingCollection;
 
+	/** @var array $printedChecks */
+	protected $printedChecks = array();
+
 
 	const SALE_ORDER_LOCK_STATUS_RED = 'red';
 	const SALE_ORDER_LOCK_STATUS_GREEN = 'green';
@@ -42,9 +46,6 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	{
 		return Registry::REGISTRY_TYPE_ORDER;
 	}
-
-	/** @var array $printedChecks */
-	protected $printedChecks = array();
 
 
 	/**
@@ -67,11 +68,42 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	 * Return printed check list
 	 *
 	 * @return array
+	 * @throws Main\ArgumentException
 	 */
 	public function getPrintedChecks()
 	{
+		if (!$this->printedChecks
+			&& !$this->isNew()
+		)
+		{
+			$this->printedChecks = $this->loadPrintedChecks();
+		}
+
 		return $this->printedChecks;
 	}
+
+	/**
+	 * @return array
+	 * @throws Main\ArgumentException
+	 */
+	protected function loadPrintedChecks()
+	{
+		$result = [];
+
+		$dbRes = Cashbox\CheckManager::getList([
+			'filter' => [
+				'=ORDER_ID' => $this->getId()
+			]
+		]);
+
+		while ($data = $dbRes->fetch())
+		{
+			$result[] = Cashbox\CheckManager::create($data);
+		}
+
+		return $result;
+	}
+
 
 	/**
 	 * Add printed check to order
@@ -2140,7 +2172,7 @@ class Order extends OrderBase implements \IShipmentOrder, \IPaymentOrder, IBusin
 	{
 		$vatInfo = parent::calculateVat();
 
-		$shipmentCollection = $this->shipmentCollection;
+		$shipmentCollection = $this->getShipmentCollection();
 		if ($shipmentCollection)
 		{
 			/** @var Shipment $shipment */

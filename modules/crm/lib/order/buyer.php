@@ -90,7 +90,7 @@ class Buyer
 	}
 
 	/**
-	 * Event handler for buyer editing when api sends password.
+	 * Event handler for buyer password restore.
 	 * @see \CAllUser::SendPassword
 	 *
 	 * @param $params
@@ -101,14 +101,14 @@ class Buyer
 		{
 			$filter = [
 				'=LOGIN' => $params['LOGIN'],
-				'=EXTERNAL_AUTH_ID' => self::AUTH_ID
+				'=EXTERNAL_AUTH_ID' => self::AUTH_ID,
 			];
 		}
 		elseif (isset($params['EMAIL']) && $params['EMAIL'] !== '')
 		{
 			$filter = [
 				'=EMAIL' => $params['EMAIL'],
-				'=EXTERNAL_AUTH_ID' => self::AUTH_ID
+				'=EXTERNAL_AUTH_ID' => self::AUTH_ID,
 			];
 		}
 
@@ -127,7 +127,7 @@ class Buyer
 	}
 
 	/**
-	 * Event handler for buyer editing when api changes password.
+	 * Event handler for buyer password restore.
 	 * @see \CAllUser::ChangePassword
 	 *
 	 * @param $params
@@ -135,5 +135,30 @@ class Buyer
 	public static function OnBeforeUserChangePasswordHandler(&$params)
 	{
 		static::onBeforeUserSendPasswordHandler($params);
+	}
+
+	/**
+	 * Event handler for buyer password restore.
+	 * @see \CAllUser::SendUserInfo
+	 *
+	 * @param $params
+	 */
+	public static function OnBeforeSendUserInfoHandler(&$params)
+	{
+		if (isset($params['ID']) && $params['ID'] !== '')
+		{
+			$user = UserTable::getRow([
+				'select' => ['ID'],
+				'filter' => [
+					'=ID' => $params['ID'],
+					'=EXTERNAL_AUTH_ID' => self::AUTH_ID,
+				],
+			]);
+
+			if ($user !== null)
+			{
+				$params['EXTERNAL_AUTH_ID'] = self::AUTH_ID;
+			}
+		}
 	}
 }

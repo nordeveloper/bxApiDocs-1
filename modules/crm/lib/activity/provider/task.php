@@ -64,6 +64,7 @@ class Task extends Activity\Provider\Base
 		$previousFields = isset($params['PREVIOUS_FIELDS']) && is_array($params['PREVIOUS_FIELDS'])
 			? $params['PREVIOUS_FIELDS'] : array();
 
+
 		$result = new Main\Result();
 		if (
 			$action === 'UPDATE'
@@ -77,9 +78,16 @@ class Task extends Activity\Provider\Base
 		}
 
 		//Only END TIME can be taken for DEADLINE!
-		if (isset($fields['END_TIME']) && $fields['END_TIME'] !== '')
+		if(isset($fields['END_TIME']))
 		{
-			$fields['DEADLINE'] = $fields['END_TIME'];
+			if($fields['END_TIME'] !== '')
+			{
+				$fields['DEADLINE'] = $fields['END_TIME'];
+			}
+			else
+			{
+				$fields['~DEADLINE'] = \CCrmDateTimeHelper::GetMaxDatabaseDate();
+			}
 		}
 		return $result;
 	}
@@ -438,6 +446,12 @@ class Task extends Activity\Provider\Base
 		{
 			$activity['END_TIME'] = $activity['START_TIME'];
 		}
+		/*
+		elseif(!$isCompleted && $activity['END_TIME'] === '')
+		{
+			$fields['~DEADLINE'] = \CCrmDateTimeHelper::GetMaxDatabaseDate();
+		}
+		*/
 
 		if($isNew || isset($taskFields['DESCRIPTION']))
 		{

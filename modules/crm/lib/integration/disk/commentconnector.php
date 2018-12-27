@@ -64,30 +64,34 @@ class CommentConnector extends Uf\StubConnector
 	{
 		$timelineBinding = TimelineBindingTable::getList(
 			array(
-				"filter" => array('OWNER_ID' => $this->entityId),
-				"limit" => 1
+				"filter" => array('OWNER_ID' => $this->entityId)
 			)
 		);
 
-		if(!($bind = $timelineBinding->fetch()))
-			return false;
+		$isAllowed = false;
+		while(!$isAllowed && ($bind = $timelineBinding->fetch()))
+		{
+			$isAllowed = EntityAuthorization::checkReadPermission($bind['ENTITY_TYPE_ID'], $bind['ENTITY_ID']);
+		}
 
-		return EntityAuthorization::checkReadPermission($bind['ENTITY_TYPE_ID'], $bind['ENTITY_ID']);
+		return $isAllowed;
 	}
 
 	public function canUpdate($userId)
 	{
 		$timelineBinding = TimelineBindingTable::getList(
 			array(
-				"filter" => array('OWNER_ID' => $this->entityId),
-				"limit" => 1
+				"filter" => array('OWNER_ID' => $this->entityId)
 			)
 		);
 
-		if(!($bind = $timelineBinding->fetch()))
-			return false;
+		$isAllowed = false;
+		while(!$isAllowed && ($bind = $timelineBinding->fetch()))
+		{
+			$isAllowed = EntityAuthorization::checkUpdatePermission($bind['ENTITY_TYPE_ID'], $bind['ENTITY_ID']);
+		}
 
-		return EntityAuthorization::checkUpdatePermission($bind['ENTITY_TYPE_ID'], $bind['ENTITY_ID']);
+		return $isAllowed;
 	}
 
 	public function canConfidenceReadInOperableEntity()

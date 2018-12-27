@@ -293,7 +293,7 @@ class EventHandler
 		$firstTreatmentCount->setGId(Util::generateUserUniqueId());
 		$firstTreatmentCount->setReportClassName(Treatment::getClassName());
 		$firstTreatmentCount->setWidget($widget);
-		$firstTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_FIRST_TREATMENT_COUNT_NUMBER_BLOCK_TITLE'));
+		$firstTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_FIRST_TREATMENT_COUNT_NUMBER_BLOCK_TITLE_NEW'));
 		$firstTreatmentCount->getReportHandler()->updateFormElementValue('calculate', Treatment::WHAT_WILL_CALCULATE_FIRST);
 		$firstTreatmentCount->addConfigurations($firstTreatmentCount->getReportHandler()->getConfigurations());
 		$widget->addReports($firstTreatmentCount);
@@ -303,7 +303,7 @@ class EventHandler
 		$secondTreatmentCount->setGId(Util::generateUserUniqueId());
 		$secondTreatmentCount->setReportClassName(Treatment::getClassName());
 		$secondTreatmentCount->setWidget($widget);
-		$secondTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_DUPLICATE_TREATMENT_COUNT_NUMBER_BLOCK_TITLE'));
+		$secondTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_DUPLICATE_TREATMENT_COUNT_NUMBER_BLOCK_TITLE_NEW'));
 		$secondTreatmentCount->getReportHandler()->updateFormElementValue('calculate', Treatment::WHAT_WILL_CALCULATE_DUPLICATE);
 		$secondTreatmentCount->addConfigurations($secondTreatmentCount->getReportHandler()->getConfigurations());
 		$widget->addReports($secondTreatmentCount);
@@ -490,7 +490,7 @@ class EventHandler
 		$widget->setCategoryKey('open_lines');
 		$widget->setBoardId('open_lines_report_base_board');
 
-		$widget->getWidgetHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_STAFF_CUT_WIDGET_TITLE'));
+		$widget->getWidgetHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_STAFF_CUT_WIDGET_TITLE_NEW'));
 		$widget->addConfigurations($widget->getWidgetHandler()->getConfigurations());
 
 
@@ -520,7 +520,7 @@ class EventHandler
 		$firstTreatmentCount->setGId(Util::generateUserUniqueId());
 		$firstTreatmentCount->setReportClassName(Treatment::getClassName());
 		$firstTreatmentCount->setWidget($widget);
-		$firstTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_FIRST_TREATMENT_COUNT_NUMBER_BLOCK_TITLE'));
+		$firstTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_FIRST_TREATMENT_COUNT_NUMBER_BLOCK_TITLE_NEW'));
 		$firstTreatmentCount->getReportHandler()->updateFormElementValue('groupingBy', Treatment::GROUP_BY_RESPONSIBLE);
 
 		$firstTreatmentCount->getReportHandler()->updateFormElementValue('calculate', Treatment::WHAT_WILL_CALCULATE_FIRST);
@@ -532,7 +532,7 @@ class EventHandler
 		$secondTreatmentCount->setGId(Util::generateUserUniqueId());
 		$secondTreatmentCount->setReportClassName(Treatment::getClassName());
 		$secondTreatmentCount->setWidget($widget);
-		$secondTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_DUPLICATE_TREATMENT_COUNT_NUMBER_BLOCK_TITLE'));
+		$secondTreatmentCount->getReportHandler()->updateFormElementValue('label', Loc::getMessage('REPORT_DUPLICATE_TREATMENT_COUNT_NUMBER_BLOCK_TITLE_NEW'));
 		$secondTreatmentCount->getReportHandler()->updateFormElementValue('groupingBy', Treatment::GROUP_BY_RESPONSIBLE);
 
 		$secondTreatmentCount->getReportHandler()->updateFormElementValue('calculate', Treatment::WHAT_WILL_CALCULATE_DUPLICATE);

@@ -501,8 +501,10 @@ class ApiHelper
 			}
 			
 //			check VK_CATEGORY
-			if (!(isset($item["CATEGORY_VK"]) && is_int($item["CATEGORY_VK"])))
-				$item["CATEGORY_VK"] = Vk::VERY_DEFAULT_VK_CATEGORY;    // we need some category
+			if (!(isset($item["CATEGORY_VK"]) && intval($item["CATEGORY_VK"]) > 0))
+			{
+				$item["CATEGORY_VK"] = Vk::VERY_DEFAULT_VK_CATEGORY;
+			}    // we need some category
 			
 			$result[] = $item;
 		}

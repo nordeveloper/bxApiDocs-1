@@ -632,7 +632,7 @@ abstract class CAllUser extends CDBResult
 						ID=".$arUser["ID"]
 				);
 
-				if($applicationId === null && ($bSave || COption::GetOptionString("main", "auth_multisite", "N") == "Y"))
+				if ($bSave || COption::GetOptionString("main", "auth_multisite", "N") == "Y")
 				{
 					$response = Main\Context::getCurrent()->getResponse();
 
@@ -711,7 +711,10 @@ abstract class CAllUser extends CDBResult
 			foreach (GetModuleEvents("main", "OnUserLogin", true) as $arEvent)
 				ExecuteModuleEventEx($arEvent, array($_SESSION["SESS_AUTH"]["USER_ID"], $arParams));
 
-			Main\Composite\Engine::onUserLogin();
+			if($bUpdate)
+			{
+				Main\Composite\Engine::onUserLogin();
+			}
 
 			return true;
 		}
@@ -1234,7 +1237,14 @@ abstract class CAllUser extends CDBResult
 			$db_check = $DB->Query(
 				"SELECT ID, LID, CHECKWORD, ".$DB->DateToCharFunction("CHECKWORD_TIME", "FULL")." as CHECKWORD_TIME ".
 				"FROM b_user ".
-				"WHERE LOGIN='".$DB->ForSql($arParams["LOGIN"], 0)."' AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='')");
+				"WHERE LOGIN='".$DB->ForSql($arParams["LOGIN"], 0)."'".
+				(
+					// $arParams["EXTERNAL_AUTH_ID"] can be changed in the OnBeforeUserChangePassword event
+					$arParams["EXTERNAL_AUTH_ID"] <> ''?
+						"	AND EXTERNAL_AUTH_ID='".$DB->ForSQL($arParams["EXTERNAL_AUTH_ID"])."' " :
+						"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') "
+				)
+			);
 			CTimeZone::Enable();
 
 			if(!($res = $db_check->Fetch()))
@@ -1311,6 +1321,19 @@ abstract class CAllUser extends CDBResult
 	{
 		global $DB;
 
+		$arParams = [
+			"ID" => $ID,
+			"SITE_ID" => $SITE_ID,
+		];
+
+		foreach(GetModuleEvents("main", "OnBeforeSendUserInfo", true) as $arEvent)
+		{
+			if(ExecuteModuleEventEx($arEvent, array(&$arParams)) === false)
+			{
+				return;
+			}
+		}
+
 		// change CHECKWORD
 		$ID = intval($ID);
 		$salt = randString(8);
@@ -1321,7 +1344,12 @@ abstract class CAllUser extends CDBResult
 			"	LID = '".$DB->ForSql($SITE_ID, 2)."', ".
 			"   TIMESTAMP_X = TIMESTAMP_X ".
 			"WHERE ID = '".$ID."'".
-			"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') ";
+			(
+				// $arParams["EXTERNAL_AUTH_ID"] can be changed in the OnBeforeSendUserInfo event
+				$arParams["EXTERNAL_AUTH_ID"] <> ''?
+					"	AND EXTERNAL_AUTH_ID='".$DB->ForSQL($arParams["EXTERNAL_AUTH_ID"])."' " :
+					"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') "
+			);
 
 		$DB->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
 
@@ -1329,7 +1357,11 @@ abstract class CAllUser extends CDBResult
 			"SELECT u.* ".
 			"FROM b_user u ".
 			"WHERE ID='".$ID."'".
-			"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') "
+			(
+				$arParams["EXTERNAL_AUTH_ID"] <> ''?
+					"	AND EXTERNAL_AUTH_ID='".$DB->ForSQL($arParams["EXTERNAL_AUTH_ID"])."' " :
+					"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') "
+			)
 		);
 
 		if($res_array = $res->Fetch())
@@ -1414,7 +1446,12 @@ abstract class CAllUser extends CDBResult
 						"FROM b_user u ".
 						"WHERE LOGIN='".$DB->ForSQL($arParams["LOGIN"])."' ".
 						"	AND (ACTIVE='Y' OR NOT(CONFIRM_CODE IS NULL OR CONFIRM_CODE='')) ".
-						"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') ";
+						(
+							// $arParams["EXTERNAL_AUTH_ID"] can be changed in the OnBeforeUserSendPassword event
+							$arParams["EXTERNAL_AUTH_ID"] <> ''?
+								"	AND EXTERNAL_AUTH_ID='".$DB->ForSQL($arParams["EXTERNAL_AUTH_ID"])."' " :
+								"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') "
+						);
 				}
 				if($arParams["EMAIL"] <> '')
 				{
@@ -1427,7 +1464,11 @@ abstract class CAllUser extends CDBResult
 						"FROM b_user u ".
 						"WHERE EMAIL='".$DB->ForSQL($arParams["EMAIL"])."' ".
 						"	AND (ACTIVE='Y' OR NOT(CONFIRM_CODE IS NULL OR CONFIRM_CODE='')) ".
-						"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') ";
+						(
+							$arParams["EXTERNAL_AUTH_ID"] <> ''?
+								"	AND EXTERNAL_AUTH_ID='".$DB->ForSQL($arParams["EXTERNAL_AUTH_ID"])."' " :
+								"	AND (EXTERNAL_AUTH_ID IS NULL OR EXTERNAL_AUTH_ID='') "
+						);
 				}
 				$res = $DB->Query($strSql);
 
@@ -2181,6 +2222,11 @@ abstract class CAllUser extends CDBResult
 			if(!empty($passwordErrors))
 			{
 				$resultError .= implode("<br>", $passwordErrors)."<br>";
+			}
+
+			if(strlen($arFields["PASSWORD"]) > 50)
+			{
+				$resultError .= GetMessage("main_user_check_max_pass")."<br>";
 			}
 		}
 

@@ -4,6 +4,7 @@
  */
 IncludeModuleLangFile(__FILE__);
 use Bitrix\Crm;
+use Bitrix\Crm\Automation\Trigger\ResourceBookingTrigger;
 use Bitrix\Crm\Integration\StorageManager;
 use Bitrix\Crm\Integration\StorageType;
 use Bitrix\Crm\Integration\StorageFileType;
@@ -1150,14 +1151,14 @@ class CAllCrmActivity
 		{
 			$responsibleJoin = 'LEFT JOIN b_user U ON A.RESPONSIBLE_ID = U.ID';
 			$bindingTableName = CCrmActivity::BINDING_TABLE_NAME;
-			$bindingJoin = "INNER JOIN {$bindingTableName} B ON A.ID = B.ACTIVITY_ID";
+			$bindingJoin = "INNER JOIN {$bindingTableName} BT ON A.ID = BT.ACTIVITY_ID";
 
 			self::$FIELDS = array(
 				'ID' => array('FIELD' => 'A.ID', 'TYPE' => 'int'),
 				'OWNER_ID' => array('FIELD' => 'A.OWNER_ID', 'TYPE' => 'int'),
 				'OWNER_TYPE_ID' => array('FIELD' => 'A.OWNER_TYPE_ID', 'TYPE' => 'int'),
-				'BINDING_OWNER_ID' => array('FIELD' => 'B.OWNER_ID', 'TYPE' => 'int', 'FROM' => $bindingJoin, 'DEFAULT' => 'N'),
-				'BINDING_OWNER_TYPE_ID' => array('FIELD' => 'B.OWNER_TYPE_ID', 'TYPE' => 'int', 'FROM' => $bindingJoin, 'DEFAULT' => 'N'),
+				'BINDING_OWNER_ID' => array('FIELD' => 'BT.OWNER_ID', 'TYPE' => 'int', 'FROM' => $bindingJoin, 'DEFAULT' => 'N'),
+				'BINDING_OWNER_TYPE_ID' => array('FIELD' => 'BT.OWNER_TYPE_ID', 'TYPE' => 'int', 'FROM' => $bindingJoin, 'DEFAULT' => 'N'),
 				'TYPE_ID' => array('FIELD' => 'A.TYPE_ID', 'TYPE' => 'int'),
 				'PROVIDER_ID' => array('FIELD' => 'A.PROVIDER_ID', 'TYPE' => 'string'),
 				'PROVIDER_TYPE_ID' => array('FIELD' => 'A.PROVIDER_TYPE_ID', 'TYPE' => 'string'),
@@ -3814,7 +3815,28 @@ class CAllCrmActivity
 					}
 				}
 			}
+		}
+		else
+		{
+			$arEventOwners = $arOwnerData = [];
+			if(isset($arEventFields['UF_CRM_CAL_EVENT']))
+			{
+				$arEventOwners = (array) $arEventFields['UF_CRM_CAL_EVENT'];
+			}
+			self::TryResolveUserFieldOwners(
+				$arEventOwners, $arOwnerData,
+				CCrmUserType::GetCalendarEventBindingField()
+			);
 
+			if (!empty($arOwnerData))
+			{
+				$bindings = array_map(function ($v) {
+					$v['OWNER_TYPE_ID'] = CCrmOwnerType::ResolveID($v['OWNER_TYPE_NAME']);
+					return $v;
+				}, $arOwnerData);
+
+				ResourceBookingTrigger::execute($bindings, ['event' => $arEventFields]);
+			}
 		}
 	}
 	// Event handlers -->
@@ -4857,10 +4879,11 @@ class CAllCrmActivity
 		}
 		return $result;
 	}
+
 	public static function FindContactCommunications($needle, $communicationType, $top = 50)
 	{
-		$needle = strval($needle);
-		$communicationType = strval($communicationType);
+		$needle = trim($needle);
+		$communicationType = trim($communicationType);
 		$top = intval($top);
 
 		if($needle === '')
@@ -4874,10 +4897,38 @@ class CAllCrmActivity
 		$companyTableName = CCrmCompany::TABLE_NAME;
 		$result = array();
 
+		$needleSql = $DB->ForSqlLike($needle.'%');
+		$firstNameSql = '';
+		$lastNameSql = '';
+
+		$nameParts = array();
+		\Bitrix\Crm\Format\PersonNameFormatter::tryParseName(
+			$needle,
+			\Bitrix\Crm\Format\PersonNameFormatter::getFormatID(),
+			$nameParts
+		);
+
+		if(isset($nameParts['NAME'])
+			&& $nameParts['NAME'] !== ''
+			&& isset($nameParts['LAST_NAME'])
+			&& $nameParts['LAST_NAME'] !== ''
+		)
+		{
+			$firstNameSql = $DB->ForSqlLike($nameParts['NAME'].'%');
+			$lastNameSql = $DB->ForSqlLike($nameParts['LAST_NAME'].'%');
+		}
+
 		if($communicationType === '')
 		{
-			//Search by FULL_NAME
-			$sql  = "SELECT C.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$contactTableName} C LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID WHERE C.FULL_NAME LIKE '{$DB->ForSqlLike('%'.$needle.'%')}'";
+			if($firstNameSql !== '' && $lastNameSql !== '')
+			{
+				$sql  = "SELECT C.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$contactTableName} C LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID WHERE C.NAME LIKE '{$firstNameSql}' AND C.LAST_NAME LIKE '{$lastNameSql}'";
+			}
+			else
+			{
+				$sql  = "SELECT C.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$contactTableName} C LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID WHERE C.NAME LIKE '{$needleSql}' OR C.LAST_NAME LIKE '{$needleSql}'";
+			}
+
 			if($top > 0)
 			{
 				$sql = $DB->TopSql($sql, $top);
@@ -4897,8 +4948,15 @@ class CAllCrmActivity
 			return $result;
 		}
 
-		//Search by FULL_NAME
-		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$contactTableName} C ON FM.ELEMENT_ID = C.ID AND FM.ENTITY_ID = 'CONTACT' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND C.FULL_NAME LIKE '{$DB->ForSqlLike('%'.$needle.'%')}' LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID";
+		//Search by Name
+		if($firstNameSql !== '' && $lastNameSql !== '')
+		{
+			$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$contactTableName} C ON FM.ELEMENT_ID = C.ID AND FM.ENTITY_ID = 'CONTACT' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND C.NAME LIKE '{$firstNameSql}' AND C.LAST_NAME LIKE '{$lastNameSql}' LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID";
+		}
+		else
+		{
+			$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$contactTableName} C ON FM.ELEMENT_ID = C.ID AND FM.ENTITY_ID = 'CONTACT' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND (C.NAME LIKE '{$needleSql}' OR C.LAST_NAME LIKE '{$needleSql}') LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID";
+		}
 		if($top > 0)
 		{
 			$sql = $DB->TopSql($sql, $top);
@@ -4915,8 +4973,8 @@ class CAllCrmActivity
 			$result[] = CAllCrmActivity::ReadContactCommunication($arRes, $communicationType);
 		}
 
-		//Search by VALUE
-		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$contactTableName} C ON FM.ELEMENT_ID = C.ID AND FM.ENTITY_ID = 'CONTACT' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND FM.VALUE LIKE '{$DB->ForSqlLike('%'.$needle.'%')}' LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID";
+		//Search By Communication
+		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, C.NAME, C.SECOND_NAME, C.LAST_NAME, C.HONORIFIC, C.PHOTO, CO.TITLE COMPANY_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$contactTableName} C ON FM.ELEMENT_ID = C.ID AND FM.ENTITY_ID = 'CONTACT' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND FM.VALUE LIKE '{$needleSql}' LEFT OUTER JOIN {$companyTableName} CO ON C.COMPANY_ID = CO.ID";
 		if($top > 0)
 		{
 			$sql = $DB->TopSql($sql, $top);
@@ -4951,10 +5009,12 @@ class CAllCrmActivity
 		$companyTableName = CCrmCompany::TABLE_NAME;
 		$result = array();
 
+		$needleSql = $DB->ForSqlLike($needle.'%');
+
 		if($communicationType === '')
 		{
 			//Search by FULL_NAME
-			$sql  = "SELECT CO.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, CO.TITLE AS COMPANY_TITLE, CO.LOGO FROM {$companyTableName} CO WHERE CO.TITLE LIKE '{$DB->ForSqlLike('%'.$needle.'%')}'";
+			$sql  = "SELECT CO.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, CO.TITLE AS COMPANY_TITLE, CO.LOGO FROM {$companyTableName} CO WHERE CO.TITLE LIKE '{$needleSql}'";
 			if($top > 0)
 			{
 				$sql = $DB->TopSql($sql, $top);
@@ -4974,8 +5034,8 @@ class CAllCrmActivity
 			return $result;
 		}
 
-		//Search by FULL_NAME
-		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, CO.TITLE AS COMPANY_TITLE, CO.LOGO FROM {$fieldMultiTableName} FM INNER JOIN {$companyTableName} CO ON FM.ELEMENT_ID = CO.ID AND FM.ENTITY_ID = 'COMPANY' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND CO.TITLE LIKE '{$DB->ForSqlLike('%'.$needle.'%')}'";
+		//Search by Title
+		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, CO.TITLE AS COMPANY_TITLE, CO.LOGO FROM {$fieldMultiTableName} FM INNER JOIN {$companyTableName} CO ON FM.ELEMENT_ID = CO.ID AND FM.ENTITY_ID = 'COMPANY' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND CO.TITLE LIKE '{$needleSql}'";
 		if($top > 0)
 		{
 			$sql = $DB->TopSql($sql, $top);
@@ -4989,11 +5049,11 @@ class CAllCrmActivity
 
 		while($arRes = $dbRes->Fetch())
 		{
-			$result[] = CAllCrmActivity::ReadCompanyCommunication($arRes, $communicationType);
+			$result[] = CAllCrmActivity::ReadContactCommunication($arRes, $communicationType);
 		}
 
 		//Search by VALUE
-		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, CO.TITLE AS COMPANY_TITLE, CO.LOGO FROM {$fieldMultiTableName} FM INNER JOIN {$companyTableName} CO ON FM.ELEMENT_ID = CO.ID AND FM.ENTITY_ID = 'COMPANY' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND FM.VALUE LIKE '{$DB->ForSqlLike('%'.$needle.'%')}'";
+		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, CO.TITLE AS COMPANY_TITLE, CO.LOGO FROM {$fieldMultiTableName} FM INNER JOIN {$companyTableName} CO ON FM.ELEMENT_ID = CO.ID AND FM.ENTITY_ID = 'COMPANY' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND FM.VALUE LIKE '{$DB->ForSqlLike($needle.'%')}'";
 		if($top > 0)
 		{
 			$sql = $DB->TopSql($sql, $top);
@@ -5027,10 +5087,38 @@ class CAllCrmActivity
 		$leadTableName = CCrmLead::TABLE_NAME;
 		$result = array();
 
+		$needleSql = $DB->ForSqlLike($needle.'%');
+		$firstNameSql = '';
+		$lastNameSql = '';
+
+		$nameParts = array();
+		\Bitrix\Crm\Format\PersonNameFormatter::tryParseName(
+			$needle,
+			\Bitrix\Crm\Format\PersonNameFormatter::getFormatID(),
+			$nameParts
+		);
+
+		if(isset($nameParts['NAME'])
+			&& $nameParts['NAME'] !== ''
+			&& isset($nameParts['LAST_NAME'])
+			&& $nameParts['LAST_NAME'] !== ''
+		)
+		{
+			$firstNameSql = $DB->ForSqlLike($nameParts['NAME'].'%');
+			$lastNameSql = $DB->ForSqlLike($nameParts['LAST_NAME'].'%');
+		}
+
 		if($communicationType === '')
 		{
 			//Search by TITLE and FULL_NAME
-			$sql  = "SELECT L.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$leadTableName} L WHERE L.TITLE LIKE '{$DB->ForSqlLike('%'.$needle.'%')}' OR L.FULL_NAME LIKE '{$DB->ForSqlLike('%'.$needle.'%')}'";
+			if($firstNameSql !== '' && $lastNameSql !== '')
+			{
+				$sql  = "SELECT L.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$leadTableName} L WHERE L.TITLE LIKE '{$needleSql}' OR (L.NAME LIKE '{$firstNameSql}' AND L.LAST_NAME LIKE '{$lastNameSql}')";
+			}
+			else
+			{
+				$sql  = "SELECT L.ID AS ELEMENT_ID, '' AS VALUE_TYPE, '' AS VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$leadTableName} L WHERE L.TITLE LIKE '{$needleSql}' OR L.NAME LIKE '{$needleSql}' OR L.LAST_NAME LIKE '{$needleSql}'";
+			}
 			if($top > 0)
 			{
 				$sql = $DB->TopSql($sql, $top);
@@ -5050,8 +5138,15 @@ class CAllCrmActivity
 			return $result;
 		}
 
-		//Search by TITLE and FULL_NAME
-		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$leadTableName} L ON FM.ELEMENT_ID = L.ID AND FM.ENTITY_ID = 'LEAD' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND (L.TITLE LIKE '{$DB->ForSqlLike('%'.$needle.'%')}' OR L.FULL_NAME LIKE '{$DB->ForSqlLike('%'.$needle.'%')}')";
+		//Search by Name
+		if($firstNameSql !== '' && $lastNameSql !== '')
+		{
+			$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$leadTableName} L ON FM.ELEMENT_ID = L.ID AND FM.ENTITY_ID = 'LEAD' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND L.NAME LIKE '{$firstNameSql}' AND L.LAST_NAME LIKE '{$lastNameSql}'";
+		}
+		else
+		{
+			$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$leadTableName} L ON FM.ELEMENT_ID = L.ID AND FM.ENTITY_ID = 'LEAD' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND (L.NAME LIKE '{$needleSql}' OR L.LAST_NAME LIKE '{$needleSql}')";
+		}
 		if($top > 0)
 		{
 			$sql = $DB->TopSql($sql, $top);
@@ -5069,7 +5164,7 @@ class CAllCrmActivity
 		}
 
 		//Search by VALUE
-		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$leadTableName} L ON FM.ELEMENT_ID = L.ID AND FM.ENTITY_ID = 'LEAD' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND FM.VALUE LIKE '{$DB->ForSqlLike('%'.$needle.'%')}'";
+		$sql  = "SELECT FM.ELEMENT_ID, FM.VALUE_TYPE, FM.VALUE, L.NAME, L.SECOND_NAME, L.LAST_NAME, L.HONORIFIC, L.TITLE AS LEAD_TITLE FROM {$fieldMultiTableName} FM INNER JOIN {$leadTableName} L ON FM.ELEMENT_ID = L.ID AND FM.ENTITY_ID = 'LEAD' AND FM.TYPE_ID = '{$DB->ForSql($communicationType)}' AND FM.VALUE LIKE '{$needleSql}'";
 		if($top > 0)
 		{
 			$sql = $DB->TopSql($sql, $top);

@@ -8,6 +8,7 @@
 
 namespace Bitrix\Main\ORM\Fields\Relations;
 
+use Bitrix\Main\ArgumentException;
 use Bitrix\Main\ORM\Entity;
 use Bitrix\Main\ORM\Fields\Field;
 use Bitrix\Main\ORM\Objectify\EntityObject;
@@ -25,6 +26,9 @@ abstract class Relation extends Field
 
 	/** @var Entity Target entity */
 	protected $refEntity;
+
+	/** @var string */
+	protected $joinType = null;
 
 	/**
 	 * @return Entity
@@ -57,4 +61,34 @@ abstract class Relation extends Field
 		return $this->refEntityName;
 	}
 
+	/**
+	 * @param $type
+	 *
+	 * @return $this
+	 * @throws ArgumentException
+	 */
+	public function configureJoinType($type)
+	{
+		$type = strtoupper($type);
+
+		if (!in_array($type, ['LEFT', 'INNER', 'RIGHT'], true))
+		{
+			throw new ArgumentException(sprintf(
+				'Unknown join type `%s` in reference `%s` of `%s` entity',
+				$type, $this->name, $this->entity->getDataClass()
+			));
+		}
+
+		$this->joinType = $type;
+
+		return $this;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getJoinType()
+	{
+		return $this->joinType;
+	}
 }

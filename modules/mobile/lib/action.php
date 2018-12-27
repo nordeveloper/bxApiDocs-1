@@ -1,4 +1,5 @@
 <?php
+
 namespace Bitrix\Mobile;
 
 class Action
@@ -7,12 +8,12 @@ class Action
 
 	function __construct()
 	{
-		$this->actions = include(\Bitrix\Main\Application::getDocumentRoot()."/bitrix/modules/mobile/ajax_action.php");
+		$this->actions = include(\Bitrix\Main\Application::getDocumentRoot() . "/bitrix/modules/mobile/ajax_action.php");
 	}
 
 	public function getAction($name)
 	{
-		if(array_key_exists($name, $this->actions))
+		if (array_key_exists($name, $this->actions))
 		{
 			return $this->actions[$name];
 		}
@@ -40,9 +41,9 @@ class Action
 				$isSessidValid = check_bitrix_sessid();
 			}
 
-			if(!isset($actionDesc["fireInitMobileEvent"]) || $actionDesc["fireInitMobileEvent"] != true)
+			if (!isset($actionDesc["fireInitMobileEvent"]) || $actionDesc["fireInitMobileEvent"] != true)
 			{
-				if(!defined("MOBILE_INIT_EVENT_SKIP"))
+				if (!defined("MOBILE_INIT_EVENT_SKIP"))
 				{
 					define("MOBILE_INIT_EVENT_SKIP", true);
 				}
@@ -55,13 +56,23 @@ class Action
 			}
 			elseif ($actionDesc["file"])
 			{
-				header("BX-Mobile-Action: ".$name);
+				header("BX-Mobile-Action: " . $name);
 				if ($actionDesc["json"] === true)
 				{
 					header("Content-Type: application/x-javascript");
 					$data = include($actionDesc["file"]);
-					if($data)
-						echo json_encode($data);
+					if ($data)
+					{
+						if ($actionDesc["removeNulls"])
+						{
+							echo json_encode(self::removeNulls($data));
+						}
+						else
+						{
+							echo json_encode($data);
+						}
+					}
+
 				}
 				else
 				{
@@ -80,4 +91,32 @@ class Action
 			echo json_encode(["error" => "unknown action for data request"]);
 		}
 	}
+
+	/**
+	 * @param array $array
+	 * @param null $replace
+	 * @return array
+	 */
+	public static function removeNulls($array = [], $replace = null)
+	{
+		foreach ($array as $key => $value)
+		{
+			if (is_array($value))
+			{
+				$array[$key] = self::removeNulls($array[$key]);
+			}
+
+			if ($array[$key] == null)
+			{
+				if ($replace != null)
+				{
+					$array[$key] = $replace;
+				}
+				unset($array[$key]);
+			}
+		}
+
+		return $array;
+	}
+
 }

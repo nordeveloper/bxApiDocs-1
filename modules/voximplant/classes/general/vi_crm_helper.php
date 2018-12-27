@@ -3,6 +3,7 @@ IncludeModuleLangFile(__FILE__);
 
 use Bitrix\Voximplant as VI;
 use Bitrix\Crm\Activity\Provider;
+use Bitrix\Crm\Tracking;
 use Bitrix\Main\Localization\Loc;
 
 class CVoxImplantCrmHelper
@@ -284,6 +285,20 @@ class CVoxImplantCrmHelper
 		{
 			$entityManager->setRegisterMode($entityManager::REGISTER_MODE_ONLY_UPDATE);
 		}
+
+		$entityManager->setDirection(
+			($call->getIncoming() == CVoxImplantMain::CALL_INCOMING || $call->getIncoming() == CVoxImplantMain::CALL_INCOMING_REDIRECT)
+			?
+			$entityManager::DIRECTION_INCOMING
+			:
+			$entityManager::DIRECTION_OUTGOING
+		);
+
+		$entityManager->setTrace(
+			Tracking\Trace::create()->addChannel(
+				new Tracking\Channel\Call($call->getPortalNumber())
+			)
+		);
 
 		$isSuccessful = $entityManager->registerTouch(
 			CCrmOwnerType::Lead,

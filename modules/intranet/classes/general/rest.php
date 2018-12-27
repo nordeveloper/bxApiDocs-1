@@ -4,6 +4,8 @@ if(!CModule::IncludeModule('rest'))
 
 class CIntranetRestService extends IRestService
 {
+	const CONTACT_CENTER_PLACEMENT = 'CONTACT_CENTER';
+
 	protected static $arAllowedDepartmentFields = array(
 		"ID", "NAME", "SORT", "PARENT", "UF_HEAD"
 	);
@@ -20,6 +22,11 @@ class CIntranetRestService extends IRestService
 				'department.add' => array('CIntranetRestService', 'departmentAdd'),
 				'department.update' => array('CIntranetRestService', 'departmentUpdate'),
 				'department.delete' => array('CIntranetRestService', 'departmentDelete'),
+			),
+			'contact_center' => array(
+				\CRestUtil::PLACEMENTS => array(
+					self::CONTACT_CENTER_PLACEMENT => array()
+				),
 			)
 		);
 	}

@@ -23,6 +23,7 @@ class Library
 	const ID_REAL_BOT_FRAMEWORK_CONNECTOR = 'botframework';
 	const ID_REAL_BOT_FRAMEWORK_KIK_CONNECTOR = 'botframework.kik';
 	const ID_INSTAGRAM_CONNECTOR = 'instagram';
+	const ID_FBINSTAGRAM_CONNECTOR = 'fbinstagram';
 	const ID_VIBER_CONNECTOR = 'viber';
 	const ID_YANDEX_CONNECTOR = 'yandex';
 	const ID_NETWORK_CONNECTOR = 'network';
@@ -115,6 +116,7 @@ class Library
 		'facebookcomments',
 		'botframework.twilio',
 		'botframework.emailoffice365',
+		'fbinstagram',
 		'instagram'
 	);
 
@@ -124,6 +126,7 @@ class Library
 		'botframework.slack',
 		'botframework.skype',
 		'botframework.groupme',
+		'fbinstagram',
 		'instagram'
 	);
 
@@ -134,6 +137,7 @@ class Library
 		'facebookcomments',
 		'botframework.slack',
 		'botframework.groupme',
+		'fbinstagram',
 		'instagram'
 	);
 
@@ -150,6 +154,7 @@ class Library
 	/** @var array */
 	public static $listConnectorDelInternalMessages = array(
 		'facebookcomments',
+		'fbinstagram',
 		'instagram',
 
 		'botframework.slack',
@@ -158,6 +163,7 @@ class Library
 	/** @var array */
 	public static $listConnectorDelExternalMessages = array(
 		'facebookcomments',
+		'fbinstagram',
 		'instagram',
 	);
 
@@ -165,6 +171,7 @@ class Library
 	public static $listNotNeedSignature = array(
 		'facebookcomments',
 		'botframework.twilio',
+		'fbinstagram',
 		'instagram',
 		'viber',
 		'yandex'

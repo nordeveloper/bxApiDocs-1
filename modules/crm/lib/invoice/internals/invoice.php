@@ -468,6 +468,8 @@ class InvoiceTable extends Main\Entity\DataManager
 
 			new Main\Entity\StringField('BX_USER_ID'),
 
+			new Main\Entity\TextField('SEARCH_CONTENT'),
+
 			new Main\Entity\BooleanField(
 				'RUNNING',
 				array(

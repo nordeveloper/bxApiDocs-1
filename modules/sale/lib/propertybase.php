@@ -452,7 +452,7 @@ abstract class PropertyBase
 	 */
 	public function getEditHtml(array $values)
 	{
-		$key = isset($this->property["ID"]) ? $this->getId() : "n".$values['ID'];
+		$key = isset($this->property["ID"]) ? $this->getId() : "n".$values['ORDER_PROPS_ID'];
 		return Input\Manager::getEditHtml("PROPERTIES[".$key."]", $this->fields, $values['VALUE']);
 	}
 

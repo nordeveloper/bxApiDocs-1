@@ -60,7 +60,14 @@ class File extends Base
 		if($uploadResult->isSuccess())
 		{
 			$fileId = $uploadResult->getId();
-			$body = new Docx(\Bitrix\Main\IO\File::getFileContents($file['files']['default']['tmp_name']));
+			if(\Bitrix\Main\IO\File::isFileExists($file['files']['default']['tmp_name']))
+			{
+				$body = new Docx(\Bitrix\Main\IO\File::getFileContents($file['files']['default']['tmp_name']));
+			}
+			else
+			{
+				$body = new Docx(FileTable::getContent($fileId));
+			}
 			if(!$body->isFileProcessable())
 			{
 				$error = Loc::getMessage('DOCGEN_CONT_FILE_UPLOAD_CORRUPTED_FILE');

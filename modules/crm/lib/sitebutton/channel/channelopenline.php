@@ -10,12 +10,15 @@ namespace Bitrix\Crm\SiteButton\Channel;
 
 use Bitrix\Crm\SiteButton\Manager;
 use Bitrix\Main\Loader;
+use Bitrix\Main\Config\Option;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\ImOpenLines\Common;
 use Bitrix\Imopenlines\Model\ConfigTable;
-use Bitrix\ImConnector\Connector;
+use Bitrix\ImConnector;
 use Bitrix\ImOpenLines\LiveChatManager;
 use Bitrix\Imopenlines\Model\LivechatTable;
+use Bitrix\Main\Web\WebPacker;
+use Bitrix\Crm\Tracking;
 
 Loc::loadMessages(__FILE__);
 
@@ -145,23 +148,35 @@ class ChannelOpenLine implements iProvider
 	/**
 	 * Get resources.
 	 *
-	 * @return array
+	 * @return WebPacker\Resource\Asset[]
 	 */
 	public static function getResources()
 	{
 		if (!self::canUse())
 		{
-			return array();
+			return [];
 		}
 
-		return array(
-			array(
-				'name' => 'ol_imcon_icon_style.css',
-				'type' => 'text/css',
-				'path' => '/bitrix/js/ui/icons/ui.icons.css',
-				'pathToIcons' => '/bitrix/js/ui/icons/'
-			),
+		$iconAssetPath = (file_exists($_SERVER['DOCUMENT_ROOT'].'/bitrix/js/ui/icons/service/ui.icons.service.css') ?
+			'/bitrix/js/ui/icons/service/ui.icons.service.css' : '/bitrix/js/ui/icons/ui.icons.css');
+		$pathToIcons = (file_exists($_SERVER['DOCUMENT_ROOT'].'/bitrix/js/ui/icons/service/images/') ?
+			'/bitrix/js/ui/icons/service/images/' : '/bitrix/js/ui/icons/images/service/');
+		$cssAssetIcons = new WebPacker\Resource\CssAsset($iconAssetPath);
+		$content = str_replace(
+			$pathToIcons,
+			WebPacker\Builder::getDefaultSiteUri() . $pathToIcons,
+			$cssAssetIcons->getContent()
 		);
+		$cssAssetIcons->setContent($content);
+		$result = [$cssAssetIcons];
+
+		$cssCustomConnectors = ImConnector\CustomConnectors::getStyleCss();
+		if ($cssCustomConnectors)
+		{
+			$result[] = (new WebPacker\Resource\CssAsset())->setContent($cssCustomConnectors);
+		}
+
+		return $result;
 	}
 
 	/**
@@ -193,7 +208,9 @@ class ChannelOpenLine implements iProvider
 			return null;
 		}
 
-		return Common::getPublicFolder()."list/edit.php?ID=0";
+		$ratingRequest = \Bitrix\Imopenlines\Limit::canUseVoteClient() ? 'Y' : 'N';
+
+		return Common::getPublicFolder()."list/edit.php?ID=0&action-line=create&rating-request=" . $ratingRequest;
 	}
 
 	/**
@@ -258,6 +275,13 @@ class ChannelOpenLine implements iProvider
 				'script' => '',
 				'show' => null,
 				'hide' => null,
+				'tracking' => [
+					'detecting' => $connector['code'] !== 'livechat',
+					'channel' => [
+						'code' => Tracking\Channel\Base::Imol,
+						'value' => $connector['code'],
+					]
+				]
 			);
 
 			if ($connector['code'] == 'livechat')
@@ -279,6 +303,7 @@ class ChannelOpenLine implements iProvider
 
 				$widget['show'] = 'window.BX.LiveChat.openLiveChat();';
 				$widget['hide'] = 'window.BX.LiveChat.closeLiveChat();';
+				$widget['freeze'] = true;
 				$widget['sort'] = 100;
 				$widget['useColors'] = true;
 				$widget['classList'] = array('b24-widget-button-' . $widget['id']);
@@ -305,11 +330,11 @@ class ChannelOpenLine implements iProvider
 
 	protected static function getConnectors($lineId)
 	{
-		$nameList = Connector::getListConnectorReal(20);
+		$nameList = ImConnector\Connector::getListConnectorReal(20);
 		if (Manager::isWidgetSelectDisabled())
 		{
 			$connectors = [];
-			$connectorList = Connector::getListConnectedConnector($lineId);
+			$connectorList = ImConnector\Connector::getListConnectedConnector($lineId);
 			$virtualId = 1;
 			foreach ($connectorList as $connectorCode => $connectorName)
 			{
@@ -324,7 +349,7 @@ class ChannelOpenLine implements iProvider
 		}
 		else
 		{
-			$connectors = Connector::infoConnectorsLine($lineId);
+			$connectors = ImConnector\Connector::infoConnectorsLine($lineId);
 		}
 
 		if (count($connectors) == 0)
@@ -333,7 +358,7 @@ class ChannelOpenLine implements iProvider
 		}
 
 		$list = array();
-		$iconCodeMap = \Bitrix\ImConnector\Connector::getIconClassMap();
+		$iconCodeMap = ImConnector\Connector::getIconClassMap();
 
 		foreach ($connectors as $code => $connector)
 		{

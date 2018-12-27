@@ -76,13 +76,26 @@ class UserFieldDataProvider extends DataProvider
 			$typeID = $userField['USER_TYPE']['USER_TYPE_ID'];
 			//$isMultiple = isset($userField['MULTIPLE']) && $userField['MULTIPLE'] === 'Y';
 
+			$fieldLabel = isset($userField['LIST_FILTER_LABEL']) ? $userField['LIST_FILTER_LABEL'] : '';
+			if($fieldLabel === '')
+			{
+				if(isset($userField['LIST_COLUMN_LABEL']))
+				{
+					$fieldLabel = $userField['LIST_COLUMN_LABEL'];
+				}
+				elseif(isset($userField['EDIT_FORM_LABEL']))
+				{
+					$fieldLabel = $userField['EDIT_FORM_LABEL'];
+				}
+			}
+
 			if($typeID === 'employee')
 			{
 				$result[$fieldName] = $this->createField(
 					$fieldName,
 					array(
 						'type' => 'custom_entity',
-						'name' => $userField['LIST_FILTER_LABEL'],
+						'name' => $fieldLabel,
 						'partial' => true
 					)
 				);
@@ -91,7 +104,7 @@ class UserFieldDataProvider extends DataProvider
 			{
 				$result[$fieldName] = $this->createField(
 					$fieldName,
-					array('type' => 'text', 'name' => $userField['LIST_FILTER_LABEL'])
+					array('type' => 'text', 'name' => $fieldLabel)
 				);
 				continue;
 			}
@@ -99,7 +112,7 @@ class UserFieldDataProvider extends DataProvider
 			{
 				$result[$fieldName] = $this->createField(
 					$fieldName,
-					array('type' => 'number', 'name' => $userField['LIST_FILTER_LABEL'])
+					array('type' => 'number', 'name' => $fieldLabel)
 				);
 				continue;
 			}
@@ -109,7 +122,7 @@ class UserFieldDataProvider extends DataProvider
 					$fieldName,
 					array(
 						'type' => 'checkbox',
-						'name' => $userField['LIST_FILTER_LABEL'],
+						'name' => $fieldLabel,
 						'data' => array('valueType' => 'numeric')
 					)
 				);
@@ -120,7 +133,7 @@ class UserFieldDataProvider extends DataProvider
 					$fieldName,
 					array(
 						'type' => 'date',
-						'name' => $userField['LIST_FILTER_LABEL'],
+						'name' => $fieldLabel,
 						'data' => array('time' => $typeID === 'datetime')
 					)
 				);
@@ -135,7 +148,7 @@ class UserFieldDataProvider extends DataProvider
 					$fieldName,
 					array(
 						'type' => 'list',
-						'name' => $userField['LIST_FILTER_LABEL'],
+						'name' => $fieldLabel,
 						'partial' => true
 					)
 				);
@@ -146,7 +159,7 @@ class UserFieldDataProvider extends DataProvider
 					$fieldName,
 					array(
 						'type' => 'custom_entity',
-						'name' => $userField['LIST_FILTER_LABEL'],
+						'name' => $fieldLabel,
 						'partial' => true
 					)
 				);
@@ -157,7 +170,7 @@ class UserFieldDataProvider extends DataProvider
 					$fieldName,
 					array(
 						'type' => 'custom',
-						'name' => $userField['LIST_FILTER_LABEL'],
+						'name' => $fieldLabel,
 						'data' => array('value' => '')
 					)
 				);

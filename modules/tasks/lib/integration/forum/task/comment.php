@@ -493,6 +493,18 @@ final class Comment extends \Bitrix\Tasks\Integration\Forum\Comment
 			$arRecipientsIDs = array_merge($arRecipientsIDs, $userIdToShareList);
 		}
 
+		if (Loader::includeModule('pull'))
+		{
+			\Bitrix\Pull\Event::add(\Bitrix\Pull\Event::SHARED_CHANNEL, [
+				'module_id' => 'tasks',
+				'command' => 'comment_add',
+				'params' => [
+					'ENTITY_XML_ID'=>$arData['PARAMS']['XML_ID'],
+					'OWNER_ID'=>$occurAsUserId
+				]
+			], \CPullChannel::TYPE_SHARED);
+		}
+
 		static::sendNotification(
 			array(
 				'ID' => $messageId,

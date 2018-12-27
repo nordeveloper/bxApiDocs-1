@@ -6,6 +6,7 @@ use \Bitrix\ImOpenLines\Chat,
 	\Bitrix\ImOpenLines\Common,
 	\Bitrix\ImOpenLines\Config,
 	\Bitrix\ImOpenLines\Session,
+	\Bitrix\ImOpenLines\Log\ExecLog,
 	\Bitrix\ImOpenLines\Model\SessionTable,
 	\Bitrix\ImOpenLines\Model\SessionCheckTable;
 
@@ -35,8 +36,16 @@ class Agent
 	 */
 	public static function transferToNextInQueue($nextExec, $offset = 0)
 	{
+		$emptyResultReturn = '\Bitrix\ImOpenLines\Session::transferToNextInQueueAgent(0);';
+
+		if (self::isCronCall() && self::isExecModeAgent() || !self::isCronCall() && self::isExecModeCron())
+			return $emptyResultReturn;
+
 		if (Session::getQueueFlagCache(Session::CACHE_QUEUE))
-			return '\Bitrix\ImOpenLines\Session::transferToNextInQueueAgent(0);';
+		{
+			ExecLog::setExecFunction(__METHOD__);
+			return $emptyResultReturn;
+		}
 
 		$configCount = SessionCheckTable::getList(array(
 			'select' => array('CNT'),
@@ -47,7 +56,8 @@ class Agent
 		if ($configCount['CNT'] <= 0)
 		{
 			Session::setQueueFlagCache(Session::CACHE_QUEUE);
-			return '\Bitrix\ImOpenLines\Session::transferToNextInQueueAgent(0);';
+			ExecLog::setExecFunction(__METHOD__);
+			return $emptyResultReturn;
 		}
 
 		$configs = Array();
@@ -103,6 +113,8 @@ class Agent
 			Pull\Event::send();
 		}
 
+		ExecLog::setExecFunction(__METHOD__);
+
 		return '\Bitrix\ImOpenLines\Session::transferToNextInQueueAgent(1, ' . $newOffset . ');';
 	}
 
@@ -119,8 +131,16 @@ class Agent
 	 */
 	public static function closeByTime($nextExec)
 	{
+		$emptyResultReturn = '\Bitrix\ImOpenLines\Session::closeByTimeAgent(0);';
+
+		if (self::isCronCall() && self::isExecModeAgent() || !self::isCronCall() && self::isExecModeCron())
+			return $emptyResultReturn;
+
 		if (Session::getQueueFlagCache(Session::CACHE_CLOSE))
-			return '\Bitrix\ImOpenLines\Session::closeByTimeAgent(0);';
+		{
+			ExecLog::setExecFunction(__METHOD__);
+			return $emptyResultReturn;
+		}
 
 		$configCount = SessionCheckTable::getList(array(
 			'select' => array('CNT'),
@@ -130,7 +150,8 @@ class Agent
 		if ($configCount['CNT'] <= 0)
 		{
 			Session::setQueueFlagCache(Session::CACHE_CLOSE);
-			return '\Bitrix\ImOpenLines\Session::closeByTimeAgent(0);';
+			ExecLog::setExecFunction(__METHOD__);
+			return $emptyResultReturn;
 		}
 
 		$configs = Array();
@@ -174,6 +195,8 @@ class Agent
 			Pull\Event::send();
 		}
 
+		ExecLog::setExecFunction(__METHOD__);
+
 		return '\Bitrix\ImOpenLines\Session::closeByTimeAgent(1);';
 	}
 
@@ -190,8 +213,16 @@ class Agent
 	 */
 	public static function mailByTime($nextExec)
 	{
+		$emptyResultReturn = '\Bitrix\ImOpenLines\Session::mailByTimeAgent(0);';
+
+		if (self::isCronCall() && self::isExecModeAgent() || !self::isCronCall() && self::isExecModeCron())
+			return $emptyResultReturn;
+
 		if (Session::getQueueFlagCache(Session::CACHE_MAIL))
-			return '\Bitrix\ImOpenLines\Session::mailByTimeAgent(0);';
+		{
+			ExecLog::setExecFunction(__METHOD__);
+			return $emptyResultReturn;
+		}
 
 		$configCount = SessionCheckTable::getList(array(
 			'select' => array('CNT'),
@@ -201,7 +232,8 @@ class Agent
 		if ($configCount['CNT'] <= 0)
 		{
 			Session::setQueueFlagCache(Session::CACHE_MAIL);
-			return '\Bitrix\ImOpenLines\Session::mailByTimeAgent(0);';
+			ExecLog::setExecFunction(__METHOD__);
+			return $emptyResultReturn;
 		}
 
 		$res = SessionCheckTable::getList(Array(
@@ -221,6 +253,8 @@ class Agent
 			Pull\Event::send();
 		}
 
+		ExecLog::setExecFunction(__METHOD__);
+
 		return '\Bitrix\ImOpenLines\Session::mailByTimeAgent(1);';
 	}
 
@@ -237,6 +271,11 @@ class Agent
 	 */
 	public static function dismissedOperator($nextExec)
 	{
+		$emptyResultReturn = '\Bitrix\ImOpenLines\Session::dismissedOperatorAgent(0);';
+
+		if (self::isCronCall() && self::isExecModeAgent() || !self::isCronCall() && self::isExecModeCron())
+			return $emptyResultReturn;
+
 		$res = SessionCheckTable::getList(Array(
 			'select' => Array('SESSION_ID', 'CHAT_ID' => 'SESSION.CHAT_ID', 'OPERATOR_ID' => 'SESSION.OPERATOR_ID', 'SESSION.OPERATOR.ID', 'SESSION.OPERATOR.ACTIVE', 'DATE_LAST_MESSAGE' => 'SESSION.DATE_LAST_MESSAGE'),
 			'filter' => Array(
@@ -284,7 +323,14 @@ class Agent
 			}
 			else
 			{
-				\CAgent::AddAgent('\Bitrix\ImOpenLines\Session::dismissedOperatorAgent(1);', "imopenlines", "N", 60, "", "Y", ConvertTimeStamp(time()+\CTimeZone::GetOffset()+60, "FULL"));
+				if (self::isCronCall() && self::isExecModeCron())
+				{
+					return self::dismissedOperator(1);
+				}
+				else
+				{
+					\CAgent::AddAgent('\Bitrix\ImOpenLines\Session::dismissedOperatorAgent(1);', "imopenlines", "N", 60, "", "Y", ConvertTimeStamp(time()+\CTimeZone::GetOffset()+60, "FULL"));
+				}
 			}
 		}
 
@@ -293,9 +339,41 @@ class Agent
 			Pull\Event::send();
 		}
 
+		ExecLog::setExecFunction(__METHOD__);
+
 		if($nextExec == 0)
 		{
-			return '\Bitrix\ImOpenLines\Session::dismissedOperatorAgent(0);';
+			return $emptyResultReturn;
 		}
+	}
+
+	/**
+	 * Checks method has been called from cron exec ready script
+	 *
+	 * @return bool
+	 */
+	protected static function isCronCall()
+	{
+		return defined('IMOPENLINES_EXEC_CRON');
+	}
+
+	/**
+	 * Checks current exec mode is agent
+	 *
+	 * @return bool
+	 */
+	protected static function isExecModeAgent()
+	{
+		return Common::getExecMode() == Common::MODE_AGENT;
+	}
+
+	/**
+	 * Checks current exec mode is cron
+	 *
+	 * @return bool
+	 */
+	protected static function isExecModeCron()
+	{
+		return Common::getExecMode() == Common::MODE_CRON;
 	}
 }

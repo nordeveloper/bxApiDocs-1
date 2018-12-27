@@ -1729,17 +1729,20 @@ class Query
 					// ref to another entity
 					$ref_field = $element->getValue();
 					$dst_entity = $ref_field->getRefEntity();
+					$joinType = $ref_field->getJoinType();
 				}
 				elseif (is_array($element->getValue()))
 				{
 					// link from another entity to this
 					list($dst_entity, $ref_field) = $element->getValue();
+					$joinType = $ref_field->getJoinType();
 				}
 				elseif ($element->getValue() instanceof OneToMany)
 				{
 					// the same as back reference
 					$dst_entity = $element->getValue()->getRefEntity();
 					$ref_field = $element->getValue()->getRefField();
+					$joinType = $element->getValue()->getJoinType() ?: $ref_field->getJoinType();
 				}
 				elseif ($element->getValue() instanceof ManyToMany)
 				{
@@ -1889,7 +1892,7 @@ class Query
 					if (!isset($this->join_registry[$map_key]))
 					{
 						$join = array(
-							'type' => $ref_field->getJoinType(),
+							'type' => $joinType,
 							'table' => $dst_entity->getDBTableName(),
 							'alias' => $table_alias.$this->table_alias_postfix,
 							'reference' => $csw_reference,

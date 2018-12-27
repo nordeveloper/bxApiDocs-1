@@ -47,7 +47,9 @@ class File extends Base
 		if (is_array($value))
 		{
 			if (\CBPHelper::isAssociativeArray($value))
+			{
 				$value = array_keys($value);
+			}
 			reset($value);
 			$value = current($value);
 		}
@@ -67,7 +69,9 @@ class File extends Base
 		{
 			return '[url=/bitrix/tools/bizproc_show_file.php?f='.urlencode($file['FILE_NAME']).'&hash='
 				.md5($file['FILE_NAME'])
-				.'&i='.$value.'&h='.md5($file['SUBDIR']).']'.htmlspecialcharsbx($file['ORIGINAL_NAME']).'[/url]';
+				.'&i='.$value.'&h='.md5($file['SUBDIR']).']'
+				.htmlspecialcharsbx($file['ORIGINAL_NAME'])
+				.'[/url]';
 		}
 		return '';
 	}
@@ -132,7 +136,9 @@ class File extends Base
 	{
 		$value = (array) $value;
 		if (\CBPHelper::isAssociativeArray($value))
+		{
 			$value = array_keys($value);
+		}
 
 		return parent::convertValueMultiple($fieldType, $value, $toTypeClass);
 	}
@@ -148,13 +154,33 @@ class File extends Base
 	protected static function renderControl(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
 	{
 		if ($renderMode & FieldType::RENDER_MODE_DESIGNER)
+		{
 			return '';
+		}
 
-		$className = static::generateControlClassName($fieldType, $field);
+		$classNameHtml = htmlspecialcharsbx(static::generateControlClassName($fieldType, $field));
+		$idHtml = htmlspecialcharsbx(static::generateControlId($field));
+		$nameHtml = htmlspecialcharsbx(static::generateControlName($field));
 
-		return '<input type="file" class="'.htmlspecialcharsbx($className).'" id="'
-			.htmlspecialcharsbx(static::generateControlId($field))
-			.'" name="'.htmlspecialcharsbx(static::generateControlName($field)).'">';
+		if ($renderMode & FieldType::RENDER_MODE_PUBLIC)
+		{
+			$msg = htmlspecialcharsbx(Loc::getMessage('BPDT_FILE_CHOOSE_FILE'));
+			$onchange = 'this.nextSibling.textContent = BX.Bizproc.FieldType.File.parseLabel(this.value);';
+			$onchange = htmlspecialcharsbx($onchange);
+
+			return <<<HTML
+				<div class="{$classNameHtml}">
+					<span >
+						<span class="webform-small-button">{$msg}</span>
+					</span>
+					<input type="file" id="{$idHtml}" name="{$nameHtml}" onchange="{$onchange}">
+					<span class="bizproc-type-control-file-label"></span>
+				</div>
+HTML;
+		}
+
+
+		return '<input type="file" class="'.$classNameHtml.'" id="'.$idHtml.'" name="'.$nameHtml.'">';
 	}
 
 	/**

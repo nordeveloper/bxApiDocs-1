@@ -63,6 +63,7 @@ if(strlen($_POST['Update'].$_GET['RestoreDefaults'])>0 && check_bitrix_sessid() 
 		COption::RemoveOption("im", "turn_server_firefox");
 		COption::RemoveOption("im", "turn_server_login");
 		COption::RemoveOption("im", "turn_server_password");
+		COption::RemoveOption("im", "call_server_enabled");
 
 		COption::RemoveOption("im", "view_offline");
 		COption::RemoveOption("im", "view_group");
@@ -161,6 +162,7 @@ if(strlen($_POST['Update'].$_GET['RestoreDefaults'])>0 && check_bitrix_sessid() 
 		$_POST['START_CHAT_MESSAGE'] = $_POST['START_CHAT_MESSAGE'] == 'first'? 'first': 'last';
 		$_POST['COLOR_ENABLE'] = isset($_POST['COLOR_ENABLE']);
 		$_POST['OPEN_CHAT_ENABLE'] = isset($_POST['OPEN_CHAT_ENABLE']);
+		$_POST['CALL_SERVER_ENABLED'] = isset($_POST['CALL_SERVER_ENABLED']);
 
 		$arSettings = CIMSettings::checkValues(CIMSettings::SETTINGS, Array(
 			'viewOffline' => !isset($_POST['VIEW_OFFLINE']),
@@ -190,6 +192,7 @@ if(strlen($_POST['Update'].$_GET['RestoreDefaults'])>0 && check_bitrix_sessid() 
 		COption::SetOptionString("im", "privacy_call", $arSettings['privacyCall']);
 		COption::SetOptionString("im", "privacy_search", $arSettings['privacySearch']);
 		COption::SetOptionString("im", "privacy_profile", $arSettings['privacyProfile']);
+		COption::SetOptionString("im", "call_server_enabled", $_POST['CALL_SERVER_ENABLED']);
 		COption::SetOptionString("im", "start_chat_message", $_POST['START_CHAT_MESSAGE']);
 		COption::SetOptionString("im", "color_enable", $_POST['COLOR_ENABLE']);
 		COption::SetOptionString("im", "open_chat_enable", $_POST['OPEN_CHAT_ENABLE']);
@@ -247,8 +250,14 @@ $arReference = Array(
 	'location' => Array(GetMessage('IM_PANEL_LOCATION_TL'), GetMessage('IM_PANEL_LOCATION_TR'), GetMessage('IM_PANEL_LOCATION_TC'), GetMessage('IM_PANEL_LOCATION_BL'), GetMessage('IM_PANEL_LOCATION_BR'), GetMessage('IM_PANEL_LOCATION_BC'))
 );
 ?>
+	<?if(IsModuleInstalled('voximplant')):?>
 	<tr>
-		<td class="adm-detail-content-cell-l" width="40%"><?=GetMessage("IM_OPTIONS_TURN_SERVER_SELF")?>:</td>
+		<td class="adm-detail-content-cell-l" width="40%"><?=GetMessage("IM_OPTIONS_CALL_SERVER_ENABLED")?>:</td>
+		<td class="adm-detail-content-cell-r" width="60%"><input type="checkbox" name="CALL_SERVER_ENABLED" <?=(COption::GetOptionString("im", 'call_server_enabled')?'checked="checked"' :'')?>></td>
+	</tr>
+	<?endif;?>
+	<tr>
+		<td class="adm-detail-content-cell-l" width="40%"><?=GetMessage("IM_OPTIONS_TURN_SERVER_SELF_2")?>:</td>
 		<td class="adm-detail-content-cell-r" width="60%"><input type="checkbox" onclick="toogleVideoOptions(this)" name="TURN_SERVER_SELF" <?=($selfVideoServer?'checked="checked"' :'')?>></td>
 	</tr>
 	<tr id="video_group_2" <?if (!$selfVideoServer):?>style="display: none"<?endif;?>>

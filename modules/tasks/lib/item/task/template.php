@@ -151,7 +151,10 @@ final class Template extends \Bitrix\Tasks\Item
 
 		return $map;
 	}
-
+	public static function getFieldsDescription()
+	{
+		return static::generateMap();
+	}
 	public function prepareData($result)
 	{
 		if(parent::prepareData($result))

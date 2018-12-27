@@ -195,4 +195,15 @@ abstract class DataProvider
 
 		return $html;
 	}
+
+
+	/**
+	 * Prepare field parameter for specified field.
+	 * @param array $filter Filter params.
+	 * @param string $fieldID Field ID.
+	 * @return void
+	 */
+	public function prepareListFilterParam(array &$filter, $fieldID)
+	{
+	}
 }

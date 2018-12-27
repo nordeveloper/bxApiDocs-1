@@ -10,6 +10,9 @@ class Week extends Base
 	const TYPE_A_FEW_WEEKS_BEFORE = 2;
 	const TYPE_A_FEW_WEEKS_AFTER = 3;
 
+	const FIELD_INTERVAL_NAME = 'INTERVAL_WEEK';
+	const FIELD_WEEKDAYS_NAME = 'WEEKDAYS';
+
 	/**
 	 * @param array $params
 	 * @param Date $startDate
@@ -19,9 +22,9 @@ class Week extends Base
 	public static function calculateDate(array $params, Date $startDate)
 	{
 		$week = new self($params);
-		$week->setType($params['TYPE']);
+		$week->setType($params[self::FIELD_TYPE_NAME]);
 		$week->setStartDate($startDate);
-		$week->setInterval($params['INTERVAL_WEEK']);
+		$week->setInterval($params[self::FIELD_INTERVAL_NAME]);
 		return $week->calculate();
 	}
 
@@ -87,7 +90,8 @@ class Week extends Base
 	 */
 	private function calculateAlternatingWithDays()
 	{
-		$days = is_array($this->params["WEEKDAYS"]) ? $this->params["WEEKDAYS"] : array(1);
+		$monday = 1;
+		$days = is_array($this->params[self::FIELD_WEEKDAYS_NAME]) ? $this->params[self::FIELD_WEEKDAYS_NAME] : array($monday);
 		sort($days);
 		$currentDay = (int)($this->startDate->format("N"));
 		$nextDay = null;

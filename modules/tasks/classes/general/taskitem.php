@@ -21,6 +21,7 @@ use \Bitrix\Tasks\Util\User;
 use \Bitrix\Tasks\ActionFailedException;
 use \Bitrix\Tasks\ActionNotAllowedException;
 use \Bitrix\Tasks\ActionRestrictedException;
+use \Bitrix\Tasks\Integration\Bizproc;
 
 Loc::loadMessages(__FILE__);
 
@@ -247,11 +248,10 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 	 *
 	 * @param array $arNewTaskData New task fields.
 	 * @param integer $executiveUserId Put 1 (admin) to skip rights check.
-	 * @throws TasksException - on access denied, task not exists.
-	 * @throws CTaskAssertException
-	 * @throws Exception - on unexpected error.
-	 *
+	 * @param array $parameters Additional parameters.
 	 * @return CTaskItem object
+	 * @throws CTaskAssertException
+	 * @throws TasksException - on access denied, task not exists.
 	 */
 	public static function add($arNewTaskData, $executiveUserId, array $parameters = array())
 	{
@@ -330,7 +330,14 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 
 		self::pinInStage($rc);
 
-		return (new CTaskItem( (int) $rc, $executiveUserId));
+		$newTaskItem = new CTaskItem( (int) $rc, $executiveUserId);
+
+		if (!isset($parameters['DISABLE_BIZPROC_RUN']))
+		{
+			Bizproc\Listener::onTaskAdd($rc, $newTaskItem->getData());
+		}
+
+		return $newTaskItem;
 	}
 
 	/**
@@ -1159,7 +1166,7 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 			$arParams = array_merge(array(
 				'USER_ID'        => $this->executiveUserId,
 				'returnAsArray'  => true,
-				'bSkipExtraData' => true,
+				'bSkipExtraData' => false,
 			), $parameters);
 
 			/** @noinspection PhpDeprecationInspection */
@@ -1594,7 +1601,9 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 	}
 
 	/**
-	 * Remove task
+	 * @param array $params
+	 *
+	 * @throws TasksException
 	 */
 	public function delete(array $params=array())
 	{
@@ -1610,7 +1619,7 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 	 * TE_ACTION_NOT_ALLOWED, TE_ACTION_FAILED_TO_BE_PROCESSED,
 	 * TE_TASK_NOT_FOUND_OR_NOT_ACCESSIBLE
 	 */
-	public function delegate($newResponsibleId)
+	public function delegate($newResponsibleId, array $params=array())
 	{
 		self::pinInStage($this->getId(), array(
 			'RESPONSIBLE_ID' => $newResponsibleId
@@ -1618,7 +1627,10 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 
 		$this->proceedAction(
 			self::ACTION_DELEGATE,
-			array('RESPONSIBLE_ID' => $newResponsibleId)
+			[
+				'RESPONSIBLE_ID' => $newResponsibleId,
+				'PARAMETERS' => $params
+			]
 		);
 	}
 
@@ -1641,29 +1653,44 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 		);
 	}
 
-
-	public function startExecution()
+	/**
+	 * @param array $params
+	 *
+	 * @throws TasksException
+	 */
+	public function startExecution(array $params=array())
 	{
-		$this->proceedAction(self::ACTION_START);
+		$this->proceedAction(self::ACTION_START, ['PARAMETERS' => $params]);
 	}
 
-
-	public function pauseExecution()
+	/**
+	 * @param array $params
+	 *
+	 * @throws TasksException
+	 */
+	public function pauseExecution(array $params=array())
 	{
-		$this->proceedAction(self::ACTION_PAUSE);
+		$this->proceedAction(self::ACTION_PAUSE, ['PARAMETERS' => $params]);
 	}
 
-
-	public function defer()
+	/**
+	 * @param array $params
+	 *
+	 * @throws TasksException
+	 */
+	public function defer(array $params=array())
 	{
-		$this->proceedAction(self::ACTION_DEFER);
+		$this->proceedAction(self::ACTION_DEFER, ['PARAMETERS' => $params]);
 	}
 
-
-
-	public function complete()
+	/**
+	 * @param array $params
+	 *
+	 * @throws TasksException
+	 */
+	public function complete(array $params=array())
 	{
-		$this->proceedAction(self::ACTION_COMPLETE);
+		$this->proceedAction(self::ACTION_COMPLETE, ['PARAMETERS' => $params]);
 	}
 
 
@@ -1772,22 +1799,34 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 		$this->proceedAction(self::ACTION_ACCEPT);
 	}
 
-
-	public function renew()
+	/**
+	 * @param array $params
+	 *
+	 * @throws TasksException
+	 */
+	public function renew(array $params = array())
 	{
-		$this->proceedAction(self::ACTION_RENEW);
+		$this->proceedAction(self::ACTION_RENEW, ['PARAMETERS' => $params]);
 	}
 
-
-	public function approve()
+	/**
+	 * @param array $params
+	 *
+	 * @throws TasksException
+	 */
+	public function approve(array $params = array())
 	{
-		$this->proceedAction(self::ACTION_APPROVE);
+		$this->proceedAction(self::ACTION_APPROVE, ['PARAMETERS' => $params]);
 	}
 
-
-	public function disapprove()
+	/**
+	 * @param array $params
+	 *
+	 * @throws TasksException
+	 */
+	public function disapprove(array $params = array())
 	{
-		$this->proceedAction(self::ACTION_DISAPPROVE);
+		$this->proceedAction(self::ACTION_DISAPPROVE, ['PARAMETERS' => $params]);
 	}
 
 	/**
@@ -1965,7 +2004,7 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 
 			$arFilter['CHECK_PERMISSIONS'] = 'Y';	// Always check permissions
 
-			if ( ! empty($arSelect) )
+			if ( ! empty($arSelect) && (!isset($arParams['USE_MINIMAL_SELECT_LEGACY']) || $arParams['USE_MINIMAL_SELECT_LEGACY'] != 'N'))
 			{
 				$arSelect = array_merge(
 					$arSelect,
@@ -1984,29 +2023,41 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 				$taskId       = (int) $arData['ID'];
 				$arTasksIDs[] = $taskId;
 
-				$arData['AUDITORS']    = array();
-				$arData['ACCOMPLICES'] = array();
+				if(in_array('AUDITORS', $arSelect) || in_array('*', $arSelect))
+				{
+					$arData['AUDITORS']    = array();
+				}
+
+				if(in_array('ACCOMPLICES', $arSelect) || in_array('*', $arSelect))
+				{
+					$arData['ACCOMPLICES']    = array();
+				}
+
 				$arItemsData[$taskId]  = $arData;
 			}
 
 			if(is_array($arTasksIDs) && !empty($arTasksIDs))
 			{
-				// fill ACCOMPLICES and AUDITORS
-				$rsMembers = CTaskMembers::GetList(array(), array('TASK_ID' => $arTasksIDs));
 
-				if ( ! is_object($rsMembers) )
-					throw new TasksException();
-
-				while ($arMember = $rsMembers->fetch())
+				if(in_array('AUDITORS', $arSelect) || in_array('ACCOMPLICES', $arSelect) || in_array('*', $arSelect))
 				{
-					$taskId = (int) $arMember['TASK_ID'];
+					// fill ACCOMPLICES and AUDITORS
+					$rsMembers = CTaskMembers::GetList(array(), array('TASK_ID' => $arTasksIDs));
 
-					if (in_array($taskId, $arTasksIDs, true))
+					if (!is_object($rsMembers))
+						throw new TasksException();
+
+					while ($arMember = $rsMembers->fetch())
 					{
-						if ($arMember['TYPE'] === 'A')
-							$arItemsData[$taskId]['ACCOMPLICES'][] = $arMember['USER_ID'];
-						elseif ($arMember['TYPE'] === 'U')
-							$arItemsData[$taskId]['AUDITORS'][] = $arMember['USER_ID'];
+						$taskId = (int)$arMember['TASK_ID'];
+
+						if (in_array($taskId, $arTasksIDs, true))
+						{
+							if ($arMember['TYPE'] === 'A' && (in_array('ACCOMPLICES', $arSelect) || in_array('*', $arSelect)) )
+								$arItemsData[$taskId]['ACCOMPLICES'][] = $arMember['USER_ID'];
+							elseif ($arMember['TYPE'] === 'U' && (in_array('AUDITORS', $arSelect) || in_array('*', $arSelect)) )
+								$arItemsData[$taskId]['AUDITORS'][] = $arMember['USER_ID'];
+						}
 					}
 				}
 
@@ -2440,7 +2491,7 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 				throw new TasksException('Action not allowed', TasksException::TE_ACTION_NOT_ALLOWED | TasksException::TE_ACCESS_DENIED);
 			}
 
-			$arParams = array('USER_ID' => $this->executiveUserId);
+			$arParams = array_merge($arActionArguments['PARAMETERS'], ['USER_ID' => $this->executiveUserId]);
 			$o = new CTasks();
 			/** @noinspection PhpDeprecationInspection */
 

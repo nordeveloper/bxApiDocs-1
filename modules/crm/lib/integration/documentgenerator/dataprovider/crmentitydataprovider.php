@@ -2,6 +2,7 @@
 
 namespace Bitrix\Crm\Integration\DocumentGenerator\DataProvider;
 
+use Bitrix\Crm\Conversion\Entity\EntityConversionMapTable;
 use Bitrix\Crm\EntityBankDetail;
 use Bitrix\Crm\EntityRequisite;
 use Bitrix\Crm\Format\PersonNameFormatter;
@@ -16,7 +17,9 @@ use Bitrix\DocumentGenerator\DataProviderManager;
 use Bitrix\DocumentGenerator\Document;
 use Bitrix\DocumentGenerator\Integration\Numerator\DocumentNumerable;
 use Bitrix\DocumentGenerator\Template;
+use Bitrix\Iblock\ElementTable;
 use Bitrix\Main\IO\Path;
+use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Numerator\Hashable;
 use Bitrix\Crm\Requisite\EntityLink;
@@ -166,6 +169,11 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			{
 				if(substr($placeholder, 0, 3) == 'UF_')
 				{
+					if($this->isLightMode())
+					{
+						unset($this->fields[$placeholder]);
+						continue;
+					}
 					if(substr($placeholder, -7) == '_SINGLE')
 					{
 						unset($this->fields[$placeholder]);
@@ -260,7 +268,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 					$entityTypes[] = \CCrmOwnerType::Deal;
 				}
 				$isCrmPrefix = (count($entityTypes) > 1);
-				if($isCrmPrefix || (!is_numeric($field['VALUE'])) && $field['VALUE'] !== false)
+				if($isCrmPrefix || (!is_numeric($field['VALUE'])) && $field['VALUE'] !== false && !is_array($field['VALUE']))
 				{
 					$parts = explode('_', $field['VALUE']);
 					$field['VALUE'] = $parts[1];
@@ -296,6 +304,106 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			foreach($data as $enum)
 			{
 				$result[$placeholder]['DESCRIPTION']['DATA'][$enum['ID']] = $enum['VALUE'];
+			}
+		}
+
+		$alternativeUserFieldNames = $this->getAlternativeUserFieldNames(array_keys($result));
+		foreach($alternativeUserFieldNames as $placeholder => $alternatives)
+		{
+			foreach($alternatives as $alternative)
+			{
+				if(!isset($result[$alternative]))
+				{
+					$result[$alternative] = [
+						'TITLE' => $result[$placeholder]['TITLE'],
+						'VALUE' => $placeholder,
+						'OPTIONS' => [
+							'COPY' => $placeholder,
+						]
+					];
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param array $placeholders
+	 * @return array
+	 */
+	protected function getAlternativeUserFieldNames(array $placeholders)
+	{
+		$result = [];
+
+		if(empty($placeholders))
+		{
+			return $result;
+		}
+
+		$map = $this->getFullMap();
+		foreach($map as $item)
+		{
+			foreach($placeholders as $placeholder)
+			{
+				if(isset($item[$placeholder]))
+				{
+					foreach($item as $name => $t)
+					{
+						if($name != $placeholder)
+						{
+							$result[$placeholder][] = $name;
+						}
+					}
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @return array
+	 */
+	protected function getFullMap()
+	{
+		static $result = null;
+		if($result === null)
+		{
+			$result = [];
+
+			$maps = EntityConversionMapTable::getList(['select' => ['DATA']]);
+			while($map = $maps->fetch())
+			{
+				$data = unserialize($map['DATA']);
+				if(!is_array($data) || !isset($data['items']) || !is_array($data['items']) || empty($data['items']))
+				{
+					continue;
+				}
+
+				foreach($data['items'] as $item)
+				{
+					if(isset($item['srcField']) && isset($item['dstField']) && !empty($item['srcField']) && !empty($item['dstField']))
+					{
+						$isFound = false;
+						foreach($result as &$items)
+						{
+							if(isset($items[$item['srcField']]) || isset($items[$item['dstField']]))
+							{
+								$isFound = true;
+								$items[$item['dstField']] = true;
+								$items[$item['srcField']] = true;
+							}
+						}
+						if(!$isFound)
+						{
+							$result[] = [
+								$item['dstField'] => true,
+								$item['srcField'] => true,
+							];
+						}
+					}
+				}
 			}
 		}
 
@@ -353,21 +461,26 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 		}
 		elseif($field['USER_TYPE_ID'] == 'money')
 		{
-			$result = [];
+			$result = null;
 			if(!is_array($value))
 			{
-				$value = [$value];
+				$parts = explode('|', $value);
+				$result = new Money($parts[0], ['CURRENCY_ID' => $parts[1]]);
 			}
-			foreach($value as $val)
+			else
 			{
-				$parts = explode('|', $val);
-				$result[] = new Money($parts[0], ['CURRENCY_ID' => $parts[1]]);
+				$result = [];
+				foreach($value as $val)
+				{
+					$parts = explode('|', $val);
+					$result[] = new Money($parts[0], ['CURRENCY_ID' => $parts[1]]);
+				}
 			}
 			$value = $result;
 		}
 		elseif($field['USER_TYPE_ID'] == 'datetime' || $field['USER_TYPE_ID'] == 'date')
 		{
-			$result = [];
+			$result = null;
 			$options = [];
 			if($field['USER_TYPE_ID'] == 'datetime')
 			{
@@ -375,11 +488,14 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			}
 			if(!is_array($value))
 			{
-				$value = [$value];
+				$result = new \Bitrix\DocumentGenerator\Value\DateTime($value, $options);
 			}
-			foreach($value as $val)
+			else
 			{
-				$result[] = new \Bitrix\DocumentGenerator\Value\DateTime($val, $options);
+				foreach($value as $val)
+				{
+					$result[] = new \Bitrix\DocumentGenerator\Value\DateTime($val, $options);
+				}
 			}
 			$value = $result;
 		}
@@ -392,6 +508,30 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			else
 			{
 				$value = DataProviderManager::getInstance()->getLangPhraseValue($this, 'UF_TYPE_BOOLEAN_NO');
+			}
+		}
+		elseif($field['USER_TYPE_ID'] == 'address')
+		{
+			if(strpos($value, '|') !== false)
+			{
+				$array = explode('|', $value);
+				$value = $array[0];
+			}
+		}
+		elseif($field['USER_TYPE_ID'] == 'iblock_element')
+		{
+			$value = null;
+			if(Loader::includeModule('iblock') && !empty($field['VALUE']))
+			{
+				$value = [];
+				$elements = ElementTable::getList([
+					'select' => ['NAME'],
+					'filter' => ['ID' => $field['VALUE']]
+				]);
+				while($element = $elements->fetch())
+				{
+					$value[] = $element['NAME'];
+				}
 			}
 		}
 		if(is_array($value))
@@ -450,6 +590,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 			'crm' => 'crm',
 			'employee' => 'employee',
 			'address' => 'address',
+			'iblock_element' => 'iblock_element',
 		];
 	}
 
@@ -764,6 +905,7 @@ abstract class CrmEntityDataProvider extends EntityDataProvider implements Hasha
 	 */
 	public function getMyCompanyId($defaultMyCompanyId = null)
 	{
+		$defaultMyCompanyId = intval($defaultMyCompanyId);
 		if(!$defaultMyCompanyId)
 		{
 			$defaultMyCompanyId = $this->getLinkData()['MYCOMPANY_ID'];

@@ -2,6 +2,7 @@
 namespace Bitrix\Crm\Integration;
 
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Crm\Entity\EntityEditorConfigScope;
 
 class Calendar
 {
@@ -141,6 +142,7 @@ class Calendar
 	public static function isUserfieldShownInForm($userfield, $entityType, $categoryId = 0)
 	{
 		$map = array();
+		$categoryId = intVal($categoryId);
 		if ($entityType == 'CRM_DEAL')
 		{
 			$configId = \Bitrix\Crm\Category\DealCategory::prepareFormID(
@@ -193,7 +195,7 @@ class Calendar
 		if (!isset(self::$fieldsMap[$configId]))
 		{
 			self::$fieldsMap[$configId] = array();
-			$formSettings = \CUserOptions::GetOption('crm.entity.editor', $configId, null);
+			$formSettings = self::getFormFieldsMap($configId);
 
 			if (is_array($formSettings))
 			{
@@ -212,6 +214,58 @@ class Calendar
 				}
 			}
 		}
+	}
+
+	private static function getFormFieldsMap($configId)
+	{
+		$configScope = \CUserOptions::GetOption(
+			'crm.entity.editor',
+			"{$configId}_scope",
+			EntityEditorConfigScope::UNDEFINED
+		);
+
+		if($configScope === EntityEditorConfigScope::UNDEFINED)
+		{
+			$formSettings = \CUserOptions::GetOption(
+				'crm.entity.editor',
+				$configId,
+				null
+			);
+
+			if(!is_array($formSettings) || empty($formSettings))
+			{
+				$formSettings = \CUserOptions::GetOption(
+					'crm.entity.editor',
+					"{$configId}_common",
+					null,
+					0
+				);
+			}
+		}
+		elseif($configScope === EntityEditorConfigScope::COMMON)
+		{
+			$formSettings = \CUserOptions::GetOption(
+				'crm.entity.editor',
+				"{$configId}_common",
+				null,
+				0
+			);
+		}
+		else
+		{
+			$formSettings = \CUserOptions::GetOption(
+				'crm.entity.editor',
+				$configId,
+				null
+			);
+		}
+
+		if ($formSettings === null)
+		{
+			$formSettings = \CUserOptions::GetOption('crm.entity.editor', $configId, null);
+		}
+
+		return $formSettings;
 	}
 
 	public static function getUserfieldKey($userfield)

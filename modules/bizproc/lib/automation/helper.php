@@ -13,7 +13,7 @@ class Helper
 	protected static $maps;
 	protected static $documentFields;
 
-	public static function prepareUserSelectorEntities(array $documentType, $users)
+	public static function prepareUserSelectorEntities(array $documentType, $users, $config = [])
 	{
 		$result = [];
 		$users = (array)$users;
@@ -32,7 +32,8 @@ class Helper
 					$result[] = array(
 						'id'         => 'U'.$user,
 						'entityId'   => $user,
-						'name'       => htmlspecialcharsBx(self::getFormattedUserName($user))
+						'name'       => htmlspecialcharsBx(self::getFormattedUserName($user)),
+						'entityType' => 'users'
 					);
 				}
 			}
@@ -46,29 +47,58 @@ class Helper
 				$responsibleKey = isset($documentUserFields['ASSIGNED_BY_ID']) ? 'ASSIGNED_BY_ID' : 'RESPONSIBLE_ID';
 
 				$result[] = array(
-					'id'         => 'BPR_'.$documentUserFields[$responsibleKey]['Id'],
+					'id'         => $documentUserFields[$responsibleKey]['Expression'],
 					'entityId'   => $documentUserFields[$responsibleKey]['Expression'],
 					'name'       => htmlspecialcharsBx($documentUserFields[$responsibleKey]['Name']),
-					'avatar' => '',
-					'desc' => '&nbsp;'
+					'entityType' => 'bpuserroles'
 				);
 			}
 			else
 			{
+				$found = false;
 				foreach ($documentUserFields as $field)
 				{
 					if ($user === $field['Expression'] || $user === $field['SystemExpression'])
 					{
 						$result[] = array(
-							'id'       => 'BPR_'.$field['Id'],
+							'id'       => $field['Expression'],
 							'entityId' => $field['Expression'],
 							'name'     => htmlspecialcharsBx($field['Name']),
-							'avatar'   => '',
-							'desc'     => '&nbsp;'
+							'entityType' => 'bpuserroles'
 						);
+						$found = true;
+					}
+				}
+
+				if (!$found && isset($config['additionalFields']))
+				{
+					foreach ($config['additionalFields'] as $field)
+					{
+						if ($user === $field['entityId'])
+						{
+							$result[] = array(
+								'id'       => $field['id'],
+								'entityId' => $field['entityId'],
+								'name'     => htmlspecialcharsBx($field['name']),
+								'entityType' => 'bpuserroles'
+							);
+						}
 					}
 				}
 			}
+		}
+		return $result;
+	}
+
+	public static function getResponsibleUserExpression(array $documentType)
+	{
+		$documentUserFields = static::getDocumentFields($documentType, 'user');
+		$result = null;
+
+		if (isset($documentUserFields['ASSIGNED_BY_ID']) || isset($documentUserFields['RESPONSIBLE_ID']))
+		{
+			$responsibleKey = isset($documentUserFields['ASSIGNED_BY_ID']) ? 'ASSIGNED_BY_ID' : 'RESPONSIBLE_ID';
+			$result = '{=Document:'.$responsibleKey.'}';
 		}
 		return $result;
 	}
@@ -148,26 +178,30 @@ class Helper
 
 		$converter = function ($matches) use ($ids, $names)
 		{
+			$mods = [];
+			if ($matches['mod1'])
+			{
+				$mods[] = $matches['mod1'];
+			}
+			if ($matches['mod2'])
+			{
+				$mods[] = $matches['mod2'];
+			}
+
 			if ($matches['object'] === 'Document')
 			{
 				$key = array_search($matches['field'], $ids);
 				if ($key !== false)
 				{
 					$fieldName = $names[$key];
-					$mods = [];
-
-					if ($matches['mod1'])
-					{
-						$mods[] = $matches['mod1'];
-					}
-					if ($matches['mod2'])
-					{
-						$mods[] = $matches['mod2'];
-					}
-
 					return '{{'.$fieldName. ($mods? ' > '.implode(',', $mods) : '').'}}';
 				}
 			}
+			elseif (preg_match('/^A[_0-9]+$/', $matches['object']))
+			{
+				return '{{~'.$matches['object'].':'.$matches['field']. ($mods? ' > '.implode(',', $mods) : '').'}}';
+			}
+
 			return $matches[0];
 		};
 
@@ -187,6 +221,16 @@ class Helper
 
 		$converter = function ($matches) use ($ids, $names)
 		{
+			if (strpos($matches['mixed'], '~') === 0)
+			{
+				$len = strpos($matches['mixed'], '#');
+				$expression = ($len === false)
+					? substr($matches['mixed'], 1)
+					: substr($matches['mixed'], 1,$len - 1)
+				;
+				return '{='.trim($expression).'}';
+			}
+
 			$pairs = explode('>', $matches['mixed']);
 			$fieldName = $fieldId = '';
 
@@ -251,8 +295,11 @@ class Helper
 					$field['Type'] = $field['BaseType'] = 'bool';
 				}
 
-				if ($field['BaseType'] === 'string' && $field['Type'] !== 'string')
-					continue; // Skip none-printable user fields
+				if ($field['Type'] === 'UF:date')
+				{
+					//Mark as bizproc date type
+					$field['Type'] = $field['BaseType'] = 'date';
+				}
 
 				if ($typeFilter !== null && $field['Type'] !== $typeFilter)
 					continue;
@@ -261,6 +308,7 @@ class Helper
 					'Id' => $id,
 					'Name' => $field['Name'],
 					'Type' => $field['Type'],
+					'BaseType' => $field['BaseType'],
 					'Expression' => '{{'.$field['Name'].'}}',
 					'SystemExpression' => '{=Document:'.$id.'}',
 					'Options' => $field['Options']

@@ -106,6 +106,24 @@ final class CCrmRestService extends IRestService
 		'crm.dealcategory.default.get',
 		'crm.dealcategory.default.set',
 		//endregion
+		//region Deal Recurring
+		'crm.deal.recurring.fields',
+		'crm.deal.recurring.list',
+		'crm.deal.recurring.add',
+		'crm.deal.recurring.get',
+		'crm.deal.recurring.update',
+		'crm.deal.recurring.delete',
+		'crm.deal.recurring.expose',
+		//endregion
+		//region Invoce Recurring
+		'crm.invoice.recurring.fields',
+		'crm.invoice.recurring.list',
+		'crm.invoice.recurring.add',
+		'crm.invoice.recurring.get',
+		'crm.invoice.recurring.update',
+		'crm.invoice.recurring.delete',
+		'crm.invoice.recurring.expose',
+		//endregion
 		//region Company
 		'crm.company.fields',
 		'crm.company.add',
@@ -477,7 +495,14 @@ final class CCrmRestService extends IRestService
 			}
 			elseif($typeName === 'DEAL')
 			{
-				$proxy = self::$PROXIES[$typeName] = new CCrmDealRestProxy();
+				if($subType === 'RECURRING')
+				{
+					$proxy = self::$PROXIES[$typeName.'.'.$subType] = new CCrmDealRecurringRestProxy();
+				}
+				else
+				{
+					$proxy = self::$PROXIES[$typeName] = new CCrmDealRestProxy();
+				}
 			}
 			elseif($typeName === 'DEALCATEGORY')
 			{
@@ -501,7 +526,14 @@ final class CCrmRestService extends IRestService
 			}
 			elseif($typeName === 'INVOICE')
 			{
-				$proxy = self::$PROXIES[$typeName] = new CCrmInvoiceRestProxy();
+				if($subType === 'RECURRING')
+				{
+					$proxy = self::$PROXIES[$typeName.'.'.$subType] = new CCrmInvoiceRecurringRestProxy();
+				}
+				else
+				{
+					$proxy = self::$PROXIES[$typeName] = new CCrmInvoiceRestProxy();
+				}
 			}
 			elseif($typeName === 'REQUISITE')
 			{
@@ -709,6 +741,15 @@ class CCrmRestHelper
 				$field['title'] = isset($fieldInfo['NAME']) ? $fieldInfo['NAME'] : '';
 				if ($field['propertyType'] === 'L')
 					$field['values'] = isset($fieldInfo['VALUES']) ? $fieldInfo['VALUES'] : array();
+			}
+			elseif ($fieldType === 'recurring_params')
+			{
+				$field['definition'] = [];
+				if (is_array($fieldInfo['FIELDS']))
+				{
+					$paramFields = self::prepareFieldInfos($fieldInfo['FIELDS']);
+					$field['definition'] = is_array($paramFields) ? $paramFields : [];
+				}
 			}
 
 			if (empty($field['title']))
@@ -2124,6 +2165,10 @@ abstract class CCrmRestProxyBase implements ICrmRestProxy
 			elseif($fieldType === 'product_property')
 			{
 				$this->tryExternalizeProductPropertyField($fields, $fieldsInfo, $k);
+			}
+			elseif($fieldType === 'recurring_params')
+			{
+				$this->externalizeFields($fields[$k], $fieldsInfo[$k]['FIELDS']);
 			}
 		}
 	}
@@ -5738,6 +5783,817 @@ class CCrmDealCategoryProxy extends CCrmRestProxyBase
 	}
 }
 
+class CCrmDealRecurringRestProxy extends CCrmRestProxyBase
+{
+	protected $FIELDS_INFO = null;
+	/**
+	 * @return array
+	 */
+	protected function getFieldsInfo()
+	{
+		if(!$this->FIELDS_INFO)
+		{
+			$restInstance = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestDeal::getInstance();
+			$fieldParameters = $restInstance->getFieldsInfo();
+			$this->FIELDS_INFO = array(
+				'ID' => array(
+					'TYPE' => 'integer',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'DEAL_ID' => array(
+					'TYPE' => 'integer',
+					'ATTRIBUTES' => array(
+						CCrmFieldInfoAttr::Required,
+						CCrmFieldInfoAttr::Immutable
+					)
+				),
+				'BASED_ID' => array(
+					'TYPE' => 'integer',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'ACTIVE' => array(
+					'TYPE' => 'char'
+				),
+				'NEXT_EXECUTION' => array(
+					'TYPE' => 'datetime',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'LAST_EXECUTION' => array(
+					'TYPE' => 'datetime',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'COUNTER_REPEAT' => array(
+					'TYPE' => 'integer',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'START_DATE' => array(
+					'TYPE' => 'date'
+				),
+				'CATEGORY_ID' => array(
+					'TYPE' => 'char'
+				),
+				'IS_LIMIT' => array(
+					'TYPE' => 'char'
+				),
+				'LIMIT_REPEAT' => array(
+					'TYPE' => 'integer'
+				),
+				'LIMIT_DATE' => array(
+					'TYPE' => 'date'
+				),
+				'PARAMS' => array(
+					'TYPE' => 'recurring_params',
+					'FIELDS' => $fieldParameters
+				)
+			);
+			foreach ($this->FIELDS_INFO as $code=>&$field)
+			{
+				$field['CAPTION'] = \Bitrix\Crm\DealRecurTable::getFieldCaption($code);
+			}
+		}
+		return $this->FIELDS_INFO;
+	}
+	protected function innerGet($ID, &$errors)
+	{
+		$recurringInstance = \Bitrix\Crm\Recurring\Entity\Deal::getInstance();
+		if (!$recurringInstance->isAllowedExpose())
+		{
+			$errors[] = 'Recurring is not allowed';
+			return false;
+		}
+
+		$recurringDataRaw = $recurringInstance->getList([
+			'filter' => ['ID' => (int)$ID],
+			'limit' => 1
+		]);
+
+		$fields = $recurringDataRaw->fetch();
+
+		$userPermissions = CCrmPerms::GetCurrentUserPermissions();
+		if (empty($fields) || (int)$fields['DEAL_ID'] <= 0)
+		{
+			$errors[] = 'Not found';
+			return false;
+		}
+		$categoryID = CCrmDeal::GetCategoryID($fields['DEAL_ID']);
+		if($categoryID < 0)
+		{
+			$errors[] = !CCrmDeal::CheckReadPermission(0, $userPermissions) ? 'Access denied' : 'Not found';
+			return false;
+		}
+		elseif(!CCrmDeal::CheckReadPermission($ID, CCrmPerms::GetCurrentUserPermissions(), $categoryID))
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		$result = array_intersect_key($fields, $this->getFieldsInfo());
+		$params = $fields['PARAMS'];
+		$formParamsMapper = \Bitrix\Crm\Recurring\Entity\Deal::getParameterMapper($params);
+		$formParamsMapper->fillMap($params);
+		$restParamsMapper = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestDeal::getInstance();
+		$restParamsMapper->convert($formParamsMapper);
+		$result['PARAMS'] = $restParamsMapper->getFormattedMap();
+		return $result;
+	}
+	protected function innerGetList($order, $filter, $select, $navigation, &$errors)
+	{
+		if(!CCrmDeal::CheckReadPermission(0))
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		$params = array();
+		if(is_array($order) && !empty($order))
+		{
+			$fieldInfo = $this->getFieldsInfo();
+			foreach ($order as $code => $direction)
+			{
+				if (!empty($fieldInfo[$code]) && $code !== 'PARAMS')
+				{
+					$params['order'][$code] = $direction;
+				}
+			}
+		}
+
+		unset($filter['PARAMS']);
+		$params['filter'] = $filter;
+
+		$page = isset($navigation['iNumPage']) ? (int)$navigation['iNumPage'] : 1;
+		$limit = isset($navigation['nPageSize']) ? (int)$navigation['nPageSize'] : CCrmRestService::LIST_LIMIT;
+
+		$restParamsMapper = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestDeal::getInstance();
+		/** @var Main\DB\Result $dataRaw */
+		$dataRaw = \Bitrix\Crm\DealRecurTable::getList($params);
+		$items = array();
+		while($fields = $dataRaw->fetch())
+		{
+			$params = $fields['PARAMS'];
+			$mapper = \Bitrix\Crm\Recurring\Entity\Deal::getParameterMapper($params);
+			$mapper->fillMap($params);
+			$restParamsMapper->convert($mapper);
+			$fields['PARAMS'] = $restParamsMapper->getFormattedMap();
+			$items[] = $fields;
+		}
+
+		$dbResult = new CDBResult();
+		$dbResult->InitFromArray($items);
+		$dbResult->NavStart($limit, false, $page);
+		return $dbResult;
+	}
+	protected function innerAdd(&$fields, &$errors, array $params = null)
+	{
+		$ID = null;
+		$dealId = (int)$fields['DEAL_ID'];
+		if ($dealId <= 0)
+		{
+			$errors[] = 'Deal ID is empty.';
+			return false;
+		}
+		if(
+			!CCrmDeal::CheckUpdatePermission($dealId, CCrmPerms::GetCurrentUserPermissions())
+			|| !CCrmDeal::CheckCreatePermission(CCrmPerms::GetCurrentUserPermissions())
+		)
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		try
+		{
+			if (
+				$fields['IS_LIMIT'] !== \Bitrix\Crm\Recurring\Entity\Deal::LIMITED_BY_TIMES
+				&& $fields['IS_LIMIT'] !== \Bitrix\Crm\Recurring\Entity\Deal::LIMITED_BY_DATE
+			)
+			{
+				$fields['IS_LIMIT'] = \Bitrix\Crm\Recurring\Entity\Deal::NO_LIMITED;
+			}
+			if (!empty($fields['PARAMS']) && is_array($fields['PARAMS']))
+			{
+				$fields['PARAMS'] = $this->prepareParams($fields);
+			}
+			else
+			{
+				$fields['PARAMS'] = [];
+			}
+			if(!empty($fields['START_DATE']))
+			{
+				$fields['START_DATE'] = new \Bitrix\Main\Type\Date($fields['START_DATE']);
+			}
+			if(!empty($fields['LIMIT_DATE']))
+			{
+				$fields['LIMIT_DATE'] = new \Bitrix\Main\Type\Date($fields['LIMIT_DATE']);
+			}
+			$newRecurringFields = $fields;
+
+			$dealRecurringInstance = \Bitrix\Crm\Recurring\Entity\Deal::getInstance();
+			$dealFields = \CCrmDeal::GetByID($dealId, false);
+			if ($dealFields['IS_RECURRING'] === 'Y')
+			{
+				$recurringRawSearch = $dealRecurringInstance->getList([
+					'filter' => ['DEAL_ID' => $dealId],
+					'limit' => 1
+				]);
+				if ($recurringRawSearch->fetch())
+				{
+					$errors[] = 'Deal already have had recurring settings.';
+					return false;
+				}
+
+				$result = $dealRecurringInstance->add($newRecurringFields);
+				if ($result->isSuccess())
+				{
+					$ID = $result->getId();
+				}
+			}
+			else
+			{
+				unset($newRecurringFields['DEAL_ID']);
+				$result = $dealRecurringInstance->createEntity($dealFields, $newRecurringFields);
+				if ($result->isSuccess())
+				{
+					$data = $result->getData();
+					$ID = $data['ID'];
+				}
+			}
+
+			if (!$result->isSuccess())
+			{
+				$errors = $result->getErrorMessages();
+				return false;
+			}
+
+			return $ID;
+		}
+		catch(Main\SystemException $ex)
+		{
+			$errors[] = $ex->getMessage();
+			return false;
+		}
+	}
+	protected function innerUpdate($ID, &$fields, &$errors, array $params = null)
+	{
+		$result = $this->innerGet($ID, $errors);
+		if (!$result)
+		{
+			$errors[] = 'Not found.';
+			return false;
+		}
+		elseif(!CCrmDeal::CheckUpdatePermission($result['DEAL_ID'], CCrmPerms::GetCurrentUserPermissions()))
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		if (
+			!empty($fields['PARAMS']) && is_array($fields['PARAMS'])
+			|| !empty($fields['START_DATE'])
+			|| !empty($fields['LIMIT_DATE'])
+			|| !empty($fields['IS_LIMIT'])
+		)
+		{
+			$merged = array_merge($result, $fields);
+			$fields['PARAMS'] = $this->prepareParams($merged);
+		}
+
+		if(!empty($fields['START_DATE']))
+		{
+			$fields['START_DATE'] = new \Bitrix\Main\Type\Date($fields['START_DATE']);
+		}
+		if(!empty($fields['LIMIT_DATE']))
+		{
+			$fields['LIMIT_DATE'] = new \Bitrix\Main\Type\Date($fields['LIMIT_DATE']);
+		}
+
+		try
+		{
+			$dealRecurring = \Bitrix\Crm\Recurring\Entity\Deal::getInstance();
+			$dealRecurring->update($ID, $fields);
+			return true;
+		}
+		catch(Main\SystemException $ex)
+		{
+			$errors[] = $ex->getMessage();
+			return false;
+		}
+	}
+	protected function innerDelete($ID, &$errors, array $params = null)
+	{
+		$result = $this->innerGet($ID, $errors);
+		if (!$result)
+		{
+			$errors[] = 'Not found.';
+			return false;
+		}
+		elseif(!CCrmDeal::CheckDeletePermission($result['DEAL_ID'], CCrmPerms::GetCurrentUserPermissions()))
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		if (!$this->innerGet($ID, $errors))
+		{
+			$errors[] = 'Not found.';
+			return false;
+		}
+
+		try
+		{
+			\Bitrix\Crm\DealRecurTable::delete($ID);
+			return true;
+		}
+		catch(Main\SystemException $ex)
+		{
+			$errors[] = $ex->getMessage();
+			return false;
+		}
+	}
+	public function expose($ID)
+	{
+		$ID = (int)$ID;
+		if(!$this->checkEntityID($ID))
+		{
+			throw new RestException('ID is not defined or invalid.');
+		}
+
+		$errors = array();
+		$fields = $this->innerGet($ID, $errors);
+		if(!is_array($fields))
+		{
+			throw new RestException(implode("\n", $errors));
+		}
+
+		$categoryId = -1;
+		if ((int)$fields['CATEGORY_ID'] >= 0)
+		{
+			$categoryId = (int)$fields['CATEGORY_ID'];
+		}
+
+		$userPermissions = CCrmPerms::GetCurrentUserPermissions();
+		if (
+			!CCrmDeal::CheckReadPermission($fields['DEAL_ID'], $userPermissions)
+			|| !CCrmDeal::CheckCreatePermission($userPermissions, $categoryId)
+		)
+		{
+			throw new RestException(implode("\n", ['Access denied.']));
+		}
+
+		$dealRecurring = \Bitrix\Crm\Recurring\Entity\Deal::getInstance();
+		$result = $dealRecurring->expose(['=ID' => $ID], 1, false);
+		if (!$result->isSuccess())
+		{
+			throw new RestException(implode("\n", $result->getErrorMessages()));
+		}
+
+		$exposeData = $result->getData();
+		return ['DEAL_ID' => $exposeData['ID'][0]];
+	}
+	protected function prepareParams(array $fields)
+	{
+		$restParamsMapper = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestDeal::getInstance();
+		$restParamsMapper->fillMap($fields['PARAMS']);
+		$formParamsMapper = \Bitrix\Crm\Recurring\Entity\Deal::getParameterMapper();
+		$formParamsMapper->convert($restParamsMapper);
+		$params = $formParamsMapper->getFormattedMap();
+		$params['MULTIPLE_TYPE_LIMIT'] = $fields['IS_LIMIT'];
+		$params['MULTIPLE_TIMES_LIMIT'] = (int)$fields['LIMIT_REPEAT'];
+		if(!empty($fields['START_DATE']))
+		{
+			$params['MULTIPLE_DATE_START'] = $fields['START_DATE'];
+			$params['SINGLE_DATE_BEFORE'] = $fields['START_DATE'];
+		}
+		if(!empty($fields['LIMIT_DATE']))
+		{
+			$params['MULTIPLE_DATE_LIMIT'] = $fields['LIMIT_DATE'];
+		}
+
+		return $params;
+	}
+	public function processMethodRequest($name, $nameDetails, $arParams, $nav, $server)
+	{
+		$name = strtoupper($name);
+		if($name === 'RECURRING')
+		{
+			$nameSuffix = strtoupper(!empty($nameDetails) ? implode('_', $nameDetails) : '');
+			switch ($nameSuffix)
+			{
+				case 'EXPOSE':
+					return $this->expose($this->resolveEntityID($arParams));
+				case 'FIELDS':
+				case 'ADD':
+				case 'GET':
+				case 'LIST':
+				case 'UPDATE':
+				case 'DELETE':
+					return parent::processMethodRequest($nameSuffix, '', $arParams, $nav, $server);
+			}
+		}
+
+		return parent::processMethodRequest($name, $nameDetails, $arParams, $nav, $server);
+	}
+}
+
+class CCrmInvoiceRecurringRestProxy extends CCrmRestProxyBase
+{
+	protected $FIELDS_INFO = null;
+	/**
+	 * @return array
+	 */
+	protected function getFieldsInfo()
+	{
+		if(!$this->FIELDS_INFO)
+		{
+			$restInstance = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestInvoice::getInstance();
+			$fieldParameters = $restInstance->getFieldsInfo();
+			$this->FIELDS_INFO = array(
+				'ID' => array(
+					'TYPE' => 'integer',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'INVOICE_ID' => array(
+					'TYPE' => 'integer',
+					'ATTRIBUTES' => array(
+						CCrmFieldInfoAttr::Required,
+						CCrmFieldInfoAttr::Immutable
+					)
+				),
+				'ACTIVE' => array(
+					'TYPE' => 'char'
+				),
+				'NEXT_EXECUTION' => array(
+					'TYPE' => 'datetime',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'LAST_EXECUTION' => array(
+					'TYPE' => 'datetime',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'COUNTER_REPEAT' => array(
+					'TYPE' => 'integer',
+					'ATTRIBUTES' => array(CCrmFieldInfoAttr::ReadOnly)
+				),
+				'START_DATE' => array(
+					'TYPE' => 'date'
+				),
+				'IS_LIMIT' => array(
+					'TYPE' => 'char'
+				),
+				'SEND_BILL' => array(
+					'TYPE' => 'char'
+				),
+				'EMAIL_ID' => array(
+					'TYPE' => 'integer'
+				),
+				'LIMIT_REPEAT' => array(
+					'TYPE' => 'integer'
+				),
+				'LIMIT_DATE' => array(
+					'TYPE' => 'date'
+				),
+				'PARAMS' => array(
+					'TYPE' => 'recurring_params',
+					'FIELDS' => $fieldParameters
+				)
+			);
+			foreach ($this->FIELDS_INFO as $code=>&$field)
+			{
+				$field['CAPTION'] = \Bitrix\Crm\InvoiceRecurTable::getFieldCaption($code);
+			}
+		}
+		return $this->FIELDS_INFO;
+	}
+	protected function innerGet($ID, &$errors)
+	{
+		$recurringInstance = \Bitrix\Crm\Recurring\Entity\Invoice::getInstance();
+		if (!$recurringInstance->isAllowedExpose())
+		{
+			$errors[] = 'Recurring is not allowed';
+			return false;
+		}
+
+		$recurringDataRaw = $recurringInstance->getList([
+			'filter' => ['ID' => (int)$ID],
+			'limit' => 1
+		]);
+
+		$fields = $recurringDataRaw->fetch();
+
+		$userPermissions = CCrmPerms::GetCurrentUserPermissions();
+		if (empty($fields) || (int)$fields['INVOICE_ID'] <= 0)
+		{
+			$errors[] = 'Not found';
+			return false;
+		}
+
+		if(!CCrmInvoice::CheckReadPermission($fields['INVOICE_ID'], $userPermissions))
+		{
+			$errors[] = 'Access denied';
+			return false;
+		}
+
+		$result = array_intersect_key($fields, $this->getFieldsInfo());
+		$params = $fields['PARAMS'];
+		$formParamsMapper = \Bitrix\Crm\Recurring\Entity\Invoice::getParameterMapper($params);
+		$formParamsMapper->fillMap($params);
+		$restParamsMapper = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestInvoice::getInstance();
+		$restParamsMapper->convert($formParamsMapper);
+		$result['PARAMS'] = $restParamsMapper->getFormattedMap();
+		return $result;
+	}
+	protected function innerGetList($order, $filter, $select, $navigation, &$errors)
+	{
+		if(!CCrmInvoice::CheckReadPermission(0))
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		$params = array();
+		if(is_array($order) && !empty($order))
+		{
+			$fieldInfo = $this->getFieldsInfo();
+			foreach ($order as $code => $direction)
+			{
+				if (!empty($fieldInfo[$code]) && $code !== 'PARAMS')
+				{
+					$params['order'][$code] = $direction;
+				}
+			}
+		}
+
+		unset($filter['PARAMS']);
+		$params['filter'] = $filter;
+
+		$page = isset($navigation['iNumPage']) ? (int)$navigation['iNumPage'] : 1;
+		$limit = isset($navigation['nPageSize']) ? (int)$navigation['nPageSize'] : CCrmRestService::LIST_LIMIT;
+
+		$restParamsMapper = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestInvoice::getInstance();
+		/** @var Main\DB\Result $dataRaw */
+		$dataRaw = \Bitrix\Crm\InvoiceRecurTable::getList($params);
+		$items = array();
+		while($fields = $dataRaw->fetch())
+		{
+			$params = $fields['PARAMS'];
+			$mapper = \Bitrix\Crm\Recurring\Entity\Invoice::getParameterMapper($params);
+			$mapper->fillMap($params);
+			$restParamsMapper->convert($mapper);
+			$fields['PARAMS'] = $restParamsMapper->getFormattedMap();
+			$items[] = $fields;
+		}
+		$dbResult = new CDBResult();
+		$dbResult->InitFromArray($items);
+		$dbResult->NavStart($limit, false, $page);
+		return $dbResult;
+	}
+	protected function innerAdd(&$fields, &$errors, array $params = null)
+	{
+		$ID = null;
+		$invoiceId = (int)$fields['INVOICE_ID'];
+		if ($invoiceId <= 0)
+		{
+			$errors[] = 'Invoice ID is empty.';
+			return false;
+		}
+		if(
+			!CCrmInvoice::CheckUpdatePermission($invoiceId, CCrmPerms::GetCurrentUserPermissions())
+			|| !CCrmInvoice::CheckCreatePermission(CCrmPerms::GetCurrentUserPermissions())
+		)
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		try
+		{
+			if (
+				$fields['IS_LIMIT'] !== \Bitrix\Crm\Recurring\Entity\Invoice::LIMITED_BY_TIMES
+				&& $fields['IS_LIMIT'] !== \Bitrix\Crm\Recurring\Entity\Invoice::LIMITED_BY_DATE
+			)
+			{
+				$fields['IS_LIMIT'] = \Bitrix\Crm\Recurring\Entity\Invoice::NO_LIMITED;
+			}
+			if (!empty($fields['PARAMS']) && is_array($fields['PARAMS']))
+			{
+				$fields['PARAMS'] = $this->prepareParams($fields);
+			}
+			else
+			{
+				$fields['PARAMS'] = [];
+			}
+			if(!empty($fields['START_DATE']))
+			{
+				$fields['START_DATE'] = new \Bitrix\Main\Type\Date($fields['START_DATE']);
+			}
+			if(!empty($fields['LIMIT_DATE']))
+			{
+				$fields['LIMIT_DATE'] = new \Bitrix\Main\Type\Date($fields['LIMIT_DATE']);
+			}
+			$newRecurringFields = $fields;
+
+			$invoiceRecurringInstance = \Bitrix\Crm\Recurring\Entity\Invoice::getInstance();
+			$invoiceFields = \CCrmInvoice::GetByID($invoiceId, false);
+			if ($invoiceFields['IS_RECURRING'] === 'Y')
+			{
+				$recurringRawSearch = $invoiceRecurringInstance->getList([
+					'filter' => ['INVOICE_ID' => $invoiceId],
+					'limit' => 1
+				]);
+				if ($recurringRawSearch->fetch())
+				{
+					$errors[] = 'Invoice already have had recurring settings.';
+					return false;
+				}
+
+				$result = $invoiceRecurringInstance->add($newRecurringFields);
+				if ($result->isSuccess())
+				{
+					$ID = $result->getId();
+				}
+			}
+			else
+			{
+				unset($newRecurringFields['INVOICE_ID']);
+				$invoiceFields['PRODUCT_ROWS'] = \CCrmInvoice::GetProductRows($invoiceId);
+				$invoiceFields['INVOICE_PROPERTIES'] = \CCrmInvoice::GetProperties($invoiceId, $invoiceFields['PERSON_TYPE_ID']);
+				$result = $invoiceRecurringInstance->createEntity($invoiceFields, $newRecurringFields);
+				if ($result->isSuccess())
+				{
+					$data = $result->getData();
+					$ID = $data['ID'];
+				}
+			}
+
+			if (!$result->isSuccess())
+			{
+				$errors = $result->getErrorMessages();
+				return false;
+			}
+
+			return $ID;
+		}
+		catch(Main\SystemException $ex)
+		{
+			$errors[] = $ex->getMessage();
+			return false;
+		}
+	}
+	protected function innerUpdate($ID, &$fields, &$errors, array $params = null)
+	{
+		$result = $this->innerGet($ID, $errors);
+		if (!$result)
+		{
+			$errors[] = 'Not found.';
+			return false;
+		}
+		elseif(!CCrmInvoice::CheckUpdatePermission($result['INVOICE_ID'], CCrmPerms::GetCurrentUserPermissions()))
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		if (
+			!empty($fields['PARAMS']) && is_array($fields['PARAMS'])
+			|| !empty($fields['START_DATE'])
+			|| !empty($fields['LIMIT_DATE'])
+			|| !empty($fields['IS_LIMIT'])
+		)
+		{
+			$merged = array_merge($result, $fields);
+			$fields['PARAMS'] = $this->prepareParams($merged);
+		}
+
+		if(!empty($fields['START_DATE']))
+		{
+			$fields['START_DATE'] = new \Bitrix\Main\Type\Date($fields['START_DATE']);
+		}
+		if(!empty($fields['LIMIT_DATE']))
+		{
+			$fields['LIMIT_DATE'] = new \Bitrix\Main\Type\Date($fields['LIMIT_DATE']);
+		}
+
+		try
+		{
+			$invoiceRecurring = \Bitrix\Crm\Recurring\Entity\Invoice::getInstance();
+			$invoiceRecurring->update($ID, $fields);
+			return true;
+		}
+		catch(Main\SystemException $ex)
+		{
+			$errors[] = $ex->getMessage();
+			return false;
+		}
+	}
+	protected function innerDelete($ID, &$errors, array $params = null)
+	{
+		$result = $this->innerGet($ID, $errors);
+		if (!$result)
+		{
+			$errors[] = 'Not found.';
+			return false;
+		}
+		elseif(!CCrmInvoice::CheckDeletePermission($result['INVOICE_ID'], CCrmPerms::GetCurrentUserPermissions()))
+		{
+			$errors[] = 'Access denied.';
+			return false;
+		}
+
+		if (!$this->innerGet($ID, $errors))
+		{
+			$errors[] = 'Not found.';
+			return false;
+		}
+
+		try
+		{
+			\Bitrix\Crm\InvoiceRecurTable::delete($ID);
+			return true;
+		}
+		catch(Main\SystemException $ex)
+		{
+			$errors[] = $ex->getMessage();
+			return false;
+		}
+	}
+	protected function prepareParams(array $fields)
+	{
+		$restParamsMapper = \Bitrix\Crm\Recurring\Entity\ParameterMapper\RestInvoice::getInstance();
+		$restParamsMapper->fillMap($fields['PARAMS']);
+		$formParamsMapper = \Bitrix\Crm\Recurring\Entity\Invoice::getParameterMapper();
+		$formParamsMapper->convert($restParamsMapper);
+		$params = $formParamsMapper->getFormattedMap();
+		$params['RECURRING_SWITCHER'] = 'Y';
+		$params['MULTIPLE_TYPE_LIMIT'] = $fields['IS_LIMIT'];
+		$params['MULTIPLE_TIMES_LIMIT'] = (int)$fields['LIMIT_REPEAT'];
+		if(!empty($fields['START_DATE']))
+		{
+			$params['MULTIPLE_DATE_START'] = $fields['START_DATE'];
+			$params['SINGLE_DATE_BEFORE'] = $fields['START_DATE'];
+		}
+		if(!empty($fields['LIMIT_DATE']))
+		{
+			$params['MULTIPLE_DATE_LIMIT'] = $fields['LIMIT_DATE'];
+		}
+
+		return $params;
+	}
+	public function expose($ID)
+	{
+		$ID = (int)$ID;
+		if(!$this->checkEntityID($ID))
+		{
+			throw new RestException('ID is not defined or invalid.');
+		}
+
+		$errors = array();
+		$fields = $this->innerGet($ID, $errors);
+		if(!is_array($fields))
+		{
+			throw new RestException(implode("\n", $errors));
+		}
+
+		$userPermissions = CCrmPerms::GetCurrentUserPermissions();
+		if (
+			!CCrmInvoice::CheckReadPermission($fields['INVOICE_ID'], $userPermissions)
+			|| !CCrmInvoice::CheckCreatePermission($userPermissions)
+		)
+		{
+			throw new RestException(implode("\n", ['Access denied.']));
+		}
+
+		$invoiceRecurring = \Bitrix\Crm\Recurring\Entity\Invoice::getInstance();
+		$result = $invoiceRecurring->expose(['=ID' => $ID], 1, false);
+		if (!$result->isSuccess())
+		{
+			throw new RestException(implode("\n", $result->getErrorMessages()));
+		}
+
+		$exposeData = $result->getData();
+		return ['INVOICE_ID' => $exposeData['ID'][0]];
+	}
+	public function processMethodRequest($name, $nameDetails, $arParams, $nav, $server)
+	{
+		$name = strtoupper($name);
+		if($name === 'RECURRING')
+		{
+			$nameSuffix = strtoupper(!empty($nameDetails) ? implode('_', $nameDetails) : '');
+			switch ($nameSuffix)
+			{
+				case 'EXPOSE':
+					return $this->expose($this->resolveEntityID($arParams));
+				case 'FIELDS':
+				case 'ADD':
+				case 'GET':
+				case 'LIST':
+				case 'UPDATE':
+				case 'DELETE':
+					return parent::processMethodRequest($nameSuffix, '', $arParams, $nav, $server);
+			}
+		}
+
+		return parent::processMethodRequest($name, $nameDetails, $arParams, $nav, $server);
+	}
+}
 class CCrmCompanyRestProxy extends CCrmRestProxyBase
 {
 	private $FIELDS_INFO = null;
@@ -10983,11 +11839,37 @@ class CCrmRequisiteLinkRestProxy extends CCrmRestProxyBase
 
 	protected function innerGetList($order, $filter, $select, $navigation, &$errors)
 	{
-		if (!Requisite\EntityLink::checkReadPermissionOwnerEntity())
+		$entityTypeId = 0;
+		$entityId = 0;
+
+		if (is_array($filter))
+		{
+			if (isset($filter['=ENTITY_TYPE_ID']))
+			{
+				$entityTypeId = (int)$filter['=ENTITY_TYPE_ID'];
+			}
+			else if (isset($filter['ENTITY_TYPE_ID']))
+			{
+				$entityTypeId = (int)$filter['ENTITY_TYPE_ID'];
+			}
+
+			if (isset($filter['=ENTITY_ID']))
+			{
+				$entityId = (int)$filter['=ENTITY_ID'];
+			}
+			else if (isset($filter['ENTITY_ID']))
+			{
+				$entityId = (int)$filter['ENTITY_ID'];
+			}
+		}
+
+		if (!Requisite\EntityLink::checkReadPermissionOwnerEntity($entityTypeId, $entityId))
 		{
 			$errors[] = 'Access denied.';
 			return false;
 		}
+
+		unset($entityTypeId, $entityId);
 
 		$page = isset($navigation['iNumPage']) ? (int)$navigation['iNumPage'] : 1;
 		$limit = isset($navigation['nPageSize']) ? (int)$navigation['nPageSize'] : CCrmRestService::LIST_LIMIT;
@@ -12075,6 +12957,11 @@ class CCrmPersonTypeRestProxy extends CCrmRestProxyBase
 			$filter = array();
 		}
 
+		if (is_string($select))
+		{
+			$select = [$select];
+		}
+
 		$result = array();
 
 		$crmPerms = new CCrmPerms($USER->GetID());
@@ -12121,6 +13008,11 @@ class CCrmPersonTypeRestProxy extends CCrmRestProxyBase
 
 		$filter['=PERSON_TYPE_SITE.SITE_ID'] = $siteId;
 
+		if (empty($select))
+		{
+			$select = ['*'];
+		}
+
 		$dbRes = \Bitrix\Crm\Invoice\PersonType::getList([
 			'select' => $select,
 			'filter' => $filter,
@@ -12131,7 +13023,10 @@ class CCrmPersonTypeRestProxy extends CCrmRestProxyBase
 			if ($personType['CODE'] === 'CRM_CONTACT' || $personType['CODE'] === 'CRM_COMPANY')
 			{
 				$personType['NAME'] = $personType['CODE'];
+
 				unset($personType['CODE']);
+				unset($personType['ENTITY_REGISTRY_TYPE']);
+
 				$result[] = $personType;
 			}
 		}

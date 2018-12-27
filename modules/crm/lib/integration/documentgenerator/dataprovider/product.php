@@ -508,13 +508,12 @@ class Product extends HashDataProvider
 				{
 					if(isset($this->propertyValues['PROPERTY_'.$code]) && !empty($this->propertyValues['PROPERTY_'.$code]))
 					{
-						$this->propertyValues['PROPERTY_'.$code] .= $separator;
+						$this->propertyValues['PROPERTY_'.$code] .= $separator.$value;
 					}
 					else
 					{
-						$this->propertyValues['PROPERTY_'.$code] = '';
+						$this->propertyValues['PROPERTY_'.$code] = $value;
 					}
-					$this->propertyValues['PROPERTY_'.$code] .= $value;
 				}
 			}
 			if(!empty($linkedProducts))

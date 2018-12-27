@@ -281,7 +281,7 @@ class CCalendarSect
 					if($getPermissions || $bOwner || self::CanDo('calendar_edit_access', $sectId, $userId))
 					{
 						$sect['ACCESS'] = array();
-						if(count(self::$Permissions[$sectId]) > 0)
+						if(is_array(self::$Permissions[$sectId]) && count(self::$Permissions[$sectId]) > 0)
 						{
 							// Add codes to get they full names for interface
 							$arAccessCodes = array_merge($arAccessCodes, array_keys(self::$Permissions[$sectId]));
@@ -300,25 +300,25 @@ class CCalendarSect
 		return $arResult;
 	}
 
-	public static function GetById($ID = 0, $checkPermissions = true, $bRerequest = false)
+	public static function GetById($id = 0, $checkPermissions = true, $bRerequest = false)
 	{
-		$ID = intVal($ID);
-		if ($ID > 0)
+		$id = intVal($id);
+		if ($id > 0)
 		{
-			if (!isset(self::$sections[$ID]) || $bRerequest)
+			if (!isset(self::$sections[$id]) || $bRerequest)
 			{
-				$Sect = self::GetList(array('arFilter' => array('ID' => $ID),
+				$section = self::GetList(array('arFilter' => array('ID' => $id),
 					'checkPermissions' => $checkPermissions
 				));
-				if($Sect && is_array($Sect) && is_array($Sect[0]))
+				if($section && is_array($section) && is_array($section[0]))
 				{
-					self::$sections[$ID] = $Sect[0];
-					return $Sect[0];
+					self::$sections[$id] = $section[0];
+					return $section[0];
 				}
 			}
 			else
 			{
-				return self::$sections[$ID];
+				return self::$sections[$id];
 			}
 		}
 		return false;

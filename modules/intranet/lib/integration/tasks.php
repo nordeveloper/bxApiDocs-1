@@ -63,9 +63,6 @@ final class Tasks
 
 							$start = $now + $day*5;
 							$end = $now + $day*10;
-
-							$description = $fields['DESCRIPTION'];
-							$description = str_replace(array('#ANCHOR_INVITE#', '#ANCHOR_END#'), array('[URL=/company/vis_structure.php]', '[/URL]'), $description);
 						}
 						if($xml == 'SONTE_INSTALL_APP_TASK')
 						{
@@ -192,7 +189,7 @@ final class Tasks
 					"PRIORITY" => 1,
 					"STATUS" => 2,
 					"TITLE" => GetMessage("SONET_INVITE_TASK_TITLE"),
-					"DESCRIPTION" => GetMessage("SONET_INVITE_TASK_DESCRIPTION"),
+					"DESCRIPTION" => GetMessage("SONET_INVITE_TASK_DESCRIPTION_V2"),
 					"DESCRIPTION_IN_BBCODE" => "Y",
 					"SITE_ID" => \CTaskTemplates::CURRENT_SITE_ID, // we got SITE_ID undefined here, so pass "any" site id
 					"XML_ID" => $xmlId,

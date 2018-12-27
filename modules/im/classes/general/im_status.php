@@ -141,6 +141,7 @@ class CIMStatus
 		{
 			global $CACHE_MANAGER;
 			$CACHE_MANAGER->ClearByTag('IM_CONTACT_LIST');
+			$CACHE_MANAGER->ClearByTag('USER_NAME_'.$userId);
 		}
 	}
 

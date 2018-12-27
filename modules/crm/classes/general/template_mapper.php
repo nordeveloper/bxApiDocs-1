@@ -328,7 +328,12 @@ class CCrmTemplateMapper extends CCrmTemplateMapperBase
 					$result = self::MapReferenceValue(self::PrepareDealTypes(), $fields, 'TYPE_ID', $isHtml);
 					break;
 				case 'STAGE':
-					$result = self::MapReferenceValue(self::PrepareDealStages(), $fields, 'STAGE_ID', $isHtml);
+					$result = self::mapReferenceValue(
+						array_column(\CCrmViewHelper::getDealStageInfos($fields['CATEGORY_ID']), 'NAME', 'STATUS_ID'),
+						$fields,
+						'STAGE_ID',
+						$isHtml
+					);
 					break;
 				case 'PROBABILITY':
 					$result = (isset($fields[$fieldName]) ? intval($fields[$fieldName]) : 0).' %';

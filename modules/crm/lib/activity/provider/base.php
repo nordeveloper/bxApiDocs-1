@@ -461,6 +461,16 @@ class Base
 	 */
 	public static function checkUpdatePermission(array $activityFields, $userId = null)
 	{
+		if($userId <= 0)
+		{
+			$userId = \CCrmSecurityHelper::getCurrentUserId();
+		}
+
+		if($userId > 0 && isset($activityFields['RESPONSIBLE_ID']) && $userId == $activityFields['RESPONSIBLE_ID'])
+		{
+			return true;
+		}
+
 		$permission = \CCrmPerms::GetUserPermissions($userId);
 		return \CCrmActivity::CheckUpdatePermission($activityFields['OWNER_TYPE_ID'], $activityFields['OWNER_ID'], $permission);
 	}

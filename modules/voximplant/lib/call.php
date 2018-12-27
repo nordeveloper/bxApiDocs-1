@@ -692,22 +692,10 @@ class Call
 			$this->users[$userId]['DEVICE'] = $device;
 		}
 
-		CallUserTable::update(['CALL_ID' => $this->callId, 'USER_ID' => $userId], $this->users[$userId]);
-	}
-
-	public function updateUser($userId, array $fields)
-	{
-		if(!isset($this->users[$userId]))
-		{
-			throw new SystemException("User is not participant of the call");
-		}
-
-		foreach ($fields as $field => $value)
-		{
-			$this->users[$userId][$field] = $value;
-		}
-
-		CallUserTable::update(['CALL_ID' => $this->callId, 'USER_ID' => $userId], $this->users[$userId]);
+		CallUserTable::update(['CALL_ID' => $this->callId, 'USER_ID' => $userId], [
+			'STATUS' => $this->users[$userId]['STATUS'],
+			'DEVICE' => $this->users[$userId]['DEVICE']
+		]);
 	}
 
 	/**
@@ -836,10 +824,7 @@ class Call
 
 		if(isset($this->users[$userId]))
 		{
-			$this->updateUser($userId, [
-				'STATUS' => CallUserTable::STATUS_CONNECTED,
-				'DEVICE' => $device,
-			]);
+			$this->updateUserStatus($userId, CallUserTable::STATUS_CONNECTED, $device);
 
 			if($this->incoming == \CVoxImplantMain::CALL_INCOMING || $this->incoming == \CVoxImplantMain::CALL_CALLBACK)
 			{

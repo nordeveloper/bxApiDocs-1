@@ -23,7 +23,7 @@ class OpenLineTrigger extends BaseTrigger
 
 	public static function getName()
 	{
-		return Loc::getMessage('CRM_AUTOMATION_TRIGGER_OPENLINE_NAME');
+		return Loc::getMessage('CRM_AUTOMATION_TRIGGER_OPENLINE_NAME1');
 	}
 
 	public function checkApplyRules(array $trigger)

@@ -1461,8 +1461,8 @@ class ShipmentCollection
 			return $cloneEntity[$this];
 		}
 		
-		$shipmentCollectionClone = clone $this;
-		$shipmentCollectionClone->isClone = true;
+		/** @var ShipmentCollection $shipmentCollectionClone */
+		$shipmentCollectionClone = parent::createClone($cloneEntity);
 
 		if ($this->order)
 		{
@@ -1470,25 +1470,6 @@ class ShipmentCollection
 			{
 				$shipmentCollectionClone->order = $cloneEntity[$this->order];
 			}
-		}
-
-		if (!$cloneEntity->contains($this))
-		{
-			$cloneEntity[$this] = $shipmentCollectionClone;
-		}
-
-		/**
-		 * @var int key
-		 * @var Shipment $shipment
-		 */
-		foreach ($shipmentCollectionClone->collection as $key => $shipment)
-		{
-			if (!$cloneEntity->contains($shipment))
-			{
-				$cloneEntity[$shipment] = $shipment->createClone($cloneEntity);
-			}
-
-			$shipmentCollectionClone->collection[$key] = $cloneEntity[$shipment];
 		}
 
 		return $shipmentCollectionClone;

@@ -1320,9 +1320,9 @@ class Export extends \Bitrix\Main\Engine\Controller
 		if(is_resource($file))
 		{
 			// add UTF-8 BOM marker
-			if (defined('BX_UTF') && BX_UTF)
+			if (\Bitrix\Main\Application::isUtfMode() || defined('BX_UTF'))
 			{
-				if($precedeUtf8Bom && (filesize($this->filePath) === 0))
+				if($precedeUtf8Bom === true && (filesize($this->filePath) === 0))
 				{
 					fwrite($file, chr(239).chr(187).chr(191));
 				}

@@ -554,28 +554,69 @@ class CIMDisk
 			$result['MESSAGE_ID'] = $messageId;
 		}
 
-		if (!$linesSilentMode && !$robot && $chat['ENTITY_TYPE'] == 'LINES')
+		if (!$robot && !$linesSilentMode)
 		{
-			list($connectorId, $lineId, $connectorChatId) = explode("|", $chat['ENTITY_ID']);
-			if ($connectorId == 'livechat')
+			$uploadLiveChatFile = false;
+
+			if ($chat['ENTITY_TYPE'] == 'LIVECHAT' && CModule::IncludeModule('imopenlines'))
+			{
+				list($lineId, $userId) = explode("|", $chat['ENTITY_ID']);
+
+				$session = new \Bitrix\Imopenlines\Session();
+				$result = $session->load(Array(
+					'USER_CODE' => 'livechat|'.$lineId.'|'.$chat['ID'].'|'.$userId,
+					'DEFERRED_JOIN' => 'Y',
+				));
+				if ($result)
+				{
+					$uploadLiveChatFile = true;
+					if ($session->isNowCreated())
+					{
+						\Bitrix\ImOpenLines\Connector::saveCustomData($session->getData('CHAT_ID'), $_SESSION['LIVECHAT']['CUSTOM_DATA']);
+
+						$session->joinUser();
+
+						$messageParams = Array(
+							'IMOL_SID' => $session->getData('ID'),
+							"IMOL_FORM" => "welcome",
+							"TYPE" => "lines",
+							"COMPONENT_ID" => "bx-imopenlines-message",
+						);
+						\CIMMessageParam::Set($messageId, $messageParams);
+						\CIMMessageParam::SendPull($messageId, array_keys($messageParams));
+					}
+					$connectorChatId = $session->getData('CHAT_ID');
+				}
+			}
+			else if ($chat['ENTITY_TYPE'] == 'LINES')
+			{
+				list($connectorId, $lineId, $connectorChatId) = explode("|", $chat['ENTITY_ID']);
+				$uploadLiveChatFile = $connectorId == 'livechat';
+			}
+
+			if ($uploadLiveChatFile)
 			{
 				$files = array_map(function($value) {
 					return str_replace('upload', 'disk', $value);
 				}, $files);
 
 				$uploadResult = self::UploadFileFromDisk($connectorChatId, $files, $text, false, true);
-				\Bitrix\Im\Model\MessageParamTable::add(array(
-					"MESSAGE_ID" => $messageId,
-					"PARAM_NAME" => 'CONNECTOR_MID',
-					"PARAM_VALUE" => $uploadResult['MESSAGE_ID']
-				));
-				\Bitrix\Im\Model\MessageParamTable::add(array(
-					"MESSAGE_ID" => $uploadResult['MESSAGE_ID'],
-					"PARAM_NAME" => 'CONNECTOR_MID',
-					"PARAM_VALUE" => $messageId
-				));
-				$event = new \Bitrix\Main\Event("imopenlines", "OnLivechatUploadFile", Array('FILES' => $uploadResult['DISK_ID']));
-				$event->send();
+				if ($uploadResult)
+				{
+					\Bitrix\Im\Model\MessageParamTable::add(array(
+						"MESSAGE_ID" => $messageId,
+						"PARAM_NAME" => 'CONNECTOR_MID',
+						"PARAM_VALUE" => $uploadResult['MESSAGE_ID']
+					));
+					\Bitrix\Im\Model\MessageParamTable::add(array(
+						"MESSAGE_ID" => $uploadResult['MESSAGE_ID'],
+						"PARAM_NAME" => 'CONNECTOR_MID',
+						"PARAM_VALUE" => $messageId
+					));
+
+					$event = new \Bitrix\Main\Event("imopenlines", "OnLivechatUploadFile", Array('FILES' => $uploadResult['DISK_ID']));
+					$event->send();
+				}
 			}
 		}
 
@@ -731,10 +772,14 @@ class CIMDisk
 		$chatRelation = CIMChat::GetRelationById($chatId);
 		foreach ($chatRelation as $relation)
 		{
+			if ($relation["EXTERNAL_AUTH_ID"] == 'imconnector')
+			{
+				unset($chatRelation[$relation["USER_ID"]]);
+				continue;
+			}
 			if ($relation['USER_ID'] == self::GetUserId())
 			{
 				$relationError = false;
-				break;
 			}
 		}
 		if ($relationError)
@@ -806,10 +851,14 @@ class CIMDisk
 		$chatRelation = CIMChat::GetRelationById($chatId);
 		foreach ($chatRelation as $relation)
 		{
+			if ($relation["EXTERNAL_AUTH_ID"] == 'imconnector')
+			{
+				unset($chatRelation[$relation["USER_ID"]]);
+				continue;
+			}
 			if ($relation['USER_ID'] == self::GetUserId())
 			{
 				$relationError = false;
-				break;
 			}
 		}
 		if ($relationError)
@@ -1111,12 +1160,13 @@ class CIMDisk
 			'date' => $fileModel->getCreateTime(),
 			'type' => $contentType,
 			'name' => $fileModel->getName(),
+			'extension' => strtolower($fileModel->getExtension()),
 			'size' => (int)$fileModel->getSize(),
 			'image' => $imageParams,
 			'status' => $fileModel->getGlobalContentVersion() > 1? 'done': 'upload',
 			'progress' => $fileModel->getGlobalContentVersion() > 1? 100: -1,
 			'authorId' => (int)$fileModel->getCreatedBy(),
-			'authorName' => CUser::FormatName(CSite::GetNameFormat(false), $fileModel->getCreateUser(), true, true),
+			'authorName' => \Bitrix\Im\User::formatFullNameFromDatabase($fileModel->getCreateUser()),
 			'urlPreview' => self::GetPublicPath(self::PATH_TYPE_PREVIEW, $fileModel),
 			'urlShow' => self::GetPublicPath(self::PATH_TYPE_SHOW, $fileModel),
 			'urlDownload' => self::GetPublicPath(self::PATH_TYPE_DOWNLOAD, $fileModel),

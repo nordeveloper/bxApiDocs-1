@@ -54,7 +54,7 @@ class ConfigStatisticTable extends Main\Entity\DataManager
 			),
 			'MESSAGE' => array(
 				'data_type' => 'integer',
-				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_MESSAGE_FIELD_NEW'),
+				'title' => Loc::getMessage('CONFIG_STATISTIC_ENTITY_MESSAGE_FIELD_NEW_NEW'),
 				'default_value' => '0',
 			),
 			'CLOSED' => array(

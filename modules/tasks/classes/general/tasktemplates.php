@@ -25,6 +25,186 @@ class CTaskTemplates
 
 	private $_errors = array();
 
+	/**
+	 * Get tasks fields info (for rest, etc)
+	 *
+	 * @return array
+	 */
+	public static function getFieldsInfo()
+	{
+		global $USER_FIELD_MANAGER;
+
+		$fields = [
+			"ID" => [
+				'type'    => 'integer',
+				'primary' => true
+			],
+			"PARENT_ID"   => [
+				'type'    => 'integer',
+				'default' => 0
+			],
+			"TITLE" => [
+				'type'    => 'string',
+				'required' => true
+			],
+			"DESCRIPTION" => [
+				'type'    => 'string'
+			],
+
+			"PRIORITY"    => [
+				'type'    => 'enum',
+				'values'  => [
+					\CTasks::PRIORITY_HIGH    => Loc::getMessage('TASKS_FIELDS_PRIORITY_HIGH'),
+					\CTasks::PRIORITY_AVERAGE => Loc::getMessage('TASKS_FIELDS_PRIORITY_AVERAGE'),
+					\CTasks::PRIORITY_LOW     => Loc::getMessage('TASKS_FIELDS_PRIORITY_LOW')
+				],
+				'default' => \CTasks::PRIORITY_AVERAGE
+			],
+
+
+			"GROUP_ID" => [
+				'type'    => 'integer',
+				'default' => 0
+			],
+			"STAGE_ID" => [
+				'type'    => 'integer',
+				'default' => 0
+			],
+
+			"CREATED_BY"     => [
+				'type'     => 'integer',
+				'required' => true
+			],
+			"RESPONSIBLE_ID" => [
+				'type'     => 'integer',
+				'required' => true
+			],
+			"DEPENDS_ON" => [
+				'type'     => 'integer',
+				'required' => true
+			],
+			"RESPONSIBLES" => [
+				'type'     => 'array'
+			],
+			"ACCOMPLICES" => [
+				'type'     => 'array'
+			],
+			"AUDITORS" => [
+				'type'     => 'array'
+			],
+			"STATUS"      => [
+				'type'    => 'enum',
+				'values'  => [
+					\CTasks::STATE_PENDING              => Loc::getMessage('TASKS_FIELDS_STATUS_PENDING'),
+					\CTasks::STATE_IN_PROGRESS          => Loc::getMessage('TASKS_FIELDS_STATUS_IN_PROGRESS'),
+					\CTasks::STATE_SUPPOSEDLY_COMPLETED => Loc::getMessage('TASKS_FIELDS_STATUS_SUPPOSEDLY_COMPLETED'),
+					\CTasks::STATE_COMPLETED            => Loc::getMessage('TASKS_FIELDS_STATUS_COMPLETED'),
+					\CTasks::STATE_DEFERRED             => Loc::getMessage('TASKS_FIELDS_STATUS_DEFERRED')
+				],
+				'default' => \CTasks::STATE_PENDING
+			],
+
+			"MULTITASK" => [
+				'type'    => 'enum',
+				'values'  => [
+					'Y' => Loc::getMessage('TASKS_FIELDS_Y'),
+					'N' => Loc::getMessage('TASKS_FIELDS_N'),
+				],
+				'default' => 'N'
+			],
+			"REPLICATE" => [
+				'type'    => 'enum',
+				'values'  => [
+					'Y' => Loc::getMessage('TASKS_FIELDS_Y'),
+					'N' => Loc::getMessage('TASKS_FIELDS_N'),
+				],
+				'default' => 'N'
+			],
+			"SITE_ID"        => [
+				'type' => 'string',
+			],
+			"TASK_CONTROL"          => [
+				'type'    => 'enum',
+				'values'  => [
+					'Y' => Loc::getMessage('TASKS_FIELDS_Y'),
+					'N' => Loc::getMessage('TASKS_FIELDS_N'),
+				],
+				'default' => 'N'
+			],
+			"ADD_IN_REPORT"         => [
+				'type'    => 'enum',
+				'values'  => [
+					'Y' => Loc::getMessage('TASKS_FIELDS_Y'),
+					'N' => Loc::getMessage('TASKS_FIELDS_N'),
+				],
+				'default' => 'N'
+			],
+
+			"XML_ID" => [
+				'type'    => 'string',
+				'default' => null
+			],
+
+
+			'DEADLINE_AFTER' => [
+				'type'    => 'datetime',
+				'default' => null
+			],
+			'START_DATE_PLAN_AFTER'=> [
+				'type'    => 'datetime',
+				'default' => null
+			],
+			'END_DATE_PLAN_AFTER' => [
+				'type'    => 'datetime',
+				'default' => null
+			],
+
+			'TPARAM_TYPE' => [
+				'type'    => 'enum',
+				'values'=>[
+					1 => Loc::getMessage('TASKS_FIELDS_Y'),
+					0 => Loc::getMessage('TASKS_FIELDS_N'),
+				],
+				'default' => 0
+			],
+			'TPARAM_REPLICATION_COUNT' => [
+				'type'    => 'integer',
+				'default' => 0
+			],
+			'REPLICATE_PARAMS' => [
+				'type'    => 'string'
+			],
+
+			'BASE_TEMPLATE_ID' => [
+				'type'    => 'integer',
+				'default' => null
+			],
+			'TEMPLATE_CHILDREN_COUNT' => [
+				'type'    => 'integer',
+				'default' => null
+			],
+
+		];
+
+		foreach ($fields as $fieldId => &$fieldData)
+		{
+			$fieldData = array_merge(['title' => Loc::getMessage('TASKS_TEMPLATE_FIELDS_'.$fieldId)], $fieldData);
+		}
+		unset($fieldData);
+
+
+		$uf = $USER_FIELD_MANAGER->GetUserFields("TASKS_TASK_TEMPLATE");
+		foreach ($uf as $key => $item)
+		{
+			$fields[$key] = [
+				'title' => $item['USER_TYPE']['DESCRIPTION'],
+				'type'  => $item['USER_TYPE_ID']
+			];
+		}
+
+		return $fields;
+	}
+
 	function GetErrors()
 	{
 		return $this->_errors;
@@ -1201,7 +1381,10 @@ class CTaskTemplates
 			return $dbResult;
 		}
 
-		return CTaskTemplates::GetList(Array(), Array("ID" => $ID), array(), $arParams, array('*', 'UF_*'));
+		$select = array_key_exists('select', $arParams) ? $arParams['select'] : ['*', 'UF_*'];
+		$order = array_key_exists('order', $arParams) ? $arParams['order'] : [];
+
+		return CTaskTemplates::GetList($order, ["ID" => $ID], [], $arParams, $select);
 	}
 
 	/**

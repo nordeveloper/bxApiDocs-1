@@ -110,6 +110,38 @@ abstract class EntityTimelineBuildAgent extends AgentBase
 		}
 	}
 
+	public function isActive()
+	{
+		$dbResult = \CAgent::GetList(
+			array('ID' => 'DESC'),
+			array('NAME' => get_called_class().'::run(%')
+		);
+		return is_object($dbResult) && is_array($dbResult->Fetch());
+	}
+
+	public function activate($delay = 0)
+	{
+		if(!is_int($delay))
+		{
+			$delay = (int)$delay;
+		}
+
+		if($delay < 0)
+		{
+			$delay = 0;
+		}
+
+		\CAgent::AddAgent(
+			get_called_class().'::run();',
+			'crm',
+			'N',
+			0,
+			'',
+			'Y',
+			ConvertTimeStamp(time() + \CTimeZone::GetOffset() + $delay, 'FULL')
+		);
+	}
+
 	public function getProgressData()
 	{
 		$progressName = $this->getProgressOptionName();

@@ -523,6 +523,13 @@ class Counter
 		return $time;
 	}
 
+	/**
+	 * @param $userId
+	 * @param int $groupId
+	 * @param bool $recache
+	 *
+	 * @return self
+	 */
 	public static function getInstance($userId, $groupId = 0, $recache = false)
 	{
 		if ($recache || !self::$instance ||
@@ -1003,7 +1010,7 @@ class Counter
 	}
 
 	/**
-	 * @param Counter\Role $type
+	 * @param string $type
 	 *
 	 * @return array
 	 */

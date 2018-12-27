@@ -19,6 +19,8 @@ Loc::loadMessages(__FILE__);
 
 class Queue
 {
+	const USER_DATA_CACHE_TIME = 86400;
+
 	private $error = null;
 	private $id = null;
 	private $session = null;
@@ -351,5 +353,228 @@ class Queue
 	public function getError()
 	{
 		return $this->error;
+	}
+
+	/**
+	 * Return array of user data for current line
+	 *
+	 * @param $userId
+	 * @param $lineId
+	 *
+	 * @return array|bool|false
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function getQueueOperatorData($userId, $lineId)
+	{
+		$lineId = intval($lineId);
+		$userId = intval($userId);
+		$queue = false;
+		$cacheId = md5(serialize(array($lineId, $userId)));
+		$cacheDir = '/imopenlines/queue/';
+		$cache = \Bitrix\Main\Application::getInstance()->getCache();
+		$taggedCache = \Bitrix\Main\Application::getInstance()->getTaggedCache();
+
+		if ($lineId > 0 && $userId > 0)
+		{
+			$params = array(
+				'select' => array('USER_NAME', 'USER_WORK_POSITION', 'USER_AVATAR', 'USER_AVATAR_ID'),
+				'filter' => array(
+					'CONFIG_ID' => $lineId,
+					'USER_ID' => $userId
+				)
+			);
+
+			if ($cache->initCache(self::USER_DATA_CACHE_TIME, $cacheId, $cacheDir))
+			{
+				$queue = $cache->getVars();
+			}
+			else
+			{
+				$cache->startDataCache();
+				$taggedCache->startTagCache($cacheDir);
+				$taggedCache->registerTag(self::getUserCacheTag($userId, $lineId));
+
+				$queue = self::getList($params)->fetch();
+
+				$taggedCache->endTagCache();
+				$cache->endDataCache($queue);
+			}
+		}
+
+		return $queue;
+	}
+
+	public static function getUserCacheTag($userId, $lineId)
+	{
+		return 'QUEUE_USER_DATA_'.$userId.'_'.$lineId;
+	}
+
+	/**
+	 * Set user data for openlines using line config and queue data
+	 *
+	 * @param $lineId
+	 * @param $userArray
+	 *
+	 * @return mixed
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function setQueueUserData($lineId, $userArray)
+	{
+		$operatorDataType = Config::operatorDataConfig($lineId);
+
+		if ($operatorDataType == Config::OPERATOR_DATA_QUEUE)
+		{
+			$userData = self::getQueueOperatorData($userArray['ID'], $lineId);
+
+			if (is_null($userData['USER_NAME']))
+			{
+				$userArray['NAME'] = Loc::getMessage("QUEUE_OPERATOR_DEFAULT_NAME");
+				$userArray['FIRST_NAME'] = $userArray['NAME'];
+				$userArray['LAST_NAME'] = '';
+			}
+			else
+			{
+				$userArray['NAME'] = (string)$userData['USER_NAME'];
+
+				$nameElements = explode(' ', $userArray['NAME']);
+				if (count($nameElements) > 1)
+				{
+					$userArray['LAST_NAME'] = array_pop($nameElements);
+					$userArray['FIRST_NAME'] = join(" ", $nameElements);
+				}
+				else
+				{
+					$userArray['FIRST_NAME'] = $userArray['NAME'];
+					$userArray['LAST_NAME'] = '';
+				}
+			}
+
+			if (is_null($userData['USER_WORK_POSITION']))
+			{
+				$userArray['WORK_POSITION'] = '';
+			}
+			else
+			{
+				$userArray['WORK_POSITION'] = (string)$userData['USER_WORK_POSITION'];
+			}
+
+			if (!is_null($userData['USER_AVATAR']))
+			{
+				$userArray['AVATAR'] = (string)$userData['USER_AVATAR'];
+			}
+
+			if (!is_null($userData['USER_AVATAR_ID']))
+			{
+				$userArray['AVATAR_ID'] = (int)$userData['USER_AVATAR_ID'];
+			}
+		}
+		elseif ($operatorDataType == Config::OPERATOR_DATA_HIDE)
+		{
+			$userArray['NAME'] = Loc::getMessage("QUEUE_OPERATOR_DEFAULT_NAME");
+			$userArray['FIRST_NAME'] = (string)$userArray['NAME'];
+			$userArray['LAST_NAME'] = '';
+			$userArray['AVATAR'] = '';
+			$userArray['AVATAR_ID'] = 0;
+			$userArray['WORK_POSITION'] = '';
+		}
+		else
+		{
+			return false;
+		}
+
+		return $userArray;
+	}
+
+	/**
+	 * Set user data for openlines using custom function and line config and queue data
+	 *
+	 * @param $lineId
+	 * @param $userId
+	 * @param $nullForUnprocessed
+	 *
+	 * @return mixed
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function getUserData($lineId, $userId, $nullForUnprocessed = false)
+	{
+		if ($userId <= 0)
+		{
+			return null;
+		}
+
+		$user = \Bitrix\Im\User::getInstance($userId);
+		if (!$user->isExists())
+		{
+			return null;
+		}
+
+		$currentUserData = [
+			'ID' => $userId,
+			'NAME' => $user->getFullName(false),
+			'FIRST_NAME' => $user->getName(false),
+			'LAST_NAME' => $user->getLastName(false),
+			'WORK_POSITION' => '',
+			'GENDER' => $user->getGender(),
+			'AVATAR' => $user->getAvatar(),
+			'AVATAR_ID' => $user->getAvatarId(),
+			'ONLINE' => $user->isOnline()
+		];
+		if (!empty($result['AVATAR']))
+		{
+			$currentUserData['AVATAR'] = substr($currentUserData['AVATAR'], 0, 4) == 'http'? $currentUserData['AVATAR']: \Bitrix\ImOpenLines\Common::getServerAddress().$currentUserData['AVATAR'];
+		}
+
+		if ($user->isExtranet())
+		{
+			return $nullForUnprocessed? null: $currentUserData;
+		}
+
+		if (function_exists('customImopenlinesOperatorNames'))
+		{
+			$customData = customImopenlinesOperatorNames($lineId, [
+				'ID' => $currentUserData['ID'],
+				'NAME' => $currentUserData['FIRST_NAME'],
+				'FIRST_NAME' => '',
+				'LAST_NAME' => $currentUserData['LAST_NAME'],
+				'WORK_POSITION' => '',
+				'GENDER' => $currentUserData['GENDER'],
+				'AVATAR' => $currentUserData['AVATAR'],
+				'AVATAR_ID' => $currentUserData['AVATAR_ID'],
+				'EXTERNAL_AUTH_ID' => $user->getExternalAuthId(),
+				'ONLINE' => $currentUserData['ONLINE']
+			]);
+			if (!$customData)
+			{
+				return $nullForUnprocessed? null: $currentUserData;
+			}
+
+			$result['ID'] = $customData['ID'];
+			$result['NAME'] = (string)\Bitrix\Im\User::formatFullNameFromDatabase($customData);
+			$result['FIRST_NAME'] = (string)\Bitrix\Im\User::formatNameFromDatabase($customData);
+			$result['LAST_NAME'] = (string)$customData['LAST_NAME'];
+			$result['WORK_POSITION'] = (string)$customData['WORK_POSITION'];
+			$result['AVATAR'] = (string)$customData['AVATAR'];
+			$result['AVATAR_ID'] = (int)$customData['AVATAR_ID'];
+			$result['ONLINE'] = (bool)$customData['ONLINE'];
+		}
+		else
+		{
+			$result = self::setQueueUserData($lineId, $currentUserData);
+			if (!$result)
+			{
+				return $nullForUnprocessed? null: $currentUserData;
+			}
+		}
+
+		if (!empty($result['AVATAR']))
+		{
+			$result['AVATAR'] = substr($result['AVATAR'], 0, 4) == 'http'? $result['AVATAR']: \Bitrix\ImOpenLines\Common::getServerAddress().$result['AVATAR'];
+		}
+
+		return $result;
 	}
 }

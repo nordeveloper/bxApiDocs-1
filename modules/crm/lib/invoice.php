@@ -190,8 +190,10 @@ class InvoiceTable extends Entity\DataManager
 				'data_type' => 'boolean',
 				'values' => array('N', 'Y'),
 				'default_value' => 'N'
+			),
+			'SEARCH_CONTENT' =>array(
+				'data_type' => 'text'
 			)
-
 		);
 	}
 

@@ -160,32 +160,17 @@ class Effective
 		return $deadline->checkLT($now);
 	}
 
-	private static function getDefaultTimeRangeFilter()
+	public static function getDefaultTimeRangeFilter()
 	{
-		//		$filterOptions = new Filter\Options(
-		//			Effective::getFilterId(), Effective::getPresetList()
-		//		);
-		//
-		//		$defId = $filterOptions->getDefaultFilterId();
-		//		$settings = $filterOptions->getFilterSettings($defId);
-		//		$filtersRaw = Filter\Options::fetchFieldValuesFromFilterSettings($settings);
-		//
-		//		$dateFrom = DateTime::createFrom($filtersRaw['DATETIME_from']);
-		//		$dateTo = DateTime::createFrom($filtersRaw['DATETIME_to']);
-		//
-		//		if (!$dateFrom || !$dateTo)
-		//		{
-			$currentDate = new Datetime();
+		$currentDate = new Datetime();
 
-			$dateFrom = DateTime::createFromTimestamp(
-				strtotime($currentDate->format('01.m.Y 00:00:01'))
-			);
+		$dateFrom = DateTime::createFromTimestamp(
+			strtotime($currentDate->format('01.m.Y 00:00:01'))
+		);
 
-			$dateTo = DateTime::createFromTimestamp(
-				strtotime($currentDate->format('t.m.Y 23:59:59'))
-			);
-
-		//		}
+		$dateTo = DateTime::createFromTimestamp(
+			strtotime($currentDate->format('t.m.Y 23:59:59'))
+		);
 
 		return array(
 			'FROM' => $dateFrom,
@@ -414,7 +399,7 @@ class Effective
 		return '\Bitrix\Tasks\Internals\Effective::agent("'.$date->format('Y-m-d').'");';
 	}
 
-	private static function getCountersByRange(Datetime $dateFrom, Datetime $dateTo, $userId, $groupId = 0)
+	public static function getCountersByRange(Datetime $dateFrom, Datetime $dateTo, $userId, $groupId = 0)
 	{
 		$out = array();
 

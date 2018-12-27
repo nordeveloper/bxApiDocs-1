@@ -170,6 +170,7 @@ abstract class SocialNetwork extends \Bitrix\Tasks\Integration
 			{
 				global $CACHE_MANAGER;
 				$CACHE_MANAGER->startTagCache($cacheDir);
+				$CACHE_MANAGER->registerTag("sonet_group");
 				foreach($destination["SONETGROUPS"] as $val)
 				{
 					$CACHE_MANAGER->registerTag("sonet_features_G_".$val["entityId"]);

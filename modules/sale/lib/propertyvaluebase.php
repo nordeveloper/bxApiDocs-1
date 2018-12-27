@@ -377,7 +377,7 @@ abstract class PropertyValueBase extends Internals\CollectableEntity
 	{
 		$result = new Result();
 
-		$key = ($this->property->getId() > 0) ? $this->property->getId() : "n".$this->getId();
+		$key = ($this->getField('ORDER_PROPS_ID')) ?: "n".$this->getInternalIndex();
 
 		if (is_array($post['PROPERTIES']) && array_key_exists($key, $post['PROPERTIES']))
 		{

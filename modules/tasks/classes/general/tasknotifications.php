@@ -2046,13 +2046,12 @@ class CTaskNotifications
 	{
 		$task = new CTaskItem($taskId, $GLOBALS['USER']->GetId());
 
-		$taskCommentItem = CTaskCommentItem::add($task, array(
+		$commentId = CTaskCommentItem::add($task, array(
 			'POST_MESSAGE' => $text
 		));
 
 		if (
-			($taskCommentItem instanceof CTaskCommentItem)
-			&& ($commentId = $taskCommentItem->getId())
+			$commentId > 0
 			&& \Bitrix\Main\Loader::includeModule('socialnetwork')
 		)
 		{
@@ -2102,7 +2101,7 @@ class CTaskNotifications
 			}
 		}
 
-		return $taskCommentItem;
+		return $commentId;
 	}
 
 	########################

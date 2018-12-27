@@ -49,9 +49,9 @@ class Template extends Base
 	 * @param $entityTypeId
 	 * @param $entityId
 	 * @param array $values
-	 * @return \Bitrix\Main\Result|bool
+	 * @return null|array
 	 */
-	public function getFieldsAction(\Bitrix\DocumentGenerator\Template $template, $entityTypeId, $entityId, array $values = [])
+	public function getFieldsAction(\Bitrix\DocumentGenerator\Template $template, $entityTypeId, $entityId = null, array $values = [])
 	{
 		$providersMap = DocumentGeneratorManager::getInstance()->getCrmOwnerTypeProvidersMap();
 		if(!isset($providersMap[$entityTypeId]))

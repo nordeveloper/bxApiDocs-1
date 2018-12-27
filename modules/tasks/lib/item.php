@@ -206,7 +206,7 @@ abstract class Item extends LazyAccess
 					$expression == '~' ||
 					$expression == '#' ||
 					$expression == 'UF_#' ||
-					static::isWidlCard($expression) ||
+					static::isWildCard($expression) ||
 					static::isRegularExpression($expression)
 				)
 				{
@@ -218,7 +218,7 @@ abstract class Item extends LazyAccess
 				}
 			}
 		}
-		elseif(static::isWidlCard($select)) // field names against wildcard
+		elseif(static::isWildCard($select)) // field names against wildcard
 		{
 			// todo: implement wildcard here, for example: * (all), UF_* (user fields), SE_* (sub-entities), *_FIELD_NAME_* (custom wildcard), etc...
 			throw new NotImplementedException();
@@ -235,7 +235,7 @@ abstract class Item extends LazyAccess
 		return $fields;
 	}
 
-	private static function isWidlCard($expression)
+	private static function isWildCard($expression)
 	{
 		return $expression == '*'; // todo: more complicated wildcards, like UF_*, SE_*
 	}
@@ -1447,11 +1447,99 @@ abstract class Item extends LazyAccess
 	}
 
 	/**
+	 * Find items in database by condition
+	 *
+	 * todo: pagenav support here, like NAV_PARAMS in old getlist()? (if yes, avoid usage of global variables)
+	 *
+	 * @param array $parameters
+	 * @param null $settings
+	 * @return array|\Bitrix\Tasks\Item\Collection
+	 * @throws NotImplementedException
+	 * @throws SystemException
+	 */
+	public static function getList(array $parameters = array(), $settings = null)
+	{
+		if(!is_array($settings))
+		{
+			$settings = array();
+		}
+		if(!intval($settings['USER_ID']))
+		{
+			$settings['USER_ID'] = User::getId();
+		}
+
+		$dc = static::getDataSourceClass();
+		$dcParams = array_intersect_key(
+			$parameters,
+			array('filter' => 1, 'select' => 1, 'order' => 1, 'limit' => 1, 'offset' => 1, 'count_total' => 1)
+		);
+
+		if(isset($dcParams['select']) && !in_array('*', $dcParams['select']) && !in_array('ID', $dcParams['select']))
+		{
+			$dcParams['select'][]='ID';
+		}
+
+		// todo: filter select key carefully here!!! DO NOT query fields that have DB_READABLE == false, and also
+		// todo: care about SOURCE == Scalar::SOURCE_CUSTOM here!
+
+		// todo: this is the default access controller, we could specify our own in $settings and use here
+		$ac = static::getAccessControllerDefault();
+
+		$items = array();
+		$result = static::getCollectionInstance();
+
+		$parameters = $ac->addDataBaseAccessCheck(
+			$dcParams,
+			array(
+				'USER_ID' => $settings['USER_ID'],
+			)
+		);
+
+		// catch some exceptions came from orm, and wrap it into a error
+		try
+		{
+			$res = $dc::getList($parameters);
+		}
+		catch(SystemException $e) // orm throws common SystemException, which is not good, but we cant do anything
+		{
+			if($e->getCode() == 100) // errors like "Unknown field"
+			{
+				$message = $e->getMessage();
+				$found = array();
+				$data = array();
+				if(preg_match('#Unknown field definition `([a-zA-Z0-9_]+)`#', $message, $found) && $found[1] && strlen($found[1]))
+				{
+					$message = Loc::getMessage('TASKS_ITEM_UNKNOWN_FIELD', array('FIELD_NAME' => $found[1]));
+					$data = array('FIELD_NAME' => $found[1]);
+				}
+
+				$result->addError('UNKNOWN_FIELD', $message, Error::TYPE_FATAL, $data);
+				$res = null;
+			}
+			else
+			{
+				throw $e;
+			}
+		}
+
+		if($res)
+		{
+			while($item = $res->fetch())
+			{
+				$items[ $item['ID'] ] = $item;
+			}
+			$result->set($items);
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Find one item in database by condition
 	 *
 	 * @param array $parameters
 	 * @param null $settings
-	 * @return Item\null
+	 * @return Item|null
 	 */
 	public static function findOne(array $parameters, $settings = null)
 	{

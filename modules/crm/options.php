@@ -114,6 +114,7 @@ if($MOD_RIGHT>='R'):
 		array('path_to_order_payment_list', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_PAYMENT_LIST'), '/shop/orders/payment/list/', Array('text', '40')),
 		array('path_to_order_payment_details', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_PAYMENT_DETAILS'), '/shop/orders/payment/details/#payment_id#/', Array('text', '40')),
 		array('path_to_order_form', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_FORM'), '/shop/orderform/', Array('text', '40')),
+		array('path_to_order_import_instagram', GetMessage('CRM_OPTIONS_PATH_TO_ORDER_IMPORT_INSTAGRAM'), '/shop/import/instagram/', Array('text', '40')),
 	);
 
 	$arAllOptions = array_merge($arOptionsPath, $arOptionsBase);

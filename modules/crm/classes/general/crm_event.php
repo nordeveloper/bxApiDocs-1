@@ -365,16 +365,6 @@ class CCrmEvent
 			}
 		}
 
-		if(is_array($arGroupBy) && empty($arGroupBy))
-		{
-			//HACK: push join to b_crm_event_relations if it is query of count for permissions check.
-			if(!isset($arFilter['__JOINS']))
-			{
-				$arFilter['__JOINS'] = array();
-			}
-			$arFilter['__JOINS'][] = array('SQL' => 'INNER JOIN b_crm_event_relations CER ON CE.ID = CER.EVENT_ID');
-		}
-
 		global $DBType;
 		$lb = new CCrmEntityListBuilder(
 			$DBType,
@@ -617,17 +607,18 @@ class CCrmEvent
 	}
 	public function DeleteByElement($entityTypeName, $entityID)
 	{
-		$err_mess = (self::err_mess()).'<br>Function: DeleteByElement<br>Line: ';
 		$entityID = (int)$entityID;
-
-		$db_events = GetModuleEvents('crm', 'OnBeforeCrmEventDeleteByElement');
-		while($arEvent = $db_events->Fetch())
-			ExecuteModuleEventEx($arEvent, array($entityTypeName, $entityID));
 
 		if ($entityTypeName == '' || $entityID == 0)
 		{
 			return false;
 		}
+
+		$db_events = GetModuleEvents('crm', 'OnBeforeCrmEventDeleteByElement');
+		while($arEvent = $db_events->Fetch())
+			ExecuteModuleEventEx($arEvent, array($entityTypeName, $entityID));
+
+		$err_mess = (self::err_mess()).'<br>Function: DeleteByElement<br>Line: ';
 
 		// check unrelated events
 		$entityTypeName = $this->cdb->ForSql($entityTypeName);

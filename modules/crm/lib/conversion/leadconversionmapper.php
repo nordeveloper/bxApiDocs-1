@@ -318,8 +318,11 @@ class LeadConversionMapper extends EntityConversionMapper
 		//region Setup fields by default
 		if($dstEntityTypeID === \CCrmOwnerType::Contact)
 		{
-			if((!isset($dstFields['NAME']) || $dstFields['NAME'] === '')
-				&& isset($initData['defaultName']))
+			$name = isset($dstFields['NAME']) ? $dstFields['NAME'] : '';
+			$secondName = isset($dstFields['SECOND_NAME']) ? $dstFields['SECOND_NAME'] : '';
+			$lastName = isset($dstFields['LAST_NAME']) ? $dstFields['LAST_NAME'] : '';
+
+			if($name === '' && $secondName === '' && $lastName === '' && isset($initData['defaultName']))
 			{
 				$dstFields['NAME'] = $initData['defaultName'];
 			}

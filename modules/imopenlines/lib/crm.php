@@ -7,15 +7,19 @@ use \Bitrix\Main\Loader,
 	\Bitrix\Main\Localization\Loc;
 
 use \Bitrix\Crm\EntityManageFacility,
+	\Bitrix\Crm\Tracking,
 	\Bitrix\Crm\Settings\LeadSettings,
 	\Bitrix\Crm\Automation\Trigger\OpenLineTrigger,
+	\Bitrix\Crm\Automation\Trigger\OpenLineMessageTrigger,
 	\Bitrix\Crm\Integration\Channel\IMOpenLineTracker;
 
 use \Bitrix\Im\User as ImUser;
 
 use \Bitrix\Imopenlines\Widget,
 	\Bitrix\ImOpenLines\Crm\Fields,
+	\Bitrix\ImOpenLines\Im\Messages,
 	\Bitrix\ImOpenLines\Crm\Activity,
+	\Bitrix\ImOpenLines\ConfigStatistic,
 	\Bitrix\ImOpenLines\Crm\Common as CrmCommon;
 
 Loc::loadMessages(__FILE__);
@@ -397,6 +401,17 @@ class Crm
 			$this->facility = new EntityManageFacility();
 		}
 
+		if (empty($this->facility->getTrace()) && $this->fields->getSession())
+		{
+			$this->facility->setTrace(
+				Tracking\Trace::create(
+					$this->fields->getSession()->getData('CRM_TRACE_DATA')
+				)->addChannel(
+					new Tracking\Channel\Imol($this->fields->getSession()->getData('SOURCE'))
+				)
+			);
+		}
+
 		return $this->facility;
 	}
 
@@ -550,6 +565,11 @@ class Crm
 								'IS_PRIMARY' => ($registeredEntity->getTypeId() == $facility->getPrimaryTypeId() && $registeredEntity->getId() == $facility->getPrimaryId()) ? 'Y' : 'N',
 								'SAVE' => 'Y'
 							];
+
+							if(\CCrmOwnerType::ResolveName($registeredEntity->getTypeId()) == \CCrmOwnerType::LeadName)
+							{
+								ConfigStatistic::getInstance($session->getData('CONFIG_ID'))->addLead();
+							}
 						}
 					}
 					else
@@ -767,40 +787,7 @@ class Crm
 
 		if (!empty($session))
 		{
-			//TODO: Клавиатуры для отмена операции
-			/*$messageCode = 'IMOL_SESSION_'.$crmData['ENTITY_TYPE'].'_EXTEND';
-
-			$keyboard = new \Bitrix\Im\Bot\Keyboard();
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CHANGE'),
-				"FUNCTION" => "BX.MessengerCommon.linesChangeCrmEntity(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-				"CONTEXT" => "DESKTOP",
-			));
-			$keyboard->addButton(Array(
-				"TEXT" => Loc::getMessage('IMOL_TRACKER_BUTTON_CANCEL'),
-				"FUNCTION" => "BX.MessengerCommon.linesCancelCrmExtend(#MESSAGE_ID#);",
-				"DISPLAY" => "LINE",
-			));*/
-
-			//TODO: трекер для отката изменений
-			/*if ($keyboard)
-			{
-				$result = TrackerTable::add(Array(
-					'SESSION_ID' => intval($params['SESSION_ID']),
-					'CHAT_ID' => $params['CHAT_ID'],
-					'MESSAGE_ID' => $messageId,
-					'USER_ID' => $params['USER_ID'],
-					'ACTION' => Tracker::ACTION_EXTEND,
-					'CRM_ENTITY_TYPE' => $crmData['ENTITY_TYPE'],
-					'CRM_ENTITY_ID' => $crmData['ENTITY_ID'],
-					'FIELD_TYPE' => Tracker::FIELD_IM,
-					'FIELD_VALUE' => 'imol|'.$params['USER_CODE'],
-				));
-				$crmData['CRM_TRACK_ID'] = $result->getId();
-			}*/
-
-			$userViewChat = \CIMContactList::InRecent($session->getData('OPERATOR_ID'), IM_MESSAGE_OPEN_LINE, $session->getData('CHAT_ID'));
+			$messageManager = Messages\Crm::init($session->getData('CHAT_ID'), $session->getData('OPERATOR_ID'));
 
 			if(!empty($this->registeredEntites))
 			{
@@ -808,14 +795,7 @@ class Crm
 				{
 					if($entity['SAVE'] == 'Y')
 					{
-						$messageId = Im::addMessage(Array(
-							"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-							"MESSAGE" => '[b]'.Loc::getMessage('IMOL_SESSION_' . $entity['ENTITY_TYPE'] . '_ADD_NEW').'[/b]',
-							"SYSTEM" => 'Y',
-							"ATTACH" => CrmCommon::getEntityCard($entity['ENTITY_TYPE'], $entity['ENTITY_ID']),
-							"RECENT_ADD" => $userViewChat? 'Y': 'N',
-							//"KEYBOARD" => $keyboard
-						));
+						$messageManager->sendMessageAboutAddEntity($entity['ENTITY_TYPE'], $entity['ENTITY_ID']);
 					}
 				}
 			}
@@ -826,25 +806,11 @@ class Crm
 				{
 					if($entity['SAVE'] == 'Y')
 					{
-						$messageId = Im::addMessage(Array(
-							"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-							"MESSAGE" => '[b]'.Loc::getMessage('IMOL_SESSION_' . $entity['ENTITY_TYPE'] . '_EXTEND').'[/b]',
-							"SYSTEM" => 'Y',
-							"ATTACH" => CrmCommon::getEntityCard($entity['ENTITY_TYPE'], $entity['ENTITY_ID']),
-							"RECENT_ADD" => $userViewChat? 'Y': 'N',
-							//"KEYBOARD" => $keyboard
-						));
+						$messageManager->sendMessageAboutExtendEntity($entity['ENTITY_TYPE'], $entity['ENTITY_ID']);
 					}
 					elseif($entity['ADD'] == 'Y')
 					{
-						$messageId = Im::addMessage(Array(
-							"TO_CHAT_ID" => $session->getData('CHAT_ID'),
-							"MESSAGE" => '[b]'.Loc::getMessage('IMOL_SESSION_' . $entity['ENTITY_TYPE'] . '_UPDATE').'[/b]',
-							"SYSTEM" => 'Y',
-							"ATTACH" => CrmCommon::getEntityCard($entity['ENTITY_TYPE'], $entity['ENTITY_ID']),
-							"RECENT_ADD" => $userViewChat? 'Y': 'N',
-							//"KEYBOARD" => $keyboard
-						));
+						$messageManager->sendMessageAboutUpdateEntity($entity['ENTITY_TYPE'], $entity['ENTITY_ID']);
 					}
 				}
 			}
@@ -1228,7 +1194,29 @@ class Crm
 			}
 			else
 			{
-				$result = $session->getData('USER_ID');
+				//TODO: temporary fix
+				$queueUserList = $session->getQueue()['USER_LIST'];
+
+				if(!empty($queueUserList) && is_array($queueUserList))
+				{
+					$result = current($queueUserList);
+				}
+
+				if(empty($result) && Loader::includeModule('Bitrix24'))
+				{
+					$adminList = \CBitrix24::getAllAdminId();
+
+					if(!empty($adminList) && is_array($adminList))
+					{
+						$result = current($adminList);
+					}
+				}
+				//TODO: END temporary fix
+
+				if(empty($result))
+				{
+					$result = $session->getData('USER_ID');
+				}
 			}
 		}
 
@@ -1412,6 +1400,35 @@ class Crm
 			if(is_array($bindings) || is_array($data))
 			{
 				$result = OpenLineTrigger::execute($bindings, $data);
+			}
+			else
+			{
+				$result->addError(new Error(Loc::getMessage('IMOL_CRM_ERROR_NO_REQUIRED_PARAMETERS'), self::ERROR_IMOL_CRM_NO_REQUIRED_PARAMETERS, __METHOD__));
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param $bindings
+	 * @param $data
+	 *
+	 * @return Result
+	 */
+	public function executeAutomationMessageTrigger($bindings, $data)
+	{
+		$result = new Result();
+
+		if($this->isSkipAutomationTrigger() != true)
+		{
+			if(is_array($bindings) || is_array($data))
+			{
+				//Temporary check for compatibility
+				if (class_exists('\Bitrix\Crm\Automation\Trigger\OpenLineMessageTrigger'))
+				{
+					$result = OpenLineMessageTrigger::execute($bindings, $data);
+				}
 			}
 			else
 			{

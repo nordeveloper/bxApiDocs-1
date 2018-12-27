@@ -7,6 +7,8 @@ use \Bitrix\Crm\Security\EntityAuthorization;
 
 class WaitController extends EntityController
 {
+	/** @var int|null  */
+	private static $userID = null;
 	/** @var  \CCrmPerms|null */
 	private static $userPermissions = null;
 	//region Singleton
@@ -162,6 +164,25 @@ class WaitController extends EntityController
 		return parent::prepareHistoryDataModel($data, $options);
 	}
 	//endregion
+
+	public static function getUsePermissions()
+	{
+		if(self::$userPermissions === null)
+		{
+			self::$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
+		}
+		return self::$userPermissions;
+	}
+
+	public static function getUserID()
+	{
+		if(self::$userID === null)
+		{
+			self::$userID  = \CCrmSecurityHelper::GetCurrentUserID();
+		}
+		return self::$userID;
+	}
+
 	public static function prepareEntityDataModel($ID, array $fields, array $options = null)
 	{
 		$description = isset($fields['DESCRIPTION']) ? $fields['DESCRIPTION'] : '';
@@ -180,11 +201,6 @@ class WaitController extends EntityController
 			$options = array();
 		}
 
-		if(self::$userPermissions === null)
-		{
-			self::$userPermissions = \CCrmPerms::GetCurrentUserPermissions();
-		}
-
 		$description = isset($data['DESCRIPTION']) ? $data['DESCRIPTION'] : '';
 		$data['DESCRIPTION_BBCODE'] = '';
 		$data['DESCRIPTION_HTML'] = preg_replace("/[\r\n]+/".BX_UTF_PCRE_MODIFIER, "<br/>", htmlspecialcharsbx($description));
@@ -200,8 +216,13 @@ class WaitController extends EntityController
 
 		$ownerTypeID = isset($data['OWNER_TYPE_ID']) ? (int)$data['OWNER_TYPE_ID'] : 0;
 		$ownerID = isset($data['OWNER_ID']) ? (int)$data['OWNER_ID'] : 0;
-		$canUpdate = EntityAuthorization::checkUpdatePermission($ownerTypeID, $ownerID, self::$userPermissions);
-		$data['PERMISSIONS'] = array('POSTPONE' => $canUpdate, 'COMPLETE' => $canUpdate);
+		$canUpdate = EntityAuthorization::checkUpdatePermission($ownerTypeID, $ownerID, self::getUsePermissions());
+
+		$data['PERMISSIONS'] = array(
+			'USER_ID' => self::getUserID(),
+			'POSTPONE' => $canUpdate,
+			'COMPLETE' => $canUpdate
+		);
 
 		$model = array(
 			'ASSOCIATED_ENTITY_TYPE_ID' => \CCrmOwnerType::Wait,

@@ -65,8 +65,15 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	{
 		if ($this->internalId == 0)
 		{
-			static::$idShipment++;
-			$this->internalId = static::$idShipment;
+			if ($this->getId() > 0)
+			{
+				$this->internalId = $this->getId();
+			}
+			else
+			{
+				static::$idShipment++;
+				$this->internalId = static::$idShipment;
+			}
 		}
 		return $this->internalId;
 	}
@@ -122,19 +129,15 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 			'CUSTOM_PRICE_DELIVERY' => 'N',
 			'MARKED' => 'N',
 			'CANCELED' => 'N',
+			'SYSTEM' => 'N',
 			'RESERVED' => 'N'
 		);
 
 		$registry = Registry::getInstance(static::getRegistryType());
-		/** @var DeliveryStatus $deliveryStatus */
+
+		/** @var DeliveryStatus $deliveryStatusClassName */
 		$deliveryStatusClassName = $registry->getDeliveryStatusClassName();
-
-		$deliveryStatus = $deliveryStatusClassName::getInitialStatus();
-
-		if (!empty($deliveryStatus) && !is_array($deliveryStatus))
-		{
-			$fields['STATUS_ID'] = $deliveryStatus;
-		}
+		$fields['STATUS_ID'] = $deliveryStatusClassName::getInitialStatus();
 
 		$shipment = static::createShipmentObject();
 		$shipment->setFieldsNoDemand($fields);
@@ -674,12 +677,6 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 		Requests\Manager::onBeforeShipmentDelete($this);
 	}
 
-
-	public function dump($i)
-	{
-		return str_repeat(' ', $i)."Shipment: Id=".$this->getId().", ALLOW_DELIVERY=".$this->getField('ALLOW_DELIVERY').", DEDUCTED=".$this->getField('DEDUCTED').", RESERVED=".$this->getField('RESERVED').", SYSTEM=".$this->getField('SYSTEM')."\n".($this->getShipmentItemCollection()->dump($i + 1));
-	}
-
 	/**
 	 * Sets new value to specified field of shipment item
 	 *
@@ -800,7 +797,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 
 		if ($this->isChanged())
 		{
-			$this->callEventOnBeforeSaleShipmentEntitySaved();
+			$this->callEventOnBeforeEntitySaved();
 		}
 
 		if ($id > 0)
@@ -874,7 +871,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 
 		if ($this->isChanged())
 		{
-			$this->callEventOnSaleShipmentEntitySaved();
+			$this->callEventOnEntitySaved();
 		}
 
 		$this->callDelayedEvents();
@@ -976,9 +973,6 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 		$result = new Result();
 
 		$this->setFieldNoDemand('ORDER_ID', $this->getParentOrderId());
-
-		$system = $this->getField('SYSTEM') === 'Y' ? 'Y' : 'N';
-		$this->setFieldNoDemand('SYSTEM', $system);
 
 		$fields = $this->fields->getValues();
 
@@ -1095,7 +1089,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	/**
 	 * @return void
 	 */
-	private function callEventOnBeforeSaleShipmentEntitySaved()
+	private function callEventOnBeforeEntitySaved()
 	{
 		if (self::$eventClassName === null)
 		{
@@ -1114,7 +1108,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	/**
 	 * @return void
 	 */
-	private function callEventOnSaleShipmentEntitySaved()
+	private function callEventOnEntitySaved()
 	{
 		if (self::$eventClassName === null)
 		{
@@ -2288,9 +2282,12 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 
 	/**
 	 * @internal
-	 * @param \SplObjectStorage $cloneEntity
 	 *
-	 * @return Shipment
+	 * @param \SplObjectStorage $cloneEntity
+	 * @return Internals\CollectableEntity|Shipment|object
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ObjectNotFoundException
 	 */
 	public function createClone(\SplObjectStorage $cloneEntity)
 	{
@@ -2299,19 +2296,8 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 			return $cloneEntity[$this];
 		}
 
-		$shipmentClone = clone $this;
-		$shipmentClone->isClone = true;
-
-		/** @var Internals\Fields $fields */
-		if ($fields = $this->fields)
-		{
-			$shipmentClone->fields = $fields->createClone($cloneEntity);
-		}
-
-		if (!$cloneEntity->contains($this))
-		{
-			$cloneEntity[$this] = $shipmentClone;
-		}
+		/** @var Shipment $shipmentClone */
+		$shipmentClone = parent::createClone($cloneEntity);
 
 		/** @var ShipmentItemCollection $shipmentItemCollection */
 		if ($shipmentItemCollection = $this->getShipmentItemCollection())
@@ -2327,22 +2313,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 			}
 		}
 
-		if ($collection = $this->getCollection())
-		{
-			if (!$cloneEntity->contains($collection))
-			{
-				$cloneEntity[$collection] = $collection->createClone($cloneEntity);
-			}
-
-			if ($cloneEntity->contains($collection))
-			{
-				$shipmentClone->collection = $cloneEntity[$collection];
-			}
-		}
-
-		/** @var \Bitrix\Sale\Delivery\Services\Manager $deliveryService */
-		
-		/** @var Delivery\Services\Manager $deliveryService */
+		/** @var Delivery\Services\Base $deliveryService */
 		if ($deliveryService = $this->getDelivery())
 		{
 			if (!$cloneEntity->contains($deliveryService))

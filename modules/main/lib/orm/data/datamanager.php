@@ -852,8 +852,16 @@ abstract class DataManager
 
 			if (!empty($id))
 			{
-				$primary = array($entity->getAutoIncrement() => $id);
-				static::normalizePrimary($primary);
+				if (strlen($entity->getAutoIncrement()))
+				{
+					$primary = array($entity->getAutoIncrement() => $id);
+					static::normalizePrimary($primary);
+				}
+				else
+				{
+					// for those who did not set 'autocomplete' flag but wants to get id from result
+					$primary = array('ID' => $id);
+				}
 			}
 			else
 			{
