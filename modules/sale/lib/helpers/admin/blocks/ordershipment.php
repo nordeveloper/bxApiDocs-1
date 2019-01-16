@@ -1938,8 +1938,8 @@ class OrderShipment
 			}
 
 			$fields = array(
-				'CUSTOM_PRICE_DELIVERY' => $item['CUSTOM_PRICE_DELIVERY'] === 'Y' ?: 'N',
-				'ALLOW_DELIVERY' => $item['ALLOW_DELIVERY'] === 'Y' ?: 'N'
+				'CUSTOM_PRICE_DELIVERY' => $item['CUSTOM_PRICE_DELIVERY'] === 'Y' ? 'Y' : 'N',
+				'ALLOW_DELIVERY' => $item['ALLOW_DELIVERY'] === 'Y' ? 'Y' : 'N'
 			);
 
 			$deliveryPrice = (float)str_replace(',', '.', $item['PRICE_DELIVERY']);

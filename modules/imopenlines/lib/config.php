@@ -1033,15 +1033,17 @@ class Config
 			if ($showOffline)
 			{
 				$orm = Queue::getList(Array(
-					'select' => Array('USER_ID', 'IS_ONLINE_CUSTOM', 'USER_NAME', 'USER_WORK_POSITION', 'USER_AVATAR', 'USER_AVATAR_ID'),
-					'filter' => Array('=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y'),
+					'select' => ['USER_ID', 'IS_ONLINE_CUSTOM', 'USER_NAME', 'USER_WORK_POSITION', 'USER_AVATAR', 'USER_AVATAR_ID'],
+					'filter' => ['=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y'],
+					'order' => ['ID'],
 				));
 			}
 			else
 			{
 				$orm = Queue::getList(Array(
-					'select' => Array('USER_ID', 'USER_NAME', 'USER_WORK_POSITION', 'USER_AVATAR', 'USER_AVATAR_ID'),
-					'filter' => Array('=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y', '=IS_ONLINE_CUSTOM' => 'Y'),
+					'select' => ['USER_ID', 'USER_NAME', 'USER_WORK_POSITION', 'USER_AVATAR', 'USER_AVATAR_ID'],
+					'filter' => ['=CONFIG_ID' => $id, '=USER.ACTIVE' => 'Y', '=IS_ONLINE_CUSTOM' => 'Y'],
+					'order' => ['ID'],
 				));
 			}
 

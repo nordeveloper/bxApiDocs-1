@@ -1573,7 +1573,11 @@ class CIMRestService extends IRestService
 		{
 			$arMessageFields['URL_PREVIEW'] = 'N';
 		}
-
+		if (isset($arParams['SKIP_CONNECTOR']) && strtoupper($arParams['SKIP_CONNECTOR']) == 'Y')
+		{
+			$arMessageFields['SKIP_CONNECTOR'] = 'Y';
+			$arMessageFields['SILENT_CONNECTOR'] = 'Y';
+		}
 		if (isset($arParams['TEMP_ID']) && !empty($arParams['TEMP_ID']))
 		{
 			$arMessageFields['TEMP_ID'] = substr((string)$arParams['TEMP_ID'], 0, 255);
@@ -2867,6 +2871,12 @@ class CIMRestService extends IRestService
 			$arMessageFields['URL_PREVIEW'] = 'N';
 		}
 
+		if (isset($arParams['SKIP_CONNECTOR']) && strtoupper($arParams['SKIP_CONNECTOR']) == 'Y')
+		{
+			$arMessageFields['SKIP_CONNECTOR'] = 'Y';
+			$arMessageFields['SILENT_CONNECTOR'] = 'Y';
+		}
+
 		$id = \Bitrix\Im\Bot::addMessage(array('BOT_ID' => $arParams['BOT_ID']), $arMessageFields);
 		if (!$id)
 		{
@@ -3070,7 +3080,7 @@ class CIMRestService extends IRestService
 		if (isset($arParams['MESSAGE']))
 		{
 			$urlPreview = isset($arParams['URL_PREVIEW']) && $arParams['URL_PREVIEW'] == "N"? false: true;
-			$skipConnector = isset($arParams['SKIP_CONNECTOR']) && $arParams['SKIP_CONNECTOR'] == "Y"? true: false;
+			$skipConnector = isset($arParams['SKIP_CONNECTOR']) && strtoupper($arParams['SKIP_CONNECTOR']) == "Y"? true: false;
 
 			$res = CIMMessenger::Update($arParams['MESSAGE_ID'], $arParams['MESSAGE'], $urlPreview, false, $arParams['BOT_ID'], $skipConnector);
 			if (!$res)

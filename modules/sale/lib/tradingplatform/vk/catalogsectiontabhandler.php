@@ -63,10 +63,14 @@ class CatalogSectionTabHandler extends TabHandler
 			$dataToDelete += $preparedChilds['TO_DELETE'] ? $preparedChilds['TO_DELETE'] : array();
 
 			if (!empty($dataToMapping))
+			{
 				Map::updateSectionsMapping($dataToMapping, $export["ID"], 'ONLY_INTERNAL');
+			}
 
 			if (!empty($dataToDelete))
+			{
 				Map::removeSectionsMapping($dataToDelete, $export["ID"], 'ONLY_INTERNAL');
+			}
 		}
 		
 		return true;

@@ -46,12 +46,7 @@ class File extends Base
 	public function uploadDocxFile($hash, &$file, &$package, &$upload, &$error)
 	{
 		Loc::loadMessages(__FILE__);
-		if($file['type'] != 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-		{
-			$error = Loc::getMessage('DOCGEN_CONT_FILE_UPLOAD_WRONG_TYPE');
-			return false;
-		}
-		elseif($file['size'] > 1024*1024)
+		if($file['size'] > 1024*1024)
 		{
 			$error = Loc::getMessage('DOCGEN_CONT_FILE_UPLOAD_WRONG_SIZE');
 			return false;

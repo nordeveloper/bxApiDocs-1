@@ -21,39 +21,44 @@ class SalesFunnelFilter extends Base
 	public static function getFieldsList()
 	{
 		$fieldsList = parent::getFieldsList();
-		$leadFilter = Factory::createEntityFilter(
-			new LeadSettings(array('ID' => SalesFunnelBoard::BOARD_KEY))
-		);
 
-		$fields = $leadFilter->getFields();
-		foreach ($fields as $field)
+		if (\Bitrix\Crm\Settings\LeadSettings::isEnabled())
 		{
-			$field = $field->toArray();
-			//TODO: HACK: add this field after
-			if ($field['id'] === 'ACTIVITY_COUNTER')
-			{
-				continue;
-			}
-			$field['id'] = 'FROM_LEAD_'.$field['id'];
-			$field['name'] = $field['name'].' '.Loc::getMessage('CRM_REPORT_SALES_FUNNEL_BOARD_FILTER_LEAD_FIELDS_POSTFIX');
-			if (isset($field['type']) && $field['type'] === 'custom_entity')
-			{
-				$field['html'] = str_replace(
-					$field['selector']['DATA']['FIELD_ID'],
-					'FROM_LEAD_'.$field['selector']['DATA']['FIELD_ID'],
-					$field['html']
-				);
-				$field['html'] = str_replace(
-					$field['selector']['DATA']['ID'],
-					'from_lead_'.$field['selector']['DATA']['ID'],
-					$field['html']
-				);
-				$field['selector']['DATA']['ID'] = 'from_lead_'.$field['selector']['DATA']['ID'];
-				$field['selector']['DATA']['FIELD_ID'] = 'FROM_LEAD_'.$field['selector']['DATA']['FIELD_ID'];
-			}
-			$fieldsList[] = $field;
-		}
+			$leadFilter = Factory::createEntityFilter(
+				new LeadSettings(array('ID' => SalesFunnelBoard::BOARD_KEY))
+			);
 
+			$fields = $leadFilter->getFields();
+			foreach ($fields as $field)
+			{
+				$field = $field->toArray();
+				//TODO: HACK: add this field after
+				if ($field['id'] === 'ACTIVITY_COUNTER')
+				{
+					continue;
+				}
+				$field['id'] = 'FROM_LEAD_'.$field['id'];
+				$field['name'] = $field['name'].
+								 ' '.
+								 Loc::getMessage('CRM_REPORT_SALES_FUNNEL_BOARD_FILTER_LEAD_FIELDS_POSTFIX');
+				if (isset($field['type']) && $field['type'] === 'custom_entity')
+				{
+					$field['html'] = str_replace(
+						$field['selector']['DATA']['FIELD_ID'],
+						'FROM_LEAD_'.$field['selector']['DATA']['FIELD_ID'],
+						$field['html']
+					);
+					$field['html'] = str_replace(
+						$field['selector']['DATA']['ID'],
+						'from_lead_'.$field['selector']['DATA']['ID'],
+						$field['html']
+					);
+					$field['selector']['DATA']['ID'] = 'from_lead_'.$field['selector']['DATA']['ID'];
+					$field['selector']['DATA']['FIELD_ID'] = 'FROM_LEAD_'.$field['selector']['DATA']['FIELD_ID'];
+				}
+				$fieldsList[] = $field;
+			}
+		}
 		$userPermissions = \CCrmPerms::getCurrentUserPermissions();
 		$dealFilter = Factory::createEntityFilter(
 			new DealSettings(

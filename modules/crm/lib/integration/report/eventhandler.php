@@ -59,10 +59,14 @@ class EventHandler
 	{
 		$batchList = [];
 
-		$lead = new AnalyticBoardBatch();
-		$lead->setKey('lead_analytic');
-		$lead->setTitle(Loc::getMessage('CRM_REPORT_LEAD_ANALYTIC_BATCH_TITLE'));
-		$batchList[] = $lead;
+		if (\Bitrix\Crm\Settings\LeadSettings::isEnabled())
+		{
+			$lead = new AnalyticBoardBatch();
+			$lead->setKey('lead_analytic');
+			$lead->setTitle(Loc::getMessage('CRM_REPORT_LEAD_ANALYTIC_BATCH_TITLE'));
+			$batchList[] = $lead;
+		}
+
 
 		$sales = new AnalyticBoardBatch();
 		$sales->setKey('sales_analytic');
@@ -94,23 +98,27 @@ class EventHandler
 	{
 		$analyticPageList = [];
 
-		$leadAnalytics = new AnalyticBoard(CommonLead::BOARD_KEY);
-		$leadAnalytics->setBatchKey('lead_analytic');
-		$leadAnalytics->setTitle(Loc::getMessage('CRM_REPORT_COMMON_LEAD_BOARD_TITLE'));
-		$leadAnalytics->setFilter(new CommonLeadFilter(CommonLead::BOARD_KEY));
-		$analyticPageList[] = $leadAnalytics;
 
-		$leadAnalytics = new AnalyticBoard(NewLead::BOARD_KEY);
-		$leadAnalytics->setBatchKey('lead_analytic');
-		$leadAnalytics->setTitle(Loc::getMessage('CRM_REPORT_NEW_LEAD_BOARD_TITLE'));
-		$leadAnalytics->setFilter(new NewLeadFilter(NewLead::BOARD_KEY));
-		$analyticPageList[] = $leadAnalytics;
+		if (\Bitrix\Crm\Settings\LeadSettings::isEnabled())
+		{
+			$leadAnalytics = new AnalyticBoard(CommonLead::BOARD_KEY);
+			$leadAnalytics->setBatchKey('lead_analytic');
+			$leadAnalytics->setTitle(Loc::getMessage('CRM_REPORT_COMMON_LEAD_BOARD_TITLE'));
+			$leadAnalytics->setFilter(new CommonLeadFilter(CommonLead::BOARD_KEY));
+			$analyticPageList[] = $leadAnalytics;
 
-		$leadAnalytics = new AnalyticBoard(RepeatLead::BOARD_KEY);
-		$leadAnalytics->setBatchKey('lead_analytic');
-		$leadAnalytics->setTitle(Loc::getMessage('CRM_REPORT_REPEATED_LEAD_BOARD_TITLE'));
-		$leadAnalytics->setFilter(new RepeatLeadBoard(RepeatLead::BOARD_KEY));
-		$analyticPageList[] = $leadAnalytics;
+			$leadAnalytics = new AnalyticBoard(NewLead::BOARD_KEY);
+			$leadAnalytics->setBatchKey('lead_analytic');
+			$leadAnalytics->setTitle(Loc::getMessage('CRM_REPORT_NEW_LEAD_BOARD_TITLE'));
+			$leadAnalytics->setFilter(new NewLeadFilter(NewLead::BOARD_KEY));
+			$analyticPageList[] = $leadAnalytics;
+
+			$leadAnalytics = new AnalyticBoard(RepeatLead::BOARD_KEY);
+			$leadAnalytics->setBatchKey('lead_analytic');
+			$leadAnalytics->setTitle(Loc::getMessage('CRM_REPORT_REPEATED_LEAD_BOARD_TITLE'));
+			$leadAnalytics->setFilter(new RepeatLeadBoard(RepeatLead::BOARD_KEY));
+			$analyticPageList[] = $leadAnalytics;
+		}
 
 		$salesFunnel = new AnalyticBoard(SalesFunnelBoard::BOARD_KEY);
 		$salesFunnel->setBatchKey('sales_analytic');

@@ -576,6 +576,11 @@ class Template extends Base
 			$value = 1;
 		}
 		$template->setSourceType($providerClassName);
+		if($template->isDeleted())
+		{
+			$this->errorCollection[] = new Error('Cannot get fields from deleted template');
+			return null;
+		}
 		$document = \Bitrix\DocumentGenerator\Document::createByTemplate($template, $value);
 		if(!$document->hasAccess(Driver::getInstance()->getUserId()))
 		{

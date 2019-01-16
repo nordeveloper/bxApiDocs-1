@@ -19,9 +19,10 @@ class Common
 {
 	/**
 	 * @param $userCode
+	 * @param bool $noImol
 	 * @return string
 	 */
-	public static function getCommunicationType($userCode)
+	public static function getCommunicationType($userCode, $noImol = false)
 	{
 		$parsedUserCode = Session\Common::parseUserCode($userCode);
 		$messengerType = $parsedUserCode['CONNECTOR_ID'];
@@ -54,9 +55,20 @@ class Common
 		{
 			$communicationType = 'INSTAGRAM';
 		}
+		elseif ($messengerType == 'fbinstagram')
+		{
+			$communicationType = 'INSTAGRAM';
+		}
 		else
 		{
-			$communicationType = 'IMOL';
+			if($noImol === true)
+			{
+				$communicationType = strtoupper($messengerType);
+			}
+			else
+			{
+				$communicationType = 'IMOL';
+			}
 		}
 		return $communicationType;
 	}
@@ -442,10 +454,11 @@ class Common
 	 * @param $entityType
 	 * @param $entityId
 	 * @return bool
+	 * @throws \Bitrix\Main\LoaderException
 	 */
 	public static function hasAccessToEntity($entityType, $entityId)
 	{
-		if (!$entityType || !$entityId || $entityType == 'NONE')
+		if (!Loader::includeModule("crm") || !$entityType || !$entityId || $entityType == 'NONE')
 		{
 			$return = true;
 		}

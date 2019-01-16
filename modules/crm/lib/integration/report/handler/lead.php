@@ -2,6 +2,7 @@
 
 namespace Bitrix\Crm\Integration\Report\Handler;
 
+use Bitrix\Crm\Integration\Report\View\ColumnFunnel;
 use Bitrix\Crm\LeadTable;
 use Bitrix\Crm\Security\EntityAuthorization;
 use Bitrix\Crm\StatusTable;
@@ -156,6 +157,10 @@ class Lead extends Base implements IReportSingleData, IReportMultipleData, IRepo
 	 */
 	public function prepare()
 	{
+		if(!\Bitrix\Crm\Settings\LeadSettings::isEnabled())
+		{
+			return [];
+		}
 		$filterParameters = $this->getFilterParameters();
 
 		/** @var DropDown $grouping */
@@ -812,6 +817,15 @@ class Lead extends Base implements IReportSingleData, IReportMultipleData, IRepo
 				default:
 					foreach ($calculatedData as $key => $data)
 					{
+						//TEMP solution for funnel
+						if ($this->getView()->getKey() === ColumnFunnel::VIEW_KEY)
+						{
+							foreach ($items as &$previewsItem)
+							{
+								$previewsItem['value'] += $data['value'];
+							}
+						}
+
 						$items[] = [
 							'label' => $data['title'],
 							'value' => $data['value'],

@@ -1141,6 +1141,10 @@ class User
 			{
 				return Loc::getMessage('IM_USER_GUEST_NAME');
 			}
+			else if (!empty($fields['LOGIN']))
+			{
+				return $fields['LOGIN'];
+			}
 			else
 			{
 				return Loc::getMessage('IM_USER_ANONYM_NAME');
@@ -1161,6 +1165,10 @@ class User
 			if (in_array($fields['EXTERNAL_AUTH_ID'], \Bitrix\Main\UserTable::getExternalUserTypes()))
 			{
 				return Loc::getMessage('IM_USER_GUEST_NAME');
+			}
+			else if (!empty($fields['LOGIN']))
+			{
+				return $fields['LOGIN'];
 			}
 			else
 			{

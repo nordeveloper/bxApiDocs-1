@@ -39,7 +39,10 @@ final class Document
 	const ERROR_NO_TRANSFORMER_MODULE = 'ERROR_NO_TRANSFORMER_MODULE';
 	const ERROR_TRANSFORMATION = 'ERROR_TRANSFORMATION';
 
-	protected $fields;
+	/** @var array Current field descriptions */
+	protected $fields = [];
+	/** @var array Field description */
+	protected $externalFields = [];
 	/** @var Body|null  */
 	protected $body;
 	protected $values = [];
@@ -80,7 +83,7 @@ final class Document
 	 * @param Template $template
 	 * @param mixed $value
 	 * @param array $data
-	 * @return static
+	 * @return Document|false
 	 */
 	public static function createByTemplate(Template $template, $value, array $data = [])
 	{
@@ -88,7 +91,11 @@ final class Document
 		$body = $template->getBody();
 		if(!$body && $data['FILE_ID'] > 0)
 		{
-			$body = $body = new Docx(FileTable::getContent($data['FILE_ID']));
+			$body = new Docx(FileTable::getContent($data['FILE_ID']));
+		}
+		if(!$body)
+		{
+			return false;
 		}
 
 		$document = new static($body, $fields, $data, $value);
@@ -209,7 +216,7 @@ final class Document
 			{
 				continue;
 			}
-			$this->fields[$name] = $field;
+			$this->externalFields[$name] = $field;
 		}
 
 		return $this;
@@ -392,9 +399,9 @@ final class Document
 	 */
 	public function getTitle()
 	{
-		if(isset($this->data['TITLE']))
+		if(isset($this->externalValues['DocumentTitle']))
 		{
-			$title = $this->data['TITLE'];
+			$title = $this->externalValues['DocumentTitle'];
 		}
 		else
 		{
@@ -416,7 +423,11 @@ final class Document
 	 */
 	public function getNumber($preview = true)
 	{
-		if(isset($this->data['NUMBER']))
+		if(isset($this->externalValues['DocumentNumber']))
+		{
+			$number = $this->externalValues['DocumentNumber'];
+		}
+		elseif(isset($this->data['NUMBER']))
 		{
 			$number = $this->data['NUMBER'];
 		}
@@ -532,6 +543,15 @@ final class Document
 		Loc::loadLanguageFile(__FILE__);
 		$this->resolveProviders();
 		$fields = [];
+		$fields['DocumentTitle'] = [
+			'TITLE' => Loc::getMessage('DOCUMENT_TITLE_FIELD_NAME'),
+			'VALUE' => $this->getTitle(),
+			'GROUP' => [
+				$this->getFieldGroup(''),
+				'',
+			],
+			'CHAIN' => 'this.DOCUMENT.DOCUMENT_TITLE',
+		];
 
 		$default = !($this->ID > 0);
 		if(empty($fieldNames))
@@ -569,6 +589,7 @@ final class Document
 			if(isset($this->fields[$placeholder]))
 			{
 				$field = $this->fields[$placeholder];
+				$field['CHAIN'] = $field['VALUE'];
 			}
 			$field['VALUE'] = $this->normalizeValue($value, $isConvertValuesToString);
 			$field['DEFAULT'] = $this->normalizeValue($defaultValue, $isConvertValuesToString);
@@ -608,16 +629,22 @@ final class Document
 	 */
 	protected function normalizeValue($value, $isConvertToString = false)
 	{
+		$result = $value;
+
 		if(is_array($value) || is_bool($value))
 		{
-			$value = '';
+			$result = '';
 		}
 		elseif($isConvertToString && $value instanceof Value)
 		{
-			$value = $value->__toString();
+			$result = $value->getValue();
+			if(is_object($result) || is_array($result) || is_bool($result))
+			{
+				$result = $value->toString();
+			}
 		}
 
-		return $value;
+		return $result;
 	}
 
 	/**
@@ -735,7 +762,6 @@ final class Document
 			else
 			{
 				$data = [
-					'ACTIVE' => 'Y',
 					'TEMPLATE_ID' => $this->template->ID,
 					'VALUE' => $this->getValue(Template::MAIN_PROVIDER_PLACEHOLDER),
 					'FILE_ID' => $saveResult->getId(),
@@ -780,11 +806,38 @@ final class Document
 		return $this;
 	}
 
+	protected function actualizeFields()
+	{
+		$provider = $this->getProvider();
+		if(!$provider)
+		{
+			return;
+		}
+		$placeholders = array_keys($this->fields);
+		$fields = DataProviderManager::getInstance()->getProviderFields($provider, $placeholders, true);
+		foreach($fields as $field)
+		{
+			$placeholder = DataProviderManager::getInstance()->valueToPlaceholder($field['VALUE']);
+			unset($field['VALUE']);
+			if(!isset($this->fields[$placeholder]))
+			{
+				$this->fields[$placeholder] = [];
+			}
+
+			$this->fields[$placeholder] = array_merge($this->fields[$placeholder], $field);
+		}
+		foreach($this->externalFields as $placeholder => $field)
+		{
+			$this->fields[$placeholder] = $field;
+		}
+	}
+
 	/**
 	 * Link entities by their names and values.
 	 */
 	protected function resolveProviders()
 	{
+		$this->actualizeFields();
 		foreach($this->fields as $name => $field)
 		{
 			$this->resolveProvider($field, $name);
@@ -889,25 +942,7 @@ final class Document
 			$value = $this->getProviderValue($name);
 		}
 
-		if(is_string($value))
-		{
-			$valueNameParts = explode('.', $value);
-			if(count($valueNameParts) > 1)
-			{
-				$providerName = $valueNameParts[0];
-				if($providerName === static::THIS_PLACEHOLDER)
-				{
-					array_shift($valueNameParts);
-					$valueName = implode('.', $valueNameParts);
-					$value = $this->getValue($valueName);
-					// next code is needed when we have a placeholder that points to some item value from ArrayDataProvider.
-					if($value === $valueName)
-					{
-						$value = static::THIS_PLACEHOLDER.'.'.$valueName;
-					}
-				}
-			}
-		}
+		$value = $this->resolveValue($value);
 
 		if($value && $this->fields[$name]['PROVIDER'] && isset($this->fields[$name]['PROVIDER_NAME']))
 		{
@@ -929,14 +964,40 @@ final class Document
 		// save found calculated value.
 		$this->values[$name] = $value;
 
-		// it this value has been overwritten - use it.
+		// if this value has been overwritten - use it.
 		$externalValues = $this->getExternalValues();
-		if(isset($externalValues[$name]))
+		if(isset($externalValues[$name]) && $externalValues[$name] != $this->values[$name] && $externalValues[$name] != htmlspecialcharsbx($this->values[$name]))
 		{
 			$value = $externalValues[$name];
+			$value = $this->resolveValue($value);
 			if(isset($this->fields[$name]))
 			{
 				$value = DataProviderManager::getInstance()->prepareValue($value, $this->fields[$name]);
+			}
+		}
+
+		return $value;
+	}
+
+	/**
+	 * @param mixed $value
+	 * @return mixed
+	 */
+	protected function resolveValue($value)
+	{
+		if(is_string($value))
+		{
+			$valueNameParts = explode('.', $value);
+			if(count($valueNameParts) > 1 && $valueNameParts[0] === static::THIS_PLACEHOLDER)
+			{
+				array_shift($valueNameParts);
+				$valueName = implode('.', $valueNameParts);
+				$value = $this->getValue($valueName);
+				// next code is needed when we have a placeholder that points to some item value from ArrayDataProvider.
+				if($value === $valueName)
+				{
+					$value = static::THIS_PLACEHOLDER.'.'.$valueName;
+				}
 			}
 		}
 

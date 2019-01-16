@@ -894,7 +894,7 @@ class SectionsList
 		{
 			return false;
 		}
-		$sections = $this->getSections();
+		$sections = $this->getSections(false, false);
 		$iblockId = $sections[$sectionId]["IBLOCK_ID"];
 		$currParentSettings = $this->mappedSections[$sectionId]['PARAMS']['PARENT_SETTINGS'];
 		

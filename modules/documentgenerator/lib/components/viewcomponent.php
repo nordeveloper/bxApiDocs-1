@@ -103,7 +103,7 @@ abstract class ViewComponent extends \CBitrixComponent
 			elseif(isset($this->arParams['TEMPLATE_ID']) && isset($this->arParams['PROVIDER']) && isset($this->arParams['VALUE']))
 			{
 				$template = Template::loadById($this->arParams['TEMPLATE_ID']);
-				if($template)
+				if($template && !$template->isDeleted())
 				{
 					$template->setSourceType($this->arParams['PROVIDER']);
 					if($template->MODULE_ID != $this->getModule())

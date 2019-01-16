@@ -142,14 +142,19 @@ class Auth
 				return false;
 			}
 		}
-		else if (
-			!preg_match("/^[a-fA-F0-9]{32}$/i", $authCode)
-			|| $_SESSION['LIVECHAT']['AUTH_ERROR'] > 3
-		)
+		else if (!preg_match("/^[a-fA-F0-9]{32}$/i", $authCode))
 		{
 			$res = array(
 				'error' => 'LIVECHAT_AUTH_FAILED',
-				'error_description' => 'LiveChat: user auth failed',
+				'error_description' => 'LiveChat: user auth failed [code is not correct]',
+				'additional' => array()
+			);
+		}
+		else if ($_SESSION['LIVECHAT']['AUTH_ERROR_COUNTER'] > 3)
+		{
+			$res = array(
+				'error' => 'LIVECHAT_AUTH_BLOCKED',
+				'error_description' => 'LiveChat: user auth blocked',
 				'additional' => array()
 			);
 
@@ -219,11 +224,19 @@ class Auth
 
 		$res = array(
 			'error' => 'LIVECHAT_AUTH_FAILED',
-			'error_description' => 'LiveChat: user auth failed',
+			'error_description' => 'LiveChat: user auth failed [user not found]',
 			'additional' => array()
 		);
 
-		$_SESSION['LIVECHAT']['AUTH_ERROR'] += 1;
+		if (
+			$_SESSION['LIVECHAT']['AUTH_CODE']
+			&& $_SESSION['LIVECHAT']['AUTH_CODE'] != $xmlId
+		)
+		{
+			$_SESSION['LIVECHAT']['AUTH_ERROR_COUNTER'] += 1;
+		}
+
+		$_SESSION['LIVECHAT']['AUTH_CODE'] = $xmlId;
 
 		return false;
 	}

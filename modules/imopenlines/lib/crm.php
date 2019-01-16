@@ -1134,7 +1134,7 @@ class Crm
 				!isset($statuses[$session->getConfig('CRM_SOURCE')])
 			)
 			{
-				$crmSource = $session->getData('CONFIG_ID') . '|' . CrmCommon::getCommunicationType($session->getData('USER_CODE'));
+				$crmSource = $session->getData('CONFIG_ID') . '|' . CrmCommon::getCommunicationType($session->getData('USER_CODE'), true);
 
 				if (!isset($statuses[$config['CRM_SOURCE']]))
 				{
@@ -1202,7 +1202,7 @@ class Crm
 					$result = current($queueUserList);
 				}
 
-				if(empty($result) && Loader::includeModule('Bitrix24'))
+				if(empty($result) && Loader::includeModule('bitrix24'))
 				{
 					$adminList = \CBitrix24::getAllAdminId();
 

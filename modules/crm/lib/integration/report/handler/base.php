@@ -121,8 +121,8 @@ abstract class Base extends BaseReport
 					{
 						$mutatedFilterParameters[$fieldId] = [
 							'type' => 'date',
-							'from' => DateTime::createFromText($mutatedFilterParameters[$fieldId . '_from']),
-							'to' =>  DateTime::createFromText($mutatedFilterParameters[$fieldId . '_to']),
+							'from' => new DateTime($mutatedFilterParameters[$fieldId . '_from']),
+							'to' =>  new DateTime($mutatedFilterParameters[$fieldId . '_to']),
 							'datesel' => $mutatedFilterParameters[$fieldId . '_datesel'],
 							'month' => $mutatedFilterParameters[$fieldId . '_month'],
 							'quarter' => $mutatedFilterParameters[$fieldId . '_quarter'],
@@ -237,17 +237,16 @@ abstract class Base extends BaseReport
 
 					if ($key === 'TIME_PERIOD')
 					{
-
 						continue;
 					}
 
-					$uri->addParams([$key . '_datesel', $filterParameter['datesel']]);
-					$uri->addParams([$key . '_month', $filterParameter['month']]);
-					$uri->addParams([$key . '_year', $filterParameter['year']]);
-					$uri->addParams([$key . '_quarter', $filterParameter['quarter']]);
-					$uri->addParams([$key . '_days', $filterParameter['days']]);
-					$uri->addParams([$key . '_from', $from->format('d.m.Y H:i:s')]);
-					$uri->addParams([$key . '_to', $to->format('d.m.Y H:i:s')]);
+					$uri->addParams([$key . '_datesel' => $filterParameter['datesel']]);
+					$uri->addParams([$key . '_month' => $filterParameter['month']]);
+					$uri->addParams([$key . '_year' => $filterParameter['year']]);
+					$uri->addParams([$key . '_quarter' => $filterParameter['quarter']]);
+					$uri->addParams([$key . '_days' => $filterParameter['days']]);
+					$uri->addParams([$key . '_from' => $from->format('d.m.Y H:i:s')]);
+					$uri->addParams([$key . '_to' => $to->format('d.m.Y H:i:s')]);
 					break;
 			}
 		}

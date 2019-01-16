@@ -1707,6 +1707,13 @@ class Session
 				}
 			}
 
+			if(empty($updateCheckTable['DATE_CLOSE']))
+			{
+				$dateClose = new DateTime();
+
+				$updateCheckTable['DATE_CLOSE'] = $dateClose->add('1 MONTH');
+			}
+
 			Model\SessionCheckTable::update($this->session['ID'], $updateCheckTable);
 		}
 

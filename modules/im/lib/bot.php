@@ -819,6 +819,11 @@ class Bot
 				{
 					$ar['URL_PREVIEW'] = 'N';
 				}
+				if (isset($messageFields['SKIP_CONNECTOR']) && $messageFields['SKIP_CONNECTOR'] == 'Y')
+				{
+					$ar['SKIP_CONNECTOR'] = 'Y';
+					$ar['SILENT_CONNECTOR'] = 'Y';
+				}
 				$ar['SKIP_COMMAND'] = 'Y';
 				$id = \CIMChat::AddMessage($ar);
 			}
@@ -858,6 +863,11 @@ class Bot
 			if (isset($messageFields['URL_PREVIEW']) && $messageFields['URL_PREVIEW'] == 'N')
 			{
 				$ar['URL_PREVIEW'] = 'N';
+			}
+			if (isset($messageFields['SKIP_CONNECTOR']) && $messageFields['SKIP_CONNECTOR'] == 'Y')
+			{
+				$ar['SKIP_CONNECTOR'] = 'Y';
+				$ar['SILENT_CONNECTOR'] = 'Y';
 			}
 			$ar['SKIP_COMMAND'] = 'Y';
 			$id = \CIMMessage::Add($ar);

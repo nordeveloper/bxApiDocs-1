@@ -380,7 +380,7 @@ class Product extends DataConverter
 	{
 		$result = array();
 		$result["BX_ID"] = $data["ID"];
-		$result["IBLOCK_ID"] = $data["IBLOCK_ID"];;
+		$result["IBLOCK_ID"] = $data["IBLOCK_ID"];
 		$result["NAME"] = $data["NAME"];
 		$result["SECTION_ID"] = $data["IBLOCK_SECTION_ID"];
 		$result["CATEGORY_VK"] = $this->sectionsList->getVkCategory($data["IBLOCK_SECTION_ID"]);

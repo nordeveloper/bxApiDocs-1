@@ -195,8 +195,10 @@ class CRestProvider
 				$result['PERSONAL_PHOTO'] = \CRestUtil::GetFile($userInfo["PERSONAL_PHOTO"]);
 			}
 
-			$result['TIME_ZONE'] = $userInfo['TIME_ZONE'];
-			$result['TIME_ZONE_OFFSET'] = $userInfo['TIME_ZONE_OFFSET'] + date('Z');
+			$result['TIME_ZONE'] = \CTimeZone::IsAutoTimeZone($userInfo['AUTO_TIME_ZONE']) === true
+				? ''
+				: $userInfo['TIME_ZONE'];
+			$result['TIME_ZONE_OFFSET'] = \CTimeZone::GetOffset($USER->getId()) + date('Z');
 
 			$securityState = array(
 				"ID" => $result['ID'],

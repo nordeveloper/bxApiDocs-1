@@ -394,6 +394,13 @@ class CAllCrmDeal
 			}
 		}
 
+		if (!empty($arFilter['ACTIVE_TIME_PERIOD_from']) && !empty($arFilter['ACTIVE_TIME_PERIOD_to']))
+		{
+			global $DB;
+			$sqlData['WHERE'][] = "L.DATE_CREATE <= ".$DB->CharToDateFunction($arFilter['ACTIVE_TIME_PERIOD_to']);
+			$sqlData['WHERE'][] = "(L.CLOSEDATE IS NULL OR L.CLOSEDATE >= ".$DB->CharToDateFunction($arFilter['ACTIVE_TIME_PERIOD_from']).")";
+		}
+
 		if(isset($arFilter['CALENDAR_DATE_FROM']) && $arFilter['CALENDAR_DATE_FROM'] !== ''
 			&& isset($arFilter['CALENDAR_DATE_TO']) && $arFilter['CALENDAR_DATE_TO'] !== '')
 		{

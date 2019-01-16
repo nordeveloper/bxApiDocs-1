@@ -240,6 +240,11 @@ class Document extends Base
 			$this->errorCollection[] = new Error('Empty required parameter "value"');
 			return null;
 		}
+		if($template->isDeleted())
+		{
+			$this->errorCollection[] = new Error('Cannot create document on deleted template');
+			return null;
+		}
 		$template->setSourceType($providerClassName);
 		$document = \Bitrix\DocumentGenerator\Document::createByTemplate($template, $value);
 		if(!$document->hasAccess(Driver::getInstance()->getUserId()))

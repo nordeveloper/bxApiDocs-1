@@ -435,17 +435,17 @@ class LiveChatManager
 		$params['CONFIG']["button"] = false;
 
 		$codeButton =
-			'(function (d) {'.
-				'var f = function (d) {'.
-					'var n1 = document.getElementsByTagName("style")[0], s1 = document.createElement("style");s1.innerHTML = "' . $cssData . '";'.
-					'var n2 = document.getElementsByTagName("script")[0], s2 = document.createElement("script");s2.type = "text/javascript";s2.charset = "'.$charset.'";s2.innerHTML = "' . $jsData . '";'.
-					'if (n1) {n1.parentNode.insertBefore(s1, n1);} else { n2.parentNode.insertBefore(s1, n2); }'.
-					'n2.parentNode.insertBefore(s2, n2);'.
+			'(function () {'.
+				'var f = function () {'.
+					'var head = (document.getElementsByTagName("head")[0] || document.documentElement);'.
+					'var style = document.createElement("style");style.innerHTML = "' . $cssData . '";'.
+					'var script = document.createElement("script");script.type = "text/javascript";script.charset = "'.$charset.'";script.innerHTML = "' . $jsData . '";'.
+					'head.appendChild(style); head.appendChild(script); console.log("set");'.
 				'};'.
 				'if (typeof(BX)!="undefined" && typeof(BX.ready)!="undefined") {BX.ready(f)}'.
 				'else if (typeof(jQuery)!="undefined") {jQuery(f)}'.
 				'else { f() }'.
-			'})(document);'.
+			'})();'.
 			'(window.BxLiveChatLoader = window.BxLiveChatLoader || []).push(function() {'.
 				$localize.
 				'BX.LiveChat.init('.Main\Web\Json::encode($params['CONFIG']).');'.
@@ -482,9 +482,11 @@ class LiveChatManager
 
 		$resources = \Bitrix\Main\UI\Extension::getResourceList('imopenlines.component.widget');
 
-		$scriptContent = '';
+		$scriptContent = "// widget bundle";
 		foreach ($resources['js'] as $path)
 		{
+			$purePath = $path;
+
 			$path = Application::getDocumentRoot().$path;
 			if (!Main\IO\File::isFileExists($path))
 			{
@@ -502,16 +504,17 @@ class LiveChatManager
 				}
 			}
 
-			$scriptContent .= ";".Main\IO\File::getFileContents($path)."\n\n";
+			$scriptContent .= "\n\n// file: ".$purePath."\n".Main\IO\File::getFileContents($path)."\n\n";
 		}
 
 		$scriptContent = preg_replace('/\/\/#(\s?)sourceMappingURL(\s?)=(\s?)([\w\.\-])+/mi', ' ', $scriptContent);
 
 		Main\IO\File::putFileContents(Application::getDocumentRoot().'/bitrix/js/imopenlines_widget/script.js', $scriptContent);
 
-		$stylesContent = '';
+		$stylesContent = "/* widget bundle*/";
 		foreach ($resources['css'] as $path)
 		{
+			$purePath = $path;
 			$path = Application::getDocumentRoot().$path;
 			if (!Main\IO\File::isFileExists($path))
 			{
@@ -531,7 +534,7 @@ class LiveChatManager
 
 			$content = Main\IO\File::getFileContents($path);
 
-			$stylesContent .= $content."\n\n";
+			$stylesContent .= "\n\n/* file: ".$purePath." */\n".Main\IO\File::getFileContents($path).$content."\n\n";
 		}
 
 		$stylesContent = preg_replace('/\/\*#(\s?)sourceMappingURL(\s?)=(\s?)([\w\.\-])+(\s?\*\/)/mi', ' ', $stylesContent);
@@ -590,14 +593,18 @@ JS;
 			'window.addEventListener(\'onBitrixLiveChatSourceLoaded\',function() {'
 				.str_replace(["\n","\t"], " ", $initWidget).
 			'});'.
-			'(function (d) {'.
-				'var n1 = d.getElementsByTagName("link")[0], s1 = d.createElement("link"), r1=1*new Date(); s1.type = "text/css"; s1.rel = "stylesheet";  s1.href = "'.$host.'/bitrix/js/imopenlines_widget/styles.css?r='.time().'";'.
-				'var n2 = d.getElementsByTagName("script")[0], s2 = d.createElement("script"); s2.type = "text/javascript"; s2.async = "true"; s2.charset = "'.$charset.'"; s2.src = "'.$host.'/bitrix/js/imopenlines_widget/script.js?r='.time().'";'.
-				'var f = function () { n2.parentNode.insertBefore(s1, n1); n2.parentNode.insertBefore(s2, n2); };'.
+			'(function () {'.
+				'var f = function () {'.
+					'var week = function () {var d = new Date();d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1)); return Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);};'.
+					'var head = (document.getElementsByTagName("head")[0] || document.documentElement);'.
+					'var style = document.createElement("link"); style.type = "text/css"; style.rel = "stylesheet";  style.href = "'.$host.'/bitrix/js/imopenlines_widget/styles.css?r='.time().'-"+week();'.
+					'var script = document.createElement("script"); script.type = "text/javascript"; script.async = "true"; script.charset = "'.$charset.'"; script.src = "'.$host.'/bitrix/js/imopenlines_widget/script.js?r='.time().'-"+week();'.
+					'head.appendChild(style); head.appendChild(script);'.
+				'};'.
 				'if (typeof(BX)!="undefined" && typeof(BX.ready)!="undefined") {BX.ready(f)}'.
 				'else if (typeof(jQuery)!="undefined") {jQuery(f)}'.
 				'else {f();}'.
-			'})(document);';
+			'})();';
 
 		return $codeWidget;
 

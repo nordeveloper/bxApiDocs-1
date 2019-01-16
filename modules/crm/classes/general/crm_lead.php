@@ -386,6 +386,13 @@ class CAllCrmLead
 			}
 		}
 
+		if (!empty($arFilter['ACTIVE_TIME_PERIOD_from']) && !empty($arFilter['ACTIVE_TIME_PERIOD_to']))
+		{
+			global $DB;
+			$sqlData['WHERE'][] = "L.DATE_CREATE <= ".$DB->CharToDateFunction($arFilter['ACTIVE_TIME_PERIOD_to']);
+			$sqlData['WHERE'][] = "(L.DATE_CLOSED IS NULL OR L.DATE_CLOSED >= ".$DB->CharToDateFunction($arFilter['ACTIVE_TIME_PERIOD_from']).")";
+		}
+
 		if(isset($arFilter['CALENDAR_DATE_FROM']) && $arFilter['CALENDAR_DATE_FROM'] !== ''
 		&& isset($arFilter['CALENDAR_DATE_TO']) && $arFilter['CALENDAR_DATE_TO'] !== '')
 		{
@@ -2904,11 +2911,6 @@ class CAllCrmLead
 					if(isset($arFields['STATUS_ID']) && $arFields['STATUS_ID'] !== $currentFields['STATUS_ID'])
 					{
 						$fieldsToCheck = array_merge($currentFields, $arFields);
-						if(isset($currentFields['FM']) && isset($arFields['FM']))
-						{
-							$fieldsToCheck['FM'] = array_merge($currentFields['FM'], $arFields['FM']);
-						}
-
 						if(self::GetSemanticID($arFields['STATUS_ID']) === Bitrix\Crm\PhaseSemantics::FAILURE)
 						{
 							//Disable required fields check for failure status due to backward compatibility.

@@ -77,17 +77,20 @@ abstract class BasketBase extends BasketItemCollection
 	 */
 	public function deleteItem($index)
 	{
-		$oldItem = parent::deleteItem($index);
-
-		unset($this->basketItemIndexMap[$oldItem->getBasketCode()]);
+		/** @var BasketItemBase $item */
+		$item = $this->getItemByIndex($index);
 
 		/** @var OrderBase $order */
 		if ($order = $this->getOrder())
 		{
-			$order->onBasketModify(EventActions::DELETE, $oldItem);
+			$order->onBasketModify(EventActions::DELETE, $item);
 		}
 
-		return $oldItem;
+		parent::deleteItem($index);
+
+		unset($this->basketItemIndexMap[$item->getBasketCode()]);
+
+		return $item;
 	}
 
 	/**

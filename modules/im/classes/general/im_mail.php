@@ -227,7 +227,7 @@ class CIMMail
 				}
 				else
 				{
-					$arNotify["FROM_USER"] = \Bitrix\Im\User::formatFullNameFromDatabase(array(
+					$arMessage["FROM_USER"] = \Bitrix\Im\User::formatFullNameFromDatabase(array(
 						"NAME" => $arMessage["FROM_USER_NAME"],
 						"LAST_NAME" => $arMessage["FROM_USER_LAST_NAME"],
 						"SECOND_NAME" => $arMessage["FROM_USER_SECOND_NAME"],

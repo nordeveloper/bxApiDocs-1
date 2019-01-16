@@ -394,6 +394,7 @@ class Options
 			$quarterId = $id."_quarter";
 			$yearId = $id."_year";
 			$monthId = $id."_month";
+			$daysId = $id."_days";
 			$nameId = $id."_name";
 			$labelId = $id."_label";
 			$valueId = $id."_value";
@@ -407,6 +408,7 @@ class Options
 						$request[$toId] !== null ||
 						$request[$quarterId] !== null ||
 						$request[$yearId] !== null ||
+						$request[$daysId] !== null ||
 						$request[$monthId] !== null))
 				{
 					$result["fields"][$dateselId] = $request[$dateselId];
@@ -414,6 +416,7 @@ class Options
 					$result["fields"][$toId] = $request[$toId] !== null ? $request[$toId] : "";
 					$result["fields"][$yearId] = $request[$yearId] !== null ? $request[$yearId] : "";
 					$result["fields"][$monthId] = $request[$monthId] !== null ? $request[$monthId] : "";
+					$result["fields"][$daysId] = $request[$daysId] !== null ? $request[$daysId] : "";
 					$result["rows"][] = $id;
 				}
 			}

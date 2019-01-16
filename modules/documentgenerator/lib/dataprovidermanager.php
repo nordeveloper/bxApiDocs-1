@@ -5,6 +5,7 @@ namespace Bitrix\DocumentGenerator;
 use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\DocumentGenerator\DataProvider\HashDataProvider;
 use Bitrix\DocumentGenerator\DataProvider\Rest;
+use Bitrix\DocumentGenerator\DataProvider\User;
 use Bitrix\DocumentGenerator\Value\DateTime;
 use Bitrix\DocumentGenerator\Value\Name;
 use Bitrix\Main\Context\Culture;
@@ -16,6 +17,8 @@ use Bitrix\Main\Type\Date;
 
 final class DataProviderManager
 {
+	const MAX_DEPTH_LEVEL_ROOT_PROVIDERS = 2;
+
 	/** @var DataProviderManager */
 	private static $instance;
 
@@ -77,6 +80,14 @@ final class DataProviderManager
 	{
 		$result = is_a($providerClassName, DataProvider::class, true);
 
+		$documentProviders = [
+			strtolower(ArrayDataProvider::class),
+			strtolower(User::class),
+		];
+		if(in_array(strtolower($providerClassName), $documentProviders))
+		{
+			return true;
+		}
 		if($result && $moduleId && is_string($moduleId) && !empty($moduleId))
 		{
 			$result = false;
@@ -347,7 +358,7 @@ final class DataProviderManager
 	protected function getValue($valueDescription, DataProvider $parentDataProvider = null, $placeholder = null)
 	{
 		$value = false;
-		if($parentDataProvider && is_string($valueDescription))
+		if($parentDataProvider && is_string($valueDescription) && $placeholder != $valueDescription)
 		{
 			$value = $parentDataProvider->getValue($valueDescription);
 		}
@@ -400,9 +411,14 @@ final class DataProviderManager
 	 * @return array
 	 * @internal
 	 */
-	public function getArray(DataProvider $dataProvider, array $params = [])
+	public function getArray(DataProvider $dataProvider, array $params = [], array $stack = [])
 	{
 		$result = [];
+		if(in_array($dataProvider, $stack))
+		{
+			return $result;
+		}
+		$stack[] = $dataProvider;
 
 		foreach($dataProvider->getFields() as $placeholder => $field)
 		{
@@ -413,16 +429,16 @@ final class DataProviderManager
 			}
 			elseif($value instanceof ArrayDataProvider && $value->getItemKey())
 			{
-				$values = $this->getArray($value, $params);
+				$values = $this->getArray($value, $params, $stack);
 				foreach($value as $item)
 				{
-					$values[$value->getItemKey()][] = $this->getArray($item, $params);
+					$values[$value->getItemKey()][] = $this->getArray($item, $params, $stack);
 				}
 				$value = $values;
 			}
 			elseif($value instanceof DataProvider)
 			{
-				$value = $this->getArray($value, $params);
+				$value = $this->getArray($value, $params, $stack);
 			}
 			elseif(is_array($value))
 			{
@@ -436,7 +452,7 @@ final class DataProviderManager
 					$value = $this->createDataProvider($field, $value, $dataProvider, $placeholder);
 					if($value instanceof DataProvider)
 					{
-						$value = $this->getArray($value, $params);
+						$value = $this->getArray($value, $params, $stack);
 					}
 					else
 					{
@@ -498,13 +514,14 @@ final class DataProviderManager
 	 * @param array $placeholders
 	 * @param array $mainProviderOptions
 	 * @param bool $isAddRootGroups
+	 * @param bool $isCopyFields
 	 * @return array
 	 */
-	public function getDefaultTemplateFields($providerClassName, array $placeholders = [], array $mainProviderOptions = [], $isAddRootGroups = true)
+	public function getDefaultTemplateFields($providerClassName, array $placeholders = [], array $mainProviderOptions = [], $isAddRootGroups = true, $isCopyFields = false)
 	{
 		$fields = [];
 
-		$sourceFields = DataProviderManager::getInstance()->getProviderPlaceholders($providerClassName, $mainProviderOptions);
+		$sourceFields = DataProviderManager::getInstance()->getProviderPlaceholders($providerClassName, $placeholders, $mainProviderOptions, $isCopyFields);
 		$documentFields = DataProviderManager::getInstance()->getProviderPlaceholders(DataProvider\Document::class);
 		if($isAddRootGroups)
 		{
@@ -543,25 +560,31 @@ final class DataProviderManager
 	 * Returns all possible placeholders for DataProvider.
 	 *
 	 * @param string $providerClassName
+	 * @param array $placeholders
 	 * @param array $options
+	 * @param bool $isCopyFields
 	 * @return array
 	 */
-	public function getProviderPlaceholders($providerClassName, array $options = [])
+	public function getProviderPlaceholders($providerClassName, array $placeholders = [], array $options = [], $isCopyFields = false)
 	{
-		$placeholders = [];
+		$result = [];
 		$dataProvider = $this->getDataProvider($providerClassName, ' ', $options);
 		if(!$dataProvider)
 		{
-			return $placeholders;
+			return $result;
 		}
 
-		$fields = $this->getProviderFields($dataProvider);
+		if(empty($placeholders))
+		{
+			$placeholders = true;
+		}
+		$fields = $this->getProviderFields($dataProvider, $placeholders, $isCopyFields);
 		foreach($fields as $field)
 		{
-			$placeholders[$this->valueToPlaceholder($field['VALUE'])] = $field;
+			$result[$this->valueToPlaceholder($field['VALUE'])] = $field;
 		}
 
-		return $placeholders;
+		return $result;
 	}
 
 	/**
@@ -614,25 +637,80 @@ final class DataProviderManager
 	 * Value - field description (VALUE, TITLE, TYPE)
 	 *
 	 * @param DataProvider $parentDataProvider
-	 * @param array $placeholders
+	 * @param array|bool $placeholders
+	 * @param bool $isCopyFields
+	 * @param array $chain
 	 * @param array $group
 	 * @param bool $isArray
 	 * @param array $providers
 	 * @param bool $stopRecursion
 	 * @return array
 	 */
-	protected function getProviderFields(DataProvider $parentDataProvider, array $placeholders = [], array $group = [], $isArray = false, array $providers = [], $stopRecursion = false)
+	public function getProviderFields(DataProvider $parentDataProvider, $placeholders = [], $isCopyFields = false, array $chain = [], array $group = [], $isArray = false, array $providers = [], $stopRecursion = false)
 	{
 		$values = [];
-		// skip the first provider
-		if(!empty($group) && $parentDataProvider->isRootProvider())
+		if($parentDataProvider->isRootProvider())
 		{
 			$providers[] = get_class($parentDataProvider);
 		}
-		foreach($parentDataProvider->getFields() as $placeholder => $field)
+		$fields = $parentDataProvider->getFields();
+		if(is_array($placeholders) && empty($placeholders))
 		{
+			return $values;
+		}
+		$copyPlaceholders = [];
+		if($isCopyFields)
+		{
+			// build copied placeholders map
+			foreach($fields as $placeholder => $field)
+			{
+				if(isset($field['OPTIONS']) && isset($field['OPTIONS']['COPY']))
+				{
+					if(is_array($placeholders) && !empty($placeholders))
+					{
+						$copyChain = $chain;
+						$copyChain[] = $placeholder;
+						$currentValue = $this->valueToPlaceholder(implode('.', $copyChain));
+						foreach($placeholders as $name)
+						{
+							if(strpos($name, $currentValue) === 0)
+							{
+								$copyPlaceholders[$placeholder] = $field['OPTIONS']['COPY'];
+								$placeholders[] = str_replace($this->valueToPlaceholder($placeholder), $this->valueToPlaceholder($field['OPTIONS']['COPY']), $name);
+								break;
+							}
+						}
+					}
+					else
+					{
+						$copyPlaceholders[$placeholder] = $field['OPTIONS']['COPY'];
+					}
+				}
+			}
+		}
+		foreach($fields as $placeholder => $field)
+		{
+			$chain[] = $placeholder;
+			$goDeeper = true;
+			if(is_array($placeholders))
+			{
+				$goDeeper = false;
+				$currentValue = $this->valueToPlaceholder(implode('.', $chain));
+				foreach($placeholders as $name)
+				{
+					if(strpos($name, $currentValue) === 0)
+					{
+						$goDeeper = true;
+						break;
+					}
+				}
+			}
+			if(!$goDeeper)
+			{
+				array_pop($chain);
+				continue;
+			}
 			$dataProvider = $this->createDataProvider($field, ' ', $parentDataProvider);
-			$placeholders[] = $placeholder;
 			if(isset($field['TITLE']) && !empty($field['TITLE']))
 			{
 				$group[] = $field['TITLE'];
@@ -652,11 +730,11 @@ final class DataProviderManager
 					$isArray = true;
 				}
 				$stopRecursion = false;
-				if(in_array(get_class($dataProvider), $providers))
+				if(count($providers) > self::MAX_DEPTH_LEVEL_ROOT_PROVIDERS)
 				{
 					$stopRecursion = true;
 				}
-				$values = array_merge($values, $this->getProviderFields($dataProvider, $placeholders, $group, $isArray, $providers, $stopRecursion));
+				$values = array_merge($values, $this->getProviderFields($dataProvider, $placeholders, $isCopyFields, $chain, $group, $isArray, $providers, $stopRecursion));
 				$isArray = false;
 			}
 			else
@@ -665,14 +743,25 @@ final class DataProviderManager
 				{
 					$field['OPTIONS']['IS_ARRAY'] = true;
 				}
-				$value = implode('.', $placeholders);
+				$value = implode('.', $chain);
 				$values[] = array_merge($field, [
 					'VALUE' => $value,
 					'GROUP' => $group,
 				]);
 			}
 			array_pop($group);
-			array_pop($placeholders);
+			array_pop($chain);
+		}
+		foreach($copyPlaceholders as $destPlaceholder => $sourcePlaceholder)
+		{
+			foreach($values as $field)
+			{
+				if(is_string($field['VALUE']) && strpos($field['VALUE'], $sourcePlaceholder) !== false)
+				{
+					$field['VALUE'] = str_replace($sourcePlaceholder, $destPlaceholder, $field['VALUE']);
+					$values[] = $field;
+				}
+			}
 		}
 
 		return $values;

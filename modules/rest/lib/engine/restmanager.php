@@ -271,17 +271,9 @@ class RestManager extends \IRestService
 			return null;
 		}
 
-		$description = array();
-		/** @var Error $lastError */
-		$lastError = array_pop($errors);
-		$description[] = $lastError->getMessage() . " ({$lastError->getCode()}).";
+		$firstError = reset($errors);
 
-		foreach ($errors as $error)
-		{
-			$description[] = $error->getMessage() . " ({$error->getCode()}).";
-		}
-
-		return new RestException(implode(' ', $description), $lastError->getCode());
+		return new RestException($firstError->getMessage(), $firstError->getCode());
 	}
 
 	private function registerAutoWirings(\CRestServer $restServer, $start)
