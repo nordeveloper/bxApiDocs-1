@@ -64,7 +64,7 @@ class Base extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 	public function send()
 	{
 		$applied = false;
-		$triggers = $this->getTriggers();
+		$triggers = $this->getPotentialTriggers();
 		if ($triggers)
 		{
 			foreach ($triggers as $trigger)
@@ -79,54 +79,6 @@ class Base extends \Bitrix\Bizproc\Automation\Trigger\BaseTrigger
 		}
 
 		return $applied;
-	}
-
-	protected function getTriggers()
-	{
-		$triggers = [];
-
-		$currentStatus = $this->getTarget()->getDocumentStatus();
-		$allStatuses = array_keys($this->getTarget()->getDocumentStatusList());
-
-		$needleKey = array_search($currentStatus, $allStatuses);
-
-		if ($needleKey === false)
-		{
-			return $triggers;
-		}
-
-		$needleStatuses = array_slice($allStatuses, $needleKey + 1);
-
-		if (count($needleStatuses) > 0)
-		{
-			$code = static::getCode();
-			$rows = [];
-			$targetTriggers = $this->getTarget()->getTriggers($needleStatuses);
-
-			foreach ($targetTriggers as $row)
-			{
-				if ($row['CODE'] !== $code)
-				{
-					continue;
-				}
-
-				$rows[$row['DOCUMENT_STATUS']][] = $row;
-			}
-
-			if ($rows)
-			{
-				// take only nearest to the current status
-				foreach ($needleStatuses as $needleStatus)
-				{
-					if (isset($rows[$needleStatus]))
-					{
-						$triggers = array_merge($triggers, $rows[$needleStatus]);
-					}
-				}
-			}
-		}
-
-		return $triggers;
 	}
 
 	protected function applyTrigger(array $trigger)

@@ -246,7 +246,7 @@ final class Docx extends ZipDocument
 					/** @var \DOMElement $originalNode */
 					$originalNode = $relData[static::REL_TYPE_IMAGE][$originalImageID]['node'];
 					$image = $this->getImage($path);
-					if($image && $image->isExists() && $image->isReadable())
+					if($image && $image->isExists() && $image->isReadable() && $originalNode->parentNode)
 					{
 						$newNode = clone $originalNode;
 						$document->importNode($newNode);

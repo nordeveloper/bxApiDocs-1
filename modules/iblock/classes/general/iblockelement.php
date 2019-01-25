@@ -5526,6 +5526,8 @@ class CAllIBlockElement
 
 		$enumList = array();
 
+		$emptyResult = empty($result);
+
 		$valuesRes = (
 			!empty($propertyID)
 			? CIBlockElement::GetPropertyValues($iblockID, $filter, true, array('ID' => $propertyID))
@@ -5533,10 +5535,17 @@ class CAllIBlockElement
 		);
 		while ($value = $valuesRes->Fetch())
 		{
-			$elementID = $value['IBLOCK_ELEMENT_ID'];
+			$elementID = (int)$value['IBLOCK_ELEMENT_ID'];
 			if (!isset($result[$elementID]))
 			{
-				continue;
+				if ($emptyResult)
+				{
+					$result[$elementID] = [];
+				}
+				else
+				{
+					continue;
+				}
 			}
 			$elementValues = array();
 			$existDescription = isset($value['DESCRIPTION']);

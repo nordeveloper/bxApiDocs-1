@@ -2022,6 +2022,7 @@ class ComponentHelper
 		global $USER;
 
 		$taskId = (isset($params['TASK_ID']) ? intval($params['TASK_ID']) : 0);
+		$logId = (isset($params['LOG_ID']) ? intval($params['LOG_ID']) : 0);
 		$siteId = (isset($params['SITE_ID']) ? $params['SITE_ID'] : SITE_ID);
 		$postEntityType = (isset($params['POST_ENTITY_TYPE']) ? $params['POST_ENTITY_TYPE'] : false);
 		$sourceEntityType = (isset($params['SOURCE_ENTITY_TYPE']) ? $params['SOURCE_ENTITY_TYPE'] : false);
@@ -2053,7 +2054,8 @@ class ComponentHelper
 
 		$provider = \Bitrix\Socialnetwork\Livefeed\Provider::init(array(
 			'ENTITY_TYPE' => $sourceEntityType,
-			'ENTITY_ID' => $sourceEntityId
+			'ENTITY_ID' => $sourceEntityId,
+			'LOG_ID' => $logId
 		));
 
 		if (!$provider)
@@ -2072,7 +2074,17 @@ class ComponentHelper
 			return false;
 		}
 
-		$commentProvider->setLogId($provider->getLogId());
+		$logId = $provider->getLogId();
+		if ($logId <= 0)
+		{
+			$provider->initSourceFields();
+			$logId = $provider->getLogId();
+		}
+
+		if ($logId > 0)
+		{
+			$commentProvider->setLogId($provider->getLogId());
+		}
 
 		$sonetCommentId = $commentProvider->add(array(
 			'SITE_ID' => $siteId,
@@ -2427,7 +2439,7 @@ class ComponentHelper
 
 	public static function addLiveComment($comment = array(), $logEntry, $commentEvent = array(), $params = array())
 	{
-		global $USER_FIELD_MANAGER, $DB, $APPLICATION;
+		global $USER_FIELD_MANAGER, $APPLICATION;
 
 		$result = array();
 
@@ -2563,11 +2575,6 @@ class ComponentHelper
 			\CSocNetLogTools::setUFRights($comment["UF"]["UF_SONET_COM_DOC"]["VALUE"], $rights);
 		}
 
-		$dateFormated = FormatDate(
-			$DB->dateFormatToPHP(FORMAT_DATE),
-			$result["timestamp"]
-		);
-
 		$timeFormat = (
 			!empty($params["TIME_FORMAT"])
 				? $params["TIME_FORMAT"]
@@ -2690,8 +2697,6 @@ class ComponentHelper
 		if (
 			isset($params["PULL"])
 			&& $params["PULL"] == "Y"
-			&& Loader::includeModule("pull")
-			&& \CPullOptions::getNginxStatus()
 		)
 		{
 			if (!empty($params["ENTITY_XML_ID"]))
@@ -2766,6 +2771,115 @@ class ComponentHelper
 				}
 			}
 
+			$records = array(
+				$listCommentId => array(
+					"ID" => $listCommentId,
+					"RATING_VOTE_ID" => $comment["RATING_TYPE_ID"].'_'.$listCommentId.'-'.(time()+rand(0, 1000)),
+					"NEW" => "Y",
+					"APPROVED" => "Y",
+					"POST_TIMESTAMP" => $result["timestamp"],
+					"AUTHOR" => array(
+						"ID" => $user["ID"],
+						"NAME" => $user["NAME"],
+						"LAST_NAME" => $user["LAST_NAME"],
+						"SECOND_NAME" => $user["SECOND_NAME"],
+						"PERSONAL_GENDER" => $user["PERSONAL_GENDER"],
+						"AVATAR" => $commentFormatted["AVATAR_SRC"],
+					),
+					"FILES" => false,
+					"UF" => $comment["UF"],
+					"~POST_MESSAGE_TEXT" => $comment["~MESSAGE"],
+					"WEB" => array(
+						"CLASSNAME" => "",
+						"POST_MESSAGE_TEXT" => $commentFormatted["MESSAGE_FORMAT"],
+						"AFTER" => $commentFormatted["UF"]
+					),
+					"MOBILE" => array(
+						"CLASSNAME" => "",
+						"POST_MESSAGE_TEXT" => $messageMobile
+					),
+					"AUX" => (isset($params['AUX']) ? $params['AUX'] : ''),
+					"AUX_LIVE_PARAMS" => (isset($params['AUX_LIVE_PARAMS']) ? $params['AUX_LIVE_PARAMS'] : array()),
+				)
+			);
+
+			if (
+				!empty($comment["~MESSAGE"])
+				&& \Bitrix\Main\ModuleManager::isModuleInstalled('disk')
+			)
+			{
+				$inlineDiskObjectIdList = $inlineDiskAttachedObjectIdList = array();
+
+				// parse inline disk object ids
+				if (preg_match_all("#\\[disk file id=(n\\d+)\\]#is".BX_UTF_PCRE_MODIFIER, $comment["~MESSAGE"], $matches))
+				{
+					$inlineDiskObjectIdList = array_map(function($a) { return intval(substr($a, 1)); }, $matches[1]);
+				}
+
+				// parse inline disk attached object ids
+				if (preg_match_all("#\\[disk file id=(\\d+)\\]#is".BX_UTF_PCRE_MODIFIER, $comment["~MESSAGE"], $matches))
+				{
+					$inlineDiskAttachedObjectIdList = array_map(function($a) { return intval(substr($a, 1)); }, $matches[1]);
+				}
+
+				// get inline attached images;
+				$inlineDiskAttachedObjectIdImageList = array();
+				if (
+					(
+						!empty($inlineDiskObjectIdList)
+						|| !empty($inlineDiskAttachedObjectIdList)
+					)
+					&& \Bitrix\Main\Loader::includeModule('disk')
+				)
+				{
+					$filter = array(
+						'=OBJECT.TYPE_FILE' => \Bitrix\Disk\TypeFile::IMAGE
+					);
+					if (!empty($inlineDiskObjectIdList))
+					{
+						$filter['@OBJECT_ID'] = $inlineDiskObjectIdList;
+					}
+					if (!empty($inlineDiskAttachedObjectIdList))
+					{
+						$filter['@ID'] = $inlineDiskAttachedObjectIdList;
+					}
+					if (
+						!empty($inlineDiskObjectIdList)
+						&& !empty($inlineDiskAttachedObjectIdList)
+					)
+					{
+						$filter['LOGIC'] = 'OR';
+					}
+
+					$res = \Bitrix\Disk\Internals\AttachedObjectTable::getList(array(
+						'filter' => $filter,
+						'select' => array('ID', 'ENTITY_ID')
+					));
+					while ($attachedObjectFields = $res->fetch())
+					{
+						if (intval($attachedObjectFields['ENTITY_ID']) == $listCommentId)
+						{
+							$inlineDiskAttachedObjectIdImageList[] = intval($attachedObjectFields['ID']);
+						}
+					}
+				}
+
+				// find all inline images and remove them from UF
+				if (!empty($inlineDiskAttachedObjectIdImageList))
+				{
+					if (
+						!empty($records[$listCommentId]["UF"])
+						&& !empty($records[$listCommentId]["UF"]["UF_SONET_COM_DOC"])
+						&& !empty($records[$listCommentId]["UF"]["UF_SONET_COM_DOC"]['VALUE'])
+					)
+					{
+						$records[$listCommentId]["WEB"]["UF"] = $records[$listCommentId]["UF"];
+						$records[$listCommentId]["MOBILE"]["UF"] = $records[$listCommentId]["UF"];
+						$records[$listCommentId]["MOBILE"]["UF"]["UF_SONET_COM_DOC"]['VALUE'] = array_diff($records[$listCommentId]["MOBILE"]["UF"]["UF_SONET_COM_DOC"]['VALUE'], $inlineDiskAttachedObjectIdImageList);
+					}
+				}
+			}
+
 			$res = $APPLICATION->includeComponent(
 				"bitrix:main.post.list",
 				"",
@@ -2775,37 +2889,7 @@ class ComponentHelper
 					"ENTITY_XML_ID" => $entityXMLId,
 					"POST_CONTENT_TYPE_ID" => $postContentTypeId,
 					"COMMENT_CONTENT_TYPE_ID" => $commentContentTypeId,
-					"RECORDS" => array(
-						$listCommentId => array(
-							"ID" => $listCommentId,
-							"RATING_VOTE_ID" => $comment["RATING_TYPE_ID"].'_'.$listCommentId.'-'.(time()+rand(0, 1000)),
-							"NEW" => "Y",
-							"APPROVED" => "Y",
-							"POST_TIMESTAMP" => $result["timestamp"],
-							"AUTHOR" => array(
-								"ID" => $user["ID"],
-								"NAME" => $user["NAME"],
-								"LAST_NAME" => $user["LAST_NAME"],
-								"SECOND_NAME" => $user["SECOND_NAME"],
-								"PERSONAL_GENDER" => $user["PERSONAL_GENDER"],
-								"AVATAR" => $commentFormatted["AVATAR_SRC"],
-							),
-							"FILES" => false,
-							"UF" => $comment["UF"],
-							"~POST_MESSAGE_TEXT" => $comment["~MESSAGE"],
-							"WEB" => array(
-								"CLASSNAME" => "",
-								"POST_MESSAGE_TEXT" => $commentFormatted["MESSAGE_FORMAT"],
-								"AFTER" => $commentFormatted["UF"]
-							),
-							"MOBILE" => array(
-								"CLASSNAME" => "",
-								"POST_MESSAGE_TEXT" => $messageMobile
-							),
-							"AUX" => (isset($params['AUX']) ? $params['AUX'] : ''),
-							"AUX_LIVE_PARAMS" => (isset($params['AUX_LIVE_PARAMS']) ? $params['AUX_LIVE_PARAMS'] : array()),
-						)
-					),
+					"RECORDS" => $records,
 					"NAV_STRING" => "",
 					"NAV_RESULT" => "",
 					"PREORDER" => "N",
@@ -4419,6 +4503,11 @@ class ComponentHelper
 			}
 
 			$currentLogId = $voteFields['LOG_ID'];
+
+			if (in_array($voteFields['USER_ID'], $logUserData[$voteFields['LOG_ID']]))
+			{
+				continue;
+			}
 
 			$cnt++;
 

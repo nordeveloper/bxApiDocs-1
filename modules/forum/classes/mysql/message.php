@@ -457,6 +457,9 @@ class CForumMessage extends CAllForumMessage
 				AND MATCH (FM.POST_MESSAGE) AGAINST ('(+" . $arFilter['POST_MESSAGE'] . "*)' IN BOOLEAN MODE)
 				AND T.ZOMBIE = 'N'";
 
+			$strSqlGroupBy = "
+				GROUP BY TASK_ID";
+
 			$accessSql = '';
 			$access = \Bitrix\Tasks\Internals\RunTime\Task::getAccessCheckSql($arAddParams);
 
@@ -486,6 +489,7 @@ class CForumMessage extends CAllForumMessage
 
 			$additionalJoins = "";
 			$accessSql = "";
+			$strSqlGroupBy = "";
 		}
 
 		$strSql =
@@ -493,11 +497,12 @@ class CForumMessage extends CAllForumMessage
 			FROM b_forum_message FM" . "
 				LEFT JOIN b_forum_user FU ON (FM.AUTHOR_ID = FU.USER_ID)
 				LEFT JOIN b_user U ON (FM.AUTHOR_ID = U.ID)".
-				$additionalJoins.
-				$accessSql.
-				$strSqlUserFieldJoin."
-			WHERE 1 = 1 ".$strSqlSearch."
-			".$strSqlOrder;
+				$additionalJoins .
+				$accessSql .
+				$strSqlUserFieldJoin . "
+			WHERE 1 = 1 " . $strSqlSearch . "
+			" . $strSqlGroupBy . "
+			" . $strSqlOrder;
 
 		$iNum = intVal($iNum);
 		if (($iNum>0) || (is_array($arAddParams) && (intVal($arAddParams["nTopCount"])>0)))

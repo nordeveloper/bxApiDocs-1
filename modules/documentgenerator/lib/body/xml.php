@@ -18,6 +18,17 @@ abstract class Xml extends Body
 	{
 		$names = static::matchFieldNames($this->content);
 		$names = array_unique($names);
+		foreach($names as $key => $name)
+		{
+			if(substr($name, -(strlen(static::BLOCK_START_PLACEHOLDER) + 1)) == '.'.static::BLOCK_START_PLACEHOLDER)
+			{
+				unset($names[$key]);
+			}
+			if(substr($name, -(strlen(static::BLOCK_END_PLACEHOLDER) + 1)) == '.'.static::BLOCK_END_PLACEHOLDER)
+			{
+				unset($names[$key]);
+			}
+		}
 
 		return $names;
 	}

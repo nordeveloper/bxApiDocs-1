@@ -245,7 +245,7 @@ abstract class Base extends \CBitrixComponent
 		{
 			$uri = new Main\Web\Uri($this->request->getRequestUri());
 			$uri->deleteParams(Main\HttpRequest::getSystemParameters());
-			$params['CURRENT_BASE_PAGE'] = $uri->getUri();
+			$params['CURRENT_BASE_PAGE'] = $uri->getPath();
 		}
 
 		// parent component params for correct template load through ajax
@@ -3479,8 +3479,7 @@ abstract class Base extends \CBitrixComponent
 					$catalog['IBLOCK_ID'],
 					array_merge(
 						$iblockParams['OFFERS_PROPERTY_CODE'],
-						$iblockParams['OFFERS_TREE_PROPS'],
-						$iblockParams['OFFERS_CART_PROPERTIES']
+						$iblockParams['OFFERS_TREE_PROPS']
 					)
 				);
 				if (!empty($propertyList))

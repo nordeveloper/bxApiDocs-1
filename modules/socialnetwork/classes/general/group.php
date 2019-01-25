@@ -496,7 +496,8 @@ class CAllSocNetGroup
 
 				$arFilter = array("ID" => $ID);
 				if (
-					$bCheckPermissions 
+					$bCheckPermissions
+					&& is_object($USER)
 					&& ($USER->GetID() > 0)
 				)
 				{

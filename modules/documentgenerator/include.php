@@ -1,4 +1,5 @@
 <?php
+
 CJSCore::RegisterExt('documentpreview', [
 	'js' => '/bitrix/js/documentgenerator/documentpreview.js',
 	'css' => '/bitrix/js/documentgenerator/css/documentpreview.css',
@@ -10,5 +11,6 @@ CJSCore::RegisterExt('documentpreview', [
 	"documentgenerator",
 	[
 		"petrovich" => "lib/external/petrovich.php",
+		"html2text\html2text" => "lib/external/html2text.php",
 	]
 );

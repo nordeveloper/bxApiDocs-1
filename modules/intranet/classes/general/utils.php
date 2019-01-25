@@ -178,7 +178,7 @@ class CIntranetUtils
 
 		if (is_array($arAbsence[$USER_ID]))
 		{
-			$ts = time();
+			$ts = time() + \CTimeZone::getOffset();
 			foreach($arAbsence[$USER_ID] as $arEntry)
 			{
 				$ts_start = MakeTimeStamp($arEntry['DATE_FROM'], FORMAT_DATETIME);

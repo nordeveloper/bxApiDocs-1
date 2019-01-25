@@ -624,7 +624,7 @@ class Adapter implements iBase
 			switch ($this->getCode())
 			{
 				case iBase::CODE_MAIL:
-					return true;
+					return Integration\Bitrix24\Service::isEmailAvailable();
 
 				default:
 					return Integration\Bitrix24\Service::isMailingsAvailable();

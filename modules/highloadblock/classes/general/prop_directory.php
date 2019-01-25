@@ -171,6 +171,8 @@ class CIBlockPropertyDirectory
 		}
 		unset($directory);
 
+		$multiple = $arProperty['MULTIPLE'];
+
 		$tablePrefix = self::TABLE_PREFIX;
 		$selectDir = Loc::getMessage("HIBLOCK_PROP_DIRECTORY_SELECT_DIR");
 		$headingXmlId = Loc::getMessage("HIBLOCK_PROP_DIRECTORY_XML_ID");
@@ -183,11 +185,23 @@ class CIBlockPropertyDirectory
 		$headingFullDescription = Loc::getMessage("HIBLOCK_PROP_DIRECTORY_FULL_DESCRIPTION");
 		$directoryName = Loc::getMessage("HIBLOCK_PROP_DIRECTORY_NEW_NAME");
 		$directoryMore = Loc::getMessage("HIBLOCK_PROP_DIRECTORY_MORE");
+
+		$emptyDefaultValue = '';
+		if ($multiple == 'N')
+		{
+			$emptyDefaultValue = '<tr id="hlbl_property_tr_empty">'.
+				'<td colspan="6" style="text-align: center;">'.Loc::getMessage('HIBLOCK_PROP_DIRECTORY_EMPTY_DEFAULT_VALUE').'</td>'.
+				'<td style="text-align:center;">'.
+				'<input type="radio" name="PROPERTY_VALUES_DEF" id="PROPERTY_VALUES_DEF_EMPTY" value="-1" checked="checked">'.
+				'<td colspan="2">&nbsp;</td>'.
+				'</tr>';
+		}
+
 		return <<<"HIBSELECT"
 <script type="text/javascript">
 function getTableHead()
 {
-	BX('hlb_directory_table').innerHTML = '<tr class="heading"><td></td><td>$headingName</td><td>$headingSort</td><td>$headingXmlId</td><td>$headingFile</td><td>$headingLink</td><td>$headingDef</td><td>$headingDescription</td><td>$headingFullDescription</td></tr>';
+	BX('hlb_directory_table').innerHTML = '<tr class="heading"><td></td><td>$headingName</td><td>$headingSort</td><td>$headingXmlId</td><td>$headingFile</td><td>$headingLink</td><td>$headingDef</td><td>$headingDescription</td><td>$headingFullDescription</td></tr>$emptyDefaultValue';
 }
 
 function getDirectoryTableRow(addNew)
@@ -230,13 +244,11 @@ function getDirectoryTableRow(addNew)
 						hlBlock: hlBlock,
 						rowNumber: rowNumber,
 						getTitle: 'Y',
-						IBLOCK_ID: '{$iblockID}'
+						IBLOCK_ID: '{$iblockID}',
+						multiple: '{$multiple}'
 					},
 					BX.delegate(function(result) {
 						BX('hlb_directory_table').innerHTML = result;
-						BX('hlb_directory_row_number').value = parseInt(BX('hlb_directory_row_number').value, 10) + 1;
-						if(BX('IB_MAX_ROWS_COUNT'))
-							BX('IB_MAX_ROWS_COUNT').value = parseInt(BX('IB_MAX_ROWS_COUNT').value, 10) + 1;
 					})
 				);
 
@@ -252,7 +264,8 @@ function getDirectoryTableRow(addNew)
 					hlBlock: hlBlock,
 					rowNumber: rowNumber,
 					addEmptyRow: 'Y',
-					IBLOCK_ID: '{$iblockID}'
+					IBLOCK_ID: '{$iblockID}',
+					multiple: '{$multiple}'
 				},
 				BX.delegate(function(result) {
 					var obRow = null,

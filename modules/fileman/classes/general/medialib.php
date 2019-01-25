@@ -1058,6 +1058,7 @@ ML_MESS.Save = '<?= GetMessageJS('ML_SAVE')?>';
 			file_size: '<?= CMedialib::GetUsableSize($arItems[$i]['FILE_SIZE'])?>',
 			thumb_path: '<?= CMedialib::Escape($arItems[$i]['THUMB_PATH'])?>',
 			path: '<?= CMedialib::Escape($arItems[$i]['PATH'])?>',
+			path_external: '<?= CMedialib::Escape($arItems[$i]['PATH_EXTERNAL'])?>',
 			type: '<?= $arItems[$i]['TYPE']?>'
 		}
 		<?
@@ -2100,7 +2101,8 @@ class CMedialibItem
 		while($arRes = $res->Fetch())
 		{
 			CMedialibItem::GenerateThumbnail($arRes, array('rootPath' => $rootPath, 'width' => $tmbW, 'height' => $tmbH));
-			$arRes['PATH'] = CFile::GetFileSRC($arRes);
+			$arRes['PATH'] = CFile::GetFileSRC($arRes, false, false);
+			$arRes['PATH_EXTERNAL'] = CFile::GetFileSRC($arRes, false, true);
 			$arResult[]=$arRes;
 		}
 

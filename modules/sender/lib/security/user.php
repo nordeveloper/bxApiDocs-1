@@ -114,6 +114,11 @@ class User
 	 */
 	public function hasAccess()
 	{
+		if (!Integration\Bitrix24\Service::isAvailable())
+		{
+			return false;
+		}
+
 		return $this->getAccess()->canViewAnything();
 	}
 

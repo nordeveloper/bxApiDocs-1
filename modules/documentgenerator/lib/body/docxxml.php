@@ -6,6 +6,7 @@ use Bitrix\DocumentGenerator\DataProvider;
 use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\Main\Result;
 use Bitrix\Main\Text\Encoding;
+use Html2Text\Html2Text;
 
 final class DocxXml extends Xml
 {
@@ -65,7 +66,10 @@ final class DocxXml extends Xml
 		{
 			/** @var \DOMElement $bracketNode */
 			$rowNodes = $bracketNode->getElementsByTagNameNS($this->getNamespaces()['w'], 'r');
-			$this->normalizeNodeList($rowNodes, $bracketNode);
+			if($rowNodes)
+			{
+				$this->normalizeNodeList($rowNodes, $bracketNode);
+			}
 		}
 		$this->saveContent();
 		$this->clearPlaceholdersInAttributes();
@@ -327,7 +331,7 @@ final class DocxXml extends Xml
 							$values = array_merge($this->values, $values);
 							$blockContent = preg_replace_callback(static::$valuesPattern, function($matches) use ($values)
 							{
-								if($matches[2] && isset($values[$matches[2]]))
+								if($matches[2] && array_key_exists($matches[2], $values))
 								{
 									// multiply images
 									if($this->isImageValue($matches[2], $values))
@@ -694,20 +698,6 @@ final class DocxXml extends Xml
 		{
 			return $value;
 		}
-		if(is_string($value))
-		{
-			if(!(isset($this->fields[$placeholder]) && isset($this->fields[$placeholder]['TYPE']) && (
-				$this->fields[$placeholder]['TYPE'] === DataProvider::FIELD_TYPE_IMAGE || $this->fields[$placeholder]['TYPE'] === DataProvider::FIELD_TYPE_STAMP
-			)))
-			{
-				$value = str_replace(["\n", "\r"], '', $value);
-				$value = str_replace('</li>', '<br>', $value);
-				$value = preg_replace('/\<br(\s*)?\/?\>/i', "\n", $value);
-				$value = strip_tags($value);
-				$value = html_entity_decode($value);
-				$value = '<![CDATA['.$value.']]>';
-			}
-		}
 		if (ToUpper(SITE_CHARSET) !== 'UTF-8')
 		{
 			if(is_array($value) || is_object($value))
@@ -721,6 +711,21 @@ final class DocxXml extends Xml
 			else
 			{
 				$value = $APPLICATION->ConvertCharsetArray($value, SITE_CHARSET, 'UTF-8');
+			}
+		}
+		if(is_string($value))
+		{
+			if($this->isImageValue($placeholder, $this->values))
+			{
+				return '';
+			}
+			else
+			{
+				if($this->isHtml($value))
+				{
+					$value = $this->htmlToText($value);
+				}
+				$value = '<![CDATA['.$value.']]>';
 			}
 		}
 
@@ -741,11 +746,30 @@ final class DocxXml extends Xml
 		}
 
 		return (
-			isset($values[$placeholder]) &&
+			array_key_exists($placeholder, $values) &&
 			isset($fields[$placeholder]) &&
 			isset($fields[$placeholder]['TYPE']) &&
 			($fields[$placeholder]['TYPE'] === DataProvider::FIELD_TYPE_IMAGE || $fields[$placeholder]['TYPE'] === DataProvider::FIELD_TYPE_STAMP)
 		);
+	}
+
+	/**
+	 * @param $string
+	 * @return bool
+	 */
+	protected function isHtml($string)
+	{
+		return (preg_match('/<\s?[^\>]*\/?\s?>/i', $string) !== false);
+	}
+
+	/**
+	 * @param string $html
+	 * @return string
+	 */
+	protected function htmlToText($html)
+	{
+		$html2Text = new Html2Text($html, ['do_links' => 'none', 'width' => 0]);
+		return $html2Text->getText();
 	}
 
 //	/**

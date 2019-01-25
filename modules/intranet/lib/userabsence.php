@@ -15,6 +15,11 @@ class UserAbsence
 		return intval($iblockId);
 	}
 
+	public static function getTypeCaption($xmlId, $default = '')
+	{
+		return Loc::getMessage('INTR_USER_ABSENCE_TYPE_' . $xmlId) ?: $default;
+	}
+
 	public static function getCurrentMonth()
 	{
 		static $result;

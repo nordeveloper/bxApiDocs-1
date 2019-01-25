@@ -3881,7 +3881,7 @@ class CSocNetLogTools
 		return CSocNetLogTools::AddComment_Review_CheckIBlock_Forum($arElement);
 	}
 
-	function AddComment_Review_CheckIBlock_Forum($arElement)
+	public static function AddComment_Review_CheckIBlock_Forum($arElement)
 	{
 		if (!CModule::IncludeModule("iblock"))
 			return false;

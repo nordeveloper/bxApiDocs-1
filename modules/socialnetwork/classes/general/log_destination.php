@@ -1399,7 +1399,26 @@ class CSocNetLogDestination
 				|| $arParams['SEARCH_BY_EMAIL_ONLY'] != 'Y'
 			)
 			{
+				$keysList = array();
 				$contacts = CCrmActivity::FindContactCommunications($search, 'EMAIL', 50);
+				foreach($contacts as $contact)
+				{
+					$keysList[] = $contact['ENTITY_ID'].'_'.$contact['ENTITY_TYPE_ID'];
+				}
+
+				$contactsByName = CCrmActivity::FindContactCommunications($search, '', 50);
+				foreach($contactsByName as $contact)
+				{
+					if (
+						in_array($contact['ENTITY_ID'].'_'.$contact['ENTITY_TYPE_ID'], $keysList)
+						|| empty($contact["VALUE"])
+					)
+					{
+						continue;
+					}
+					$contacts[] = $contact;
+				}
+
 				if (!empty($contacts))
 				{
 					$arId = $arEmail = array();
@@ -1434,6 +1453,24 @@ class CSocNetLogDestination
 				}
 
 				$companies = CCrmActivity::FindCompanyCommunications($search, 'EMAIL', 50);
+				foreach($companies as $company)
+				{
+					$keysList[] = $company['ENTITY_ID'].'_'.$company['ENTITY_TYPE_ID'];
+				}
+
+				$companiesByName = CCrmActivity::FindCompanyCommunications($search, '', 50);
+				foreach($companiesByName as $company)
+				{
+					if (
+						in_array($company['ENTITY_ID'].'_'.$company['ENTITY_TYPE_ID'], $keysList)
+						|| empty($company["VALUE"])
+					)
+					{
+						continue;
+					}
+					$companies[] = $company;
+				}
+
 				if (!empty($companies))
 				{
 					$arId = $arEmail = array();
@@ -1442,7 +1479,6 @@ class CSocNetLogDestination
 						$arEmail[intval($company["ENTITY_ID"])] = $company["VALUE"];
 						$arId[] = intval($company["ENTITY_ID"]);
 					}
-
 					$dbRes = CCrmCompany::GetListEx(
 						array(),
 						array(
@@ -1467,6 +1503,24 @@ class CSocNetLogDestination
 				}
 
 				$leads = CCrmActivity::FindLeadCommunications($search, 'EMAIL', 50);
+				foreach($leads as $lead)
+				{
+					$keysList[] = $lead['ENTITY_ID'].'_'.$lead['ENTITY_TYPE_ID'];
+				}
+
+				$leadsByName = CCrmActivity::FindLeadCommunications($search, '', 50);
+				foreach($leadsByName as $lead)
+				{
+					if (
+						in_array($lead['ENTITY_ID'].'_'.$lead['ENTITY_TYPE_ID'], $keysList)
+						|| empty($lead["VALUE"])
+					)
+					{
+						continue;
+					}
+					$leads[] = $lead;
+				}
+
 				if (!empty($leads))
 				{
 					$arId = $arEmail = array();
@@ -3156,7 +3210,11 @@ class CSocNetLogDestination
 			$arRes['active'] = $arUser["ACTIVE"];
 		}
 
-		$arRes["email"] = $arUser['EMAIL'];
+		if (ModuleManager::isModuleInstalled('intranet'))
+		{
+			$arRes["email"] = $arUser['EMAIL'];
+		}
+
 		if (
 			(
 				isset($arParams['USE_EMAIL'])

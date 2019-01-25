@@ -262,33 +262,44 @@ class CAdminSubList extends CAdminList
 		if (isset($_REQUEST['showallcol']) && $_REQUEST['showallcol'])
 			$_SESSION['SHALL'] = ($_REQUEST['showallcol'] == 'Y');
 
+		$hiddenColumns = (!empty($this->arHideHeaders) ? array_fill_keys($this->arHideHeaders, true) : array());
+
 		$aOptions = CUserOptions::GetOption("list", $this->table_id, array());
 
 		$aColsTmp = explode(",", $aOptions["columns"]);
 		$aCols = array();
+		$userColumns = array();
+
 		foreach($aColsTmp as $col)
 		{
 			$col = trim($col);
-			if ('' != $col && !in_array($col, $this->arHideHeaders))
+			if ($col != '' && !isset($hiddenColumns[$col]))
+			{
 				$aCols[] = $col;
+				$userColumns[$col] = true;
+			}
 		}
 
 		$bEmptyCols = empty($aCols);
+		$userVisibleColumns = array();
 		foreach ($aParams as $param)
 		{
 			$param["__sort"] = -1;
-			if (!in_array($param["id"], $this->arHideHeaders))
+			if (!isset($hiddenColumns[$param["id"]]))
 			{
 				$this->aHeaders[$param["id"]] = $param;
 				if (
 					(isset($_SESSION['SHALL']) && $_SESSION['SHALL'])
-					|| ($bEmptyCols && $param["default"] == true) || in_array($param["id"], $aCols)
+					|| ($bEmptyCols && $param["default"] == true)
+					|| isset($userColumns[$param["id"]])
 				)
 				{
 					$this->arVisibleColumns[] = $param["id"];
+					$userVisibleColumns[$param["id"]] = true;
 				}
 			}
 		}
+		unset($userColumns);
 
 		$aAllCols = null;
 		if (isset($_REQUEST["mode"]) && $_REQUEST["mode"] == "subsettings")
@@ -304,9 +315,10 @@ class CAdminSubList extends CAdminList
 
 		foreach($this->aHeaders as $id=>$arHeader)
 		{
-			if (in_array($id, $this->arVisibleColumns) && !in_array($id, $this->arHideHeaders))
+			if (isset($userVisibleColumns[$id]) && !isset($hiddenColumns[$id]))
 				$this->aVisibleHeaders[$id] = $arHeader;
 		}
+		unset($userVisibleColumns, $hiddenColumns);
 
 		if (isset($_REQUEST["mode"]) && $_REQUEST["mode"] == "subsettings")
 			$this->ShowSettings($aAllCols, $aCols, $aOptions);
@@ -415,7 +427,7 @@ class CAdminSubList extends CAdminList
 		{
 			if($this->bEditMode && in_array($id, $this->arEditedRows))
 				$row->bEditMode = true;
-			elseif(in_array($id, $this->arUpdateErrorIDs))
+			elseif(!empty($this->arUpdateErrorIDs) && in_array($id, $this->arUpdateErrorIDs))
 				$row->bEditMode = true;
 		}
 

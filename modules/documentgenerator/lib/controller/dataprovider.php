@@ -12,22 +12,31 @@ use Bitrix\Main\ModuleManager;
 
 class DataProvider extends Base
 {
+	/**
+	 * @param string $provider
+	 * @param string $value
+	 * @param array $options
+	 * @param string $module
+	 * @return array|null
+	 * @throws \Bitrix\Main\LoaderException
+	 */
 	public function getProviderFieldsAction($provider, $value = '', array $options = [], $module = '')
 	{
 		if(!empty($module) && !(ModuleManager::isModuleInstalled($module) && Loader::includeModule($module)))
 		{
 			$this->errorCollection[] = new Error('cant load module '.$module);
-			return;
+			return null;
 		}
 		if(DataProviderManager::checkProviderName($provider, $module))
 		{
 			/** @var \Bitrix\DocumentGenerator\DataProvider $dataProvider */
 			$dataProvider = new $provider($value, $options);
-			return $this->getProviderFields($dataProvider);
+			return ['fields' => $this->getProviderFields($dataProvider)];
 		}
 		else
 		{
 			$this->errorCollection[] = new Error($provider.' is not a DataProvider');
+			return null;
 		}
 	}
 

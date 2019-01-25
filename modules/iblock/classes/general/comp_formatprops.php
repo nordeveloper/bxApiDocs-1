@@ -10,6 +10,7 @@ class CIBlockFormatProperties
 		{
 			$installedStatictic = \Bitrix\Main\ModuleManager::isModuleInstalled('statistic');
 		}
+		/** @var array $arUserTypeFormat */
 		$arUserTypeFormat = false;
 		if(isset($arProperty["USER_TYPE"]) && !empty($arProperty["USER_TYPE"]))
 		{

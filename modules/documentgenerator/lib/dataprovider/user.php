@@ -148,4 +148,12 @@ final class User extends EntityDataProvider
 	{
 		return $this->nameData;
 	}
+
+	/**
+	 * @return bool
+	 */
+	public function isRootProvider()
+	{
+		return false;
+	}
 }

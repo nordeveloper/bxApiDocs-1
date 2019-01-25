@@ -94,7 +94,7 @@ class CIBlockPropertyMapGoogle extends CIBlockPropertyMapInterface
 	public static function GetSettingsHTML($arProperty, $strHTMLControlName, &$arPropertyFields)
 	{
 		$arPropertyFields = array(
-			'HIDE' => array('ROW_COUNT', 'COL_COUNT', 'SMART_FILTER', 'FILTRABLE', 'SEARCHABLE'),
+			'HIDE' => array('ROW_COUNT', 'COL_COUNT', 'SMART_FILTER', 'FILTRABLE', 'SEARCHABLE', 'WITH_DESCRIPTION'),
 			'SET' => array('SMART_FILTER' => 'N', 'FILTRABLE' => 'N', 'SEARCHABLE' => 'N')
 		);
 
@@ -757,7 +757,7 @@ function saveYandexKey(domain, input)
 	public static function GetSettingsHTML($arProperty, $strHTMLControlName, &$arPropertyFields)
 	{
 		$arPropertyFields = array(
-			'HIDE' => array('ROW_COUNT', 'COL_COUNT', 'SMART_FILTER', 'FILTRABLE', 'SEARCHABLE'),
+			'HIDE' => array('ROW_COUNT', 'COL_COUNT', 'SMART_FILTER', 'FILTRABLE', 'SEARCHABLE', 'WITH_DESCRIPTION'),
 			'SET' => array('SMART_FILTER' => 'N', 'FILTRABLE' => 'N', 'SEARCHABLE' => 'N')
 		);
 		
@@ -2198,7 +2198,7 @@ table.bx-video-prop-tbl img.spacer{display:block;float:left;height:1px;margin-to
 				<td class="bx-pr-title"><?= GetMessage('IBLOCK_PROP_VIDEO_FILE')?>:</td>
 				<td>
 					<div id="bx_video_path_div_<?= $id?>" class="bx-path-div">
-					<input type="hidden" value="<?= $path?>" name= "<?= $name?>[CUR_PATH]" />
+					<input type="hidden" value="<?= htmlspecialcharsEx($path)?>" name= "<?= $name?>[CUR_PATH]" />
 					<input id="bx_video_b_new_file_<?= $id?>" type="hidden" value="N" name= "<?= $name?>[B_NEW_FILE]" />
 					<input class="bx-path" readonly="readonly" value="<?= htmlspecialcharsex($path)?>" size="30" />
 					<br />
@@ -2719,7 +2719,7 @@ class CIBlockPropertyVideo extends CVideoProperty
 
 	public static function ConvertToDB($arProperty, $value)
 	{
-		return CIBlockPropertyVideo::BaseConvertToDB($value["VALUE"]);
+		return ["VALUE" => CIBlockPropertyVideo::BaseConvertToDB($value["VALUE"])];
 	}
 
 	public static function CheckFields($arProperty, $value)

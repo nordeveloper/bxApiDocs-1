@@ -789,7 +789,7 @@ final class CTaskRestService extends IRestService
 					// Additionally convert datetime fields from ISO 8601
 					if (in_array((string) $keyWoPrefix, $arDateFields, true) && !in_array($paramValue[$key], array('asc', 'desc'))/*it could be sorting*/)
 					{
-						$paramValue[$key] = (string) CRestUtil::unConvertDateTime($paramValue[$key]);
+						$paramValue[$key] = (string) CRestUtil::unConvertDateTime($paramValue[$key], true);
 					}
 				}
 			}

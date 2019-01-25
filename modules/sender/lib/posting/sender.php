@@ -20,7 +20,7 @@ use Bitrix\Sender\PostingRecipientTable;
 use Bitrix\Sender\PostingTable;
 use Bitrix\Sender\Entity\Letter;
 use Bitrix\Sender\Integration;
-use Bitrix\Sender\Internals\Model\LetterTable;
+use Bitrix\Sender\Internals\Model;
 use Bitrix\Sender\Recipient;
 use Bitrix\Sender\Message\Adapter;
 
@@ -114,8 +114,8 @@ class Sender
 				'=ID' => $postingId,
 				'=MAILING.ACTIVE' => 'Y',
 				'=MAILING_CHAIN.STATUS' => array(
-					LetterTable::STATUS_SEND,
-					LetterTable::STATUS_PLAN
+					Model\LetterTable::STATUS_SEND,
+					Model\LetterTable::STATUS_PLAN
 				),
 			)
 		));
@@ -390,7 +390,7 @@ class Sender
 		}
 
 		$this->status = PostingTable::STATUS_PART;
-		PostingTable::update(array('ID' => $this->postingId), array('STATUS' => $this->status));
+		Model\PostingTable::update($this->postingId, ['STATUS' => $this->status]);
 	}
 
 	/**
@@ -485,12 +485,12 @@ class Sender
 			}
 
 			$sendResultStatus = $sendResult ? PostingRecipientTable::SEND_RESULT_SUCCESS : PostingRecipientTable::SEND_RESULT_ERROR;
-			PostingRecipientTable::update(
-				array('ID' => $recipient["ID"]),
-				array(
+			Model\Posting\RecipientTable::update(
+				$recipient["ID"],
+				[
 					'STATUS' => $sendResultStatus,
 					'DATE_SENT' => new Type\DateTime()
-				)
+				]
 			);
 
 			// send event
@@ -539,7 +539,7 @@ class Sender
 			return;
 		}
 
-		PostingTable::update(array('ID' => $this->postingId), array('DATE_SEND' => new Type\DateTime()));
+		Model\PostingTable::update($this->postingId, ['DATE_SEND' => new Type\DateTime()]);
 	}
 
 	/**
@@ -590,7 +590,7 @@ class Sender
 			$postingUpdateFields[$postingFieldName] = $postingCountFieldValue;
 		}
 
-		PostingTable::update(array('ID' => $postingId), $postingUpdateFields);
+		Model\PostingTable::update($postingId, $postingUpdateFields);
 
 		return $status;
 	}
@@ -682,11 +682,11 @@ class Sender
 			return false;
 		}
 
-		$checkStatusDb = LetterTable::getList(array(
+		$checkStatusDb = Model\LetterTable::getList(array(
 			'select' => array('ID'),
 			'filter' => array(
 				'=ID' => $this->letterId,
-				'=STATUS' => LetterTable::STATUS_SEND
+				'=STATUS' => Model\LetterTable::STATUS_SEND
 			)
 		));
 		if(!$checkStatusDb->fetch())

@@ -185,9 +185,12 @@ class PropertyTable extends Main\Entity\DataManager
 				'validation' => array(__CLASS__, 'validateUserType'),
 				'title' => Loc::getMessage('IBLOCK_PROPERTY_ENTITY_USER_TYPE_FIELD'),
 			)),
-			'USER_TYPE_SETTINGS' => new Main\Entity\TextField('USER_TYPE_SETTINGS', array(
-				'title' => Loc::getMessage('IBLOCK_PROPERTY_ENTITY_USER_TYPE_SETTINGS_FIELD'),
+			'USER_TYPE_SETTINGS_LIST' => new Main\Entity\TextField('USER_TYPE_SETTINGS_LIST', array(
+				'serialized' => true,
+				'column_name' => 'USER_TYPE_SETTINGS',
+				'title' => Loc::getMessage('IBLOCK_PROPERTY_ENTITY_USER_TYPE_SETTINGS_FIELD')
 			)),
+			'USER_TYPE_SETTINGS' => new Main\Entity\TextField('USER_TYPE_SETTINGS', array()),
 			'HINT' => new Main\Entity\StringField('HINT', array(
 				'validation' => array(__CLASS__, 'validateHint'),
 				'title' => Loc::getMessage('IBLOCK_PROPERTY_ENTITY_HINT_FIELD'),
@@ -287,5 +290,69 @@ class PropertyTable extends Main\Entity\DataManager
 		return array(
 			new Main\Entity\Validator\Length(null, 255),
 		);
+	}
+
+	/**
+	 * Default onBeforeAdd handler. Absolutely necessary.
+	 *
+	 * @param Main\Entity\Event $event		Event object.
+	 * @return Main\Entity\EventResult
+	 */
+	public static function onBeforeAdd(Main\Entity\Event $event)
+	{
+		$result = new Main\Entity\EventResult;
+		$fields = $event->getParameter('fields');
+
+		$modifyFieldList = [];
+		self::copyOldFields($modifyFieldList, $fields);
+		$result->unsetField('USER_TYPE_SETTINGS');
+
+		if (!empty($modifyFieldList))
+			$result->modifyFields($modifyFieldList);
+		unset($modifyFieldList);
+		unset($fields);
+
+		return $result;
+	}
+
+	/**
+	 * Default onBeforeUpdate handler. Absolutely necessary.
+	 *
+	 * @param Main\Entity\Event $event		Event object.
+	 * @return Main\Entity\EventResult
+	 */
+	public static function onBeforeUpdate(Main\Entity\Event $event)
+	{
+		$result = new Main\Entity\EventResult;
+		$fields = $event->getParameter('fields');
+
+		$modifyFieldList = [];
+		self::copyOldFields($modifyFieldList, $fields);
+		$result->unsetField('USER_TYPE_SETTINGS');
+
+		if (!empty($modifyFieldList))
+			$result->modifyFields($modifyFieldList);
+		unset($modifyFieldList);
+		unset($fields);
+
+		return $result;
+	}
+
+	/**
+	 * Remove values from old fields (for compatibility with old api).
+	 *
+	 * @param array &$result			Modified data for add/update property.
+	 * @param array $data				Current data for add/update property.
+	 * @return void
+	 */
+	private static function copyOldFields(&$result, $data)
+	{
+		if (!isset($data['USER_TYPE_SETTINGS_LIST']) && isset($data['USER_TYPE_SETTINGS']))
+		{
+			$result['USER_TYPE_SETTINGS_LIST'] = (is_array($data['USER_TYPE_SETTINGS'])
+				? $data['USER_TYPE_SETTINGS']
+				: unserialize($data['USER_TYPE_SETTINGS'])
+			);
+		}
 	}
 }

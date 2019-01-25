@@ -744,10 +744,13 @@ final class DataProviderManager
 					$field['OPTIONS']['IS_ARRAY'] = true;
 				}
 				$value = implode('.', $chain);
-				$values[] = array_merge($field, [
-					'VALUE' => $value,
-					'GROUP' => $group,
-				]);
+				if($isCopyFields || (!$isCopyFields && !isset($field['OPTIONS']['COPY'])))
+				{
+					$values[] = array_merge($field, [
+						'VALUE' => $value,
+						'GROUP' => $group,
+					]);
+				}
 			}
 			array_pop($group);
 			array_pop($chain);

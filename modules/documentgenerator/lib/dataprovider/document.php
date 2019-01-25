@@ -26,7 +26,8 @@ final class Document extends DataProvider
 						return $this->getDocument()->getCreateTime();
 					}
 					return false;
-				}
+				},
+				'TYPE' => static::FIELD_TYPE_DATE,
 			],
 			'DOCUMENT_TITLE' => [
 				'TITLE' => Loc::getMessage('DOCGEN_DATAPROVIDER_DOCUMENT_TITLE_TITLE'),

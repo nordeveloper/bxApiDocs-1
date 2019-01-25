@@ -817,6 +817,7 @@ final class Document
 		$fields = DataProviderManager::getInstance()->getProviderFields($provider, $placeholders, true);
 		foreach($fields as $field)
 		{
+			array_unshift($field['GROUP'], Loc::getMessage('DOCUMENT_GROUP_NAME'));
 			$placeholder = DataProviderManager::getInstance()->valueToPlaceholder($field['VALUE']);
 			unset($field['VALUE']);
 			if(!isset($this->fields[$placeholder]))
@@ -1228,9 +1229,12 @@ final class Document
 			foreach($this->externalValues as $placeholder => $value)
 			{
 				$this->getValue($placeholder);
-				if($value != $this->values[$placeholder] && $value != htmlspecialcharsbx($this->values[$placeholder]))
+				if($value != $this->values[$placeholder])
 				{
-					$result[$placeholder] = $value;
+					if(is_array($this->values[$placeholder]) || $value != htmlspecialcharsbx($this->values[$placeholder]))
+					{
+						$result[$placeholder] = $value;
+					}
 				}
 			}
 		}

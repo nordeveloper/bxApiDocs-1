@@ -170,7 +170,7 @@ final class Template
 			$emptyPlaceholders = array_diff($placeholders, array_keys($this->fields));
 			if(!empty($emptyPlaceholders))
 			{
-				$this->fields = array_merge($this->fields, DataProviderManager::getInstance()->getDefaultTemplateFields($this->sourceType, $emptyPlaceholders, ['REGION' => $this->REGION]));
+				$this->fields = array_merge($this->fields, DataProviderManager::getInstance()->getDefaultTemplateFields($this->sourceType, $emptyPlaceholders, ['REGION' => $this->REGION], true, true));
 			}
 		}
 

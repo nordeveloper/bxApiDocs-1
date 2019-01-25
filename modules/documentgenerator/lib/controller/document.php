@@ -501,6 +501,11 @@ class Document extends Base
 			{
 				$templateId = $addResult->getId();
 			}
+			else
+			{
+				$this->errorCollection->add($addResult->getErrors());
+				return false;
+			}
 		}
 		else
 		{
@@ -522,7 +527,7 @@ class Document extends Base
 			if($app)
 			{
 				return [
-					'TITLE' => $app['APP_NAME'],
+					'TITLE' => $app['APP_NAME'] ? $app['APP_NAME'] : $app['CODE'],
 					'CODE' => 'rest_'.Auth::AUTH_TYPE.'_'.$app['ID'],
 				];
 			}

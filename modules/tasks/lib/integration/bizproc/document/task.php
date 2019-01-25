@@ -39,6 +39,11 @@ class Task implements \IBPWorkflowDocument
 			return true; //Admin is the Lord of the Automation
 		}
 
+		if (\Bitrix\Tasks\Util\User::isExternalUser($userId))
+		{
+			return false;
+		}
+
 		switch ($operation)
 		{
 			case \CBPCanUserOperateOperation::CreateWorkflow:
@@ -86,6 +91,11 @@ class Task implements \IBPWorkflowDocument
 		if ($user->isAdmin())
 		{
 			return true; //Admin is the Lord of the Automation
+		}
+
+		if (\Bitrix\Tasks\Util\User::isExternalUser($userId))
+		{
+			return false;
 		}
 
 		if ($operation === \CBPCanUserOperateOperation::CreateAutomation)
@@ -607,6 +617,7 @@ class Task implements \IBPWorkflowDocument
 		}
 		//$fields['TAGS'] - nothing to do.
 
+		$fields['STATUS'] = $fields['REAL_STATUS'];
 		$fields['IS_EXPIRED'] = 'N';
 		if (!empty($fields['DEADLINE']) && $fields['STATUS'] < \CTasks::STATE_SUPPOSEDLY_COMPLETED)
 		{

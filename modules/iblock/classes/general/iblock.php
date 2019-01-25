@@ -524,7 +524,8 @@ class CAllIBlock
 			if($SECTION_ID > 0)
 				$url = "/bitrix/admin/".CIBlock::GetAdminElementListLink($IBLOCK_ID , array('find_section_section'=>$SECTION_ID));
 			else
-				$url = "/bitrix/admin/".CIBlock::GetAdminElementListLink($IBLOCK_ID , array('find_el_y'=>'Y'));
+				$url = "/bitrix/admin/".CIBlock::GetAdminElementListLink($IBLOCK_ID , array(
+					'find_el_y'=>'Y', 'clear_filter'=>'Y', 'apply_filter'=>'Y'));
 
 			$arButton = array(
 				"TEXT" => (strlen($arLabels["ELEMENTS_NAME_TEXT"])? $arLabels["ELEMENTS_NAME_TEXT"]: $arIBlock["ELEMENTS_NAME"]),
@@ -4006,7 +4007,7 @@ REQ
 			$CACHE_MANAGER->ClearByTag('iblock_id_'.$iblock_id);
 	}
 
-	public  static function registerWithTagCache($iblock_id)
+	public static function registerWithTagCache($iblock_id)
 	{
 		global $CACHE_MANAGER;
 		$iblock_id = (int)$iblock_id;

@@ -135,6 +135,49 @@ final class Driver
 	}
 
 	/**
+	 * @param $providerClassName
+	 * @param $moduleId
+	 * @param $placeholder
+	 * @return \Bitrix\Main\Web\Uri|bool
+	 */
+	public function getPlaceholdersListUri($providerClassName = null, $moduleId = null, $placeholder = null)
+	{
+		if($providerClassName && !DataProviderManager::checkProviderName($providerClassName, $moduleId))
+		{
+			return false;
+		}
+
+		static $componentPath = null;
+		if($componentPath === null)
+		{
+			$componentPath = \CComponentEngine::makeComponentPath('bitrix:documentgenerator.placeholders');
+			if($componentPath)
+			{
+				$componentPath = getLocalPath('components'.$componentPath.'/slider.php');
+			}
+		}
+		if(!$componentPath)
+		{
+			return false;
+		}
+		$uri = new \Bitrix\Main\Web\Uri($componentPath);
+		if($moduleId)
+		{
+			$uri->addParams(['module' => $moduleId]);
+		}
+		if($providerClassName)
+		{
+			$uri->addParams(['provider' => strtolower($providerClassName), 'apply_filter' => 'Y']);
+		}
+		if($placeholder)
+		{
+			$uri->addParams(['placeholder' => $placeholder, 'apply_filter' => 'Y']);
+		}
+
+		return $uri;
+	}
+
+	/**
 	 * @return array
 	 */
 	public function getRegionsList()

@@ -46,6 +46,12 @@ function prepare_path($path)
 	return preg_replace("#[\\\\\\/]+#", "/", $path);
 }
 
+/**
+ * @param string $path
+ * @param bool $c
+ *
+ * @return bool
+ */
 function is_lang_dir($path, $c = false)
 {
 	if(strpos($path, "/exec/") !== false)
@@ -128,96 +134,146 @@ function add_lang_id($path, $lang_id, $arTLangs)
 	return $path;
 }
 
+/**
+ * @param string $path
+ * @param bool $subDirs
+ *
+ * @global array $arDirs
+ * @global array $arFiles
+ *
+ * @return bool
+ */
 function GetTDirList($path, $subDirs = false)
 {
 	global $arDirs, $arFiles;
 
-	$fullpath = realpath($_SERVER["DOCUMENT_ROOT"]."/".$path."/");
+	$fullPath = realpath($_SERVER['DOCUMENT_ROOT']. '/'. $path. '/');
 
-	if (preg_match('|^' . preg_quote(realpath($_SERVER['DOCUMENT_ROOT'] . '/upload'), '|') . '|i' . BX_UTF_PCRE_MODIFIER, $fullpath))
+	if (preg_match('|^' . preg_quote(realpath($_SERVER['DOCUMENT_ROOT'] . '/upload'), '|') . '|i' . BX_UTF_PCRE_MODIFIER, $fullPath))
 	{
 		return false;
 	}
 
-	$fullpath = prepare_path($fullpath);
+	$fullPath = prepare_path($fullPath);
+
 	//flag if dir is lang
-	$is_lang = strpos($fullpath, "/lang/") !== false;
-	$handle = @opendir($fullpath);
+	$isLang = strpos($fullPath, '/lang/') !== false;
+	$handle = @opendir($fullPath);
 	if($handle)
 	{
-		$parent = prepare_path("/".$path."/");
-		$abs_parent = prepare_path($_SERVER["DOCUMENT_ROOT"].$parent);
+		$parent = prepare_path('/'. $path. '/');
+		$absParent = prepare_path($_SERVER['DOCUMENT_ROOT']. $parent);
 		$arList = array();
-		while (false!==($file=readdir($handle)))
+		while (false !== ($file = readdir($handle)))
 		{
-			if ($file != "." && $file != ".." && $file != ".access.php" && $file != ".htaccess" && $file != '.svn' && $file != '.hg')
+			if (
+				$file == '.' ||
+				$file == '..' ||
+				$file == '.access.php' ||
+				$file == '.htaccess' ||
+				$file == '.svn' ||
+				$file == '.hg' ||
+				$file == '.git' ||
+				$file == '.idea'
+			)
 			{
-				$IS_DIR = (is_dir($abs_parent.$file) ? "Y" : "N");
-				$path_prepared = $parent.$file;
+				continue;
+			}
 
-				if ($IS_DIR=="Y" &&
-					($path_prepared=="/bitrix/updates" ||
-					$path_prepared=="/bitrix/updates_enc" ||
-					$path_prepared=="/bitrix/updates_enc5" ||
-					$path_prepared=="/bitrix/help" ||
-					$path_prepared=="/bitrix/cache" ||
-					$path_prepared=="/bitrix/cache_image" ||
-					$path_prepared=="/bitrix/managed_cache" ||
-					$path_prepared=="/bitrix/stack_cache"
-					)
+			$isDir = (is_dir($absParent. $file) ? 'Y' : 'N');
+			$pathPrepared = $parent. $file;
+
+			if (
+				$isDir == 'Y' &&
+				(
+					$pathPrepared == '/bitrix/updates' ||
+					$pathPrepared == '/bitrix/updates_enc' ||
+					$pathPrepared == '/bitrix/updates_enc5' ||
+					$pathPrepared == '/bitrix/help' ||
+					$pathPrepared == '/bitrix/cache' ||
+					$pathPrepared == '/bitrix/cache_image' ||
+					$pathPrepared == '/bitrix/managed_cache' ||
+					$pathPrepared == '/bitrix/stack_cache' ||
+					$pathPrepared == '/bitrix/tmp' ||
+					$pathPrepared == '/bitrix/html_pages'
 				)
-					continue;
+			)
+			{
+				continue;
+			}
 
-				$arList[$path_prepared] = array(
-					"IS_DIR" => $IS_DIR,
-					"PARENT" => $parent,
-					"PATH" => ($IS_DIR=="Y") ? $path_prepared."/" : $path_prepared,
-					"FILE" => $file,
-					"IS_LANG" => $is_lang
-				);
-				if ($arList[$path_prepared]['IS_DIR'] == 'N')
-				{
-					$arList[$path_prepared]["LANG"] = $is_lang ? get_lang_id($path_prepared) : '';
-				}
+			$arList[$pathPrepared] = array(
+				'IS_DIR' => $isDir,
+				'PARENT' => $parent,
+				'PATH' => ($isDir == "Y") ? $pathPrepared."/" : $pathPrepared,
+				'FILE' => $file,
+				'IS_LANG' => $isLang,
+			);
+			if ($arList[$pathPrepared]['IS_DIR'] == 'N')
+			{
+				$arList[$pathPrepared]['LANG'] = $isLang ? get_lang_id($pathPrepared) : '';
 			}
 		}
 		ksort($arList);
 
-		foreach($arList as $path_prepared => $arr)
+		foreach($arList as $pathPrepared => $arr)
 		{
-			if($arr["IS_DIR"]=="Y")
+			if($arr['IS_DIR'] == 'Y')
 			{
 				if($subDirs)
-					$arr["IS_LANG"] |= GetTDirList($path_prepared."/", $subDirs);
+				{
+					$arr['IS_LANG'] |= GetTDirList($pathPrepared. '/', $subDirs);
+				}
 
 				$arDirs[] = $arr;
 				//dir is lang if any of it's children is lang
-				$is_lang = $is_lang || $arr["IS_LANG"];
+				$isLang = $isLang || $arr['IS_LANG'];
 			}
-			elseif(is_lang_dir($path_prepared))
+			elseif(is_lang_dir($pathPrepared))
 			{
-				if(substr($arr["FILE"], -4) == '.php')
+				if(substr($arr['FILE'], -4) == '.php')
+				{
 					$arFiles[] = $arr;
+				}
 			}
 		}
 		closedir($handle);
 	}
+
 	//flag for parent
-	return $is_lang;
+	return $isLang;
 }
 
-function GetTCSVArray()
+/**
+ * @param string $filterKeyIndex
+ * @global array $arFiles
+ *
+ * @return array
+ */
+function GetTCSVArray($filterKeyIndex)
 {
+	/** @global array $arFiles */
 	global $arFiles;
 
 	$arr = array();
 
-	foreach ($arFiles as $f)
+	/**
+	 * @var array $arFiles
+	 * @var int $keyIndex
+	 * @var array $file
+	 */
+	foreach ($arFiles as $keyIndex => $file)
 	{
+		$key = replace_lang_id($file['PATH'], '#LANG_ID#');
+		if ($key != $filterKeyIndex)
+		{
+			continue;
+		}
+
+		$langId = get_lang_id($file['PATH']);
+
 		$MESS = array();
-		$key = replace_lang_id($f['PATH'], '#LANG_ID#');
-		$lang_id = get_lang_id($f['PATH']);
-		include($_SERVER["DOCUMENT_ROOT"] . $f['PATH']);
+		include($_SERVER["DOCUMENT_ROOT"] . $file['PATH']);
 
 		if (!empty($MESS) && is_array($MESS))
 		{
@@ -225,10 +281,13 @@ function GetTCSVArray()
 			{
 				$m = (string)$m;
 				if ($m != '')
-					$arr[$key][$m][$lang_id] = $v;
+				{
+					$arr[$key][$m][$langId] = $v;
+				}
 			}
 		}
 	}
+
 	return $arr;
 }
 
@@ -407,7 +466,7 @@ function SaveTCSVFile()
 						'#LINE#' => $csvRowCounter,
 						'#FILENAME#' => $file,
 						'#PHRASE#' => $key,
-						'#ERROR#' => implode('; ', $rowErrors)
+						'#ERROR#' => implode('; ', $rowErrors),
 					]
 				);
 			}
@@ -504,12 +563,12 @@ function GetTLangList()
 {
 	$result = [];
 	$iterator = Main\Localization\LanguageTable::getList([
-		'select' => ['LID', 'SORT'],
+		'select' => ['ID', 'SORT'],
 		'filter' => ['=ACTIVE' => 'Y'],
-		'order' => ['SORT' => 'ASC']
+		'order' => ['SORT' => 'ASC'],
 	]);
 	while ($row = $iterator->fetch())
-		$result[] = $row['LID'];
+		$result[] = $row['ID'];
 	unset($row, $iterator);
 	return $result;
 }

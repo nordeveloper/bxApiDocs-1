@@ -303,7 +303,10 @@ endif;
 						$property_enums = CIBlockPropertyEnum::GetList(Array("DEF"=>"DESC", "SORT"=>"ASC"), Array("IBLOCK_ID"=>$iblockID, "CODE"=>"ABSENCE_TYPE"));
 						while($enum_fields = $property_enums->Fetch())
 						{
-							?><option value="<?echo $enum_fields["ID"]?>" <?if (isset($_POST['ABSENCE_TYPE']) && $_POST['ABSENCE_TYPE']==$enum_fields["ID"] || isset($arElement["PROPERTY_ABSENCE_TYPE_ENUM_ID"]) && $arElement["PROPERTY_ABSENCE_TYPE_ENUM_ID"] == $enum_fields["ID"]) echo "selected"?>><?=htmlspecialcharsbx($enum_fields["VALUE"]) ?></option><?
+							?><option value="<?=$enum_fields['ID'] ?>"
+								<? if (isset($_POST['ABSENCE_TYPE']) && $_POST['ABSENCE_TYPE'] == $enum_fields['ID'] || isset($arElement['PROPERTY_ABSENCE_TYPE_ENUM_ID']) && $arElement['PROPERTY_ABSENCE_TYPE_ENUM_ID'] == $enum_fields['ID']) echo 'selected'; ?>>
+								<?=htmlspecialcharsbx(Bitrix\Intranet\UserAbsence::getTypeCaption($enum_fields['XML_ID'], $enum_fields['VALUE'])) ?>
+							</option><?
 						}
 						?>
 					</select>

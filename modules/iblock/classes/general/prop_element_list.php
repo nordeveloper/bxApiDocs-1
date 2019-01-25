@@ -19,6 +19,7 @@ class CIBlockPropertyElementList
 			"GetPublicEditHTML" => array(__CLASS__, "GetPropertyFieldHtml"),
 			"GetPublicEditHTMLMulty" => array(__CLASS__, "GetPropertyFieldHtmlMulty"),
 			"GetPublicViewHTML" => array(__CLASS__,  "GetPublicViewHTML"),
+			"GetUIFilterProperty" => array(__CLASS__, "GetUIFilterProperty"),
 			"GetAdminFilterHTML" => array(__CLASS__, "GetAdminFilterHTML"),
 			"PrepareSettings" =>array(__CLASS__, "PrepareSettings"),
 			"GetSettingsHTML" =>array(__CLASS__, "GetSettingsHTML"),
@@ -219,6 +220,61 @@ class CIBlockPropertyElementList
 		$html .= $options;
 		$html .= '</select>';
 		return  $html;
+	}
+
+	public static function GetUIFilterProperty($arProperty, $strHTMLControlName, &$fields)
+	{
+		$fields["type"] = "list";
+		$fields["items"] = self::getItemsForUiFilter($arProperty);
+	}
+
+	private static function getItemsForUiFilter($arProperty)
+	{
+		$items = array();
+		$settings = CIBlockPropertyElementList::PrepareSettings($arProperty);
+
+		if ($settings["group"] === "Y")
+		{
+			$arElements = CIBlockPropertyElementList::GetElements($arProperty["LINK_IBLOCK_ID"]);
+			$arTree = CIBlockPropertyElementList::GetSections($arProperty["LINK_IBLOCK_ID"]);
+			foreach ($arElements as $i => $arElement)
+			{
+				if(
+					$arElement["IN_SECTIONS"] == "Y"
+					&& array_key_exists($arElement["IBLOCK_SECTION_ID"], $arTree)
+				)
+				{
+					$arTree[$arElement["IBLOCK_SECTION_ID"]]["E"][] = $arElement;
+					unset($arElements[$i]);
+				}
+			}
+
+			// todo add <optgroup> for ui filter
+			foreach ($arTree as $arSection)
+			{
+				if (isset($arSection["E"]))
+				{
+					foreach ($arSection["E"] as $arItem)
+					{
+						$items[$arItem["ID"]] = $arItem["NAME"];
+					}
+				}
+			}
+			foreach ($arElements as $arItem)
+			{
+				$items[$arItem["ID"]] = $arItem["NAME"];
+			}
+
+		}
+		else
+		{
+			foreach (CIBlockPropertyElementList::GetElements($arProperty["LINK_IBLOCK_ID"]) as $arItem)
+			{
+				$items[$arItem["ID"]] = $arItem["NAME"];
+			}
+		}
+
+		return $items;
 	}
 
 	public static function GetPublicViewHTML($arProperty, $arValue, $strHTMLControlName)

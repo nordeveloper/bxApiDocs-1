@@ -307,6 +307,9 @@ class CLdapServer
 		if(is_set($arFields, "STRUCT_HAVE_DEFAULT") && $arFields["STRUCT_HAVE_DEFAULT"]!="Y")
 			$arFields["STRUCT_HAVE_DEFAULT"]="N";
 
+		if(is_set($arFields, "SET_DEPARTMENT_HEAD") && $arFields["SET_DEPARTMENT_HEAD"]!="Y")
+			$arFields["SET_DEPARTMENT_HEAD"]="N";
+
 		if(!CLdapServer::CheckFields($arFields, $ID))
 			return false;
 

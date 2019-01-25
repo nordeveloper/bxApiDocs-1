@@ -2142,45 +2142,109 @@ class CAllIBlockSection
 	 * @param bool|array $arSelectedFields
 	 * @return CDBResult
 	 */
-	function GetMixedList($arOrder=Array("SORT"=>"ASC"), $arFilter=Array(), $bIncCnt = false, $arSelectedFields = false)
+	public static function GetMixedList($arOrder=array("SORT"=>"ASC"), $arFilter=array(), $bIncCnt = false, $arSelectedFields = false)
 	{
-		global $DB;
-
 		$arResult = array();
 
-		$arSectionFilter = array (
-			"IBLOCK_ID"		=>$arFilter["IBLOCK_ID"],
-			"?NAME"			=>$arFilter["NAME"],
-			">=ID"			=>$arFilter["ID_1"],
-			"<=ID"			=>$arFilter["ID_2"],
-			">=TIMESTAMP_X"		=>$arFilter["TIMESTAMP_X_1"],
-			"<=TIMESTAMP_X"		=>$arFilter["TIMESTAMP_X_2"],
-			"MODIFIED_BY"		=>$arFilter["MODIFIED_USER_ID"]? $arFilter["MODIFIED_USER_ID"]: $arFilter["MODIFIED_BY"],
-			">=DATE_CREATE"		=>$arFilter["DATE_CREATE_1"],
-			"<=DATE_CREATE"		=>$arFilter["DATE_CREATE_2"],
-			"CREATED_BY"		=>$arFilter["CREATED_USER_ID"]? $arFilter["CREATED_USER_ID"]: $arFilter["CREATED_BY"],
-			"CODE"			=>$arFilter["CODE"],
-			"EXTERNAL_ID"		=>$arFilter["EXTERNAL_ID"],
-			"ACTIVE"		=>$arFilter["ACTIVE"],
+		if (!is_array($arOrder))
+			$arOrder = array("SORT"=>"ASC");
 
-			"CNT_ACTIVE"		=>$arFilter["CNT_ACTIVE"],
-			"CNT_ALL"		=>$arFilter["CNT_ALL"],
-			"ELEMENT_SUBSECTIONS"	=>$arFilter["ELEMENT_SUBSECTIONS"],
-		);
-		if (isset($arFilter["CHECK_PERMISSIONS"]))
-		{
-			$arSectionFilter['CHECK_PERMISSIONS'] = $arFilter["CHECK_PERMISSIONS"];
-			$arSectionFilter['MIN_PERMISSION'] = (isset($arFilter['MIN_PERMISSION']) ? $arFilter['MIN_PERMISSION'] : 'R');
-		}
-		if(array_key_exists("SECTION_ID", $arFilter))
-			$arSectionFilter["SECTION_ID"] = $arFilter["SECTION_ID"];
+		$validatedSelect = is_array($arSelectedFields);
+		$emptySelect = empty($arSelectedFields) || !$validatedSelect || ($validatedSelect && in_array('*', $arSelectedFields));
 
-		$obSection = new CIBlockSection;
-		$rsSection = $obSection->GetList($arOrder, $arSectionFilter, $bIncCnt);
-		while($arSection = $rsSection->Fetch())
+		$elementInherentFilter = self::getElementInherentFilter($arFilter);
+		if (empty($elementInherentFilter))
 		{
-			$arSection["TYPE"]="S";
-			$arResult[]=$arSection;
+			$arSectionFilter = array(
+				"IBLOCK_ID" => $arFilter["IBLOCK_ID"],
+				"?NAME" => $arFilter["NAME"],
+				">=ID" => $arFilter["ID_1"],
+				"<=ID" => $arFilter["ID_2"],
+				">=TIMESTAMP_X" => $arFilter["TIMESTAMP_X_1"],
+				"<=TIMESTAMP_X" => $arFilter["TIMESTAMP_X_2"],
+				"MODIFIED_BY" => $arFilter["MODIFIED_USER_ID"] ? $arFilter["MODIFIED_USER_ID"] : $arFilter["MODIFIED_BY"],
+				">=DATE_CREATE" => $arFilter["DATE_CREATE_1"],
+				"<=DATE_CREATE" => $arFilter["DATE_CREATE_2"],
+				"CREATED_BY" => $arFilter["CREATED_USER_ID"] ? $arFilter["CREATED_USER_ID"] : $arFilter["CREATED_BY"],
+				"CODE" => $arFilter["CODE"],
+				"EXTERNAL_ID" => $arFilter["EXTERNAL_ID"],
+				"ACTIVE" => $arFilter["ACTIVE"],
+
+				"CNT_ACTIVE" => $arFilter["CNT_ACTIVE"],
+				"CNT_ALL" => $arFilter["CNT_ALL"],
+				"ELEMENT_SUBSECTIONS" => $arFilter["ELEMENT_SUBSECTIONS"],
+			);
+			if (isset($arFilter["CHECK_PERMISSIONS"]))
+			{
+				$arSectionFilter['CHECK_PERMISSIONS'] = $arFilter["CHECK_PERMISSIONS"];
+				$arSectionFilter['MIN_PERMISSION'] = (isset($arFilter['MIN_PERMISSION']) ? $arFilter['MIN_PERMISSION'] : 'R');
+			}
+			if (array_key_exists("SECTION_ID", $arFilter))
+				$arSectionFilter["SECTION_ID"] = $arFilter["SECTION_ID"];
+
+			$sectionFields = array(
+				"ID" => true,
+				"CODE" => true,
+				"XML_ID" => true,
+				"EXTERNAL_ID" => true,
+				"IBLOCK_ID" => true,
+				"IBLOCK_SECTION_ID" => true,
+				"TIMESTAMP_X" => true,
+				"TIMESTAMP_X_UNIX" => true,
+				"SORT" => true,
+				"NAME" => true,
+				"ACTIVE" => true,
+				"GLOBAL_ACTIVE" => true,
+				"PICTURE" => true,
+				"DESCRIPTION" => true,
+				"DESCRIPTION_TYPE" => true,
+				"LEFT_MARGIN" => true,
+				"RIGHT_MARGIN" => true,
+				"DEPTH_LEVEL" => true,
+				"SEARCHABLE_CONTENT" => true,
+				"MODIFIED_BY" => true,
+				"DATE_CREATE" => true,
+				"DATE_CREATE_UNIX" => true,
+				"CREATED_BY" => true,
+				"DETAIL_PICTURE" => true,
+				"TMP_ID" => true,
+
+				"LIST_PAGE_URL" => true,
+				"SECTION_PAGE_URL" => true,
+				"IBLOCK_TYPE_ID" => true,
+				"IBLOCK_CODE" => true,
+				"IBLOCK_EXTERNAL_ID" => true,
+				"SOCNET_GROUP_ID" => true,
+			);
+
+			if ($emptySelect)
+			{
+				$sectionSelect = $sectionFields;
+			}
+			else
+			{
+				$sectionSelect = array();
+				foreach ($arSelectedFields as $field)
+				{
+					if (!isset($sectionFields[$field]))
+						continue;
+					$sectionSelect[$field] = $field;
+				}
+				unset($field);
+				if (!empty($sectionSelect))
+					$sectionSelect = array_values($sectionSelect);
+			}
+
+			$obSection = new CIBlockSection;
+			$rsSection = $obSection->GetList($arOrder, $arSectionFilter, $bIncCnt, $sectionSelect);
+			while ($arSection = $rsSection->Fetch())
+			{
+				$arSection["TYPE"] = "S";
+				$arResult[] = $arSection;
+			}
+			unset($arSection);
+			unset($rsSection);
+			unset($obSection);
 		}
 
 		$arElementFilter = array (
@@ -2218,24 +2282,15 @@ class CAllIBlockSection
 			$arElementFilter['MIN_PERMISSION'] = (isset($arFilter['MIN_PERMISSION']) ? $arFilter['MIN_PERMISSION'] : 'R');
 		}
 
-		foreach($arFilter as $key=>$value)
-		{
-			$op = CIBlock::MkOperationFilter($key);
-			$newkey = strtoupper($op["FIELD"]);
-			if(
-				substr($newkey, 0, 9) == "PROPERTY_"
-				|| substr($newkey, 0, 8) == "CATALOG_"
-			)
-			{
-				$arElementFilter[$key] = $value;
-			}
-		}
-
 		if(strlen($arFilter["SECTION_ID"])<= 0)
 			unset($arElementFilter["SECTION_ID"]);
 
-		if(!is_array($arSelectedFields))
-			$arSelectedFields = Array("*");
+		if (!empty($elementInherentFilter))
+			$arElementFilter = $arElementFilter + $elementInherentFilter;
+		unset($elementInherentFilter);
+
+		if(!$validatedSelect)
+			$arSelectedFields = array("*");
 
 		if(isset($arFilter["CHECK_BP_PERMISSIONS"]))
 			$arElementFilter["CHECK_BP_PERMISSIONS"] = $arFilter["CHECK_BP_PERMISSIONS"];
@@ -2248,9 +2303,13 @@ class CAllIBlockSection
 			$arElement["TYPE"]="E";
 			$arResult[]=$arElement;
 		}
+		unset($arElement);
+		unset($rsElement);
+		unset($obElement);
 
 		$rsResult = new CDBResult;
 		$rsResult->InitFromArray($arResult);
+		unset($arResult);
 
 		return $rsResult;
 	}
@@ -2588,7 +2647,7 @@ class CAllIBlockSection
 		if (!isset(self::$arSectionPathCache[$sectionId]))
 		{
 			self::$arSectionPathCache[$sectionId] = "";
-			$res = CIBlockSection::GetNavChain(0, $sectionId, ["ID", "CODE"], true);
+			$res = CIBlockSection::GetNavChain(0, $sectionId, array("ID", "CODE"), true);
 			foreach ($res as $a)
 			{
 				self::$arSectionCodeCache[$a["ID"]] = rawurlencode($a["CODE"]);
@@ -2615,5 +2674,32 @@ class CAllIBlockSection
 			}
 		}
 		return self::$arSectionCodeCache[$sectionId];
+	}
+
+	/**
+	 * Returns a filter by element properties and product fields. Internal.
+	 *
+	 * @param array $filter
+	 * @return array
+	 */
+	private static function getElementInherentFilter(array $filter)
+	{
+		$result = array();
+		if (!empty($filter))
+		{
+			foreach($filter as $index => $value)
+			{
+				$op = CIBlock::MkOperationFilter($index);
+				$newIndex = strtoupper($op["FIELD"]);
+				if (
+					strncmp($newIndex, "PROPERTY_", 9) == 0
+					|| strncmp($newIndex, "CATALOG_", 8) == 0
+				)
+				{
+					$result[$index] = $value;
+				}
+			}
+		}
+		return $result;
 	}
 }

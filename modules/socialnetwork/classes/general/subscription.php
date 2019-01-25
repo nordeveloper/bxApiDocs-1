@@ -210,6 +210,17 @@ class CAllSocNetSubscription
 			$arFields["EXCLUDE_USERS"] = array_unique($arFields["EXCLUDE_USERS"]);
 		}
 
+		$roleList = array();
+
+		if (
+			!empty($arFields['PERMISSION'])
+			&& !empty($arFields['PERMISSION']['FEATURE'])
+			&& !empty($arFields['PERMISSION']['OPERATION'])
+		)
+		{
+			$roleList = \CSocNetFeaturesPerms::getOperationPerm(SONET_ENTITY_GROUP, $arFields["GROUP_ID"], $arFields['PERMISSION']['FEATURE'], $arFields['PERMISSION']['OPERATION']);
+		}
+
 		$chatData = $chatIdList = array();
 		if (!empty($arFields["MESSAGE_CHAT"]))
 		{
@@ -221,10 +232,9 @@ class CAllSocNetSubscription
 		if (!empty($chatData))
 		{
 			$arFields["GROUP_ID"] = array_diff($arFields["GROUP_ID"], array_unique(array_keys($chatData)));
-			$chatIdList = array_unique(array_values($chatData));
 		}
 
-		if (!empty($chatIdList))
+		if (!empty($chatData))
 		{
 			$tmp = \CSocNetLogTools::processPath(
 				array(
@@ -248,8 +258,17 @@ class CAllSocNetSubscription
 				$chatMessageFields["FROM_USER_ID"] = intval($arFields["FROM_USER_ID"]);
 			}
 
-			foreach($chatIdList as $chatId)
+			foreach($chatData as $groupId => $chatId)
 			{
+				// don't send message to chat if it's unavailable for all members
+				if (
+					isset($roleList[$groupId])
+					&& $roleList[$groupId] < \Bitrix\Socialnetwork\UserToGroupTable::ROLE_USER
+				)
+				{
+					continue;
+				}
+
 				\CIMChat::addMessage(array_merge(
 					$chatMessageFields, array(
 						"TO_CHAT_ID" => $chatId
@@ -348,8 +367,36 @@ class CAllSocNetSubscription
 		$groupUrlTemplate = COption::GetOptionString("socialnetwork", "group_path_template", "/workgroups/group/#group_id#/", SITE_ID);
 		$groupUrlTemplate = "#GROUPS_PATH#".substr($groupUrlTemplate, strlen($workgroupsPage), strlen($groupUrlTemplate)-strlen($workgroupsPage));
 
+		$canViewUserIdList = array();
+
 		foreach($arUserToSend as $arUser)
 		{
+			$groupId = $arUser['GROUP_ID'];
+
+			if (isset($roleList[$groupId]))
+			{
+				if (!isset($canViewUserIdList[$groupId]))
+				{
+					$canViewUserIdList[$groupId] = array();
+					$res = \Bitrix\Socialnetwork\UserToGroupTable::getList(array(
+						'filter' => array(
+							'=GROUP_ID' => $groupId,
+							'<=ROLE' => $roleList[$groupId]
+						),
+						'select' => array('USER_ID')
+					));
+					while($relation = $res->fetch())
+					{
+						$canViewUserIdList[$groupId][] = $relation['USER_ID'];
+					}
+				}
+
+				if (!in_array($arUser["USER_ID"], $canViewUserIdList[$groupId]))
+				{
+					continue;
+				}
+			}
+
 			$arMessageFields["TO_USER_ID"] = $arUser["USER_ID"];
 			if (intval($arFields["LOG_ID"]) > 0)
 			{
@@ -409,7 +456,7 @@ class CAllSocNetSubscription
 						);
 						if ($imageResized)
 						{
-							$authorAvatarUrl = $imageResized["src"];
+							$authorAvatarUrl = \Bitrix\Im\Common::getPublicDomain().$imageResized["src"];
 						}
 					}
 

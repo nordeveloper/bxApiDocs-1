@@ -48,6 +48,7 @@ abstract class Element extends Base
 			$params['FROM_SECTION'] = trim($this->request->get($params['SECTION_ID_VARIABLE']));
 		}
 
+		$params['SECTIONS_CHAIN_START_FROM'] = isset($params['SECTIONS_CHAIN_START_FROM']) ? (int)$params['SECTIONS_CHAIN_START_FROM'] : 0;
 		$params['META_KEYWORDS'] = trim($params['META_KEYWORDS']);
 		$params['META_DESCRIPTION'] = trim($params['META_DESCRIPTION']);
 		$params['BROWSER_TITLE'] = trim($params['BROWSER_TITLE']);
@@ -704,6 +705,11 @@ abstract class Element extends Base
 					}
 
 					$this->storage['SECTION']['PATH'][] = $path;
+				}
+
+				if ($this->arParams['SECTIONS_CHAIN_START_FROM'] > 0)
+				{
+					$this->storage['SECTION']['PATH'] = array_slice($this->storage['SECTION']['PATH'], $this->arParams['SECTIONS_CHAIN_START_FROM']);
 				}
 
 				$element['SECTION'] = $this->storage['SECTION'];
