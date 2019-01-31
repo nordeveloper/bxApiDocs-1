@@ -183,7 +183,7 @@ class MailsFoldersManager extends SyncInternalManager
 
 		if ($result->isSuccess())
 		{
-			$this->repository->deleteMailsCompletely($messagesToDelete);
+			$this->repository->deleteMailsCompletely($messagesToDelete, $this->mailbox['USER_ID']);
 			return new Main\Result();
 		}
 
@@ -222,16 +222,24 @@ class MailsFoldersManager extends SyncInternalManager
 
 	private function processSyncMovedMessages($folderCurrentNameEncoded)
 	{
-		$helper = $this->getMailClientHelper();
-		$folderCurrentName = base64_decode($folderCurrentNameEncoded);
-		$count = $helper->syncDir($folderCurrentName);
-
-		$this->repository->deleteOldMessages($folderCurrentName);
+		$helper = $this->getMailClientHelper(false);
+		if ($helper)
+		{
+			$folderCurrentName = base64_decode($folderCurrentNameEncoded);
+			$count = $helper->syncDir($folderCurrentName);
+			Mail\MailMessageUidTable::deleteList(
+				[
+					'DIR_MD5' => md5($folderCurrentName),
+					'MSG_UID' => 0
+				]
+			);
+		}
 	}
 
-	public static function syncMovedMessages($mailboxId, $folderName, $messagesIds)
+	public static function syncMovedMessages($mailboxId, $mailboxUserId, $folderName)
 	{
-		$mailManager = new static($mailboxId, unserialize($messagesIds));
+		$mailManager = new static($mailboxId, []);
+		$mailManager->setMailboxUserId($mailboxUserId);
 		$mailManager->processSyncMovedMessages($folderName);
 		return '';
 	}
@@ -248,12 +256,17 @@ class MailsFoldersManager extends SyncInternalManager
 
 		\CAgent::addAgent(
 			sprintf(
-				static::class . "::syncMovedMessages(%u, '%s', '%s');",
+				static::class . "::syncMovedMessages(%u, %u, '%s');",
 				$this->mailbox['ID'],
-				base64_encode($folderName),
-				serialize($messIds)
+				$this->mailbox['USER_ID'],
+				base64_encode($folderName)
 			),
 			'mail'
 		);
+	}
+
+	public function setMailboxUserId($mailboxUserId)
+	{
+		$this->mailboxUserId = $mailboxUserId;
 	}
 }

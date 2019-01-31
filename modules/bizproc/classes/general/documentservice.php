@@ -758,7 +758,7 @@ EOS;
 		{
 			$arFieldName = array("Form" => null, "Field" => $fieldName);
 		}
-		if ((string) $arFieldName["Field"] == "" || preg_match("#[^a-z0-9_]#i", $arFieldName["Field"]))
+		if ((string) $arFieldName["Field"] == "" || preg_match("#[^a-z0-9_\[\]]#i", $arFieldName["Field"]))
 			return "";
 		if ((string) $arFieldName["Form"] != "" && preg_match("#[^a-z0-9_]#i", $arFieldName["Form"]))
 			return "";
@@ -836,7 +836,7 @@ EOS;
 		{
 			$arFieldName = array("Form" => null, "Field" => $fieldName);
 		}
-		if ((string) $arFieldName["Field"] == "" || preg_match("#[^a-z0-9_]#i", $arFieldName["Field"]))
+		if ((string) $arFieldName["Field"] == "" || preg_match("#[^a-z0-9_\[\]]#i", $arFieldName["Field"]))
 			return "";
 		if ((string) $arFieldName["Form"] != "" && preg_match("#[^a-z0-9_]#i", $arFieldName["Form"]))
 			return "";

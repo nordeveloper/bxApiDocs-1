@@ -803,6 +803,10 @@ final class Task extends \Bitrix\Tasks\Manager
 		{
 			$params['USE_MINIMAL_SELECT_LEGACY'] = $parameters[ 'USE_MINIMAL_SELECT_LEGACY'];
 		}
+		if (array_key_exists('MAKE_ACCESS_FILTER', $parameters))
+		{
+			$params['MAKE_ACCESS_FILTER'] = $parameters['MAKE_ACCESS_FILTER'];
+		}
 
 		if(in_array('NEW_COMMENTS_COUNT', $listParameters[ 'select' ]))
 		{

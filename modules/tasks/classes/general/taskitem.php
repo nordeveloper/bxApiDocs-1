@@ -1996,6 +1996,10 @@ final class CTaskItem implements CTaskItemInterface, ArrayAccess
 			{
 				$arParamsOut['SORTING_GROUP_ID'] = $arParams['SORTING_GROUP_ID'];
 			}
+			if (isset($arParams['MAKE_ACCESS_FILTER']))
+			{
+				$arParamsOut['MAKE_ACCESS_FILTER'] = $arParams['MAKE_ACCESS_FILTER'];
+			}
 
 			if (isset($arParams['nPageTop']))
 				$arParamsOut['nPageTop'] = $arParams['nPageTop'];

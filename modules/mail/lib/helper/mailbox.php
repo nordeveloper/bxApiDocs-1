@@ -233,19 +233,26 @@ abstract class Mailbox
 		return $fetch ? $result->fetchAll() : $result;
 	}
 
-	protected function registerMessage(&$fields, $id = null)
+	protected function registerMessage(&$fields, $replaces = null)
 	{
 		$now = new Main\Type\DateTime();
 
-		if (!empty($id))
+		if (!empty($replaces))
 		{
+			if (!is_array($replaces))
+			{
+				$replaces = array(
+					'=ID' => $replaces,
+				);
+			}
+
 			$exists = Mail\MailMessageUidTable::getList(array(
 				'select' => array(
 					'ID',
 					'MESSAGE_ID',
 				),
 				'filter' => array(
-					'=ID' => $id,
+					$replaces,
 					'=MAILBOX_ID' => $this->mailbox['ID'],
 				),
 			))->fetch();
@@ -255,7 +262,7 @@ abstract class Mailbox
 		{
 			$fields['MESSAGE_ID'] = $exists['MESSAGE_ID'];
 
-			$result = Mail\MailMessageUidTable::update(
+			$result = (bool) Mail\MailMessageUidTable::updateList(
 				array(
 					'ID' => $exists['ID'],
 					'MAILBOX_ID' => $this->mailbox['ID'],
@@ -264,6 +271,12 @@ abstract class Mailbox
 					$fields,
 					array(
 						'TIMESTAMP_X' => $now,
+					)
+				),
+				array_merge(
+					$exists,
+					array(
+						'MAILBOX_USER_ID' => $this->mailbox['USER_ID'],
 					)
 				)
 			);
@@ -281,10 +294,10 @@ abstract class Mailbox
 					'TIMESTAMP_X' => $now,
 					'DATE_INSERT' => $now,
 				)
-			));
+			))->isSuccess();
 		}
 
-		return $result->isSuccess();
+		return $result;
 	}
 
 	protected function updateMessagesRegistry(array $filter, array $fields, $mailData = array())

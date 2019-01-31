@@ -978,7 +978,7 @@ class RestService extends \IRestService
 	private static function getCurrentUserId()
 	{
 		global $USER;
-		return (isset($USER) && is_object($USER)) ? $USER->getID() : 0;
+		return (isset($USER) && is_object($USER)) ? (int)$USER->getID() : 0;
 	}
 
 	private static function generateInternalCode($data)

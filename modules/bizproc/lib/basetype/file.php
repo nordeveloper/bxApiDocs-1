@@ -1,4 +1,5 @@
 <?php
+
 namespace Bitrix\Bizproc\BaseType;
 
 use Bitrix\Bizproc\FieldType;
@@ -28,10 +29,11 @@ class File extends Base
 	public static function getFormats()
 	{
 		$formats = parent::getFormats();
-		$formats['src'] = array(
-			'callable' =>'formatValueSrc',
+		$formats['src'] = [
+			'callable'  => 'formatValueSrc',
 			'separator' => ', ',
-		);
+		];
+
 		return $formats;
 	}
 
@@ -53,6 +55,7 @@ class File extends Base
 			reset($value);
 			$value = current($value);
 		}
+
 		return $value;
 	}
 
@@ -73,6 +76,7 @@ class File extends Base
 				.htmlspecialcharsbx($file['ORIGINAL_NAME'])
 				.'[/url]';
 		}
+
 		return '';
 	}
 
@@ -119,11 +123,11 @@ class File extends Base
 	 */
 	public static function getConversionMap()
 	{
-		return array(
-			array(
+		return [
+			[
 				FieldType::FILE
-			)
-		);
+			]
+		];
 	}
 
 	/**
@@ -170,7 +174,7 @@ class File extends Base
 
 			return <<<HTML
 				<div class="{$classNameHtml}">
-					<span >
+					<span>
 						<span class="webform-small-button">{$msg}</span>
 					</span>
 					<input type="file" id="{$idHtml}" name="{$nameHtml}" onchange="{$onchange}">
@@ -179,8 +183,38 @@ class File extends Base
 HTML;
 		}
 
-
 		return '<input type="file" class="'.$classNameHtml.'" id="'.$idHtml.'" name="'.$nameHtml.'">';
+	}
+
+	/**
+	 * @param FieldType $fieldType
+	 * @param array $field
+	 * @param mixed $value
+	 * @param bool $allowSelection
+	 * @param int $renderMode
+	 * @return string
+	 */
+	public static function renderControlSingle(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
+	{
+		if ($allowSelection && $renderMode & FieldType::RENDER_MODE_PUBLIC)
+		{
+			return self::renderPublicSelectableControlSingle($fieldType, $field, $value);
+		}
+
+		return parent::renderControlSingle($fieldType, $field, $value, $allowSelection, $renderMode);
+	}
+
+	private static function renderPublicSelectableControlSingle(FieldType $fieldType, array $field, $value)
+	{
+		$name = static::generateControlName($field);
+		$className = static::generateControlClassName($fieldType, $field);
+		$className = str_replace('file', 'file-selectable', $className);
+
+		return '<input type="text" class="'.htmlspecialcharsbx($className)
+			.'" name="'.htmlspecialcharsbx($name).'" value="'.htmlspecialcharsbx((string) $value)
+			.'" placeholder="'.htmlspecialcharsbx($fieldType->getDescription()).'" value="'.htmlspecialcharsbx((string) $value).'"'
+			.' data-role="inline-selector-target" data-selector-type="file"'
+			.'/>';
 	}
 
 	/**
@@ -193,16 +227,66 @@ HTML;
 	 */
 	public static function renderControlMultiple(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
 	{
+		if ($allowSelection && $renderMode & FieldType::RENDER_MODE_PUBLIC)
+		{
+			return self::renderPublicSelectableControlMultiple($fieldType, $field, $value);
+		}
+
 		if ($renderMode & FieldType::RENDER_MODE_DESIGNER)
 		{
-			if (is_array($value) && !\CBPHelper::isAssociativeArray($value))
+			if (!is_array($value) || is_array($value) && \CBPHelper::isAssociativeArray($value))
 			{
-				reset($value);
-				$value = current($value);
+				$value = [$value];
 			}
-			return parent::renderControlSingle($fieldType, $field, $value, $allowSelection, $renderMode);
+
+			// need to show at least one control
+			if (empty($value))
+			{
+				$value[] = null;
+			}
+
+			$controls = [];
+
+			foreach ($value as $k => $v)
+			{
+				$singleField = $field;
+				$singleField['Index'] = $k;
+				$controls[] = parent::renderControlSingle($fieldType, $singleField, $v, $allowSelection, $renderMode);
+			}
+
+			return static::wrapCloneableControls($controls, static::generateControlName($field));
 		}
+
 		return parent::renderControlMultiple($fieldType, $field, $value, $allowSelection, $renderMode);
+	}
+
+	private static function renderPublicSelectableControlMultiple(FieldType $fieldType, array $field, $value)
+	{
+		if (!is_array($value) || is_array($value) && \CBPHelper::isAssociativeArray($value))
+		{
+			$value = [$value];
+		}
+
+		// need to show at least one control
+		if (empty($value))
+		{
+			$value[] = null;
+		}
+
+		$controls = [];
+
+		foreach ($value as $k => $v)
+		{
+			$singleField = $field;
+			$singleField['Index'] = $k;
+			$controls[] = static::renderPublicSelectableControlSingle(
+				$fieldType,
+				$singleField,
+				$v
+			);
+		}
+
+		return static::renderPublicMultipleWrapper($fieldType, $field, $controls);
 	}
 
 	/**
@@ -220,11 +304,11 @@ HTML;
 			if (!is_uploaded_file($value['tmp_name']))
 			{
 				$value = null;
-				static::addError(array(
-					'code' => 'ErrorValue',
-					'message' => Loc::getMessage('BPDT_FILE_SECURITY_ERROR'),
+				static::addError([
+					'code'      => 'ErrorValue',
+					'message'   => Loc::getMessage('BPDT_FILE_SECURITY_ERROR'),
 					'parameter' => static::generateControlName($field),
-				));
+				]);
 			}
 			else
 			{
@@ -235,13 +319,17 @@ HTML;
 				if (!$value)
 				{
 					$value = null;
-					static::addError(array(
-						'code' => 'ErrorValue',
-						'message' => Loc::getMessage('BPDT_FILE_INVALID'),
+					static::addError([
+						'code'      => 'ErrorValue',
+						'message'   => Loc::getMessage('BPDT_FILE_INVALID'),
 						'parameter' => static::generateControlName($field),
-					));
+					]);
 				}
 			}
+		}
+		elseif (\CBPActivity::isExpression($value))
+		{
+			//It`s OK
 		}
 		else
 		{

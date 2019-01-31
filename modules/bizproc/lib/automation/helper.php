@@ -221,6 +221,8 @@ class Helper
 
 		$converter = function ($matches) use ($ids, $names)
 		{
+			$matches['mixed'] = htmlspecialcharsback($matches['mixed']);
+
 			if (strpos($matches['mixed'], '~') === 0)
 			{
 				$len = strpos($matches['mixed'], '#');

@@ -595,7 +595,7 @@ abstract class CBPActivity
 					$property = $rootActivity->GetConstantType($fieldName);
 					break;
 				default:
-					$result = $rootActivity->{$fieldName};
+					$result = $rootActivity->__get($fieldName);
 					$property = $rootActivity->getTemplatePropertyType($fieldName);
 			}
 		}
@@ -640,7 +640,7 @@ abstract class CBPActivity
 			$activity = $this->workflow->GetActivityByName($objectName);
 			if ($activity)
 			{
-				$result = $activity->{$fieldName};
+				$result = $activity->__get($fieldName);
 				//if mapping is set, we can apply modifiers (type converting & formating like `printable`, `bool` etc.)
 				if (isset($activity->arPropertiesTypes[$fieldName]))
 				{

@@ -7,6 +7,7 @@ use Bitrix\Tasks\Internals\Task\FavoriteTable;
 use Bitrix\Tasks\Internals\Task\SortingTable;
 use Bitrix\Tasks\Internals\Task\ViewedTable;
 use Bitrix\Tasks\Internals\TaskTable as Task;
+use Bitrix\Tasks\MemberTable;
 use Bitrix\Tasks\ProjectsTable;
 
 Loc::loadMessages(__FILE__);
@@ -476,9 +477,41 @@ class StagesTable extends Entity\DataManager
 	 */
 	public static function getStagesCount(array $filter = array(), $userId = false)
 	{
-		// common
-		$sqlSearch = \CTasks::GetFilter($filter);
+		if ($userId === false)
+		{
+			$userId = \Bitrix\Tasks\Util\User::getId();
+		}
+		$userId = intval($userId);
+
+		// additional joins
+		$additionalJoins = [];
+
 		$filterKeys = \CTasks::GetFilteredKeys($filter);
+		$joinTaskMember = in_array('MEMBER', $filterKeys);
+		$joinTaskFavorite = in_array('FAVORITE', $filterKeys);
+		$joinTaskViewed = in_array('VIEWED_BY', $filterKeys);
+
+		if ($joinTaskMember)
+		{
+			unset($filter['::SUBFILTER-ROLEID']['MEMBER']);
+
+			$additionalJoins['MEMBER'] = "INNER JOIN (
+				SELECT TMM.TASK_ID, TMM.USER_ID 
+				FROM " . MemberTable::getTableName() . " TMM WHERE TMM.USER_ID = {$userId}
+				GROUP BY TMM.TASK_ID
+			) TM ON TM.TASK_ID = STG.TASK_ID";
+		}
+		if ($joinTaskFavorite)
+		{
+			$additionalJoins['FAVORITE'] = "LEFT JOIN " . FavoriteTable::getTableName() . " FVT ON FVT.TASK_ID = T.ID AND FVT.USER_ID = {$userId}";
+		}
+		if ($joinTaskViewed)
+		{
+			$additionalJoins['VIEWED'] = "LEFT JOIN " . ViewedTable::getTableName() . " TV ON TV.TASK_ID = T.ID AND TV.USER_ID = {$userId}";
+		}
+
+		// common
+		$sqlSearch = \CTasks::GetFilter($filter, "", array('TASK_MEMBER_JOINED' => $joinTaskMember));
 
 		// uf fields
 		$userFieldsSql = new \CUserTypeSQL();
@@ -490,45 +523,37 @@ class StagesTable extends Entity\DataManager
 		{
 			$sqlSearch[] = '(' . $ufFilterSql . ')';
 		}
-		if ($userId === false)
-		{
-			$userId = \Bitrix\Tasks\Util\User::getId();
-		}
-		$userId = intval($userId);
-		// query
-		$connection = \Bitrix\Main\Application::getConnection();
+
 		// if personal - search in another table
 		if (self::getWorkMode() == self::WORK_MODE_USER)
 		{
-			$sql = 'SELECT STG.STAGE_ID, COUNT(STG.STAGE_ID) AS CNT ' .
-				   'FROM ' . TaskStageTable::getTableName() . ' STG ' .
-				   'LEFT JOIN '. Task::getTableName() . ' T ON T.ID = STG.TASK_ID ' .
-				   $userFieldsSql->GetJoin("T.ID") . ' ' .
-				   (
-				   		in_array('FAVORITE', $filterKeys)
-						? 'LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON FVT.TASK_ID = T.ID AND FVT.USER_ID = ' . $userId . ' '
-						: ''
-				   ) .
-				   'LEFT JOIN ' . ViewedTable::getTableName() . ' TV ON TV.TASK_ID = T.ID AND TV.USER_ID = ' . $userId . ' ' .
-				   'WHERE ' . implode(' AND ', $sqlSearch) . ' ' .
-				   'GROUP BY STG.STAGE_ID;';
+			$sql = "
+				" . "SELECT STG.STAGE_ID, COUNT(STG.STAGE_ID) AS CNT
+				" . "FROM " . TaskStageTable::getTableName() . " STG
+				" . "LEFT JOIN " . Task::getTableName() . " T ON T.ID = STG.TASK_ID
+				" . implode("\n", $additionalJoins) . "
+				" . $userFieldsSql->GetJoin("T.ID") . "
+				" . "WHERE " . implode(' AND ', $sqlSearch) . "
+				" . "GROUP BY STG.STAGE_ID";
 		}
 		// else tasks table
 		else
 		{
-			$sql = 'SELECT T.STAGE_ID, COUNT(T.STAGE_ID) AS CNT ' .
-				   'FROM ' . Task::getTableName() . ' T ' .
-				   $userFieldsSql->GetJoin("T.ID") . ' ' .
-				   (
-				   		in_array('FAVORITE', $filterKeys)
-						? 'LEFT JOIN ' . FavoriteTable::getTableName() . ' FVT ON FVT.TASK_ID = T.ID AND FVT.USER_ID = ' . $userId . ' '
-						: ''
-				   ) .
-				   'LEFT JOIN ' . ViewedTable::getTableName() . ' TV ON TV.TASK_ID = T.ID AND TV.USER_ID = ' . $userId . ' ' .
-				   'WHERE ' . implode(' AND ', $sqlSearch) . ' ' .
-				   'GROUP BY T.STAGE_ID;';
+			if (array_key_exists('MEMBER', $additionalJoins))
+			{
+				unset($additionalJoins['MEMBER']);
+			}
+
+			$sql = "
+				" . "SELECT T.STAGE_ID, COUNT(T.STAGE_ID) AS CNT
+				" . "FROM " . Task::getTableName() . " T
+				" . implode("\n", $additionalJoins) . "
+				" . $userFieldsSql->GetJoin("T.ID") . "
+				" . "WHERE " . implode(' AND ', $sqlSearch) . "
+				" . "GROUP BY T.STAGE_ID";
 		}
-		return $connection->query($sql);
+
+		return \Bitrix\Main\Application::getConnection()->query($sql);
 	}
 
 	/**

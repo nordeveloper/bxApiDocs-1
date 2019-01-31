@@ -13,7 +13,7 @@ class Support24 extends Network
 	const SUPPORT_LEVEL_PAID = 'paid';
 	const SUPPORT_LEVEL_PARTNER = 'partner';
 
-	const SUPPORT_ACTIVE_UNLIMITED = 0;
+	const SUPPORT_ACTIVE_UNLIMITED = -1;
 
 	const SCHEDULE_ACTION_WELCOME = 'welcome';
 	const SCHEDULE_ACTION_INVOLVEMENT = 'involvement';
@@ -27,6 +27,9 @@ class Support24 extends Network
 		'ru' => '4df232699a9e1d0487c3972f26ea8d25',
 		'default' => '1a146ac74c3a729681c45b8f692eab73',
 	);
+
+	private static $isAdmin = Array();
+	private static $isIntegrator = Array();
 
 	public static function getSupportLevel()
 	{
@@ -304,14 +307,82 @@ class Support24 extends Network
 		if (\CBitrix24BusinessTools::isLicenseUnlimited())
 			return true;
 
-		if (\CBitrix24::IsPortalAdmin($userId) || \CBitrix24::isIntegrator($userId))
+		if (self::isUserAdmin($userId) || self::isUserIntegrator($userId))
 			return true;
-		
+
 		$users = \CBitrix24BusinessTools::getUnlimUsers();
 		if (in_array($userId, $users))
 			return true;
 
 		return false;
+	}
+
+	public static function isUserAdmin($userId)
+	{
+		if (isset(self::$isAdmin[$userId]))
+		{
+			return self::$isAdmin[$userId];
+		}
+
+		global $USER;
+
+		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
+		{
+			if ($USER->GetId() > 0 && $USER->GetId() == $userId && $USER->IsAdmin())
+			{
+				$result = true;
+			}
+			else
+			{
+				$result = \CBitrix24::IsPortalAdmin($userId);
+			}
+		}
+		else
+		{
+			if ($USER->GetId() > 0 && $USER->GetId() == $userId)
+			{
+				$result = $USER->IsAdmin();
+			}
+			else
+			{
+				$result = false;
+
+				$groups = \Bitrix\Main\UserTable::getUserGroupIds($userId);
+				foreach ($groups as $groupId)
+				{
+					if ($groupId == 1)
+					{
+						$result = true;
+						break;
+					}
+				}
+			}
+		}
+
+		self::$isAdmin[$userId] = $result;
+
+		return $result;
+	}
+
+	public static function isUserIntegrator($userId)
+	{
+		if (isset(self::$isIntegrator[$userId]))
+		{
+			return self::$isIntegrator[$userId];
+		}
+
+		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
+		{
+			$result = \CBitrix24::isIntegrator($userId);
+		}
+		else
+		{
+			$result = false;
+		}
+
+		self::$isIntegrator[$userId] = $result;
+
+		return $result;
 	}
 
 	public static function isActivePaidSupport()
@@ -336,38 +407,7 @@ class Support24 extends Network
 			return false;
 		}
 
-		global $USER;
-
-		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
-		{
-			if ($USER->GetId() > 0 && $USER->GetId() == $userId && $USER->IsAdmin())
-			{
-				return true;
-			}
-
-			return \CBitrix24::IsPortalAdmin($userId) || \CBitrix24::isIntegrator($userId);
-		}
-
-		if ($USER->GetId() > 0 && $USER->GetId() == $userId)
-		{
-			$result = $USER->IsAdmin();
-		}
-		else
-		{
-			$result = false;
-
-			$groups = \Bitrix\Main\UserTable::getUserGroupIds($userId);
-			foreach ($groups as $groupId)
-			{
-				if ($groupId == 1)
-				{
-					$result = true;
-					break;
-				}
-			}
-		}
-
-		return $result;
+		return self::isUserAdmin($userId) || self::isUserIntegrator($userId);
 	}
 
 	public static function isNeedUpdateBotFieldsAfterNewMessage()
@@ -439,7 +479,11 @@ class Support24 extends Network
 		{
 			if (self::isActiveFreeSupport())
 			{
-				if (self::isActiveFreeSupportForUser($messageFields['USER_ID']))
+				if (self::isUserIntegrator($messageFields['USER_ID']))
+				{
+					$message = self::getMessage('WELCOME_INTEGRATOR');
+				}
+				else if (self::isActiveFreeSupportForUser($messageFields['USER_ID']))
 				{
 					$message = self::getMessage('WELCOME');
 				}
@@ -448,6 +492,10 @@ class Support24 extends Network
 					$message = self::getMessage('WELCOME_LIMITED');
 				}
 			}
+			else if (self::isUserIntegrator($messageFields['USER_ID']))
+			{
+				$message = self::getMessage('WELCOME_INTEGRATOR');
+			}
 			else
 			{
 				$message = self::getMessage('WELCOME_END');
@@ -455,7 +503,11 @@ class Support24 extends Network
 		}
 		else if (self::getSupportLevel() == self::SUPPORT_LEVEL_PAID)
 		{
-			if (self::isActivePaidSupportForUser($messageFields['USER_ID']))
+			if (self::isUserIntegrator($messageFields['USER_ID']))
+			{
+				$message = self::getMessage('WELCOME_INTEGRATOR');
+			}
+			else if (self::isActivePaidSupportForUser($messageFields['USER_ID']))
 			{
 				$message = self::getMessage('WELCOME');
 			}
@@ -528,7 +580,7 @@ class Support24 extends Network
 					$message = self::getMessage('MESSAGE_LIMITED');
 				}
 			}
-			else
+			else if (!self::isUserIntegrator($messageFields['FROM_USER_ID']))
 			{
 				$message = self::getMessage('MESSAGE_END');
 			}
@@ -569,7 +621,7 @@ class Support24 extends Network
 					return false;
 				}
 			}
-			else
+			else if (!self::isUserIntegrator($params['USER_ID']))
 			{
 				return false;
 			}

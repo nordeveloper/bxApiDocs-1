@@ -152,178 +152,43 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 	}
 
 	/**
-	 * Parse given sub filter options and set it to query
+	 * Returns sql query for tasks user have access to
 	 *
-	 * @param $subFilterFieldOptions
-	 * @param Entity\Query $query
-	 * @return Entity\Query
+	 * @param array $parameters
+	 * @return string
 	 * @throws \Bitrix\Main\ArgumentException
 	 * @throws \Bitrix\Main\SystemException
 	 */
-	private static function setOptionsForQuery($subFilterFieldOptions, Entity\Query $query)
-	{
-		foreach ($subFilterFieldOptions as $optionName => $optionValues)
-		{
-			switch ($optionName)
-			{
-				case 'FIELDS':
-					foreach ($optionValues as $field)
-					{
-						$query->registerRuntimeField(
-							$field['NAME'],
-							new Entity\ReferenceField(
-								$field['NAME'],
-								$field['REFERENCE_ENTITY'],
-								$field['REFERENCE_FILTER'],
-								$field['REFERENCE_PARAMS']
-							)
-						);
-					}
-					break;
-
-				case 'WHERE':
-					foreach ($optionValues as $key => $conditions)
-					{
-						switch ($key)
-						{
-							case 'WHERE':
-								foreach ($conditions as $condition)
-								{
-									$query->where($condition);
-								}
-								break;
-
-							case 'COLUMN':
-								foreach ($conditions as $condition)
-								{
-									$query->whereColumn(
-										$condition['FIELD_1'],
-										$condition['SIGN'],
-										$condition['FIELD_2']
-									);
-								}
-								break;
-
-							case 'EXISTS':
-								foreach ($conditions as $condition)
-								{
-									$query->whereExists($condition);
-								}
-								break;
-
-							case 'MATCH':
-								foreach ($conditions as $condition)
-								{
-									$query->whereMatch(
-										$condition['COLUMN'],
-										$condition['VALUE']
-									);
-								}
-								break;
-						}
-					}
-					break;
-			}
-		}
-
-		return $query;
-	}
-
 	public static function getAccessibleTaskIdsSql(array $parameters)
 	{
-		$result = array();
+		$result = [];
 
 		$parameters = static::checkParameters($parameters);
 		$filter = static::getForwardedFilter($parameters['APPLY_FILTER'], $parameters);
-		$memberCondition = static::getMemberConditions($parameters['APPLY_MEMBER_FILTER'], $parameters);
-		$options = [];
+		$runtimeOptions = [];
 
-		if ($parameters['SEARCH_MODE'] == 'Y')
+		if ($parameters['MAKE_ACCESS_FILTER'])
 		{
-			$filter = array_merge($filter, $parameters['ACCESS_FILTER']);
-			$options = $parameters['ACCESS_RUNTIME_OPTIONS'];
+			$runtimeOptions = $parameters['ACCESS_FILTER_RUNTIME_OPTIONS'];
 		}
 
 		// todo: where 1 = 0 here if $parameters['USER_ID'] is 0
 
-		// if we have accessible groups
-		$allowedGroups = static::getAllowedGroups($parameters);
-		if(!empty($allowedGroups))
+		$queries = [
+			static::getAccessibleGroupTasksQuery($parameters, $filter, $runtimeOptions),
+			static::getAccessibleSubEmployeesTasksQuery($parameters, $filter, $runtimeOptions),
+			static::getAccessibleMyTasksQuery($parameters, $filter, $runtimeOptions)
+		];
+
+		foreach ($queries as $query)
 		{
-			// then attach sql that returns tasks that belong to these groups
-			$q = new Entity\Query(TaskTable::getEntity());
-			$q->setSelect(array('TASK_ID' => 'ID'));
-
-			// todo: possible bottleneck here, in case of having lots of groups. refactor it when group access check is available on sql
-			$gaFilter = $filter;
-			$gaFilter['GROUP_ID'] = $allowedGroups;
-			$q->setFilter($gaFilter);
-
-			$q = static::setOptionsForQuery($options, $q);
-
-			$result[] = "\n/*tasks in accessible groups*/\n".$q->getQuery();
-		}
-
-		// if passed user is a director
-		if(static::isDirector($parameters))
-		{
-			// then attach sql that returns tasks accessible by user`s employee
-			$q = new Entity\Query(TaskTable::getEntity());
-			$q->setSelect(array('TASK_ID' => 'ID'));
-			$q->registerRuntimeField('', new Entity\ReferenceField(
-				'TM',
-				MemberTable::getEntity(),
-				array(
-					array(
-						'=this.ID' => 'ref.TASK_ID',
-					),
-					$memberCondition,
-				),
-				array('join_type' => 'inner')
-			));
-
-			$subordinate = Intranet\Internals\Runtime\UserDepartment::getSubordinateFilter(array(
-				'USER_ID' => $parameters['USER_ID'],
-				'REF_FIELD' => 'this.TM'
-			));
-			$q->registerRuntimeField('', $subordinate['runtime'][0]);
-
-			if(!empty($filter))
+			if (!empty($query))
 			{
-				$q->setFilter($filter);
+				$result[] = $query;
 			}
-
-			$q = static::setOptionsForQuery($options, $q);
-
-			$result[] = "\n/*tasks accessible by my sub-employees*/\n".$q->getQuery();
 		}
 
-		// attach sql that returns tasks accessible by me directly
-		$q = new Entity\Query(TaskTable::getEntity());
-		$q->setSelect(array('TASK_ID' => 'ID'));
-		$q->registerRuntimeField('', new Entity\ReferenceField(
-			'TM',
-			MemberTable::getEntity(),
-			array(
-				array(
-					'=this.ID' => 'ref.TASK_ID',
-					'=ref.USER_ID' => array('?', $parameters['USER_ID']),
-				),
-				$memberCondition,
-			),
-			array('join_type' => 'inner')
-		));
-
-		if(!empty($filter))
-		{
-			$q->setFilter($filter);
-		}
-
-		$q = static::setOptionsForQuery($options, $q);
-
-		$result[] = "\n/*tasks accessible by me*/\n".$q->getQuery();
-
-		if(count($result) == 1)
+		if (count($result) == 1)
 		{
 			$result[] = "\n/*eliminate possible duplicates*/\nSELECT 0 as TASK_ID";
 		}
@@ -492,9 +357,177 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 		return $fields;
 	}
 
+	/**
+	 * Returns sql query for tasks user have access to through his groups
+	 *
+	 * @param $parameters
+	 * @param $filter
+	 * @param $runtimeOptions
+	 * @return string
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getAccessibleGroupTasksQuery($parameters, $filter, $runtimeOptions)
+	{
+		$allowedGroups = static::getAllowedGroups($parameters);
+
+		if (!empty($allowedGroups))
+		{
+			// todo: possible bottleneck here, in case of having lots of groups. refactor it when group access check is available on sql
+			$groupFilter = $filter;
+			$groupFilter['GROUP_ID'] = $allowedGroups;
+
+			$q = new Entity\Query(TaskTable::getEntity());
+			$q->setSelect(array('TASK_ID' => 'ID'));
+			$q->setFilter($groupFilter);
+
+			$q = static::setRuntimeOptionsForQuery($runtimeOptions, $q);
+
+			return "\n/*tasks in accessible groups*/\n".$q->getQuery();
+		}
+
+		return '';
+	}
+
+	/**
+	 * Returns sql query for tasks user have access to through his sub-employees
+	 *
+	 * @param $parameters
+	 * @param $filter
+	 * @param $runtimeOptions
+	 * @return string
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getAccessibleSubEmployeesTasksQuery($parameters, $filter, $runtimeOptions)
+	{
+		if (static::isDirector($parameters))
+		{
+			$memberReferenceFilter = ['=ref.TASK_ID' => 'this.ID'];
+
+			if ($parameters['APPLY_MEMBER_FILTER'])
+			{
+				$memberCondition = static::getMemberConditions($parameters['APPLY_MEMBER_FILTER'], $parameters);
+				$memberReferenceFilter = array_merge($memberReferenceFilter, $memberCondition[0]);
+			}
+
+			$memberReference = new Entity\ReferenceField(
+				'TM',
+				MemberTable::getEntity(),
+				[$memberReferenceFilter],
+				['join_type' => 'inner']
+			);
+
+			$subordinate = Intranet\Internals\Runtime\UserDepartment::getSubordinateFilter(array(
+				'USER_ID' => $parameters['USER_ID'],
+				'REF_FIELD' => 'this.TM'
+			));
+
+			$q = new Entity\Query(TaskTable::getEntity());
+			$q->setSelect(['TASK_ID' => 'ID']);
+			$q->registerRuntimeField('', $memberReference);
+			$q->registerRuntimeField('', $subordinate['runtime'][0]);
+
+			$q = static::setRuntimeOptionsForQuery($runtimeOptions, $q);
+
+			if (!empty($filter))
+			{
+				$q->setFilter($filter);
+			}
+
+			return "\n/*tasks accessible by my sub-employees*/\n".$q->getQuery();
+		}
+
+		return '';
+	}
+
+	/**
+	 * Returns sql query for tasks user have access to through his tasks
+	 *
+	 * @param $parameters
+	 * @param $filter
+	 * @param $runtimeOptions
+	 * @return string
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getAccessibleMyTasksQuery($parameters, $filter, $runtimeOptions)
+	{
+		$memberReferenceFilter = [
+			'=ref.TASK_ID' => 'this.ID',
+			'=ref.USER_ID' => ['?', $parameters['USER_ID']]
+		];
+
+		if ($parameters['APPLY_MEMBER_FILTER'])
+		{
+			$memberCondition = static::getMemberConditions($parameters['APPLY_MEMBER_FILTER'], $parameters);
+			$memberReferenceFilter = array_merge($memberReferenceFilter, $memberCondition[0]);
+		}
+
+		$memberReference = new Entity\ReferenceField(
+			'TM',
+			MemberTable::getEntity(),
+			[$memberReferenceFilter],
+			['join_type' => 'inner']
+		);
+
+		$q = new Entity\Query(TaskTable::getEntity());
+		$q->setSelect(['TASK_ID' => 'ID']);
+		$q->registerRuntimeField('', $memberReference);
+
+		$q = static::setRuntimeOptionsForQuery($runtimeOptions, $q);
+
+		if (!empty($filter))
+		{
+			$q->setFilter($filter);
+		}
+
+		return "\n/*tasks accessible by me*/\n".$q->getQuery();
+	}
+
+	/**
+	 * Set given runtime options to query
+	 *
+	 * @param $runtimeOptions
+	 * @param Entity\Query $query
+	 * @return Entity\Query
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function setRuntimeOptionsForQuery($runtimeOptions, Entity\Query $query)
+	{
+		foreach ($runtimeOptions as $optionType => $optionValues)
+		{
+			switch ($optionType)
+			{
+				case 'FIELDS':
+					foreach ($optionValues as $key => $field)
+					{
+						$query->registerRuntimeField('', $field);
+					}
+					break;
+
+				case 'FILTERS':
+					foreach ($optionValues as $key => $filter)
+					{
+						$query->where($filter);
+					}
+					break;
+			}
+		}
+
+		return $query;
+	}
+
+	/**
+	 * Get allowed groups
+	 *
+	 * @param $parameters
+	 * @return array
+	 */
 	private static function getAllowedGroups(&$parameters)
 	{
-		if(!array_key_exists('ALLOWED_GROUPS', $parameters) && SocialNetwork::isInstalled())
+		if (!array_key_exists('ALLOWED_GROUPS', $parameters) && SocialNetwork::isInstalled())
 		{
 			$parameters['ALLOWED_GROUPS'] = SocialNetwork\Group::getIdsByAllowedAction('view_all', true, $parameters['USER_ID']);
 		}
@@ -502,9 +535,15 @@ final class Task extends \Bitrix\Tasks\Internals\Runtime
 		return $parameters['ALLOWED_GROUPS'];
 	}
 
+	/**
+	 * Checks if user is a director
+	 *
+	 * @param $parameters
+	 * @return bool
+	 */
 	private static function isDirector(&$parameters)
 	{
-		if(!array_key_exists('IS_DIRECTOR', $parameters))
+		if (!array_key_exists('IS_DIRECTOR', $parameters))
 		{
 			$parameters['IS_DIRECTOR'] = Intranet::isInstalled() && Intranet\User::isDirector($parameters['USER_ID']);
 		}

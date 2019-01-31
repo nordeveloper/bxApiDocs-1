@@ -461,6 +461,7 @@ class CBPRuntime
 
 	private function LoadActivityLocalization($path, $file, $lang = false)
 	{
+		/*
 		global $MESS;
 
 		if ($lang === false)
@@ -474,6 +475,8 @@ class CBPRuntime
 			include($p);
 		elseif (file_exists($pe) && is_file($pe))
 			include($pe);
+		*/
+		\Bitrix\Main\Localization\Loc::loadLanguageFile($path. '/'. $file);
 	}
 
 	public function GetResourceFilePath($activityPath, $filePath)

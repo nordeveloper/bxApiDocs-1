@@ -224,8 +224,6 @@ class Network extends Base
 	}
 
 
-
-
 	private static function clientMessageAdd($messageId, $messageFields)
 	{
 		if ($messageFields['SYSTEM'] == 'Y')
@@ -306,7 +304,7 @@ class Network extends Base
 
 		$portalTariff = 'box';
 		$userLevel = 'ADMIN';
-		$portalIntegrator = false;
+		$portalType = 'PRODUCTION';
 		$portalTariffName = '';
 		$demoStartTime = 0;
 		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
@@ -334,6 +332,11 @@ class Network extends Base
 			else
 			{
 				$userLevel = 'USER';
+			}
+
+			if (\CBitrix24::isStage())
+			{
+				$portalType = 'STAGE';
 			}
 		}
 
@@ -382,6 +385,7 @@ class Network extends Base
 					'REGISTER' => $portalTariff != 'box'? \COption::GetOptionInt('main', '~controller_date_create', time()): '',
 					'DEMO' => $demoStartTime,
 					'USER_LEVEL' => $userLevel,
+					'PORTAL_TYPE' => $portalType,
 				),
 			)
 		);
@@ -686,29 +690,34 @@ class Network extends Base
 		$needUpdateBotFields = true;
 
 		$bot = \Bitrix\Im\Bot::getCache($messageFields['BOT_ID']);
-		if (\Bitrix\Main\Loader::includeModule($bot['MODULE_ID']) && class_exists($bot["CLASS"]) && method_exists($bot["CLASS"], 'isNeedUpdateBotFieldsAfterNewMessage'))
+		if ($bot['MODULE_ID'] && \Bitrix\Main\Loader::includeModule($bot['MODULE_ID']) && class_exists($bot["CLASS"]) && method_exists($bot["CLASS"], 'isNeedUpdateBotFieldsAfterNewMessage'))
 		{
 			$needUpdateBotFields = call_user_func_array(array($bot["CLASS"], 'isNeedUpdateBotFieldsAfterNewMessage'), Array());
 		}
 
-		if (!empty($messageFields['LINE']) && $needUpdateBotFields)
+		if (!empty($messageFields['LINE']))
 		{
 			$botData = \Bitrix\Im\User::getInstance($messageFields['BOT_ID']);
-			$updateFields = Array();
-			if ($messageFields['LINE']['NAME'] != htmlspecialcharsback($botData->getName()))
-			{
-				$updateFields['NAME'] = $messageFields['LINE']['NAME'];
-			}
-			if ($messageFields['LINE']['DESC'] != htmlspecialcharsback($botData->getWorkPosition()))
-			{
-				$updateFields['WORK_POSITION'] = $messageFields['LINE']['DESC'];
-			}
 
-			if ($messageFields['LINE']['WELCOME_MESSAGE'] != $bot['TEXT_PRIVATE_WELCOME_MESSAGE'])
+			$updateFields = Array();
+
+			if ($needUpdateBotFields)
 			{
-				\Bitrix\Im\Bot::update(Array('BOT_ID' => $messageFields['BOT_ID']), Array(
-					'TEXT_PRIVATE_WELCOME_MESSAGE' => $messageFields['LINE']['WELCOME_MESSAGE']
-				));
+				if ($messageFields['LINE']['NAME'] != htmlspecialcharsback($botData->getName()))
+				{
+					$updateFields['NAME'] = $messageFields['LINE']['NAME'];
+				}
+				if ($messageFields['LINE']['DESC'] != htmlspecialcharsback($botData->getWorkPosition()))
+				{
+					$updateFields['WORK_POSITION'] = $messageFields['LINE']['DESC'];
+				}
+
+				if ($messageFields['LINE']['WELCOME_MESSAGE'] != $bot['TEXT_PRIVATE_WELCOME_MESSAGE'])
+				{
+					\Bitrix\Im\Bot::update(Array('BOT_ID' => $messageFields['BOT_ID']), Array(
+						'TEXT_PRIVATE_WELCOME_MESSAGE' => $messageFields['LINE']['WELCOME_MESSAGE']
+					));
+				}
 			}
 
 			if (!empty($messageFields['LINE']['AVATAR']))

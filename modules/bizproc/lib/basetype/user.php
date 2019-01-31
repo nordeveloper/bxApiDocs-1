@@ -171,6 +171,11 @@ class User extends Base
 				$config['groups'] = [];
 				foreach ($groups as $id => $groupName)
 				{
+					if (strpos($id, 'group_') === 0)
+					{
+						continue;
+					}
+
 					$config['groups'][] = [
 						'id' => preg_match('/^[0-9]+$/', $id) ? 'G'.$id : $id,
 						'name' => $groupName

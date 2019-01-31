@@ -2,6 +2,7 @@
 namespace Bitrix\Tasks\Rest\Controllers\Task;
 
 use Bitrix\Main\Loader;
+use Bitrix\Main\Entity;
 use Bitrix\Tasks\Exception;
 use Bitrix\Tasks\Rest\Controllers\Base;
 use Bitrix\Forum\MessageTable;
@@ -54,28 +55,23 @@ class Search extends Base
 				'T.ID AS TASK_ID',
 				'T.TITLE AS TASK_TITLE'
 			],
-			'APPLY_FILTER' => [
-				'=ZOMBIE' => 'N'
-			],
-			'ACCESS_FILTER' => [
-				'=FM.NEW_TOPIC' => 'N'
-			],
-			'ACCESS_RUNTIME_OPTIONS' => [
+			'MAKE_ACCESS_FILTER' => true,
+			'ACCESS_FILTER_RUNTIME_OPTIONS' => [
 				'FIELDS' => [
 					[
 						'NAME' => 'FM',
-						'REFERENCE_ENTITY' => MessageTable::getEntity(),
-						'REFERENCE_FILTER' => ['=this.FORUM_TOPIC_ID' => 'ref.TOPIC_ID'],
-						'REFERENCE_PARAMS' => ['join_type' => 'inner']
-					],
-				],
-				'WHERE' => [
-					'MATCH' => [
-						[
-							'COLUMN' => 'FM.POST_MESSAGE',
-							'VALUE' => "(+" . $search . "*)"
-						]
+						'FIELD' => new Entity\ReferenceField(
+							'FM',
+							MessageTable::getEntity(),
+							['=this.FORUM_TOPIC_ID' => 'ref.TOPIC_ID'],
+							['JOIN_TYPE' => 'INNER']
+						)
 					]
+				],
+				'FILTERS' => [
+					Entity\Query::filter()->where('ZOMBIE', 'N'),
+					Entity\Query::filter()->where('FM.NEW_TOPIC', 'N'),
+					Entity\Query::filter()->whereMatch('FM.POST_MESSAGE', '(+' . $search . '*)')
 				]
 			]
 		];

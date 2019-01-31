@@ -161,28 +161,6 @@ class Filter extends Common
 		$arrFilter['CHECK_PERMISSIONS'] = 'Y';
 		$arrFilter['ONLY_ROOT_TASKS'] = 'Y';
 
-
-		//hack, WHY? Dont know! ohhh, god!
-		if (!isset($arrFilter['::SUBFILTER-ROLEID']) && isset($arrFilter['MEMBER']))
-		{
-			$arrFilter['::SUBFILTER-ROLEID']['MEMBER'] = $arrFilter['MEMBER'];
-			unset($arrFilter['MEMBER']);
-		}
-
-		//hack, WHY? Dont know! ohhh, god!
-		if (isset($arrFilter['::SUBFILTER-PROBLEM']['VIEWED_BY']) && $this->getUserId() != User::getId())
-		{
-			$arrFilter = array_merge($arrFilter, $arrFilter['::SUBFILTER-PROBLEM']);
-			unset($arrFilter['::SUBFILTER-PROBLEM']);
-		}
-
-		if ($this->getGroupId() > 0)
-		{
-			$arrFilter['GROUP_ID'] = $this->getGroupId();
-		}
-
-//		echo '<pre>'.print_r($arrFilter, true).'</pre>';
-
 		return $arrFilter;
 	}
 
@@ -264,7 +242,7 @@ class Filter extends Common
 
 		if ($this->isFilterEmpty() && $this->getGroupId() == 0)
 		{
-			$arrFilter['MEMBER'] = $this->getUserId(); //TODO
+			$arrFilter['::SUBFILTER-ROLEID']['MEMBER'] = $this->getUserId(); //TODO
 
 			return $arrFilter;
 		}
@@ -890,18 +868,18 @@ class Filter extends Common
 					case 'view_role_responsible':
 						$arrFilter['=RESPONSIBLE_ID'] = $this->getUserId();
 						break;
+
+					case 'view_role_originator':
+						$arrFilter['=CREATED_BY'] = $this->getUserId();
+						$arrFilter['!REFERENCE:RESPONSIBLE_ID'] = 'CREATED_BY';
+						break;
+
 					case 'view_role_accomplice':
 						$arrFilter['=ACCOMPLICE'] = $this->getUserId();
 						break;
+
 					case 'view_role_auditor':
 						$arrFilter['=AUDITOR'] = $this->getUserId();
-						break;
-					case 'view_role_originator':
-						if (!$this->getGroupId())
-						{
-							$arrFilter['!REFERENCE:RESPONSIBLE_ID'] = 'CREATED_BY';
-							$arrFilter['=CREATED_BY'] = $this->getUserId();
-						}
 						break;
 				}
 				break;

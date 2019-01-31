@@ -164,7 +164,7 @@ class Select extends Base
 			.'" name="'.htmlspecialcharsbx(static::generateControlName($field))
 			.($fieldType->isMultiple() ? '[]' : '').'"'.($fieldType->isMultiple() ? ' size="5" multiple' : '').'>';
 
-		//if (!$fieldType->isRequired() || $allowSelection) //TODO: watch this
+		if (!$fieldType->isMultiple()) //TODO: watch this
 		{
 			$renderResult .= '<option value="">['.Loc::getMessage('BPCGHLP_NOT_SET').']</option>';
 		}

@@ -126,7 +126,6 @@ class Date extends Base
 					placeholder="'.htmlspecialcharsbx($fieldType->getDescription()).'"
 					data-role="inline-selector-target"
 					data-selector-type="'.htmlspecialcharsbx($fieldType->getType()).'"
-					data-selector-write-mode="replace"
 				>';
 		}
 		elseif ($renderMode & FieldType::RENDER_MODE_MOBILE)

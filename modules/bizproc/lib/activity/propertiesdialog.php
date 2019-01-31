@@ -206,7 +206,7 @@ class PropertiesDialog
 					continue;
 				}
 
-				if ($property['Type'] === FieldType::USER)
+				if ($property['Type'] === FieldType::USER && !isset($property['Getter']))
 				{
 					$compatibleValues[$property['FieldName']] = \CBPHelper::usersArrayToString(
 						$compatibleValues[$property['FieldName']],

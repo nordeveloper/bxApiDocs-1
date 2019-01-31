@@ -2117,19 +2117,15 @@ class CBPHelper
 	{
 		$filter = function ($value)
 		{
-			return ($value !== null && $value !== '' && $value !== 0 && $value !== '0');
+			return ($value !== null && $value !== '');
 		};
 
 		return (
-				$value === null
-				||
-				$value === ''
-				||
-				$value === 0
-				||
-				$value === '0'
-				||
-				is_array($value) && count(array_filter($value, $filter)) === 0
+			$value === null
+			||
+			$value === ''
+			||
+			is_array($value) && count(array_filter($value, $filter)) === 0
 		);
 	}
 

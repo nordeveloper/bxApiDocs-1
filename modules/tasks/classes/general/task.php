@@ -16,6 +16,10 @@ use Bitrix\Main\Application;
 use Bitrix\Main\DB\MssqlConnection;
 use Bitrix\Main\DB\MysqlCommonConnection;
 use Bitrix\Main\DB\OracleConnection;
+use Bitrix\Main\Entity;
+use Bitrix\Main\Entity\Query;
+use Bitrix\Main\Entity\Query\Join;
+use Bitrix\Main\UserTable;
 
 use Bitrix\Tasks\Integration\Bizproc;
 use Bitrix\Tasks\Internals\Counter;
@@ -23,6 +27,7 @@ use Bitrix\Tasks\Internals\Task\FavoriteTable;
 use Bitrix\Tasks\Internals\Task\ProjectDependenceTable;
 use Bitrix\Tasks\Internals\Task\SortingTable;
 use Bitrix\Tasks\Internals\Task\MemberTable;
+use Bitrix\Tasks\Internals\Task\ViewedTable;
 use Bitrix\Tasks\Internals\Helper\Task\Dependence;
 use Bitrix\Tasks\Kanban\TaskStageTable;
 
@@ -2060,8 +2065,7 @@ class CTasks
 		}
 	}
 
-	protected static function GetSqlByFilter($arFilter, $userID, $sAliasPrefix, $bGetZombie,
-											 $bMembersTableJoined = false)
+	protected static function GetSqlByFilter($arFilter, $userID, $sAliasPrefix, $bGetZombie, $bMembersTableJoined = false, $params = [])
 	{
 		global $DB;
 
@@ -2107,7 +2111,7 @@ class CTasks
 			// Subfilter?
 			if (static::isSubFilterKey($key))
 			{
-				$arSqlSearch[] = self::GetSqlByFilter($val, $userID, $sAliasPrefix, $bGetZombie, $bMembersTableJoined);
+				$arSqlSearch[] = self::GetSqlByFilter($val, $userID, $sAliasPrefix, $bGetZombie, $bMembersTableJoined, $params);
 				continue;
 			}
 
@@ -2770,7 +2774,7 @@ class CTasks
 										 "T.PARENT_ID IS NULL OR ".
 										 $sAliasPrefix.
 										 "T.PARENT_ID = '0' OR NOT EXISTS (".
-										 CTasks::GetRootSubquery($arFilter, $bGetZombie, $sAliasPrefix).
+										 CTasks::GetRootSubQuery($arFilter, $bGetZombie, $sAliasPrefix, $params).
 										 "))";
 					}
 					break;
@@ -3226,12 +3230,16 @@ class CTasks
 	public static function GetFilter($arFilter, $sAliasPrefix = "", $arParams = false)
 	{
 		if (!is_array($arFilter))
+		{
 			$arFilter = array();
+		}
 
 		$arSqlSearch = array();
 
 		if (is_array($arParams) && array_key_exists('USER_ID', $arParams) && ($arParams['USER_ID'] > 0))
+		{
 			$userID = (int)$arParams['USER_ID'];
+		}
 		else
 		{
 			$userID = User::getId();
@@ -3239,16 +3247,22 @@ class CTasks
 
 		$bGetZombie = false;
 		if (isset($arParams['bGetZombie']))
+		{
 			$bGetZombie = (bool)$arParams['bGetZombie'];
+		}
 
 		// if TRUE will be generated constraint for members
 		$bMembersTableJoined = false;
 		if (isset($arParams['bMembersTableJoined']))
+		{
 			$bMembersTableJoined = (bool)$arParams['bMembersTableJoined'];
+		}
 
-		$sql = self::GetSqlByFilter($arFilter, $userID, $sAliasPrefix, $bGetZombie, $bMembersTableJoined);
+		$sql = self::GetSqlByFilter($arFilter, $userID, $sAliasPrefix, $bGetZombie, $bMembersTableJoined, $arParams);
 		if (strlen($sql))
+		{
 			$arSqlSearch[] = $sql;
+		}
 
 		// enable legacy access if no option passed (by default)
 		// disable legacy access when ENABLE_LEGACY_ACCESS === true
@@ -3314,38 +3328,56 @@ class CTasks
 		$b = $behaviour;
 		$f =& $fields;
 
-		if (is_array($arParams) && array_key_exists('USER_ID', $arParams) && ($arParams['USER_ID'] > 0))
+		if (!is_array($arParams))
+		{
+			$arParams = [];
+		}
+
+		if (array_key_exists('USER_ID', $arParams) && ($arParams['USER_ID'] > 0))
+		{
 			$userID = (int)$arParams['USER_ID'];
+		}
 		else
+		{
 			$userID = User::getId();
+		}
+
+		if (array_key_exists('TASK_MEMBER_JOINED', $arParams) && $arParams['TASK_MEMBER_JOINED'])
+		{
+			$taskMemberJoined = true;
+		}
+		else
+		{
+			$taskMemberJoined = false;
+		}
 
 		if (!User::isSuper($userID))
 		{
-			$arSubSqlSearch = array(
-				static::placeFieldSql('CREATED_BY', $b, $f)." = '".$userID."'",
-				static::placeFieldSql('RESPONSIBLE_ID', $b, $f)." = '".$userID."'",
-				"EXISTS(
-					SELECT 'x'
-					FROM b_tasks_member ".$a."TM
-					WHERE
-						".$a."TM.TASK_ID = ".static::placeFieldSql('ID', $b, $f)." AND ".$a."TM.USER_ID = '".$userID."'
-				)"
-			);
-
 			// subordinate check
 			$arParams['FIELDS'] =& $fields;
 			if ($strSql = CTasks::GetSubordinateSql($a, $arParams, $behaviour))
 			{
-				$arSubSqlSearch[] = "EXISTS(".$strSql.")";
+				$arSubSqlSearch[] = "EXISTS(" . $strSql . ")";
 			}
 
 			// group permission check
 			if ($arAllowedGroups = CTasks::GetAllowedGroups($arParams))
-				$arSubSqlSearch[] = "(".
-									static::placeFieldSql('GROUP_ID', $b, $f).
-									" IN (".
-									implode(",", $arAllowedGroups).
-									"))";
+			{
+				$arSubSqlSearch[] = "(" . static::placeFieldSql('GROUP_ID', $b, $f) . " IN (" . implode(",", $arAllowedGroups) . "))";
+			}
+
+			if (!$taskMemberJoined || ($taskMemberJoined && !empty($arSubSqlSearch)))
+			{
+				$arSubSqlSearch[] = static::placeFieldSql('CREATED_BY', $b, $f) . " = '" . $userID . "'";
+				$arSubSqlSearch[] = static::placeFieldSql('RESPONSIBLE_ID', $b, $f) . " = '" . $userID . "'";
+				$arSubSqlSearch[] =
+					"EXISTS(
+					SELECT 'x'
+					FROM b_tasks_member " . $a . "TM
+					WHERE
+						" . $a . "TM.TASK_ID = " . static::placeFieldSql('ID', $b, $f) . " AND " . $a . "TM.USER_ID = '" . $userID . "'
+					)";
+			}
 		}
 
 		return array($arSubSqlSearch, $fields);
@@ -4936,9 +4968,9 @@ class CTasks
 			$arSqlSelect = "T.ID AS ID";
 		}
 
-		$disableOptimization = (is_array($arParams) && $arParams['DISABLE_OPTIMIZATION'] === true);
 		$disableAccessOptimization = (is_array($arParams) && $arParams['DISABLE_ACCESS_OPTIMIZATION'] === true);
-		$useAccessAsJoin = !$disableAccessOptimization;
+		$skipAccessJoin = (is_array($arParams) && $arParams['SKIP_ACCESS_JOIN'] === true);
+		$useAccessAsJoin = !$disableAccessOptimization && !$skipAccessJoin;
 
 		// First level logic MUST be 'AND', because of backward compatibility
 		// and some requests for checking rights, attached at first level of filter.
@@ -4950,29 +4982,70 @@ class CTasks
 		// except CHECK_PERMISSIONS, SUBORDINATE_TASKS (if you don't know exactly,
 		// what are consequences of this fields in OR-logic of subfilters).
 		if (isset($arFilter['::LOGIC']))
-			CTaskAssert::assert($arFilter['::LOGIC'] === 'AND');
-
-		// try to make some recyclebiny optimizations
-		// (later you can remove the following block without getting any logic broken)
-		$distinct = '';
-		$additionalJoins = '';
-
-		if(!$disableOptimization && $DB->type == 'MYSQL')
 		{
-			$optimized = static::tryOptimizeFilter($arFilter);
-			$arFilter = $optimized['FILTER'];
-			$additionalJoins = implode("\n\n", $optimized['JOINS']);
-			if(count($optimized['JOINS']))
+			CTaskAssert::assert($arFilter['::LOGIC'] === 'AND');
+		}
+
+		// GET OPTIMIZED JOINS
+		$sourceFilter = $arFilter;
+		$optimized = static::tryOptimizeFilter($arFilter);
+
+		$arFilter = $optimized['FILTER'];
+		$optimizedJoins = implode("\n", $optimized['JOINS']);
+		$distinct = '';
+
+		if (!empty($optimized['JOINS']))
+		{
+			$distinct = 'DISTINCT';
+			$arParams['SOURCE_FILTER'] = $sourceFilter;
+		}
+
+		// GET RELATED JOINS
+		$params = [
+			'USER_ID' => $userID,
+			'VIEWED_BY' => static::getViewedBy($sourceFilter, $userID),
+			'SORTING_GROUP_ID' => (isset($arParams['SORTING_GROUP_ID']) && $arParams['SORTING_GROUP_ID'] > 0? $arParams['SORTING_GROUP_ID'] : false)
+		];
+		$relatedJoins = static::getRelatedJoins($arSelect, $arFilter, $arOrder, $params);
+		$relatedJoins = implode("\n", $relatedJoins);
+
+		// GET ACCESS SQL
+		$accessSql = '';
+		if ($useAccessAsJoin && static::needAccessRestriction($arFilter, $arParams))
+		{
+			$buildAccessSql = true;
+			$arParams['APPLY_FILTER'] = static::makePossibleForwardedFilter($arFilter);
+
+			if ($arParams['MAKE_ACCESS_FILTER'])
 			{
-				$distinct = 'distinct';
+				$viewedUserId = static::getViewedUserId($sourceFilter, $userID);
+
+				$runtimeOptions = static::makeAccessFilterRuntimeOptions($sourceFilter, [
+					'USER_ID' => $userID,
+					'VIEWED_USER_ID' => $viewedUserId
+				]);
+				$arParams['ACCESS_FILTER_RUNTIME_OPTIONS'] = $runtimeOptions;
+
+				if ($viewedUserId == $userID)
+				{
+					$buildAccessSql = static::checkAccessSqlBuilding($sourceFilter, $runtimeOptions);
+				}
+			}
+
+			if ($buildAccessSql)
+			{
+				$accessSql = static::appendJoinRights($accessSql, $arParams);
 			}
 		}
 
+		// GET FILTER
 		$arParams['ENABLE_LEGACY_ACCESS'] = $disableAccessOptimization; // manual legacy access switch
 		$arSqlSearch = CTasks::GetFilter($arFilter, '', $arParams);
 
-		if ( ! $bGetZombie )
+		if (!$bGetZombie)
+		{
 			$arSqlSearch[] = " T.ZOMBIE = 'N' ";
+		}
 
 		$r = $obUserFieldsSql->GetFilter();
 		if (strlen($r) > 0)
@@ -4980,90 +5053,44 @@ class CTasks
 			$arSqlSearch[] = "(".$r.")";
 		}
 
-		$strSql = "
-			SELECT ".$distinct."
-				".implode(",\n", $arSqlSelect)."
-				".$obUserFieldsSql->GetSelect();
+		// GET GROUP BY
+		$strGroupBy = (!empty($arGroup)? 'GROUP BY ' . implode(',', $arGroup) : "");
 
-		$keysFiltered = CTasks::GetFilteredKeys($arFilter);
-
-		$bNeedJoinFavoritesTable = in_array('FAVORITE', $arSelect, true) || array_key_exists('FAVORITE', $arOrder) || in_array('FAVORITE', $keysFiltered, true);
-		$bNeedJoinStagesTable = in_array('STAGES_ID', $keysFiltered, true);
-		$bNeedJoinForumsTable = in_array('COMMENTS_COUNT', $arSelect, true) || in_array('FORUM_ID', $arSelect, true);
-		$bNeedJoinSortingTable = in_array('SORTING', $arSelect, true) || array_key_exists('SORTING', $arOrder) || in_array('SORTING', $keysFiltered, true);
-		$sortingGroupId = isset($arParams['SORTING_GROUP_ID']) && $arParams['SORTING_GROUP_ID'] > 0 ? $arParams['SORTING_GROUP_ID'] : false;
-
-		$accessSql = '';
-		if($useAccessAsJoin && static::needAccessRestriction($arFilter, $arParams))
-		{
-			$arParams['APPLY_FILTER'] = static::makePossibleForwardedFilter($arFilter);
-			$accessSql = static::appendJoinRights($accessSql, $arParams);
-		}
-
-		$viewedBy = $userID;
-		if(array_key_exists('VIEWED_BY', $arFilter))
-		{
-			if(intval($arFilter['VIEWED_BY']))
-			{
-				$viewedBy = intval($arFilter['VIEWED_BY']);
-			}
-		}
-
-		$strFrom = "
-			FROM
-				b_tasks T
-
-			".$accessSql."
-			".$additionalJoins."
-
-			INNER JOIN b_user CU ON CU.ID = T.CREATED_BY
-			INNER JOIN b_user RU ON RU.ID = T.RESPONSIBLE_ID
-			LEFT JOIN b_tasks_viewed TV ON TV.TASK_ID = T.ID
-				AND TV.USER_ID = " . $viewedBy . " "
-
-			// related joins
-			. ($bNeedJoinSortingTable ? "
-				LEFT JOIN ".SortingTable::getTableName()." SRT ON SRT.TASK_ID = T.ID and ".($sortingGroupId > 0 ? "SRT.GROUP_ID = ".$sortingGroupId : "SRT.USER_ID = ".$userID)
-				: "")
-
-			. ($bNeedJoinFavoritesTable ? "
-				LEFT JOIN ".FavoriteTable::getTableName()." FVT ON FVT.TASK_ID = T.ID and FVT.USER_ID = '".$userID/*always int, no sqli*/."'
-				" : "")
-
-			. ($bNeedJoinStagesTable ? "
-				INNER JOIN ".TaskStageTable::getTableName()." STG ON STG.TASK_ID = T.ID
-				" : "")
-
-			. ($bNeedJoinForumsTable ? "
-				LEFT JOIN b_forum_topic FT ON FT.ID = T.FORUM_TOPIC_ID
-				" : "")
-
-			// UF_* join
-			. $obUserFieldsSql->GetJoin("T.ID") . " "
-
-			// filter
-			. (sizeof($arSqlSearch) ? " WHERE ".implode(" AND ", $arSqlSearch) : "") . " ";
-
-		$strSql .= $strFrom;
-
-		if(!empty($arGroup))
-		{
-			$strSql .= ' GROUP BY '.join(',', $arGroup);
-		}
-
+		// GET ORDER BY
 		$strSqlOrder = "";
 		DelDuplicateSort($arSqlOrder);
 		for ($i = 0, $arSqlOrderCnt = count($arSqlOrder); $i < $arSqlOrderCnt; $i++)
 		{
 			if ($i == 0)
+			{
 				$strSqlOrder = " ORDER BY ";
+			}
 			else
+			{
 				$strSqlOrder .= ",";
+			}
 
 			$strSqlOrder .= $arSqlOrder[$i];
 		}
 
-		$strSql .= $strSqlOrder;
+		// BUILD QUERY
+		$strSql = "
+			SELECT " . $distinct . "
+			" . implode(",\n", $arSqlSelect) . "
+			" . $obUserFieldsSql->GetSelect();
+
+		$strFrom = "
+			FROM b_tasks T
+			" . $accessSql . "
+			" . $optimizedJoins . "
+			" . $relatedJoins . "
+			" . $obUserFieldsSql->GetJoin("T.ID") . "
+			" . (sizeof($arSqlSearch)? " WHERE " . implode(" AND ", $arSqlSearch) : "");
+
+		$strSql .= "
+			" . $strFrom . "
+			" . $strGroupBy . "
+			" . $strSqlOrder;
 
 		if (($nPageTop !== false) && is_numeric($nPageTop))
 		{
@@ -5113,42 +5140,810 @@ class CTasks
 		return $res;
 	}
 
-	private static function makePossibleForwardedMemberFilter($filter)
+	/**
+	 * Checks if we need to build access sql
+	 *
+	 * @param $sourceFilter
+	 * @param $runtimeOptions
+	 * @return bool
+	 */
+	private static function checkAccessSqlBuilding($sourceFilter, $runtimeOptions)
 	{
-		$result = array();
+		$fields = $runtimeOptions['FIELDS'];
+		$filters = $runtimeOptions['FILTERS'];
 
-		if(is_array($filter) && !empty($filter))
+		foreach (array_keys($fields) as $key)
 		{
-			// cannot forward filer with LOGIC OR or LOGIC NOT
-			if(array_key_exists('LOGIC', $filter) && $filter['LOGIC'] != 'AND')
+			if (preg_match('/^ROLE_/', $key))
 			{
-				return $result;
-			}
-			if(array_key_exists('::LOGIC', $filter) && $filter['::LOGIC'] != 'AND')
-			{
-				return $result;
-			}
-
-			/** @see \CTasks::GetSqlByFilter() */
-			if(array_key_exists('AUDITOR', $filter)) // we have equality to AUDITOR, not negation
-			{
-				$result[] = array(
-					'=TYPE' => 'U',
-					'=USER_ID' => $filter['AUDITOR'],
-				);
-			}
-			elseif(array_key_exists('ACCOMPLICE', $filter)) // we have equality to ACCOMPLICE, not negation
-			{
-				$result[] = array(
-					'=TYPE' => 'A',
-					'=USER_ID' => $filter['ACCOMPLICE'],
-				);
+				return false;
 			}
 		}
 
-		return $result;
+		if (array_key_exists('GROUP_ID', $sourceFilter) || array_key_exists('GROUP_ID', $filters))
+		{
+			return false;
+		}
+
+		return true;
 	}
 
+	/**
+	 * Returns related joins
+	 *
+	 * @param $select
+	 * @param $filter
+	 * @param $order
+	 * @param $params
+	 * @return array
+	 */
+	private static function getRelatedJoins($select, $filter, $order, $params)
+	{
+		$relatedJoins = [];
+
+		$userId = $params['USER_ID'];
+		$viewedBy = $params['VIEWED_BY'];
+		$sortingGroupId = $params['SORTING_GROUP_ID'];
+
+		$filterKeys = static::GetFilteredKeys($filter);
+		$possibleJoins = ['CREATOR', 'RESPONSIBLE', 'VIEWED', 'SORTING', 'FAVORITE', 'STAGES', 'FORUM'];
+
+		foreach ($possibleJoins as $join)
+		{
+			switch ($join)
+			{
+				case 'CREATOR':
+					if (
+						in_array('CREATED_BY_NAME', $select, true) ||
+						in_array('CREATED_BY_LAST_NAME', $select, true) ||
+						in_array('CREATED_BY_SECOND_NAME', $select, true) ||
+						in_array('CREATED_BY_LOGIN', $select, true) ||
+						in_array('CREATED_BY_WORK_POSITION', $select, true) ||
+						in_array('CREATED_BY_PHOTO', $select, true) ||
+						array_key_exists('ORIGINATOR_NAME', $order) ||
+						array_key_exists('CREATED_BY', $order)
+					)
+					{
+						$relatedJoins[] = "INNER JOIN " . UserTable::getTableName() . " CU ON CU.ID = T.CREATED_BY";
+					}
+					break;
+
+				case 'RESPONSIBLE':
+					if (
+						in_array('RESPONSIBLE_NAME', $select, true) ||
+						in_array('RESPONSIBLE_LAST_NAME', $select, true) ||
+						in_array('RESPONSIBLE_SECOND_NAME', $select, true) ||
+						in_array('RESPONSIBLE_LOGIN', $select, true) ||
+						in_array('RESPONSIBLE_WORK_POSITION', $select, true) ||
+						in_array('RESPONSIBLE_PHOTO', $select, true) ||
+						array_key_exists('RESPONSIBLE_NAME', $order) ||
+						array_key_exists('RESPONSIBLE_ID', $order)
+					)
+					{
+						$relatedJoins[] = "INNER JOIN " . UserTable::getTableName() . " RU ON RU.ID = T.RESPONSIBLE_ID";
+					}
+					break;
+
+				case 'VIEWED':
+					if (
+						in_array('STATUS', $select, true) ||
+						in_array('NOT_VIEWED', $select, true) ||
+						in_array('VIEWED_DATE', $select, true) ||
+						in_array('STATUS', $filterKeys, true) ||
+						in_array('VIEWED_BY', $filterKeys, true)
+					)
+					{
+						$relatedJoins[] = "LEFT JOIN " . ViewedTable::getTableName() . " TV ON TV.TASK_ID = T.ID AND TV.USER_ID = " . $viewedBy;
+					}
+					break;
+
+				case 'SORTING':
+					if (
+						in_array('SORTING', $select, true) ||
+						in_array('SORTING', $filterKeys, true) ||
+						array_key_exists('SORTING', $order)
+					)
+					{
+						$relatedJoins[] = "LEFT JOIN " . SortingTable::getTableName() . " SRT ON SRT.TASK_ID = T.ID AND " .
+							($sortingGroupId > 0? "SRT.GROUP_ID = " . $sortingGroupId : "SRT.USER_ID = " . $userId);
+					}
+					break;
+
+				case 'FAVORITE':
+					if (
+						in_array('FAVORITE', $select, true) ||
+						in_array('FAVORITE', $filterKeys, true) ||
+						array_key_exists('FAVORITE', $order)
+					)
+					{
+						$relatedJoins[] = "LEFT JOIN " . FavoriteTable::getTableName() . " FVT ON FVT.TASK_ID = T.ID AND FVT.USER_ID = " . $userId;
+					}
+					break;
+
+				case 'STAGES':
+					if (in_array('STAGES_ID', $filterKeys, true))
+					{
+						$relatedJoins[] = "INNER JOIN " . TaskStageTable::getTableName() . " STG ON STG.TASK_ID = T.ID";
+					}
+					break;
+
+				case 'FORUM':
+					if (
+						in_array('COMMENTS_COUNT', $select, true) ||
+						in_array('FORUM_ID', $select, true)
+					)
+					{
+						$relatedJoins[] = "LEFT JOIN b_forum_topic FT ON FT.ID = T.FORUM_TOPIC_ID";
+					}
+					break;
+			}
+		}
+
+		return $relatedJoins;
+	}
+
+	/**
+	 * Creates filter runtime options from given sub filter
+	 *
+	 * @param $filter
+	 * @param $parameters
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function makeAccessFilterRuntimeOptions($filter, $parameters)
+	{
+		$runtimeOptions = [
+			'FIELDS' => [],
+			'FILTERS' => []
+		];
+
+		$fields = [
+			// ROLES
+			'CREATED_BY' => true,
+			'RESPONSIBLE_ID' => true,
+			'ACCOMPLICE' => true,
+			'AUDITOR' => true,
+			'ROLEID' => true,
+
+			// TASK FIELDS
+			'ID' => true,
+			'TITLE' => true,
+			'PRIORITY' => true,
+			'STATUS' => true,
+			'GROUP_ID' => true,
+			'TAG' => true,
+			'MARK' => true,
+			'ALLOW_TIME_TRACKING' => true,
+
+			// DATES
+			'DEADLINE' => true,
+			'CREATED_DATE' => true,
+			'CLOSED_DATE' => true,
+			'DATE_START' => true,
+			'START_DATE_PLAN' => true,
+			'END_DATE_PLAN' => true,
+
+			// DIFFICULT PARAMS
+			'ACTIVE' => true,
+			'PARAMS' => true,
+			'PROBLEM' => true,
+		];
+
+		if (is_array($filter) && !empty($filter))
+		{
+			foreach ($filter as $key => $value)
+			{
+				$newKey = substr((string)$key, 12);
+
+				if ($newKey && $fields[$newKey])
+				{
+					$fieldRuntimeOptions = static::getFieldRuntimeOptions($newKey, $value, $parameters);
+
+					$runtimeOptions['FIELDS'] = array_merge($runtimeOptions['FIELDS'], $fieldRuntimeOptions['FIELDS']);
+					$runtimeOptions['FILTERS'] = array_merge($runtimeOptions['FILTERS'], $fieldRuntimeOptions['FILTERS']);
+				}
+			}
+		}
+
+		return $runtimeOptions;
+	}
+
+	/**
+	 * Returns field's runtime options
+	 *
+	 * @param $key
+	 * @param $value
+	 * @param $parameters
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ObjectException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getFieldRuntimeOptions($key, $value, $parameters)
+	{
+		$runtimeOptions = [
+			'FIELDS' => [],
+			'FILTERS' => []
+		];
+		$dates = ['DEADLINE', 'CREATED_DATE', 'CLOSED_DATE', 'DATE_START', 'START_DATE_PLAN', 'END_DATE_PLAN'];
+
+		switch ($key)
+		{
+			case 'ID':
+			case 'TITLE':
+			case 'PRIORITY':
+			case 'MARK':
+			case 'ALLOW_TIME_TRACKING':
+			case 'DEADLINE':
+			case 'CREATED_DATE':
+			case 'CLOSED_DATE':
+			case 'DATE_START':
+			case 'START_DATE_PLAN':
+			case 'END_DATE_PLAN':
+				foreach ($value as $name => $val)
+				{
+					if (in_array($key, $dates))
+					{
+						$val = new Type\DateTime($val);
+					}
+
+					$fieldKeyData = static::parseFieldKey($name, $key);
+					$runtimeOptions['FILTERS'][$key] = Query::filter()->where($key, $fieldKeyData['OPERATOR'], $val);
+				}
+				break;
+
+			case 'CREATED_BY':
+			case 'RESPONSIBLE_ID':
+			case 'GROUP_ID':
+				$fieldKeyData = static::parseFieldKey(key($value), $key, 'in');
+				$runtimeOptions['FILTERS'][$key] = Query::filter()->where($key, $fieldKeyData['OPERATOR'], current($value));
+				break;
+
+			case 'STATUS':
+				if (!empty($value['REAL_STATUS']))
+				{
+					$runtimeOptions['FILTERS'][$key] = Query::filter()->where($key, 'in', $value['REAL_STATUS']);
+				}
+				break;
+
+			case 'ACCOMPLICE':
+			case 'AUDITOR':
+			case 'TAG':
+				$parameters['USER_ID'] = $parameters['NAME'] = current($value);
+				$parameters['TYPE_CONDITION'] = true;
+
+				$runtimeOptions['FILTERS'][$key] = Query::filter()->whereExists(static::getSelectionExpressionByType($key, $parameters));
+				break;
+
+			case 'ROLEID':
+			case 'PROBLEM':
+				if ($key == 'ROLEID')
+				{
+					$filterOptions = static::getFilterOptionsFromRoleField($value);
+				}
+				else
+				{
+					$filterOptions = static::getFilterOptionsFromProblemField($value, $parameters);
+				}
+
+				$runtimeOptions['FIELDS'] = $filterOptions['FIELDS'];
+				$runtimeOptions['FILTERS'] = $filterOptions['FILTERS'];
+				break;
+
+			case 'ACTIVE':
+				$date = $value[$key];
+				$dateStart = $dateEnd = false;
+
+				if (MakeTimeStamp($date['START']) > 0)
+				{
+					$dateStart = new Type\DateTime($date['START']);
+				}
+				if (MakeTimeStamp($date['END']))
+				{
+					$dateEnd = new Type\DateTime($date['END']);
+				}
+
+				if ($dateStart !== false && $dateEnd !== false)
+				{
+					$runtimeOptions['FILTERS'][$key] = Query::filter()->where(
+						Query::filter()
+							->logic('or')
+							->where(
+								Query::filter()
+									->where('CREATED_DATE', '>=', $dateStart)
+									->where('CLOSED_DATE', '<=', $dateEnd)
+							)
+							->where(
+								Query::filter()
+									->where('CHANGED_DATE', '>=', $dateStart)
+									->where('CHANGED_DATE', '<=', $dateEnd)
+							)
+							->where(
+								Query::filter()
+									->where('CREATED_DATE', '<=', $dateStart)
+									->where('CLOSED_DATE', '=', null)
+							)
+					);
+				}
+				break;
+
+			case 'PARAMS':
+				foreach ($value as $name => $val)
+				{
+					$fieldKeyData = static::parseFieldKey($name);
+					$fieldName = $fieldKeyData['FIELD_NAME'];
+
+					if ($fieldName == 'MARK' || $fieldName == 'ADD_IN_REPORT')
+					{
+						$operator = $fieldKeyData['OPERATOR'];
+						$runtimeOptions['FILTERS'][$fieldName] = Query::filter()->where($fieldName, $operator, $val);
+					}
+					else if ($fieldName == 'FAVORITE')
+					{
+						$runtimeOptions['FIELDS'][$fieldName] = new Entity\ReferenceField(
+							'FVT',
+							FavoriteTable::class,
+							Join::on('ref.TASK_ID', 'this.ID')
+								->where('ref.USER_ID', $parameters['USER_ID'])
+						);
+						$runtimeOptions['FILTERS'][$fieldName] = Query::filter()->where('FVT.TASK_ID', '!=', null);
+					}
+					else if ($fieldName == 'OVERDUED')
+					{
+						$runtimeOptions['FILTERS'][$fieldName] = Query::filter()
+							->where('DEADLINE', '!=', null)
+							->where('CLOSED_DATE', '!=', null)
+							->whereColumn('DEADLINE', '<', 'CLOSED_DATE');
+					}
+				}
+				break;
+		}
+
+		return $runtimeOptions;
+	}
+
+	/**
+	 * Tries to parse string like '>=DEADLINE' to separate operator '>=' suitable for orm and pure name 'DEADLINE'
+	 *
+	 * @param $key
+	 * @param string $fieldName
+	 * @param string $defaultOperator
+	 * @return array
+	 */
+	private static function parseFieldKey($key, $fieldName = '', $defaultOperator = '=')
+	{
+		$operators = [
+			'>=' => '>=',
+			'<=' => '<=',
+			'!=' => '!=',
+			'=%' => 'like',
+			'%=' => 'like',
+			'=' => '=',
+			'>' => '>',
+			'<' => '<',
+			'!' => '!='
+		];
+
+		if ($fieldName)
+		{
+			$operator = str_replace($fieldName, '', $key);
+			$operator = ($operator && isset($operators[$operator])? $operators[$operator] : $defaultOperator);
+		}
+		else
+		{
+			$pattern = '/^(' . implode('|', array_keys($operators)) . ')/';
+			$matches = [];
+
+			preg_match($pattern, $key, $matches);
+
+			if (!empty($matches))
+			{
+				$operator = $operators[$matches[0]];
+				$fieldName = str_replace($matches[0], '', $key);
+			}
+			else
+			{
+				$operator = $defaultOperator;
+				$fieldName = $key;
+			}
+		}
+
+		return [
+			'OPERATOR' => $operator,
+			'FIELD_NAME' => $fieldName
+		];
+	}
+
+	/**
+	 * Returns role field type based on its conditions
+	 *
+	 * @param $role
+	 * @return string
+	 */
+	private static function getRoleFieldType($role)
+	{
+		if (array_key_exists('MEMBER', $role))
+		{
+			return 'MEMBER';
+		}
+
+		if (array_key_exists('=CREATED_BY', $role))
+		{
+			return 'CREATED_BY';
+		}
+
+		if (array_key_exists('=RESPONSIBLE_ID', $role))
+		{
+			return 'RESPONSIBLE_ID';
+		}
+
+		if (array_key_exists('=ACCOMPLICE', $role))
+		{
+			return 'ACCOMPLICE';
+		}
+
+		if (array_key_exists('=AUDITOR', $role))
+		{
+			return 'AUDITOR';
+		}
+
+		return '';
+	}
+
+	/**
+	 * Returns problem field type based on its conditions
+	 *
+	 * @param $problem
+	 * @return string
+	 */
+	private static function getProblemFieldType($problem)
+	{
+		if (array_key_exists('DEADLINE', $problem))
+		{
+			return 'WITHOUT_DEADLINE';
+		}
+
+		if (array_key_exists('VIEWED', $problem))
+		{
+			return 'NOT_VIEWED';
+		}
+
+		if (array_key_exists('>=DEADLINE', $problem) && array_key_exists('<=DEADLINE', $problem))
+		{
+			return 'ALMOST_OVERDUE';
+		}
+
+		if (count($problem) == 1 && array_key_exists('<=DEADLINE', $problem))
+		{
+			return 'OVERDUE';
+		}
+
+		if (count($problem) == 1 && array_key_exists('REAL_STATUS', $problem))
+		{
+			return 'DEFERRED';
+		}
+
+		if (array_key_exists('REAL_STATUS', $problem))
+		{
+			return 'SUPPOSEDLY_COMPLETED';
+		}
+
+		return '';
+	}
+
+	/**
+	 * Returns filter options of role filter field
+	 *
+	 * @param $role
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getFilterOptionsFromRoleField($role)
+	{
+		$fields = [];
+		$filters = [];
+
+		$key = 'ROLE_';
+		$roleType = static::getRoleFieldType($role);
+		$userId = $role[($roleType == 'MEMBER'? '' : '=') . $roleType];
+
+		$referenceFilter = Query::filter()
+			->whereColumn('ref.TASK_ID', 'this.ID')
+			->where('ref.USER_ID', $userId);
+
+		switch ($roleType)
+		{
+			case 'MEMBER':
+				$fields[$key . $roleType] = static::getMemberTableReferenceField($referenceFilter);
+				break;
+
+			case 'CREATED_BY':
+			case 'RESPONSIBLE_ID':
+			case 'ACCOMPLICE':
+			case 'AUDITOR':
+				$map = [
+					'CREATED_BY' => 'O',
+					'RESPONSIBLE_ID' => 'R',
+					'ACCOMPLICE' => 'A',
+					'AUDITOR' => 'U'
+				];
+				$referenceFilter->where('ref.TYPE', $map[$roleType]);
+
+				$fields[$key . $roleType] = static::getMemberTableReferenceField($referenceFilter);
+
+				if ($roleType == 'CREATED_BY')
+				{
+					$filters[$key . $roleType] = Query::filter()->whereColumn('CREATED_BY', '!=', 'RESPONSIBLE_ID');
+				}
+				break;
+		}
+
+		return [
+			'FIELDS' => $fields,
+			'FILTERS' => $filters
+		];
+	}
+
+	/**
+	 * Returns reference field for joining member table
+	 *
+	 * @param $referenceFilter
+	 * @return Entity\ReferenceField
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getMemberTableReferenceField($referenceFilter)
+	{
+		$joinOn = $referenceFilter;
+		$joinType = ['join_type' => 'inner'];
+
+		return new Entity\ReferenceField('TM', MemberTable::class, $joinOn, $joinType);
+	}
+
+	/**
+	 * Returns filter options of problem filter field
+	 *
+	 * @param $problem
+	 * @param $parameters
+	 * @return array
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	private static function getFilterOptionsFromProblemField($problem, $parameters)
+	{
+		$fields = [];
+		$filters = [];
+
+		$problemType = static::getProblemFieldType($problem);
+
+		switch ($problemType)
+		{
+			case 'WITHOUT_DEADLINE':
+				$filter = Query::filter();
+				$userId = $parameters['VIEWED_USER_ID'];
+
+				$parsedFilter = static::parseLogicProblemFilter($problem);
+				foreach ($parsedFilter as $key => $value)
+				{
+					if (!is_numeric($key))
+					{
+						$filter->where('DEADLINE', null);
+						unset($parsedFilter[$key]);
+					}
+				}
+
+				if (!empty($parsedFilter))
+				{
+					$filter->where(
+						Query::filter()
+							->logic('or')
+							->where(
+								Query::filter()
+									->where('CREATED_BY', '!=', $userId)
+									->where('RESPONSIBLE_ID', $userId)
+							)
+							->where(
+								Query::filter()
+									->where('CREATED_BY', $userId)
+									->where('RESPONSIBLE_ID', '!=', $userId)
+							)
+					);
+				}
+
+				$filters[$problemType] = $filter;
+				break;
+
+			case 'OVERDUE':
+			case 'DEFERRED':
+			case 'SUPPOSEDLY_COMPLETED':
+				$filter = Query::filter();
+
+				foreach ($problem as $key => $value)
+				{
+					$fieldKeyData = static::parseFieldKey($key);
+
+					if ($fieldKeyData['FIELD_NAME'] == 'REAL_STATUS')
+					{
+						$fieldKeyData['FIELD_NAME'] = 'STATUS';
+					}
+
+					$filter->where($fieldKeyData['FIELD_NAME'], $fieldKeyData['OPERATOR'], $value);
+				}
+
+				$filters[$problemType] = $filter;
+				break;
+
+			case 'NOT_VIEWED':
+				$filter = Query::filter();
+				$userId = ($problem['VIEWED_BY']? : $parameters['USER_ID']);
+
+				$parameters['USER_ID'] = [$userId];
+				$parameters['TYPE_CONDITION'] = true;
+
+				$fields[$problemType] = new Entity\ReferenceField(
+					'TV',
+					ViewedTable::class,
+					Join::on('ref.TASK_ID', 'this.ID')
+						->where('ref.USER_ID', $userId)
+				);
+
+				$filter->where('TV.USER_ID', null);
+				$filter->where('STATUS', 'in', [1, 2]);
+
+				unset($problem['VIEWED']);
+				unset($problem['VIEWED_BY']);
+
+				if (!empty($problem))
+				{
+					$filter->where(
+						Query::filter()
+							->logic('or')
+							->where('RESPONSIBLE_ID', $userId)
+							->whereExists(static::getSelectionExpressionByType('ACCOMPLICE', $parameters))
+					);
+				}
+
+				$filters[$problemType] = $filter;
+				break;
+
+			case 'ALMOST_OVERDUE':
+				$filter = Query::filter();
+				$userId = $parameters['VIEWED_USER_ID'];
+
+				$parameters['USER_ID'] = [$userId];
+				$parameters['TYPE_CONDITION'] = true;
+
+				$parsedFilter = static::parseLogicProblemFilter($problem);
+				foreach ($parsedFilter as $key => $value)
+				{
+					if (!is_numeric($key))
+					{
+						$fieldKeyData = static::parseFieldKey($key);
+						$filter->where($fieldKeyData['FIELD_NAME'], $fieldKeyData['OPERATOR'], $value);
+
+						unset($parsedFilter[$key]);
+					}
+				}
+
+				if (!empty($parsedFilter))
+				{
+					$filter->where(
+						Query::filter()
+							->logic('or')
+							->where('RESPONSIBLE_ID', $userId)
+							->whereExists(static::getSelectionExpressionByType('ACCOMPLICE', $parameters))
+					);
+				}
+
+				$filters[$problemType] = $filter;
+				break;
+
+			case '':
+			default:
+				// empty result returns
+				break;
+		}
+
+		return [
+			'FIELDS' => $fields,
+			'FILTERS' => $filters
+		];
+	}
+
+	/**
+	 * Parse logic filter
+	 *
+	 * @param $problem
+	 * @return array
+	 */
+	private static function parseLogicProblemFilter($problem)
+	{
+		$filters = [];
+
+		foreach ($problem as $key => $condition)
+		{
+			if (static::isSubFilterKey($key))
+			{
+				$filters[] = static::parseLogicProblemFilter($condition);
+				continue;
+			}
+
+			if ($key == '::LOGIC')
+			{
+				$filters['LOGIC'] = $condition;
+				continue;
+			}
+
+			$filters[$key] = $condition;
+		}
+
+		return $filters;
+	}
+
+	/**
+	 * Gets selection sql expression by expression type
+	 *
+	 * @param $type
+	 * @param $parameters
+	 * @return \Bitrix\Main\DB\SqlExpression|string
+	 */
+	private static function getSelectionExpressionByType($type, $parameters)
+	{
+		try
+		{
+			switch ($type)
+			{
+				case 'MEMBER':
+				case 'ACCOMPLICE':
+				case 'AUDITOR':
+					$userIdsConditions = [];
+					foreach ($parameters['USER_ID'] as $userId)
+					{
+						$userIdsConditions[] = "(TM.USER_ID = '" . intval($userId) . "')";
+					}
+					$typeCondition = ($parameters['TYPE_CONDITION'] ? ' AND TM.TYPE = ?s' : '');
+
+					$sql = new \Bitrix\Main\DB\SqlExpression(
+						'SELECT TM.?# FROM ?# TM WHERE TM.?# = ?#.ID AND (' . implode(" OR ", $userIdsConditions) . ')' . $typeCondition,
+						'TASK_ID',
+						'b_tasks_member',
+						'TASK_ID',
+						'tasks_internals_task',
+						($type == 'ACCOMPLICE' ? 'A' : 'U')
+					);
+					break;
+
+				case 'TAG':
+					$sql = new \Bitrix\Main\DB\SqlExpression(
+						'SELECT TT.?# FROM ?# TT WHERE TT.?# = ?#.ID AND TT.NAME = ?s',
+						'TASK_ID',
+						'b_tasks_tag',
+						'TASK_ID',
+						'tasks_internals_task',
+						$parameters['NAME']
+					);
+					break;
+
+				default:
+					$sql = '';
+					break;
+			}
+		}
+		catch (Exception $ex)
+		{
+			$sql = '';
+		}
+
+		return $sql;
+	}
+
+	/**
+	 * @param $filter
+	 * @return array
+	 */
 	private static function makePossibleForwardedFilter($filter)
 	{
 		$result = array();
@@ -5268,47 +6063,62 @@ class CTasks
 			$arFilter["SUBORDINATE_TASKS"] != "Y"; // and not rights via subordination
 	}
 
-	function GetRootSubquery($arFilter=array(), $bGetZombie = false, $aliasPrefix = '')
+	/**
+	 * @param array $filter
+	 * @param bool $getZombie
+	 * @param string $aliasPrefix
+	 * @param array $params
+	 * @return string
+	 */
+	private static function GetRootSubQuery($filter = [], $getZombie = false, $aliasPrefix = '', $params = [])
 	{
-		$userID = User::getId();
+		$joins = [];
+		$filter = (isset($params['SOURCE_FILTER'])? $params['SOURCE_FILTER'] : $filter);
+		$userId = (isset($params['USER_ID'])? $params['USER_ID'] : User::getId());
 
-		$arSqlSearch = array("(PT.ID = ".$aliasPrefix."T.PARENT_ID)");
+		$sqlSearch = ["(PT.ID = " . $aliasPrefix . "T.PARENT_ID)"];
 
-		if ( ! $bGetZombie )
-			$arSqlSearch[] = " (PT.ZOMBIE = 'N') ";
-
-		if ($arFilter["SAME_GROUP_PARENT"] == "Y")
+		if (!$getZombie)
 		{
-			$arSqlSearch[] = "(PT.GROUP_ID = ".$aliasPrefix."T.GROUP_ID
-				OR (PT.GROUP_ID IS NULL AND ".$aliasPrefix."T.GROUP_ID IS NULL)
-				OR (PT.GROUP_ID IS NULL AND ".$aliasPrefix."T.GROUP_ID = 0)
-				OR (PT.GROUP_ID = 0 AND ".$aliasPrefix."T.GROUP_ID IS NULL)
-			)";
+			$sqlSearch[] = " (PT.ZOMBIE = 'N') ";
 		}
-		unset($arFilter["ONLY_ROOT_TASKS"], $arFilter["SAME_GROUP_PARENT"]);
 
-		$arSqlSearch = array_merge($arSqlSearch, CTasks::GetFilter($arFilter, "P"));
-		$keysFiltered = CTasks::GetFilteredKeys($arFilter);
+		if ($filter["SAME_GROUP_PARENT"] == "Y")
+		{
+			$sqlSearch[] = "(PT.GROUP_ID = " . $aliasPrefix . "T.GROUP_ID
+				OR (PT.GROUP_ID IS NULL AND " . $aliasPrefix . "T.GROUP_ID IS NULL)
+				OR (PT.GROUP_ID IS NULL AND " . $aliasPrefix . "T.GROUP_ID = 0)
+				OR (PT.GROUP_ID = 0 AND " . $aliasPrefix . "T.GROUP_ID IS NULL)
+				)";
+		}
 
-		$bNeedJoinFavoritesTable = in_array('FAVORITE', $keysFiltered, true);
+		unset($filter["ONLY_ROOT_TASKS"], $filter["SAME_GROUP_PARENT"]);
+
+		$sourceFilter = $filter;
+		$optimized = static::tryOptimizeFilter($filter, 'PT', 'PTM_SPEC');
+		$sqlSearch = array_merge($sqlSearch, CTasks::GetFilter($optimized['FILTER'], "P"));
+		$keysFiltered = CTasks::GetFilteredKeys($sourceFilter);
+
+		if (
+			in_array('STATUS', $keysFiltered, true) ||
+			in_array('VIEWED_BY', $keysFiltered, true)
+		)
+		{
+			$joins[] = "LEFT JOIN " . ViewedTable::getTableName() . " PTV ON PTV.TASK_ID = PT.ID AND PTV.USER_ID = {$userId}";
+		}
+		if (in_array('FAVORITE', $keysFiltered, true))
+		{
+			$joins[] = "LEFT JOIN " . FavoriteTable::getTableName() . " PFVT ON PFVT.TASK_ID = PT.ID AND PFVT.USER_ID = {$userId}";
+		}
+
+		$joins = array_merge($joins, $optimized['JOINS']);
 
 		$strSql = "
-			SELECT
-				'x'
-			FROM
-				b_tasks PT
-			LEFT JOIN
-				b_tasks_viewed PTV ON PTV.TASK_ID = PT.ID AND PTV.USER_ID = ".$userID."
-
-			". ($bNeedJoinFavoritesTable ? "
-				LEFT JOIN ".FavoriteTable::getTableName()." PFVT ON PFVT.TASK_ID = PT.ID and PFVT.USER_ID = '".$userID/*always int, no sqli*/."'
-				" : "")."
-
-			WHERE
-				".implode(" AND ", $arSqlSearch)."
+			SELECT 'x'
+			FROM b_tasks PT
+			" . implode("\n", $joins) . "
+			WHERE " . implode(" AND ", $sqlSearch) . "
 		";
-
-		//echo $strSql;
 
 		return $strSql;
 	}
@@ -5460,16 +6270,9 @@ class CTasks
 				INNER JOIN b_user RU ON RU.ID = T.RESPONSIBLE_ID ";
 		}
 
-		if ( ! $bSkipJoinTblViewed )
+		if (!$bSkipJoinTblViewed)
 		{
-			$viewedBy = $userID;
-			if(array_key_exists('VIEWED_BY', $arFilter))
-			{
-				if(intval($arFilter['VIEWED_BY']))
-				{
-					$viewedBy = intval($arFilter['VIEWED_BY']);
-				}
-			}
+			$viewedBy = static::getViewedBy($arFilter, $userID);
 
 			$strSql .= "\n LEFT JOIN
 				b_tasks_viewed TV ON TV.TASK_ID = T.ID AND TV.USER_ID = " . $viewedBy;
@@ -5501,6 +6304,42 @@ class CTasks
 		return $res;
 	}
 
+	private static function makePossibleForwardedMemberFilter($filter)
+	{
+		$result = array();
+
+		if (is_array($filter) && !empty($filter))
+		{
+			// cannot forward filer with LOGIC OR or LOGIC NOT
+			if (array_key_exists('LOGIC', $filter) && $filter['LOGIC'] != 'AND')
+			{
+				return $result;
+			}
+			if (array_key_exists('::LOGIC', $filter) && $filter['::LOGIC'] != 'AND')
+			{
+				return $result;
+			}
+
+			/** @see \CTasks::GetSqlByFilter() */
+			if (array_key_exists('AUDITOR', $filter)) // we have equality to AUDITOR, not negation
+			{
+				$result[] = [
+					'=TYPE' => 'U',
+					'=USER_ID' => $filter['AUDITOR'],
+				];
+			}
+			else if (array_key_exists('ACCOMPLICE', $filter)) // we have equality to ACCOMPLICE, not negation
+			{
+				$result[] = [
+					'=TYPE' => 'A',
+					'=USER_ID' => $filter['ACCOMPLICE'],
+				];
+			}
+		}
+
+		return $result;
+	}
+
 	private static function appendJoinRights($sql, $arParams)
 	{
 		$arParams['THIS_TABLE_ALIAS'] = 'T';
@@ -5515,71 +6354,192 @@ class CTasks
 		return $sql;
 	}
 
-	private static function tryOptimizeFilter(array $arFilter)
+	/**
+	 * Optimizes filter
+	 *
+	 * @param array $filter
+	 * @param $sourceTableAlias
+	 * @param $joinTableAlias
+	 * @return array
+	 */
+	private static function tryOptimizeFilter(array $filter, $sourceTableAlias = 'T', $joinTableAlias = 'TM')
 	{
-		$additionalJoins = array();
+		$additionalJoins = [];
+		$roleKey = '::SUBFILTER-ROLEID';
+
+		$joinAlias = $joinTableAlias;
+		$sourceAlias = $sourceTableAlias;
 
 		// get rid of ::SUBFILTER-ROOT if can
-		if(array_key_exists('::SUBFILTER-ROOT', $arFilter) && count($arFilter) == 1)
+		if (array_key_exists('::SUBFILTER-ROOT', $filter) && count($filter) == 1)
 		{
-			if($arFilter['::LOGIC'] != 'OR')
+			if ($filter['::LOGIC'] != 'OR')
 			{
 				// we have only one element in the root, and logic is not "OR". then we could remove subfilter-root
-				$arFilter = $arFilter['::SUBFILTER-ROOT'];
+				$filter = $filter['::SUBFILTER-ROOT'];
 			}
 		}
 
 		// we can optimize only if there is no "or-logic"
-		if($arFilter['::LOGIC'] != 'OR' && $arFilter['LOGIC'] != 'OR')
+		if ($filter['::LOGIC'] != 'OR' && $filter['LOGIC'] != 'OR')
 		{
-			if(array_key_exists('MEMBER', $arFilter))
+			// MEMBER
+			if (array_key_exists('MEMBER', $filter) || isset($filter[$roleKey]) && array_key_exists('MEMBER', $filter[$roleKey]))
 			{
-				$member = intval($arFilter['MEMBER']);
-				unset($arFilter['MEMBER']);
-
-				$additionalJoins[] = "
-				inner join b_tasks_member TM_SPEC on TM_SPEC.TASK_ID = T.ID and TM_SPEC.USER_ID = '".$member."'
-			";
-			}
-			elseif(array_key_exists('DOER', $arFilter))
-			{
-				$member = intval($arFilter['DOER']);
-				unset($arFilter['DOER']);
-
-				$additionalJoins[] = "
-				inner join b_tasks_member TM_SPEC on TM_SPEC.TASK_ID = T.ID and TM_SPEC.USER_ID = '".$member."' and TM_SPEC.TYPE in ('R', 'A')
-			";
-			}
-			elseif(array_key_exists('AUDITOR', $arFilter)) // we have equality to AUDITOR, not negation
-			{
-				if(!is_array($arFilter['AUDITOR'])) // we have single value, not array which will cause "in ()" instead of =
+				if (array_key_exists('MEMBER', $filter))
 				{
-					$auditor = intval($arFilter['AUDITOR']);
-					unset($arFilter['AUDITOR']);
+					$member = intval($filter['MEMBER']);
+					unset($filter['MEMBER']);
+				}
+				else
+				{
+					$member = intval($filter[$roleKey]['MEMBER']);
+					unset($filter[$roleKey]);
+				}
 
-					$additionalJoins[] = "
-					inner join b_tasks_member TM_SPEC on TM_SPEC.TASK_ID = T.ID and TM_SPEC.USER_ID = '".$auditor."' and TM_SPEC.TYPE = 'U'
-				";
+				$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$member}";
+			}
+			// DOER
+			else if (array_key_exists('DOER', $filter))
+			{
+				$doer = intval($filter['DOER']);
+				unset($filter['DOER']);
+
+				$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$doer} AND {$joinAlias}.TYPE in ('R', 'A')";
+			}
+			// RESPONSIBLE
+			else if (isset($filter[$roleKey]) && array_key_exists('=RESPONSIBLE_ID', $filter[$roleKey]))
+			{
+				$responsible = $filter[$roleKey]['=RESPONSIBLE_ID'];
+				unset($filter[$roleKey]);
+
+				$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$responsible} AND {$joinAlias}.TYPE = 'R'";
+			}
+			// CREATOR
+			else if (isset($filter[$roleKey]) && array_key_exists('=CREATED_BY', $filter[$roleKey]))
+			{
+				$creator = $filter[$roleKey]['=CREATED_BY'];
+				unset($filter[$roleKey]['=CREATED_BY']);
+
+				if (!empty($filter[$roleKey]))
+				{
+					$filter += $filter[$roleKey];
+				}
+				unset($filter[$roleKey]);
+
+				$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$creator} AND {$joinAlias}.TYPE = 'O'";
+			}
+			// ACCOMPLICE
+			else if (array_key_exists('ACCOMPLICE', $filter) || isset($filter[$roleKey]) && array_key_exists('=ACCOMPLICE', $filter[$roleKey]))
+			{
+				if (array_key_exists('ACCOMPLICE', $filter))
+				{
+					if (!is_array($filter['ACCOMPLICE'])) // we have single value, not array which will cause "in ()" instead of =
+					{
+						$accomplice = intval($filter['ACCOMPLICE']);
+						unset($filter['ACCOMPLICE']);
+
+						$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$accomplice} AND {$joinAlias}.TYPE = 'A'";
+					}
+				}
+				else
+				{
+					if (!is_array($filter[$roleKey]['=ACCOMPLICE']))
+					{
+						$accomplice = intval($filter[$roleKey]['=ACCOMPLICE']);
+						unset($filter[$roleKey]);
+
+						$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$accomplice} AND {$joinAlias}.TYPE = 'A'";
+					}
 				}
 			}
-			elseif(array_key_exists('ACCOMPLICE', $arFilter)) // we have equality to ACCOMPLICE, not negation
+			// AUDITOR
+			else if (array_key_exists('AUDITOR', $filter) || isset($filter[$roleKey]) && array_key_exists('=AUDITOR', $filter[$roleKey]))
 			{
-				if(!is_array($arFilter['ACCOMPLICE'])) // we have single value, not array which will cause "in ()" instead of =
+				if (array_key_exists('AUDITOR', $filter))
 				{
-					$auditor = intval($arFilter['ACCOMPLICE']);
-					unset($arFilter['ACCOMPLICE']);
+					if (!is_array($filter['AUDITOR'])) // we have single value, not array which will cause "in ()" instead of =
+					{
+						$auditor = intval($filter['AUDITOR']);
+						unset($filter['AUDITOR']);
 
-					$additionalJoins[] = "
-					inner join b_tasks_member TM_SPEC on TM_SPEC.TASK_ID = T.ID and TM_SPEC.USER_ID = '".$auditor."' and TM_SPEC.TYPE = 'A'
-				";
+						$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$auditor} AND {$joinAlias}.TYPE = 'U'";
+					}
+				}
+				else
+				{
+					if (!is_array($filter[$roleKey]['=AUDITOR']))
+					{
+						$auditor = intval($filter[$roleKey]['=AUDITOR']);
+						unset($filter[$roleKey]);
+
+						$additionalJoins[] = "INNER JOIN b_tasks_member {$joinAlias} ON {$joinAlias}.TASK_ID = {$sourceAlias}.ID AND {$joinAlias}.USER_ID = {$auditor} AND {$joinAlias}.TYPE = 'U'";
+					}
 				}
 			}
 		}
 
-		return array(
-			'FILTER' => $arFilter,
+		return [
+			'FILTER' => $filter,
 			'JOINS' => $additionalJoins,
-		);
+		];
+	}
+
+	/**
+	 * Gets user's id task list we are looking at
+	 *
+	 * @param $filter
+	 * @param $currentUserId
+	 * @return mixed
+	 */
+	private static function getViewedUserId($filter, $currentUserId)
+	{
+		$viewedBy = static::getViewedBy($filter, $currentUserId);
+
+		if ($viewedBy !== $currentUserId)
+		{
+			$viewedUserId = $viewedBy;
+		}
+		else
+		{
+			if (array_key_exists('::SUBFILTER-ROLEID', $filter) && !empty($filter['::SUBFILTER-ROLEID']))
+			{
+				$viewedUserId = current($filter['::SUBFILTER-ROLEID']);
+			}
+			else
+			{
+				$viewedUserId = $currentUserId;
+			}
+		}
+
+		return $viewedUserId;
+	}
+
+	/**
+	 * Get user id b_tasks_viewed table joined on by filter or default value if filter haven't VIEWED_BY option
+	 *
+	 * @param $filter
+	 * @param $defaultValue
+	 * @return int
+	 */
+	private static function getViewedBy($filter, $defaultValue)
+	{
+		$viewedBy = $defaultValue;
+
+		if (
+			array_key_exists('::SUBFILTER-PROBLEM', $filter) &&
+			array_key_exists('VIEWED_BY', $filter['::SUBFILTER-PROBLEM']) &&
+			intval($filter['::SUBFILTER-PROBLEM']['VIEWED_BY'])
+		)
+		{
+			$viewedBy = intval($filter['::SUBFILTER-PROBLEM']['VIEWED_BY']);
+		}
+		else if (array_key_exists('VIEWED_BY', $filter) && intval($filter['VIEWED_BY']))
+		{
+			$viewedBy = intval($filter['VIEWED_BY']);
+		}
+
+		return $viewedBy;
 	}
 
 	public static function getUsersViewedTask($taskId)

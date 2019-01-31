@@ -870,6 +870,7 @@ class Imap extends Mail\Helper\Mailbox
 			'select' => array('ID', 'MESSAGE_ID', 'DATE_INSERT'),
 			'filter' => array(
 				'@ID' => array_values($uids),
+				'=DIR_MD5' => md5($dir),
 			),
 		), false);
 
@@ -993,7 +994,11 @@ class Imap extends Mail\Helper\Mailbox
 			}
 		}
 
-		if (!$this->registerMessage($fields, $message['__replaces']))
+		$replaces = array(
+			'=ID' => $message['__replaces'],
+			'=DIR_MD5' => md5($dir),
+		);
+		if (!$this->registerMessage($fields, $replaces))
 		{
 			return false;
 		}

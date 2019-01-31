@@ -16,9 +16,9 @@ class Repository
 		$this->messagesIds = $messagesIds;
 	}
 
-	public function getMailbox()
+	public function getMailbox($mailboxUserId = null)
 	{
-		return Mail\MailboxTable::getUserMailbox($this->mailboxId);
+		return Mail\MailboxTable::getUserMailbox($this->mailboxId, $mailboxUserId);
 	}
 
 	public function deleteOldMessages($folderCurrentName)
