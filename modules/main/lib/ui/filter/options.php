@@ -986,7 +986,7 @@ class Options
 			$this->options["filter"] = $settings["current_preset"];
 			$request = $this->getRequest();
 
-			if (isset($request["for_all"]))
+			if (isset($request["params"]["forAll"]))
 			{
 				$this->saveForAll();
 			}

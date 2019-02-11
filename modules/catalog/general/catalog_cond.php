@@ -3558,7 +3558,7 @@ class CCatalogCondCtrlIBlockProps extends CCatalogCondCtrlComplex
 									$arLogic = static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ));
 									$arValue = array(
 										'type' => 'popup',
-										'popup_url' => 'iblock_element_search.php',
+										'popup_url' => self::getAdminSection().'iblock_element_search.php',
 										'popup_params' => array(
 											'lang' => LANGUAGE_ID,
 											'IBLOCK_ID' => $arProp['LINK_IBLOCK_ID'],
@@ -3581,7 +3581,7 @@ class CCatalogCondCtrlIBlockProps extends CCatalogCondCtrlComplex
 									$arLogic = static::GetLogic(array(BT_COND_LOGIC_EQ, BT_COND_LOGIC_NOT_EQ));
 									$arValue = array(
 										'type' => 'popup',
-										'popup_url' => 'iblock_section_search.php',
+										'popup_url' => self::getAdminSection().'iblock_section_search.php',
 										'popup_params' => $popupParams,
 										'param_id' => 'n'
 									);
@@ -3745,6 +3745,15 @@ class CCatalogCondCtrlIBlockProps extends CCatalogCondCtrlComplex
 			}
 		}
 		return (!$boolError ? $arResult : false);
+	}
+
+	/**
+	 * @return string
+	 */
+	private static function getAdminSection()
+	{
+		//TODO: need use \CAdminPage::getSelfFolderUrl, but in general it is impossible now
+		return (defined('SELF_FOLDER_URL') ? SELF_FOLDER_URL : '/bitrix/admin/');
 	}
 }
 

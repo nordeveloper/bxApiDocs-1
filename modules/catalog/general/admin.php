@@ -119,8 +119,8 @@ class CCatalogAdmin
 							$urlSectionAdminPage,
 							CIBlock::GetAdminElementListLink($IBLOCK_ID, array("find_section_section" => $arSection["ID"])),
 							CIBlock::GetAdminElementEditLink($IBLOCK_ID, 0, array("find_section_section" => $arSection["ID"])),
-							CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null, "find_section_section" => $arSection["ID"])),
-							CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null, "find_section_section" => $arSection["ID"])),
+							CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null)),
+							CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null)),
 						),
 						"title" => Loc::getMessage("CAT_MENU_ALL_OTH_TITLE"),
 						"icon" => "iblock_menu_icon_sections",
@@ -137,8 +137,8 @@ class CCatalogAdmin
 				{
 					$arOtherSectionTmp['more_url'][] = $baseUrlSectionAdminPage."&find_section_section=".$arSection["ID"]."&SECTION_ID=".$arSection["ID"];
 					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminElementEditLink($IBLOCK_ID, 0, array("find_section_section" => $arSection["ID"]));
-					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null, "find_section_section" => $arSection["ID"]));
-					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null, "find_section_section" => $arSection["ID"]));
+					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null));
+					$arOtherSectionTmp['more_url'][] = CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null));
 				}
 				$sortCount += $sortCount + 0.01;
 			}
@@ -152,8 +152,8 @@ class CCatalogAdmin
 						$urlSectionAdminPage,
 						CIBlock::GetAdminElementListLink($IBLOCK_ID, array("find_section_section" => $arSection["ID"])),
 						CIBlock::GetAdminElementEditLink($IBLOCK_ID, 0, array("find_section_section" => $arSection["ID"])),
-						CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null, "find_section_section" => $arSection["ID"])),
-						CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null, "find_section_section" => $arSection["ID"])),
+						CIBlock::GetAdminSectionEditLink($IBLOCK_ID, 0, array('catalog' => null)),
+						CIBlock::GetAdminSectionEditLink($IBLOCK_ID, $arSection["ID"], array('catalog' => null)),
 					),
 					"title" => htmlspecialcharsEx($arSection["NAME"]),
 					"icon" => "iblock_menu_icon_sections",
@@ -465,8 +465,9 @@ class CCatalogAdmin
 				"ACTION" => $obList->ActionRedirect(htmlspecialcharsbx($tmpVar)),
 			);*/
 			$tmpVar = CIBlock::GetAdminElementListLink($obRow->arRes["IBLOCK_ID"], array(
-				'find_section_section' => $obRow->arRes["ID"],
-				"SECTION_ID" => $obRow->arRes["ID"]
+				"find_section_section" => $obRow->arRes["ID"],
+				"SECTION_ID" => $obRow->arRes["ID"],
+				"apply_filter" => "y",
 			));
 			$obRow->aActions[] = array(
 				"ICON" => "list",

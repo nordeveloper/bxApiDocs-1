@@ -108,6 +108,22 @@ class PropertyManager
 									"filterable" => ""
 								);
 							}
+							elseif (isset($property["PROPERTY_USER_TYPE"]["GetAdminFilterHTML"]))
+							{
+								$field = array(
+									"id" => $fieldId,
+									"name" => $fieldName,
+									"type" => "custom",
+									"value" => call_user_func_array(
+										$property["PROPERTY_USER_TYPE"]["GetAdminFilterHTML"],
+										array(
+											$property,
+											array("VALUE" => $fieldId, "FORM_NAME" => "main-ui-filter")
+										)
+									),
+									"filterable" => ""
+								);
+							}
 					}
 					if (empty($field))
 					{

@@ -65,23 +65,22 @@ class BundleCollection extends BasketItemCollection
 	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
 	 * @throws Main\ArgumentOutOfRangeException
-	 * @throws Main\NotImplementedException
 	 * @throws Main\NotSupportedException
 	 * @throws Main\ObjectNotFoundException
 	 * @throws Main\SystemException
 	 */
 	public function deleteItem($index)
 	{
-		$oldItem = parent::deleteItem($index);
-
 		/** @var Order $order */
 		if ($order = $this->getOrder())
 		{
-			$collection = $order->getShipmentCollection();
-			$collection->onBasketModify(EventActions::DELETE, $oldItem);
+			/** @var BasketItem $item */
+			$item = $this->getItemByIndex($index);
+
+			$order->onBeforeBasketItemDelete($item);
 		}
 
-		return $oldItem;
+		return parent::deleteItem($index);
 	}
 
 	/**

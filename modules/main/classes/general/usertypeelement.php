@@ -10,6 +10,8 @@ class CUserTypeIBlockElement extends CUserTypeEnum
 			"CLASS_NAME" => "CUserTypeIBlockElement",
 			"DESCRIPTION" => GetMessage("USER_TYPE_IBEL_DESCRIPTION"),
 			"BASE_TYPE" => "int",
+			"VIEW_CALLBACK" => array(__CLASS__, 'GetPublicView'),
+			"EDIT_CALLBACK" => array(__CLASS__, 'GetPublicEdit'),
 		);
 	}
 

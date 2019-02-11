@@ -70,7 +70,19 @@ class PrepaymentCheck extends Check
 	{
 		$result = parent::extractDataInternal();
 
-		return $this->correlatePrices($result);
+		$result = $this->correlatePrices($result);
+
+		foreach ($result['PRODUCTS'] as $i => $item)
+		{
+			$result['PRODUCTS'][$i]['PAYMENT_OBJECT'] = static::PAYMENT_OBJECT_PAYMENT;
+		}
+
+		foreach ($result['DELIVERY'] as $i => $item)
+		{
+			$result['DELIVERY'][$i]['PAYMENT_OBJECT'] = static::PAYMENT_OBJECT_PAYMENT;
+		}
+
+		return $result;
 	}
 
 	/**
@@ -118,9 +130,9 @@ class PrepaymentCheck extends Check
 			$price = PriceMaths::roundPrecision($result['PRODUCTS'][$lastElement]['SUM'] / $result['PRODUCTS'][$lastElement]['QUANTITY']);
 			$result['PRODUCTS'][$lastElement]['BASE_PRICE'] = $result['PRODUCTS'][$lastElement]['PRICE'] = $price;
 
-			if (isset($result['PRODUCTS'][$i]['DISCOUNT']))
+			if (isset($result['PRODUCTS'][$lastElement]['DISCOUNT']))
 			{
-				unset($result['PRODUCTS'][$i]['DISCOUNT']);
+				unset($result['PRODUCTS'][$lastElement]['DISCOUNT']);
 			}
 		}
 		else

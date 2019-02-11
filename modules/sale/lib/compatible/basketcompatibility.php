@@ -800,14 +800,6 @@ class BasketCompatibility extends Internals\EntityCompatibility
 					$orderCompatibilityClassName::createShipmentFromShipmentSystem($shipmentCollection);
 
 					/** @var Sale\Result $r */
-					$r = static::syncShipmentAndBasketItem($shipmentCollection, $item);
-					if (!$r->isSuccess())
-					{
-						$result->addErrors($r->getErrors());
-						return $result;
-					}
-
-					/** @var Sale\Result $r */
 					$r = static::syncShipmentCollectionAndBasket($shipmentCollection, $basket);
 					if (!$r->isSuccess())
 					{
@@ -1408,53 +1400,6 @@ class BasketCompatibility extends Internals\EntityCompatibility
 		return $result;
 
 	}
-
-
-	/**
-	 * @internal
-	 * @param Sale\ShipmentCollection $shipmentCollection
-	 * @param Sale\BasketItem $basketItem
-	 *
-	 * @return Sale\Result
-	 * @throws Main\ObjectNotFoundException
-	 */
-	public static function syncShipmentAndBasketItem(Sale\ShipmentCollection $shipmentCollection, Sale\BasketItem $basketItem)
-	{
-		$result = new Sale\Result();
-
-		if (count($shipmentCollection) > 2)
-		{
-			return $result;
-		}
-
-		$basketItemQuantity = $shipmentCollection->getBasketItemQuantity($basketItem);
-		if ($basketItemQuantity >= $basketItem->getQuantity())
-		{
-			return $result;
-		}
-
-		/** @var Sale\Shipment $systemShipment */
-		$systemShipment = $shipmentCollection->getSystemShipment();
-
-		$shipmentCollection->setMathActionOnly(true);
-
-		$oldBasketItemQuantity = $systemShipment->getBasketItemQuantity($basketItem);
-		$newBasketItemQuantity = $oldBasketItemQuantity + $basketItem->getQuantity();
-
-		$r = $systemShipment->syncQuantityAfterModify($basketItem, $newBasketItemQuantity, $oldBasketItemQuantity);
-		$shipmentCollection->setMathActionOnly(false);
-
-		if (!$r->isSuccess())
-		{
-			$result->addErrors($r->getErrors());
-			return $result;
-		}
-
-		return $result;
-
-	}
-
-
 
 	/**
 	 * @internal

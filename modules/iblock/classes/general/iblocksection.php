@@ -2153,7 +2153,10 @@ class CAllIBlockSection
 		$emptySelect = empty($arSelectedFields) || !$validatedSelect || ($validatedSelect && in_array('*', $arSelectedFields));
 
 		$elementInherentFilter = self::getElementInherentFilter($arFilter);
-		if (empty($elementInherentFilter))
+		$loadSections = self::checkLoadSections($elementInherentFilter)
+			&& !(isset($arFilter['ID']) && is_object($arFilter['ID']));
+
+		if ($loadSections)
 		{
 			$arSectionFilter = array(
 				"IBLOCK_ID" => $arFilter["IBLOCK_ID"],
@@ -2697,6 +2700,42 @@ class CAllIBlockSection
 				)
 				{
 					$result[$index] = $value;
+				}
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * @param array $filter
+	 * @return bool
+	 */
+	private static function checkLoadSections(array $filter)
+	{
+		$result = true;
+		if (!empty($filter))
+		{
+			foreach($filter as $index => $value)
+			{
+				$found = false;
+				$op = CIBlock::MkOperationFilter($index);
+				$newIndex = strtoupper($op["FIELD"]);
+				if (
+					strncmp($newIndex, "PROPERTY_", 9) == 0
+				)
+				{
+					$found = true;
+				}
+				elseif (strncmp($newIndex, "CATALOG_", 8) == 0)
+				{
+					if (strncmp($newIndex, "CATALOG_SHOP_QUANTITY_", 22) != 0)
+						$found = true;
+				}
+
+				if ($found)
+				{
+					$result = false;
+					break;
 				}
 			}
 		}

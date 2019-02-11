@@ -54,4 +54,32 @@ class FullPrepaymentCheck extends Check
 		return static::SUPPORTED_ENTITY_TYPE_SHIPMENT;
 	}
 
+	/**
+	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\LoaderException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
+	 */
+	protected function extractDataInternal()
+	{
+		$result = parent::extractDataInternal();
+
+		foreach ($result['PRODUCTS'] as $i => $item)
+		{
+			$result['PRODUCTS'][$i]['PAYMENT_OBJECT'] = static::PAYMENT_OBJECT_PAYMENT;
+		}
+
+		foreach ($result['DELIVERY'] as $i => $item)
+		{
+			$result['DELIVERY'][$i]['PAYMENT_OBJECT'] = static::PAYMENT_OBJECT_PAYMENT;
+		}
+
+		return $result;
+	}
+
 }

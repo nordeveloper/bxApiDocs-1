@@ -46,6 +46,12 @@ abstract class Check
 	const PAYMENT_TYPE_CASHLESS = 'cashless';
 	const PAYMENT_TYPE_CREDIT = 'credit';
 
+	const PAYMENT_OBJECT_COMMODITY = 'commodity';
+	const PAYMENT_OBJECT_EXCISE = 'excise';
+	const PAYMENT_OBJECT_JOB = 'job';
+	const PAYMENT_OBJECT_SERVICE = 'service';
+	const PAYMENT_OBJECT_PAYMENT = 'payment';
+
 	const SUPPORTED_ENTITY_TYPE_PAYMENT = 'payment';
 	const SUPPORTED_ENTITY_TYPE_SHIPMENT = 'shipment';
 	const SUPPORTED_ENTITY_TYPE_ALL = 'all';
@@ -463,7 +469,8 @@ abstract class Check
 						'price' => $product['PRICE'],
 						'sum' => $product['SUM'],
 						'quantity' => $product['QUANTITY'],
-						'vat' => $product['VAT']
+						'vat' => $product['VAT'],
+						'payment_object' => $product['PAYMENT_OBJECT'],
 					);
 
 					if ($product['DISCOUNT'])
@@ -489,7 +496,8 @@ abstract class Check
 						'price' => $delivery['PRICE'],
 						'sum' => $delivery['SUM'],
 						'quantity' => $delivery['QUANTITY'],
-						'vat' => $delivery['VAT']
+						'vat' => $delivery['VAT'],
+						'payment_object' => $delivery['PAYMENT_OBJECT'],
 					);
 
 					if ($delivery['DISCOUNT'])
@@ -577,7 +585,8 @@ abstract class Check
 						'PRICE' => $basketItem->getPriceWithVat(),
 						'SUM' => $basketItem->getPriceWithVat() * $shipmentItem->getQuantity(),
 						'QUANTITY' => (float)$shipmentItem->getQuantity(),
-						'VAT' => $this->getProductVatId($basketItem)
+						'VAT' => $this->getProductVatId($basketItem),
+						'PAYMENT_OBJECT' => static::PAYMENT_OBJECT_COMMODITY
 					);
 
 					if ($basketItem->isCustomPrice())
@@ -608,7 +617,8 @@ abstract class Check
 						'PRICE' => (float)$entity->getPrice(),
 						'SUM' => (float)$entity->getPrice(),
 						'QUANTITY' => 1,
-						'VAT' => $this->getDeliveryVatId($entity)
+						'VAT' => $this->getDeliveryVatId($entity),
+						'PAYMENT_OBJECT' => static::PAYMENT_OBJECT_SERVICE
 					);
 
 					if ($entity->isCustomPrice())

@@ -8,7 +8,7 @@
 
 namespace Bitrix\Main\ORM\Objectify;
 
-use Bitrix\Main\NotImplementedException;
+use Bitrix\Main\Authentication\Context;
 use Bitrix\Main\ORM\Data\DataManager;
 use Bitrix\Main\ORM\Entity;
 use Bitrix\Main\ORM\Fields\ExpressionField;
@@ -30,6 +30,7 @@ use Bitrix\Main\ArgumentException;
  * @property-read \Bitrix\Main\ORM\Entity $entity
  * @property-read array $primary
  * @property-read int $state @see State
+ * @property Context $authContext For UF values validation
  *
  * @package    bitrix
  * @subpackage main
@@ -71,6 +72,9 @@ abstract class EntityObject implements \ArrayAccess
 
 	/** @var callable[] */
 	protected $_onPrimarySetListeners = [];
+
+	/** @var Context */
+	protected $_authContext;
 
 	/**
 	 * Cache for lastName => LAST_NAME transforming
@@ -230,11 +234,7 @@ abstract class EntityObject implements \ArrayAccess
 			return $result;
 		}
 
-		// clear current values
-		$this->_currentValues = [];
-
-		// change state
-		$this->sysChangeState(State::ACTUAL);
+		$this->sysPostSave();
 
 		return $result;
 	}
@@ -412,55 +412,58 @@ abstract class EntityObject implements \ArrayAccess
 		}
 
 		// collect fields to be selected
-		$fieldsToSelect = $this->entity->getPrimaryArray();
-
 		if (is_array($fields))
 		{
-			// get custom fields
-			$fieldsToSelect = array_merge($fieldsToSelect, $fields);
+			// go through IDLE fields
+			$fieldsToSelect = $this->sysGetIdleFields($fields);
 		}
 		elseif (is_scalar($fields) && !is_numeric($fields))
 		{
 			// one custom field
-			$fieldsToSelect[] = $fields;
+			$fieldsToSelect = $this->sysGetIdleFields([$fields]);
 		}
 		else
 		{
 			// get fields according to selector mask
-			$fieldsToSelect = array_merge($fieldsToSelect, $this->sysGetIdleFields($fields));
+			$fieldsToSelect = $this->sysGetIdleFieldsByMask($fields);
 		}
 
-		// build query
-		$dataClass = $this->entity->getDataClass();
-		$result = $dataClass::query()->setSelect($fieldsToSelect)->where($primaryFilter)->exec();
-
-		// set object to identityMap of result, and it will be partially completed by fetch
-		$im = new IdentityMap;
-		$im->put($this);
-
-		$result->setIdentityMap($im);
-		$result->fetchObject();
-
-		// set filled flag to collections
-		foreach ($fieldsToSelect as $fieldName)
+		if (!empty($fieldsToSelect))
 		{
-			// check field before continue, it could be remote REF.ID definition so we skip it here
-			if ($this->entity->hasField($fieldName))
+			$fieldsToSelect = array_merge($fieldsToSelect, $this->entity->getPrimaryArray());
+
+			// build query
+			$dataClass = $this->entity->getDataClass();
+			$result = $dataClass::query()->setSelect($fieldsToSelect)->where($primaryFilter)->exec();
+
+			// set object to identityMap of result, and it will be partially completed by fetch
+			$im = new IdentityMap;
+			$im->put($this);
+
+			$result->setIdentityMap($im);
+			$result->fetchObject();
+
+			// set filled flag to collections
+			foreach ($fieldsToSelect as $fieldName)
 			{
-				$field = $this->entity->getField($fieldName);
-
-				if ($field instanceof OneToMany || $field instanceof ManyToMany)
+				// check field before continue, it could be remote REF.ID definition so we skip it here
+				if ($this->entity->hasField($fieldName))
 				{
-					/** @var Collection $collection */
-					$collection = $this->sysGetValue($fieldName);
+					$field = $this->entity->getField($fieldName);
 
-					if (empty($collection))
+					if ($field instanceof OneToMany || $field instanceof ManyToMany)
 					{
-						$collection = $field->getRefEntity()->createCollection();
-						$this->_actualValues[$fieldName] = $collection;
-					}
+						/** @var Collection $collection */
+						$collection = $this->sysGetValue($fieldName);
 
-					$collection->sysSetFilled();
+						if (empty($collection))
+						{
+							$collection = $field->getRefEntity()->createCollection();
+							$this->_actualValues[$fieldName] = $collection;
+						}
+
+						$collection->sysSetFilled();
+					}
 				}
 			}
 		}
@@ -615,6 +618,11 @@ abstract class EntityObject implements \ArrayAccess
 		return $this->__call(__FUNCTION__, func_get_args());
 	}
 
+	final public function defineAuthContext(Context $authContext)
+	{
+		$this->_authContext = $authContext;
+	}
+
 	/**
 	 * Magic read-only properties
 	 *
@@ -636,6 +644,8 @@ abstract class EntityObject implements \ArrayAccess
 				return $this->sysGetState();
 			case 'dataClass':
 				throw new SystemException('Property `dataClass` should be received as static.');
+			case 'authContext':
+				return $this->_authContext;
 		}
 
 		throw new SystemException(sprintf(
@@ -655,6 +665,8 @@ abstract class EntityObject implements \ArrayAccess
 	{
 		switch ($name)
 		{
+			case 'authContext':
+				return $this->defineAuthContext($value);
 			case 'entity':
 			case 'primary':
 			case 'dataClass':
@@ -760,6 +772,29 @@ abstract class EntityObject implements \ArrayAccess
 				}
 
 				return $this->sysSetValue($fieldName, $value);
+			}
+		}
+
+		if ($first3 == 'has')
+		{
+			$fieldName = self::sysMethodToFieldCase(substr($name, 3));
+
+			if (!strlen($fieldName))
+			{
+				$fieldName = strtoupper($arguments[0]);
+
+				// check if custom method exists
+				$personalMethodName = $name.static::sysFieldToMethodCase($fieldName);
+
+				if (method_exists($this, $personalMethodName))
+				{
+					return $this->$personalMethodName(...array_slice($arguments, 1));
+				}
+			}
+
+			if ($this->entity->hasField($fieldName))
+			{
+				return $this->sysHasValue($fieldName);
 			}
 		}
 
@@ -975,6 +1010,77 @@ abstract class EntityObject implements \ArrayAccess
 			if ($this->entity->hasField($fieldName))
 			{
 				return $this->sysGetValue($fieldName, true);
+			}
+		}
+
+		$first2 = substr($name, 0, 2);
+		$last6 = substr($name, -6);
+
+		// actual value checker
+		if ($first2 == 'is' && $last6 =='Filled')
+		{
+			$fieldName = self::sysMethodToFieldCase(substr($name, 2, -6));
+
+			if (!strlen($fieldName))
+			{
+				$fieldName = strtoupper($arguments[0]);
+
+				// check if custom method exists
+				$personalMethodName = $first2.static::sysFieldToMethodCase($fieldName).$last6;
+
+				if (method_exists($this, $personalMethodName))
+				{
+					return $this->$personalMethodName(...array_slice($arguments, 1));
+				}
+			}
+
+			if ($this->entity->hasField($fieldName))
+			{
+				$field = $this->entity->getField($fieldName);
+
+				if ($field instanceof OneToMany || $field instanceof ManyToMany)
+				{
+					return array_key_exists($fieldName, $this->_actualValues) && $this->_actualValues[$fieldName]->sysIsFilled();
+				}
+				else
+				{
+					return $this->sysIsFilled($fieldName);
+				}
+			}
+		}
+
+		$last7 = substr($name, -7);
+
+		// runtime value checker
+		if ($first2 == 'is' && $last7 == 'Changed')
+		{
+			$fieldName = self::sysMethodToFieldCase(substr($name, 2, -7));
+
+			if (!strlen($fieldName))
+			{
+				$fieldName = strtoupper($arguments[0]);
+
+				// check if custom method exists
+				$personalMethodName = $first2.static::sysFieldToMethodCase($fieldName).$last7;
+
+				if (method_exists($this, $personalMethodName))
+				{
+					return $this->$personalMethodName(...array_slice($arguments, 1));
+				}
+			}
+
+			if ($this->entity->hasField($fieldName))
+			{
+				$field = $this->entity->getField($fieldName);
+
+				if ($field instanceof OneToMany || $field instanceof ManyToMany)
+				{
+					return array_key_exists($fieldName, $this->_actualValues) && $this->_actualValues[$fieldName]->sysIsChanged();
+				}
+				else
+				{
+					return $this->sysIsChanged($fieldName);
+				}
 			}
 		}
 
@@ -1251,6 +1357,53 @@ abstract class EntityObject implements \ArrayAccess
 		return $this;
 	}
 
+	/**
+	 * @internal For internal system usage only.
+	 *
+	 * @param $fieldName
+	 *
+	 * @return bool
+	 */
+	public function sysHasValue($fieldName)
+	{
+		$fieldName = strtoupper($fieldName);
+
+		return $this->sysIsFilled($fieldName) || $this->sysIsChanged($fieldName);
+	}
+
+	/**
+	 * @internal For internal system usage only.
+	 *
+	 * @param $fieldName
+	 *
+	 * @return bool
+	 */
+	public function sysIsFilled($fieldName)
+	{
+		$fieldName = strtoupper($fieldName);
+
+		return array_key_exists($fieldName, $this->_actualValues);
+	}
+
+	/**
+	 * @internal For internal system usage only.
+	 *
+	 * @param $fieldName
+	 *
+	 * @return bool
+	 */
+	public function sysIsChanged($fieldName)
+	{
+		$fieldName = strtoupper($fieldName);
+
+		return array_key_exists($fieldName, $this->_currentValues);
+	}
+
+	/**
+	 * @internal For internal system usage only.
+	 *
+	 * @return bool
+	 */
 	public function sysHasPrimary()
 	{
 		foreach ($this->primary as $primaryValue)
@@ -1264,6 +1417,9 @@ abstract class EntityObject implements \ArrayAccess
 		return true;
 	}
 
+	/**
+	 * @internal For internal system usage only.
+	 */
 	public function sysOnPrimarySet()
 	{
 		// call subscribers
@@ -1277,6 +1433,8 @@ abstract class EntityObject implements \ArrayAccess
 	}
 
 	/**
+	 * @internal For internal system usage only.
+	 *
 	 * @param callable $callback
 	 */
 	public function sysAddOnPrimarySetListener($callback)
@@ -1370,13 +1528,43 @@ abstract class EntityObject implements \ArrayAccess
 	/**
 	 * @internal For internal system usage only.
 	 *
+	 * Returns non-filled field names according to array of $fields
+	 *
+	 * @param array $fields
+	 *
+	 * @return array
+	 */
+	public function sysGetIdleFields($fields = [])
+	{
+		$list = [];
+
+		if (empty($fields))
+		{
+			// all fields by default
+			$fields = array_keys($this->entity->getFields());
+		}
+
+		foreach ($fields as $fieldName)
+		{
+			if (!isset($this->_actualValues[strtoupper($fieldName)]))
+			{
+				$list[] = $fieldName;
+			}
+		}
+
+		return $list;
+	}
+
+	/**
+	 * @internal For internal system usage only.
+	 *
+	 * Returns non-filled field names according to $mask
+	 *
 	 * @param int $mask
 	 *
 	 * @return array
-	 * @throws ArgumentException
-	 * @throws SystemException
 	 */
-	public function sysGetIdleFields($mask = FieldTypeMask::ALL)
+	public function sysGetIdleFieldsByMask($mask = FieldTypeMask::ALL)
 	{
 		$list = [];
 
@@ -1403,7 +1591,7 @@ abstract class EntityObject implements \ArrayAccess
 	 * @throws ArgumentException
 	 * @throws SystemException
 	 */
-	protected function sysSaveRelations(Result $result)
+	public function sysSaveRelations(Result $result)
 	{
 		foreach ($this->_actualValues as $fieldName => $value)
 		{
@@ -1467,6 +1655,15 @@ abstract class EntityObject implements \ArrayAccess
 				$collection->sysResetChanges();
 			}
 		}
+	}
+
+	public function sysPostSave()
+	{
+		// clear current values
+		$this->_currentValues = [];
+
+		// change state
+		$this->sysChangeState(State::ACTUAL);
 	}
 
 	/**

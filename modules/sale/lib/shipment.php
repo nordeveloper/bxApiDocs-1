@@ -1625,6 +1625,36 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	}
 
 	/**
+	 * @param BasketItem $basketItem
+	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
+	 */
+	public function onBeforeBasketItemDelete(BasketItem $basketItem)
+	{
+		$result = new Result();
+
+		$shipmentItemCollection = $this->getShipmentItemCollection();
+		$r = $shipmentItemCollection->onBeforeBasketItemDelete($basketItem);
+		if (!$r->isSuccess())
+		{
+			$result->addErrors($r->getErrors());
+			return $result;
+		}
+
+		if ($this->isSystem())
+		{
+			return $this->syncQuantityAfterModify($basketItem);
+		}
+
+		return $result;
+	}
+
+	/**
 	 * @param $action
 	 * @param BasketItem $basketItem
 	 * @param null $name
@@ -1642,22 +1672,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	{
 		$result = new Result();
 
-		if ($action === EventActions::DELETE)
-		{
-			$shipmentItemCollection = $this->getShipmentItemCollection();
-			$r = $shipmentItemCollection->onBasketModify($action, $basketItem, $name, $oldValue, $value);
-			if (!$r->isSuccess())
-			{
-				$result->addErrors($r->getErrors());
-				return $result;
-			}
-
-			if ($this->isSystem())
-			{
-				return $this->syncQuantityAfterModify($basketItem, $value, $oldValue);
-			}
-		}
-		elseif ($action === EventActions::ADD)
+		if ($action === EventActions::ADD)
 		{
 			if (!$this->isSystem())
 			{
@@ -1830,7 +1845,7 @@ class Shipment extends Internals\CollectableEntity implements IBusinessValueProv
 	 * @throws Main\ArgumentOutOfRangeException
 	 * @throws Main\ObjectNotFoundException
 	 */
-	public function syncQuantityAfterModify(BasketItem $basketItem, $value = null, $oldValue = null)
+	protected function syncQuantityAfterModify(BasketItem $basketItem, $value = null, $oldValue = null)
 	{
 		$result = new Result();
 

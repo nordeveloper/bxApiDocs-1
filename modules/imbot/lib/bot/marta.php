@@ -158,18 +158,18 @@ class Marta extends Base
 
 		if ($joinFields['CHAT_TYPE'] == IM_MESSAGE_PRIVATE)
 		{
-			$message = Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE', null, $language);
+			$message = Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE_2', Array('#HELLO#' => self::getHelloMessage($dialogId, $language)), $language);
 			\CUserOptions::SetOption(self::MODULE_ID, self::BOT_CODE.'_welcome_message', time(), false, $dialogId);
 		}
 		else
 		{
 			if ($joinFields['CHAT_ENTITY_TYPE'] == 'LINES')
 			{
-				$message = Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE_LINES', null, $language);
+				$message = Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE_LINES_2', null, $language);
 			}
 			else
 			{
-				$message = Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE_CHAT', null, $language);
+				$message = Loc::getMessage('IMBOT_BOT_WELCOME_MESSAGE_CHAT_2', null, $language);
 			}
 		}
 

@@ -2,6 +2,8 @@
 namespace Bitrix\Main\Controller;
 
 use Bitrix\Main\Engine;
+use Bitrix\Main\Engine\ActionFilter\Authentication;
+use Bitrix\Main\Engine\ActionFilter\CloseSession;
 use Bitrix\Main\UI\Extension;
 
 /**
@@ -10,6 +12,20 @@ use Bitrix\Main\UI\Extension;
  */
 class LoadExt extends Engine\Controller
 {
+	public function configureActions()
+	{
+		return [
+			'getExtensions' => [
+				'+prefilters' => [
+					new CloseSession()
+				],
+				'-prefilters' => [
+					Authentication::class
+				]
+			]
+		];
+	}
+
 	/**
 	 * @param array $extension
 	 * @return array

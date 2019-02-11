@@ -233,11 +233,39 @@ class HttpResponse extends Response
 		}
 		else
 		{
+			$httpHeaders = $this->getHeaders();
+			$httpHeaders->delete($this->getStatus());
+
 			$server = Context::getCurrent()->getServer();
 			$this->addHeader($server->get("SERVER_PROTOCOL")." ".$status);
 		}
 
 		return $this;
+	}
+
+	/**
+	 * Returns the HTTP status of the response.
+	 * @return int|string|null
+	 */
+	public function getStatus()
+	{
+		$cgiStatus = $this->getHeaders()->get('Status');
+		if ($cgiStatus)
+		{
+			return $cgiStatus;
+		}
+
+		$prefixStatus = strtolower(Context::getCurrent()->getServer()->get("SERVER_PROTOCOL") . ' ');
+		$prefixStatusLength = strlen($prefixStatus);
+		foreach ($this->getHeaders() as $name => $value)
+		{
+			if (substr(strtolower($name), 0, $prefixStatusLength) === $prefixStatus)
+			{
+				return $name;
+			}
+		}
+
+		return null;
 	}
 
 	/**

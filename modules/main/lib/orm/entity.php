@@ -528,7 +528,7 @@ class Entity
 	/**
 	 * @param $name
 	 *
-	 * @return Field
+	 * @return Field|ScalarField
 	 * @throws Main\ArgumentException
 	 */
 	public function getField($name)

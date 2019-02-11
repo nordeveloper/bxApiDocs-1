@@ -5,6 +5,7 @@ namespace Bitrix\Main\Engine;
 
 use Bitrix\Main\Config\Configuration;
 use Bitrix\Main\Diag\ExceptionHandlerFormatter;
+use Bitrix\Main\Engine\AutoWire\Parameter;
 use Bitrix\Main\Engine\Contract\Controllerable;
 use Bitrix\Main\Engine\Response\Converter;
 use Bitrix\Main\Error;
@@ -191,9 +192,36 @@ class Controller implements Errorable, Controllerable
 		return array_unique($actions);
 	}
 
+	/**
+	 * @return array
+	 */
 	public function configureActions()
 	{
-		return array();
+		return [];
+	}
+
+	/**
+	 * @return Parameter[]
+	 */
+	public function getAutoWiredParameters()
+	{
+		return [];
+	}
+
+	/**
+	 * @return Parameter|null
+	 */
+	public function getPrimaryAutoWiredParameter()
+	{
+		return null;
+	}
+
+	/**
+	 * @return Parameter[]
+	 */
+	final public function getDefaultAutoWiredParameters()
+	{
+		return [];
 	}
 
 	private function buildConfigurationOfActions()

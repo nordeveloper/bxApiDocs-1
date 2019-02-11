@@ -168,6 +168,23 @@ class ItemAttributes
 	}
 
 	/**
+	 * @param string $extension
+	 * @return ItemAttributes
+	 */
+	public function setExtension($extension)
+	{
+		return $this->setAttribute('data-viewer-extension', $extension);
+	}
+
+	/**
+	 * @return string|null
+	 */
+	public function getExtension()
+	{
+		return $this->getAttribute('data-viewer-extension');
+	}
+
+	/**
 	 * @return mixed|null
 	 */
 	public function getViewerType()
@@ -252,9 +269,13 @@ class ItemAttributes
 		}
 
 		$contentType = $fileArray['CONTENT_TYPE'];
+		$originalName = $fileArray['ORIGINAL_NAME'];
 
 		$previewManager = new PreviewManager();
-		$renderClass = $previewManager->getRenderClassByContentType($contentType);
+		$renderClass = $previewManager->getRenderClassByFile([
+			'contentType' => $contentType,
+			'originalName' => $originalName,
+		]);
 		if ($renderClass === Renderer\Stub::class)
 		{
 			$transformerManager = new TransformerManager();
@@ -265,7 +286,10 @@ class ItemAttributes
 				if ($transformation)
 				{
 					$contentType = $transformation->getOutputContentType();
-					$renderClass = $previewManager->getRenderClassByContentType($contentType);
+					$renderClass = $previewManager->getRenderClassByFile([
+						'contentType' => $contentType,
+						'originalName' => $originalName,
+					]);
 				}
 			}
 		}

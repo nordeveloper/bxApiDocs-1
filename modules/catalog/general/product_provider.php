@@ -2270,27 +2270,10 @@ class CCatalogProductProvider implements IBXSaleProductProvider
 		$userId = (int)$userId;
 		if ($userId < 0)
 			return false;
+
 		if (!isset(self::$userCache[$userId]))
-		{
-			if ($userId == 0)
-			{
-				self::$userCache[$userId] = array(2);
-			}
-			else
-			{
-				self::$userCache[$userId] = false;
-				$userIterator = Main\UserTable::getList(array(
-					'select' => array('ID'),
-					'filter' => array('=ID' => $userId)
-				));
-				if ($user = $userIterator->fetch())
-				{
-					$user['ID'] = (int)$user['ID'];
-					self::$userCache[$user['ID']] = CUser::GetUserGroup($user['ID']);
-				}
-				unset($user, $userIterator);
-			}
-		}
+			self::$userCache[$userId] = Main\UserTable::getUserGroupIds($userId);
+
 		return self::$userCache[$userId];
 	}
 

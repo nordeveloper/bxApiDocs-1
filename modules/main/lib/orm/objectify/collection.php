@@ -10,6 +10,7 @@ namespace Bitrix\Main\ORM\Objectify;
 
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\ORM\Data\DataManager;
+use Bitrix\Main\ORM\Data\Result;
 use Bitrix\Main\ORM\Entity;
 use Bitrix\Main\ORM\Fields\ScalarField;
 use Bitrix\Main\ORM\Query\Query;
@@ -247,34 +248,43 @@ abstract class Collection implements \ArrayAccess, \Iterator, \Countable
 		$entityPrimary = $this->_entity->getPrimaryArray();
 
 		$primaryValues = [];
-		$fieldsToSelect = $entityPrimary;
+		$fieldsToSelect = [];
 
+		// if field is the only one
 		if (is_scalar($fields) && !is_numeric($fields))
 		{
 			$fields = [$fields];
 		}
 
 		// collect custom fields to select
-		if (is_array($fields))
-		{
-			$fieldsToSelect = array_merge($fieldsToSelect, $fields);
-		}
-
 		foreach ($this->_objects as $object)
 		{
-			// collect primary
-			$objectPrimary = $object->sysRequirePrimary();
+			$idleFields = is_array($fields)
+				? $object->sysGetIdleFields($fields)
+				: $object->sysGetIdleFieldsByMask($fields);
 
-			$primaryValues[] = count($objectPrimary) == 1
-				? current($objectPrimary)
-				: $objectPrimary;
-
-			// collect fields to select if there is a fields flag instead of custom list
-			if (!is_array($fields))
+			if (!empty($idleFields))
 			{
-				$diff = array_diff($object->sysGetIdleFields($fields), $fieldsToSelect);
-				$fieldsToSelect = array_merge($fieldsToSelect, $diff);
+				$fieldsToSelect = array_unique(array_merge($fieldsToSelect, $idleFields));
+
+				// add object to query
+				$objectPrimary = $object->sysRequirePrimary();
+
+				$primaryValues[] = count($objectPrimary) == 1
+					? current($objectPrimary)
+					: $objectPrimary;
 			}
+		}
+
+		// add primary to select
+		if (!empty($fieldsToSelect))
+		{
+			$fieldsToSelect = array_unique(array_merge($fieldsToSelect, $entityPrimary));
+		}
+		else
+		{
+			// nothing to do
+			return;
 		}
 
 		// build primary filter
@@ -318,6 +328,90 @@ abstract class Collection implements \ArrayAccess, \Iterator, \Countable
 
 		$result->setIdentityMap($im);
 		$result->fetchCollection();
+	}
+
+	final public function save($ignoreEvents = false)
+	{
+		$result = new Result;
+
+		/** @var EntityObject[] $addObjects */
+		$addObjects = [];
+
+		/** @var EntityObject[] $updateObjects */
+		$updateObjects = [];
+
+		foreach ($this->_objects as $object)
+		{
+			if ($object->sysGetState() === State::RAW)
+			{
+				$addObjects[] = ['__object' => $object];
+			}
+			elseif ($object->sysGetState() === State::CHANGED)
+			{
+				$updateObjects[] = $object;
+			}
+		}
+
+		$dataClass = static::$dataClass;
+
+		// multi add
+		if (!empty($addObjects))
+		{
+			$result = $dataClass::addMulti($addObjects, $ignoreEvents);
+		}
+
+		// multi update
+		if (!empty($updateObjects))
+		{
+			$areEqual = true;
+			$primaries = [];
+
+			$dataSample = $updateObjects[0]->collectValues(Values::CURRENT, FieldTypeMask::SCALAR | FieldTypeMask::USERTYPE);
+			asort($dataSample);
+
+			// get only scalar & uf data and check its uniqueness
+			foreach ($updateObjects as $object)
+			{
+				$objectData = $updateObjects[0]->collectValues(Values::CURRENT, FieldTypeMask::SCALAR | FieldTypeMask::USERTYPE);
+				asort($objectData);
+
+				if ($dataSample !== $objectData)
+				{
+					$areEqual = false;
+					break;
+				}
+
+				$primaries[] = $object->primary;
+			}
+
+			if ($areEqual)
+			{
+				// one query
+				$result = $dataClass::updateMulti($primaries, $dataSample, $ignoreEvents);
+
+				// post save
+				foreach ($updateObjects as $object)
+				{
+					$object->sysSaveRelations($result);
+					$object->sysPostSave();
+				}
+			}
+			else
+			{
+				// each object separately
+				foreach ($updateObjects as $object)
+				{
+					$objectResult = $object->save();
+
+					if (!$objectResult->isSuccess())
+					{
+						$result->addErrors($objectResult->getErrors());
+					}
+				}
+			}
+		}
+
+		return $result;
 	}
 
 	/**
@@ -421,7 +515,7 @@ abstract class Collection implements \ArrayAccess, \Iterator, \Countable
 				// collect field values
 				foreach ($this->_objects as $objectPrimary => $object)
 				{
-					$values[$objectPrimary] = $object->sysGetValue($fieldName);
+					$values[] = $object->sysGetValue($fieldName);
 				}
 
 				return $values;

@@ -11,12 +11,14 @@ use Bitrix\Main\ModuleManager;
 use Bitrix\Main\Result;
 use Bitrix\Main\SystemException;
 use Bitrix\Main\Type\DateTime;
+use Bitrix\Main\Web\MimeType;
 use Bitrix\Transformer\Command;
 use Bitrix\Transformer\FileTransformer;
 
 final class TransformerManager
 {
-	const PULL_TAG = 'mainTransform';
+	const QUEUE_NAME = 'main_preview';
+	const PULL_TAG   = 'mainTransform';
 
 	protected static $transformationList = [];
 
@@ -136,7 +138,7 @@ final class TransformerManager
 				[$transformation->getOutputExtension()],
 				'main',
 				CallbackHandler::class,
-				['id' => $fileId, 'fileId' => $fileId, 'queue' => 'disk_on_load']
+				['id' => $fileId, 'fileId' => $fileId, 'queue' => self::QUEUE_NAME]
 			);
 
 			if (!$result->isSuccess())
@@ -211,10 +213,39 @@ final class TransformerManager
 	 */
 	public function buildTransformationByFile(array $fileData)
 	{
+		if (empty($fileData['CONTENT_TYPE']))
+		{
+			return null;
+		}
+
+		$transformation = $this->buildTransformationByContentType($fileData['CONTENT_TYPE']);
+		if ($transformation)
+		{
+			return $transformation;
+		}
+
+		if (empty($fileData['ORIGINAL_NAME']))
+		{
+			return null;
+		}
+
+		$mimeType = MimeType::getByFilename($fileData['ORIGINAL_NAME']);
+
+		return $this->buildTransformationByContentType($mimeType);
+	}
+
+	/**
+	 * @param $contentType
+	 *
+	 * @return Transformation|null
+	 * @throws \ReflectionException
+	 */
+	private function buildTransformationByContentType($contentType)
+	{
 		foreach (static::$transformationList as $transformationClass)
 		{
 			/** @var Transformation $transformationClass */
-			if (in_array($fileData['CONTENT_TYPE'], $transformationClass::getInputContentTypes(), true))
+			if (in_array($contentType, $transformationClass::getInputContentTypes(), true))
 			{
 				$reflectionClass = new \ReflectionClass($transformationClass);
 

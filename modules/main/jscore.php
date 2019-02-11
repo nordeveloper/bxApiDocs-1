@@ -293,7 +293,8 @@ $arJSCoreConfig = array(
 	'helper' => array(
 		'js' => '/bitrix/js/main/helper/helper.js',
 		'css' => '/bitrix/js/main/helper/css/helper.css',
-		'rel' => array('sidepanel', 'ajax')
+		'rel' => array('sidepanel', 'ajax'),
+		'lang' => $pathLang.'/js/helper.php',
 	),
 	'webrtc_adapter' => array(
 		'js' => '/bitrix/js/main/webrtc/adapter.js'

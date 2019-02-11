@@ -819,7 +819,7 @@ class CAdminUiList extends CAdminList
 							$value = $value ? CFileInput::Show("fileInput", $value, $field["view"]["showInfo"], $field["view"]["inputs"]) : "";
 							break;
 						case "html":
-							$value = (strlen(trim($field["view"]["value"])) ? $field["view"]["value"] : $value);
+							$value = (strlen(trim($field["view"]["value"])) > 0 ? $field["view"]["value"] : (is_array($value) ? "" : $value));
 							break;
 						default:
 							$value = htmlspecialcharsex($value);
@@ -1167,7 +1167,8 @@ class CAdminUiListActionPanel
 	{
 		if (is_array($action))
 		{
-			$type = (!empty($action["type"]) ? strtolower($action["type"]) : "base");
+			self::prepareAction($action);
+			$type = $action["type"];
 			$actionSection = isset($this->mapTypesAndSections[$type]) ?
 				$this->mapTypesAndSections[$type] : "list";
 
@@ -1236,9 +1237,10 @@ class CAdminUiListActionPanel
 			For each value of the list, you can pass a handler.
 			example client code:
 			$arGroupActions["test_section"] = array(
-				"lable" => "Test",
+				"name" => "Menu item title",
 				"type" => "select",
-				"name" => "test_section",
+				"controlName" => "value name in request",
+				"controlId" => "Dom id for dropdown control" (if empty, get from controlName),
 				"items" => array(
 					array("NAME" => "One", "VALUE" => "one", "ONCHANGE" => "alert('one');"),
 					array("NAME" => "Two", "VALUE" => "two", "ONCHANGE" => "alert('two');")
@@ -1276,8 +1278,8 @@ class CAdminUiListActionPanel
 				"DATA" => [
 					[
 						"TYPE" => Panel\Types::DROPDOWN,
-						"ID" => "selected_action_{$this->tableId}",
-						"NAME" => $action["name"],
+						"ID" => "selected_action_{$this->tableId}_".$action["controlId"],
+						"NAME" => $action["controlName"],
 						"ITEMS" => $action["items"]
 					],
 					$this->gridSnippets->getApplyButton(
@@ -1307,7 +1309,7 @@ class CAdminUiListActionPanel
 		}
 
 		return [
-			"NAME" => $action["lable"],
+			"NAME" => $action["name"],
 			"VALUE" => $actionKey,
 			"ONCHANGE" => $onchange
 		];
@@ -1316,7 +1318,7 @@ class CAdminUiListActionPanel
 	private function getCustomJsActionData($actionKey, $action)
 	{
 		return [
-			"NAME" => $action["lable"],
+			"NAME" => $action["name"],
 			"VALUE" => $actionKey,
 			"ONCHANGE" => [
 				["ACTION" => Panel\Actions::RESET_CONTROLS],
@@ -1343,6 +1345,15 @@ class CAdminUiListActionPanel
 			"ID" => $actionKey,
 			"TYPE" => Panel\Types::CUSTOM,
 			"VALUE" => $action["value"]
+		];
+	}
+
+	private function getMultiControlActionData($actionKey, array $action)
+	{
+		return [
+			"NAME" => $action["name"],
+			"VALUE" => $actionKey,
+			"ONCHANGE" => $action["action"]
 		];
 	}
 
@@ -1375,6 +1386,42 @@ class CAdminUiListActionPanel
 		if (!is_array($array) || empty($array))
 			return false;
 		return array_keys($array) !== range(0, count($array) - 1);
+	}
+
+	/**
+	 * Prepare action data before add in action list.
+	 *
+	 * @param array &$action	Action description.
+	 * return void
+	 */
+	private static function prepareAction(array &$action)
+	{
+		$action["type"] = (!empty($action["type"]) ? strtolower($action["type"]) : "base");
+		if ($action["type"] == "select")
+		{
+			if (!isset($action["controlName"]) && isset($action["name"]))
+			{
+				$action["controlName"] = $action["name"];
+				unset($action["name"]);
+			}
+			if (!isset($action["controlId"]) && isset($action["controlName"]))
+			{
+				$action["controlId"] = $action["controlName"];
+			}
+		}
+		if (!isset($action["name"]))
+		{
+			if (isset($action["lable"]))
+			{
+				$action["name"] = $action["lable"];
+				unset($action["lable"]);
+			}
+			if (isset($action["label"]))
+			{
+				$action["name"] = $action["label"];
+				unset($action["label"]);
+			}
+		}
 	}
 }
 

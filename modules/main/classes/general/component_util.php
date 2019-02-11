@@ -17,12 +17,21 @@ class CComponentUtil
 
 		if ($lang != "en" && $lang != "ru")
 		{
-			if (file_exists(($fname = $_SERVER["DOCUMENT_ROOT"].$filePath."/lang/".LangSubst($lang)."/".$fileName)))
-				__IncludeLang($fname);
+			$subst_lang = LangSubst($lang);
+			$fname = $_SERVER["DOCUMENT_ROOT"].$filePath."/lang/".$subst_lang."/".$fileName;
+			$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $subst_lang);
+			if (file_exists($fname))
+			{
+				__IncludeLang($fname, false, true);
+			}
 		}
 
-		if (file_exists(($fname = $_SERVER["DOCUMENT_ROOT"].$filePath."/lang/".$lang."/".$fileName)))
-			__IncludeLang($fname);
+		$fname = $_SERVER["DOCUMENT_ROOT"].$filePath."/lang/".$lang."/".$fileName;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang);
+		if (file_exists($fname))
+		{
+			__IncludeLang($fname, false, true);
+		}
 	}
 
 	public static function PrepareVariables(&$arData)

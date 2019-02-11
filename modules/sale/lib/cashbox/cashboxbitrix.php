@@ -38,9 +38,13 @@ class CashboxBitrix extends Cashbox
 
 		$typeMap = $this->getCheckTypeMap();
 		if (isset($typeMap[$data['type']]))
+		{
 			$result['type'] = $typeMap[$data['type']];
+		}
 		else
+		{
 			return array();
+		}
 
 		$result['uuid'] = static::buildUuid(static::UUID_TYPE_CHECK, $data['unique_id']);
 		$result['zn'] = $this->getField('NUMBER_KKM');

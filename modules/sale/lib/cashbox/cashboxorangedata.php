@@ -100,6 +100,7 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 		);
 
 		$checkType = $this->getCheckTypeMap();
+		$paymentObjectMap = $this->getPaymentObjectMap();
 		foreach ($checkInfo['items'] as $item)
 		{
 			$vat = $this->getValueFromSettings('VAT', $item['vat']);
@@ -114,7 +115,7 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 				'price' => $item['price'],
 				'tax' => $vat,
 				'paymentMethodType' => $checkType[$check::getType()],
-				'paymentSubjectType' => null
+				'paymentSubjectType' => $paymentObjectMap[$item['payment_object']]
 			);
 		}
 
@@ -165,6 +166,20 @@ class CashboxOrangeData extends Cashbox implements IPrintImmediately, ICheckable
 		}
 
 		return $data['client_email'];
+	}
+
+	/**
+	 * @return array
+	 */
+	private function getPaymentObjectMap()
+	{
+		return [
+			Check::PAYMENT_OBJECT_COMMODITY => 1,
+			Check::PAYMENT_OBJECT_EXCISE => 2,
+			Check::PAYMENT_OBJECT_JOB => 3,
+			Check::PAYMENT_OBJECT_SERVICE => 4,
+			Check::PAYMENT_OBJECT_PAYMENT => 10,
+		];
 	}
 
 	/**

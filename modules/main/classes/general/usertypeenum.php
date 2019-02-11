@@ -776,9 +776,12 @@ EOT;
 
 		$bWasSelect = false;
 
-		$html = '<input type="hidden" name="'.htmlspecialcharsbx($fieldName).'" value="" id="'.htmlspecialcharsbx($arUserField['FIELD_NAME']).'_default" />';
+		$html = '';
+
 		if($arUserField["SETTINGS"]["DISPLAY"] == "UI")
 		{
+			$html .= '<input type="hidden" name="'.htmlspecialcharsbx($fieldName).'" value="" id="'.htmlspecialcharsbx($arUserField['FIELD_NAME']).'_default" />';
+
 			\CJSCore::Init('ui');
 
 			$startValue = array();

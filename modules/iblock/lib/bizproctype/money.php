@@ -254,7 +254,9 @@ class Money extends UserTypeProperty
 
 		$renderResult .= '<input type="button" value="'.Loc::getMessage('BPDT_BASE_ADD')
 			.'" onclick="cloneTypeControlMoney(\'BizprocCloneable_'
-			.$wrapperId.'\', \''.$wrapperId.'\', \''.$separator.'\', '.\CUtil::PhpToJSObject($listCurrency).')"/><br />';
+			.$wrapperId.'\', \''.$wrapperId.'\', \''.$separator.'\', '.
+			htmlspecialcharsbx(\CUtil::PhpToJSObject($listCurrency))
+			.')"/><br />';
 
 		return $renderResult;
 	}
@@ -264,5 +266,55 @@ class Money extends UserTypeProperty
 		$documentType = $fieldType->getDocumentType();
 		$type = explode('_', $documentType[2]);
 		return intval($type[1]);
+	}
+
+	/** @inheritdoc */
+	public static function compareValues($valueA, $valueB)
+	{
+		if (
+			strpos($valueA, '|') === false
+			|| strpos($valueB, '|') === false
+			|| !Main\Loader::includeModule('currency')
+		)
+		{
+			return parent::compareValues($valueA, $valueB);
+		}
+
+		list($sumA, $currencyA) = explode('|', $valueA);
+		list($sumB, $currencyB) = explode('|', $valueB);
+
+		$sumA = (double) $sumA;
+		$sumB = (double) $sumB;
+
+		if (!$currencyA)
+		{
+			$currencyA = CurrencyManager::getBaseCurrency();
+		}
+		if (!$currencyB)
+		{
+			$currencyB = CurrencyManager::getBaseCurrency();
+		}
+
+		if ($currencyA !== $currencyB && $sumB > 0)
+		{
+			$sumB = self::convertMoney($sumB, $currencyB, $currencyA);
+		}
+
+		return parent::compareValues($sumA, $sumB);
+	}
+
+	private static function convertMoney($sum, $srcCurrencyId, $dstCurrencyId)
+	{
+		$result = \CCurrencyRates::ConvertCurrency($sum, $srcCurrencyId, $dstCurrencyId);
+
+		$decimals = 2;
+		$formatInfo = \CCurrencyLang::GetCurrencyFormat($dstCurrencyId);
+		if(isset($formatInfo['DECIMALS']))
+		{
+			$decimals = intval($formatInfo['DECIMALS']);
+		}
+
+		$result = round($result, $decimals);
+		return $result;
 	}
 }

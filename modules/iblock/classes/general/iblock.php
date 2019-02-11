@@ -43,7 +43,7 @@ class CAllIBlock
 		return null;
 	}
 
-	function AddPanelButtons($mode, $componentName, $arButtons)
+	public static function AddPanelButtons($mode, $componentName, $arButtons)
 	{
 		/** @global CMain $APPLICATION */
 		global $APPLICATION;
@@ -59,15 +59,17 @@ class CAllIBlock
 			"section_list" => "/bitrix/themes/.default/icons/iblock/mnu_iblock_sec.gif",
 		);
 
-		if(count($arButtons[$mode]) > 0)
+		$componentName = (string)$componentName;
+
+		if (!empty($arButtons[$mode]) && is_array($arButtons[$mode]))
 		{
 			//Try to detect component via backtrace
-			if(strlen($componentName) <= 0 && function_exists("debug_backtrace"))
+			if ($componentName === '' && function_exists("debug_backtrace"))
 			{
 				$arTrace = debug_backtrace();
 				foreach($arTrace as $arCallInfo)
 				{
-					if(array_key_exists("file", $arCallInfo))
+					if (isset($arCallInfo["file"]))
 					{
 						$file = strtolower(str_replace("\\", "/", $arCallInfo["file"]));
 						if(preg_match("#.*/bitrix/components/(.+?)/(.+?)/#", $file, $match))
@@ -78,7 +80,7 @@ class CAllIBlock
 					}
 				}
 			}
-			if(strlen($componentName))
+			if ($componentName !== '')
 			{
 				$arComponentDescription = CComponentUtil::GetComponentDescr($componentName);
 				if(is_array($arComponentDescription) && strlen($arComponentDescription["NAME"]))
@@ -101,7 +103,8 @@ class CAllIBlock
 
 			foreach($arButtons[$mode] as $i=>$arSubButton)
 			{
-				$arSubButton['IMAGE'] = $arImages[$i];
+				if (isset($arImages[$i]))
+					$arSubButton['IMAGE'] = $arImages[$i];
 
 				if($arSubButton["DEFAULT"])
 					$arPanelButton["HREF"] = $arSubButton["ACTION"];
@@ -109,7 +112,7 @@ class CAllIBlock
 				$arPanelButton["MENU"][] = $arSubButton;
 			}
 
-			if(count($arButtons["submenu"]) > 0)
+			if (!empty($arButtons["submenu"]) && is_array($arButtons["submenu"]))
 			{
 				$arSubMenu = array(
 					"SRC" => "/bitrix/images/iblock/icons/iblock.gif",
@@ -121,7 +124,8 @@ class CAllIBlock
 
 				foreach($arButtons["submenu"] as $i=>$arSubButton)
 				{
-					$arSubButton['IMAGE'] = $arImages[$i];
+					if (isset($arImages[$i]))
+						$arSubButton['IMAGE'] = $arImages[$i];
 					$arSubMenu["MENU"][] = $arSubButton;
 				}
 
@@ -131,7 +135,7 @@ class CAllIBlock
 			$APPLICATION->AddPanelButton($arPanelButton);
 		}
 
-		if(count($arButtons["intranet"]) > 0 && CModule::IncludeModule("intranet"))
+		if (!empty($arButtons["intranet"]) && is_array($arButtons["intranet"]) && CModule::IncludeModule("intranet"))
 		{
 			/** @global CIntranetToolbar $INTRANET_TOOLBAR */
 			global $INTRANET_TOOLBAR;

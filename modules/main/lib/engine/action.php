@@ -92,7 +92,16 @@ class Action implements Errorable
 				throw new SystemException(static::className() . ' must implement run()');
 			}
 
-			$this->binder = new Binder($this, 'run', $this->controller->getSourceParametersList());
+			$controller = $this->getController();
+			$this->binder = AutoWire\Binder::buildForMethod($this, 'run')
+				->setSourcesParametersToMap($controller->getSourceParametersList())
+				->setAutoWiredParameters(
+					array_filter(array_merge(
+						[$controller->getPrimaryAutoWiredParameter()],
+						$controller->getAutoWiredParameters()
+					))
+				)
+			;
 		}
 
 		return $this;

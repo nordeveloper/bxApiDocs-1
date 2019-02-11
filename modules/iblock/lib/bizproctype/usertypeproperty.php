@@ -38,6 +38,8 @@ class UserTypeProperty extends BaseType\Base
 				)
 			);
 
+			//replace empty links
+			$result = str_replace('<a href="">', '<a>', $result);
 			return HTMLToTxt($result);
 		}
 		return parent::formatValuePrintable($fieldType, $value);

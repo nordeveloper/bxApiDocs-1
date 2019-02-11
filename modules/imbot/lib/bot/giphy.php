@@ -268,6 +268,8 @@ class Giphy extends Base
 
 	private static function sendMessage($params)
 	{
+		$params['USER_LANG'] = LANGUAGE_ID;
+
 		$http = new \Bitrix\ImBot\Http(self::BOT_CODE);
 		$query = $http->query(
 			'SendMessage',

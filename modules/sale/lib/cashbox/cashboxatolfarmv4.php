@@ -95,6 +95,7 @@ class CashboxAtolFarmV4 extends CashboxAtolFarm
 		}
 
 		$checkTypeMap = $this->getCheckTypeMap();
+		$paymentObjectMap = $this->getPaymentObjectMap();
 		foreach ($data['items'] as $i => $item)
 		{
 			$vat = $this->getValueFromSettings('VAT', $item['vat']);
@@ -107,7 +108,7 @@ class CashboxAtolFarmV4 extends CashboxAtolFarm
 				'sum' => (float)$item['sum'],
 				'quantity' => $item['quantity'],
 				'payment_method' => $checkTypeMap[$check::getType()],
-				'payment_object' => 'commodity',
+				'payment_object' => $paymentObjectMap[$item['payment_object']],
 				'vat' => array(
 					'type' => $vat
 				),
@@ -115,6 +116,20 @@ class CashboxAtolFarmV4 extends CashboxAtolFarm
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @return array
+	 */
+	private function getPaymentObjectMap()
+	{
+		return [
+			Check::PAYMENT_OBJECT_COMMODITY => 'commodity',
+			Check::PAYMENT_OBJECT_SERVICE => 'service',
+			Check::PAYMENT_OBJECT_JOB => 'job',
+			Check::PAYMENT_OBJECT_EXCISE => 'excise',
+			Check::PAYMENT_OBJECT_PAYMENT => 'payment',
+		];
 	}
 
 	/**

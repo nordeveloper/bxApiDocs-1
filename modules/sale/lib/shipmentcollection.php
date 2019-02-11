@@ -901,6 +901,35 @@ class ShipmentCollection
 	}
 
 	/**
+	 * @internal
+	 *
+	 * @param BasketItem $basketItem
+	 * @return Result
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
+	 */
+	public function onBeforeBasketItemDelete(BasketItem $basketItem)
+	{
+		$result = new Result();
+
+		/** @var Shipment $shipment */
+		foreach ($this->collection as $shipment)
+		{
+			$r = $shipment->onBeforeBasketItemDelete($basketItem);
+			if (!$r->isSuccess())
+			{
+				$result->addErrors($r->getErrors());
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * @param $action
 	 * @param BasketItemBase $basketItem
 	 * @param null $name
@@ -926,23 +955,10 @@ class ShipmentCollection
 
 		if ($action === EventActions::DELETE)
 		{
-			/** @var Shipment $shipment */
-			foreach ($this->collection as $shipment)
+			$order = $this->getOrder();
+			if ($order->getId() == 0 && !$order->isMathActionOnly())
 			{
-				$r = $shipment->onBasketModify($action, $basketItem, $name, $oldValue, $value);
-				if (!$r->isSuccess())
-				{
-					$result->addErrors($r->getErrors());
-				}
-			}
-
-			if (!$basketItem->isBundleChild())
-			{
-				$order = $this->getOrder();
-				if ($order->getId() == 0 && !$order->isMathActionOnly())
-				{
-					$this->refreshData();
-				}
+				$this->refreshData();
 			}
 
 			return $result;

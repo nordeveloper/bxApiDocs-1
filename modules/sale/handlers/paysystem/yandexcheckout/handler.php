@@ -7,6 +7,7 @@ use Bitrix\Main;
 use Bitrix\Main\Request;
 use Bitrix\Main\Web\HttpClient;
 use Bitrix\Sale\Payment;
+use Bitrix\Sale\PaymentCollection;
 use Bitrix\Sale\PaySystem;
 use Bitrix\Sale\PriceMaths;
 
@@ -20,6 +21,8 @@ class YandexCheckoutHandler
 	extends PaySystem\ServiceHandler
 	implements PaySystem\IRefund, PaySystem\IHold
 {
+	const CMS_NAME = 'api_1c-bitrix';
+
 	const PAYMENT_STATUS_WAITING_FOR_CAPTURE = 'waiting_for_capture';
 	const PAYMENT_STATUS_SUCCEEDED = 'succeeded';
 	const PAYMENT_STATUS_CANCELED = 'canceled';
@@ -265,14 +268,15 @@ class YandexCheckoutHandler
 	 * @param Payment $payment
 	 * @param Request $request
 	 * @return array
+	 * @throws Main\ArgumentException
 	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
 	 */
 	private function getYandexPaymentQueryParams(Payment $payment, Request $request)
 	{
-		$description = Localization\Loc::getMessage('SALE_HPS_YANDEX_CHECKOUT_PAYMENT_DESC', ['#PAYMENT_ID#' => $payment->getId()]);
-
 		$query = array(
-			'description' => $description,
+			'description' => $this->getPaymentDescription($payment),
 			'amount' => array(
 				'value' => (string)PriceMaths::roundPrecision($payment->getSum()),
 				'currency' => $payment->getField('CURRENCY')
@@ -286,7 +290,7 @@ class YandexCheckoutHandler
 				'BX_PAYMENT_NUMBER' => $payment->getId(),
 				'BX_PAYSYSTEM_CODE' => $this->service->getField('ID'),
 				'BX_HANDLER' => 'YANDEX_CHECKOUT',
-				'cms_name' => 'api_1c-bitrix',
+				'cms_name' => static::CMS_NAME,
 			)
 		);
 
@@ -321,6 +325,41 @@ class YandexCheckoutHandler
 		}
 
 		return $query;
+	}
+
+	/**
+	 * @param Payment $payment
+	 * @return mixed
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotImplementedException
+	 */
+	protected function getPaymentDescription(Payment $payment)
+	{
+		/** @var PaymentCollection $collection */
+		$collection = $payment->getCollection();
+		$order = $collection->getOrder();
+		$userEmail = $order->getPropertyCollection()->getUserEmail();
+
+		$description =  str_replace(
+			[
+				'#PAYMENT_NUMBER#',
+				'#ORDER_NUMBER#',
+				'#PAYMENT_ID#',
+				'#ORDER_ID#',
+				'#USER_EMAIL#'
+			],
+			[
+				$payment->getField('ACCOUNT_NUMBER'),
+				$order->getField('ACCOUNT_NUMBER'),
+				$payment->getId(),
+				$order->getId(),
+				($userEmail) ? $userEmail->getValue() : ''
+			],
+			$this->getBusinessValue($payment, 'YANDEX_CHECKOUT_DESCRIPTION')
+		);
+
+		return substr($description, 0, 128);
 	}
 
 	/**

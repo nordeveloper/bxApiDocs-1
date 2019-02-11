@@ -250,10 +250,6 @@ if ($USER->IsAuthorized()):
 		   <span class="adm-header-help-btn-text"><?=GetMessage("top_panel_help")?></span>
 		</span>
 		<script>
-			BX.message({
-				HELPER_LOADER: '<?=GetMessageJS('top_panel_help_loader')?>',
-				HELPER_TITLE: '<?=GetMessageJS('top_panel_help_title')?>'
-			});
 			BX.Helper.init({
 				frameOpenUrl : '<?=$frameOpenUrl?>',
 				helpBtn : BX('bx_top_panel_button_helper'),

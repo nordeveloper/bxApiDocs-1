@@ -203,9 +203,17 @@ class HttpApplication extends Application
 	private function clonePreviousHeadersAndCookies(HttpResponse $previousResponse, HttpResponse $response)
 	{
 		$httpHeaders = $response->getHeaders();
+
+		$status = $response->getStatus();
+		$previousStatus = $previousResponse->getStatus();
 		foreach ($previousResponse->getHeaders() as $headerName => $values)
 		{
 			if ($this->shouldIgnoreHeaderToClone($headerName))
+			{
+				continue;
+			}
+
+			if ($status && $headerName === $previousStatus)
 			{
 				continue;
 			}

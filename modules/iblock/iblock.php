@@ -145,6 +145,8 @@ $arClasses = array(
 	'\Bitrix\Iblock\Template\Functions\FunctionMin' => "lib/template/functions/fabric.php",
 	'\Bitrix\Iblock\Template\Functions\FunctionMax' => "lib/template/functions/fabric.php",
 	'\Bitrix\Iblock\Template\Functions\FunctionDistinct' => "lib/template/functions/fabric.php",
+	'\Bitrix\Iblock\Update\AdminFilterOption' => 'lib/update/adminfilteroption.php',
+	'\Bitrix\Iblock\Update\AdminGridOption' => 'lib/update/admingridoption.php',
 	'\Bitrix\Iblock\SenderEventHandler' => "lib/senderconnector.php",
 	'\Bitrix\Iblock\SenderConnectorIblock' => "lib/senderconnector.php",
 );

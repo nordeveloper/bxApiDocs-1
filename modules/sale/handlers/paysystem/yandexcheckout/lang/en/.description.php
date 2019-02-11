@@ -19,5 +19,4 @@ $MESS["SALE_HPS_YANDEX_CHECKOUT_RETURN"] = "Chargebacks are not supported";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_RESTRICTION"] = "Payment amount restriction is a matter of payment method selected by customer";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_COMMISSION"] = "No commission";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_REFERRER"] = "<a href=\"https://money.yandex.ru/joinups/?source=bitrix24\" target=\"_blank\">Quick registration</a>";
-$MESS["SALE_HPS_YANDEX_CHECKOUT_PAYMENT_DESC"] = "Payment ##PAYMENT_ID#";
 ?>

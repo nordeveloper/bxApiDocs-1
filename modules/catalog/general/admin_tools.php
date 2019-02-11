@@ -117,6 +117,28 @@ class CCatalogAdminToolsAll
 				'MENU' => $arSubItems
 			);
 		}
+
+		if (
+			$arCatalog['CATALOG'] === 'Y'
+			&& (
+				CCatalogSku::TYPE_FULL == $arCatalog['CATALOG_TYPE']
+				|| CCatalogSku::TYPE_CATALOG == $arCatalog['CATALOG_TYPE']
+			)
+			&& \Bitrix\Main\Loader::includeModule('crm')
+		)
+		{
+			if (\Bitrix\Crm\Order\Import\Instagram::isAvailable())
+			{
+				$arItems[] = [
+					'TEXT' => Loc::getMessage('BT_CAT_ADM_TOOLS_ADD_INSTAGRAM_IMPORT'),
+					'TITLE' => Loc::getMessage('BT_CAT_ADM_TOOLS_ADD_INSTAGRAM_IMPORT_TITLE'),
+					'LINK' => \Bitrix\Main\Config\Option::get('crm', 'path_to_order_import_instagram'),
+					'PUBLIC' => true,
+					'SHOW_TITLE' => true,
+				];
+			}
+		}
+
 		if (!empty($arItems))
 			$arResult = $arItems;
 
@@ -1087,7 +1109,8 @@ class CCatalogAdminProductSetEdit
 				'PROP_COUNT_ID' => $strIDPrefix.'_ITEMS_CNT',
 				'BTN_ID' => $strIDPrefix.'_ITEMS_ADD',
 				'CELLS' => $arCellInfo['CELLS'],
-				'CELL_PARAMS' => $arCellInfo['CELL_PARAMS']
+				'CELL_PARAMS' => $arCellInfo['CELL_PARAMS'],
+				'SEARCH_PAGE' => (defined('SELF_FOLDER_URL') ? SELF_FOLDER_URL : '/bitrix/admin/').'cat_product_search_dialog.php'
 			);
 			?>
 <script type="text/javascript">

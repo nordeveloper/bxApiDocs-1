@@ -920,32 +920,10 @@ if (Main\Loader::includeModule('sale'))
 			$userId = (int)$userId;
 			if ($userId < 0)
 				return false;
+
 			if (!isset(self::$userCache[$userId]))
-			{
-				if ($userId == 0)
-				{
-					self::$userCache[$userId] = array(2);
-				}
-				else
-				{
-					self::$userCache[$userId] = false;
-					$userIterator = Main\UserTable::getList(
-						array(
-							'select' => array('ID'),
-							'filter' => array('=ID' => $userId),
-							'order' => array('ID' => 'ASC')
-						)
-					);
-					$user = $userIterator->fetch();
-					if ($user)
-					{
-						$user['ID'] = (int)$user['ID'];
-						self::$userCache[$user['ID']] = \CUser::GetUserGroup($user['ID']);
-					}
-					sort(self::$userCache[$user['ID']]);
-					unset($user, $userIterator);
-				}
-			}
+				self::$userCache[$userId] = Main\UserTable::getUserGroupIds($userId);
+
 			return self::$userCache[$userId];
 		}
 
@@ -1292,7 +1270,7 @@ if (Main\Loader::includeModule('sale'))
 					$shipProducts[$productId] = $productData;
 				}
 
-				$r = $this->getProductListStoreData($shipProducts);
+				$r = $this->getProductListStores($shipProducts);
 				if ($r->isSuccess())
 				{
 					$data = $r->getData();
@@ -1400,7 +1378,7 @@ if (Main\Loader::includeModule('sale'))
 							Main\Localization\Loc::getMessage(
 								"DDCT_DEDUCTION_STORE_ERROR",
 								array_merge(
-									self::GetProductCatalogInfo($productId),
+									self::getProductCatalogInfo($productId),
 									array("#PRODUCT_ID#" => $productId)
 								)
 							), "DDCT_DEDUCTION_STORE_ERROR"
@@ -1865,6 +1843,20 @@ if (Main\Loader::includeModule('sale'))
 				if (!empty($autoShipStore))
 				{
 					$needQuantityList[$autoShipStore['STORE_ID']] = ($productQuantity > $autoShipStore['AMOUNT'] ? $autoShipStore['AMOUNT'] : abs($productQuantity));
+
+					$shipmentItemList = $productData['SHIPMENT_ITEM_LIST'];
+					/** @var Sale\ShipmentItem $shipmentItem */
+					foreach ($shipmentItemList as $index => $shipmentItem)
+					{
+						$shipmentItemStoreCollection = $shipmentItem->getShipmentItemStoreCollection();
+						if ($shipmentItemStoreCollection->count() === 0)
+						{
+							/** @var Sale\ShipmentItemStore $item */
+							$item = $shipmentItemStoreCollection->createItem($shipmentItem->getBasketItem());
+							$item->setField('STORE_ID', $autoShipStore['STORE_ID']);
+							$item->setField('QUANTITY', abs($productData['SHIPMENT_ITEM_QUANTITY_LIST'][$index]));
+						}
+					}
 				}
 			}
 
@@ -1880,7 +1872,7 @@ if (Main\Loader::includeModule('sale'))
 								Main\Localization\Loc::getMessage(
 									"DDCT_DEDUCTION_QUANTITY_STORE_ERROR",
 									array_merge(
-										self::GetProductCatalogInfo($productId),
+										self::getProductCatalogInfo($productId),
 										array("#STORE_ID#" => $productStoreData["STORE_ID"], '#PRODUCT_ID#' => $productId)
 									)
 								), "DDCT_DEDUCTION_QUANTITY_STORE_ERROR"
@@ -2017,7 +2009,7 @@ if (Main\Loader::includeModule('sale'))
 							Main\Localization\Loc::getMessage(
 								"DDCT_DEDUCTION_BARCODE_ERROR",
 								array_merge(
-									self::GetProductCatalogInfo($productId),
+									self::getProductCatalogInfo($productId),
 									array("#BARCODE#" => $barcodeValue)
 								)
 							), "DDCT_DEDUCTION_BARCODE_ERROR"
@@ -2264,7 +2256,7 @@ if (Main\Loader::includeModule('sale'))
 								new Sale\ResultWarning(
 									Main\Localization\Loc::getMessage(
 										"RSRV_QUANTITY_NOT_ENOUGH_ERROR",
-										self::GetProductCatalogInfo($productId)
+										self::getProductCatalogInfo($productId)
 									), "ERROR_NOT_ENOUGH_QUANTITY"
 								)
 							);
@@ -3001,7 +2993,7 @@ if (Main\Loader::includeModule('sale'))
 		protected function createStoreProductMap(array $products)
 		{
 			$productStoreDataList = array();
-			$r = $this->getProductListStoreData($products);
+			$r = $this->getProductListStores($products);
 			if ($r->isSuccess())
 			{
 				$data = $r->getData();
@@ -3058,7 +3050,6 @@ if (Main\Loader::includeModule('sale'))
 							);
 						}
 					}
-
 				}
 			}
 
@@ -3080,7 +3071,7 @@ if (Main\Loader::includeModule('sale'))
 				}
 			}
 
-			$r = $this->getProductListStoreData($products);
+			$r = $this->getProductListStores($products);
 			if ($r->isSuccess())
 			{
 				$data = $r->getData();
@@ -3100,7 +3091,7 @@ if (Main\Loader::includeModule('sale'))
 						$result->addError(
 							new Sale\ResultError(
 								Main\Localization\Loc::getMessage(
-									"DDCT_DEDUCTION_MULTI_BARCODE_EMPTY", self::GetProductCatalogInfo($productId)
+									"DDCT_DEDUCTION_MULTI_BARCODE_EMPTY", self::getProductCatalogInfo($productId)
 								), "DDCT_DEDUCTION_MULTI_BARCODE_EMPTY"
 							)
 						);
@@ -3113,7 +3104,7 @@ if (Main\Loader::includeModule('sale'))
 						new Sale\ResultError(
 							Main\Localization\Loc::getMessage(
 								"DDCT_DEDUCTION_STORE_ERROR",
-								self::GetProductCatalogInfo($productId)
+								self::getProductCatalogInfo($productId)
 							), "DEDUCTION_STORE_ERROR1"
 						)
 					);
@@ -3207,7 +3198,7 @@ if (Main\Loader::includeModule('sale'))
 											Main\Localization\Loc::getMessage(
 												"DDCT_DEDUCTION_QUANTITY_STORE_ERROR",
 												array_merge(
-													self::GetProductCatalogInfo($productId),
+													self::getProductCatalogInfo($productId),
 													array("#STORE_ID#" => $storeId)
 												)
 											), "DDCT_DEDUCTION_QUANTITY_STORE_ERROR"
@@ -3300,7 +3291,7 @@ if (Main\Loader::includeModule('sale'))
 							new Sale\ResultError(
 								Main\Localization\Loc::getMessage(
 									"SALE_PROVIDER_SHIPMENT_QUANTITY_NOT_ENOUGH",
-									self::GetProductCatalogInfo($amountProductId)
+									self::getProductCatalogInfo($amountProductId)
 								), "SALE_PROVIDER_SHIPMENT_QUANTITY_NOT_ENOUGH"
 							)
 						);
@@ -3363,7 +3354,7 @@ if (Main\Loader::includeModule('sale'))
 								new Sale\ResultError(
 									Main\Localization\Loc::getMessage(
 										"DDCT_DEDUCTION_STORE_ERROR",
-										self::GetProductCatalogInfo($productData['PRODUCT_ID'])
+										self::getProductCatalogInfo($productData['PRODUCT_ID'])
 									), "DDCT_DEDUCTION_STORE_ERROR"
 								)
 							);
@@ -3375,7 +3366,7 @@ if (Main\Loader::includeModule('sale'))
 			else
 			{
 				$result->addError( new Sale\ResultError(
-					Main\Localization\Loc::getMessage("DDCT_DEDUCTION_STORE_ERROR", self::GetProductCatalogInfo($productData['PRODUCT_ID'])),
+					Main\Localization\Loc::getMessage("DDCT_DEDUCTION_STORE_ERROR", self::getProductCatalogInfo($productData['PRODUCT_ID'])),
 					"DEDUCTION_STORE_ERROR1"
 				));
 			}
@@ -3459,7 +3450,7 @@ if (Main\Loader::includeModule('sale'))
 								Main\Localization\Loc::getMessage(
 									"DDCT_DEDUCTION_MULTI_BARCODE_EMPTY",
 									array_merge(
-										self::GetProductCatalogInfo($productId),
+										self::getProductCatalogInfo($productId),
 										array("#STORE_ID#" => $storeId)
 									)
 								), "DDCT_DEDUCTION_MULTI_BARCODE_EMPTY"
@@ -3493,7 +3484,7 @@ if (Main\Loader::includeModule('sale'))
 							$result->addError( new Sale\ResultError(
 								Main\Localization\Loc::getMessage(
 									"DDCT_DEDUCTION_BARCODE_ERROR",
-									array_merge(self::GetProductCatalogInfo($productId), array("#BARCODE#" => $barcodeValue))
+									array_merge(self::getProductCatalogInfo($productId), array("#BARCODE#" => $barcodeValue))
 								),
 								"DDCT_DEDUCTION_BARCODE_ERROR"
 							));
@@ -3506,7 +3497,7 @@ if (Main\Loader::includeModule('sale'))
 				$result->addError( new Sale\ResultError(
 					Main\Localization\Loc::getMessage(
 						"DDCT_DEDUCTION_MULTI_BARCODE_EMPTY",
-						array_merge(self::GetProductCatalogInfo($productId), array("#STORE_ID#" => $storeId))
+						array_merge(self::getProductCatalogInfo($productId), array("#STORE_ID#" => $storeId))
 					),
 					"DDCT_DEDUCTION_MULTI_BARCODE_EMPTY"
 				));
@@ -3880,66 +3871,6 @@ if (Main\Loader::includeModule('sale'))
 						$cacheId = md5($productId);
 						static::setHitCache(self::CACHE_STORE_PRODUCT, $cacheId, $resultList[$productId]);
 					}
-				}
-			}
-
-			if (!empty($resultList))
-			{
-				$result->setData(
-					array(
-						'PRODUCT_STORES_LIST' => $resultList
-					)
-				);
-			}
-
-			return $result;
-		}
-
-		/**
-		 * @param array $products
-		 *
-		 * @return Sale\Result
-		 */
-		private function getProductListStoreData(array $products)
-		{
-			$result = new Sale\Result();
-
-			$resultList = array();
-			$productStoreList = array();
-			$r = $this->getProductListStores($products);
-			if ($r->isSuccess())
-			{
-				$data = $r->getData();
-				if (array_key_exists('PRODUCT_STORES_LIST', $data))
-				{
-					$productStoreList = $data['PRODUCT_STORES_LIST'];
-				}
-			}
-
-			$productIndexList = array();
-			foreach ($products as $productIndex => $productData)
-			{
-				$productQuantity = 0;
-				if (array_key_exists('QUANTITY', $productData))
-				{
-					$productQuantity = $productData['QUANTITY'];
-				}
-				elseif (!empty($productData['QUANTITY_LIST']))
-				{
-					foreach ($productData['QUANTITY_LIST'] as $basketCode => $quantity)
-					{
-						$productQuantity += $quantity;
-					}
-				}
-
-				$productIndexList[$productData['PRODUCT_ID']] = $productQuantity;
-			}
-
-			foreach ($productStoreList as $productStoreData)
-			{
-				foreach ($productStoreData as $productStoreItem)
-				{
-					$resultList[$productStoreItem['PRODUCT_ID']][$productStoreItem['STORE_ID']] = $productStoreItem;
 				}
 			}
 
@@ -4478,18 +4409,23 @@ if (Main\Loader::includeModule('sale'))
 		 */
 		private static function getCatalogProducts(array $list, array $select)
 		{
-			$resultList = array();
-			$resProduct = \CCatalogProduct::GetList(
-				array(),
-				array('ID' => $list),
-				false,
-				false,
-				$select
-			);
-			while ($catalogProductData = $resProduct->GetNext())
+			if (empty($select))
+				$select = array('*');
+			elseif (!in_array('ID', $select))
+				$select[] = 'ID';
+			Main\Type\Collection::normalizeArrayValuesByInt($list, true);
+			if (empty($list))
+				return [];
+			$resultList = [];
+			$iterator = Catalog\ProductTable::getList([
+				'select' => $select,
+				'filter' => ['@ID' => $list]
+			]);
+			while ($row = $iterator->fetch())
 			{
-				$resultList[$catalogProductData['ID']] = $catalogProductData;
+				$resultList[$row['ID']] = $row;
 			}
+			unset($row, $iterator);
 
 			return $resultList;
 		}

@@ -192,6 +192,8 @@ Loader::registerAutoLoadClasses(
 		'\Bitrix\Catalog\Product\Sku' => 'lib/product/sku.php',
 		'\Bitrix\Catalog\Product\SubscribeManager' => 'lib/product/subscribemanager.php',
 		'\Bitrix\Catalog\Product\Viewed' => 'lib/product/viewed.php',
+		'\Bitrix\Catalog\Update\AdminFilterOption' => 'lib/update/adminfilteroption.php',
+		'\Bitrix\Catalog\Update\AdminGridOption' => 'lib/update/admingridoption.php',
 		'\Bitrix\Catalog\CatalogIblockTable' => 'lib/catalogiblock.php',
 		'\Bitrix\Catalog\CatalogViewedProductTable' => 'lib/catalogviewedproduct.php',
 		'\Bitrix\Catalog\DiscountTable' => 'lib/discount.php',

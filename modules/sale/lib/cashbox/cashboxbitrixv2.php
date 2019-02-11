@@ -5,8 +5,6 @@ namespace Bitrix\Sale\Cashbox;
 use Bitrix\Main;
 use Bitrix\Catalog;
 use Bitrix\Main\Localization;
-use Bitrix\Sale\Cashbox\Internals\CashboxTable;
-use Bitrix\Sale\PriceMaths;
 
 Localization\Loc::loadMessages(__FILE__);
 
@@ -19,6 +17,15 @@ class CashboxBitrixV2 extends CashboxBitrix
 	/**
 	 * @param Check $check
 	 * @return array
+	 * @throws Main\ArgumentException
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\ArgumentTypeException
+	 * @throws Main\LoaderException
+	 * @throws Main\NotImplementedException
+	 * @throws Main\ObjectException
+	 * @throws Main\ObjectPropertyException
+	 * @throws Main\SystemException
 	 */
 	public function buildCheckQuery(Check $check)
 	{
@@ -69,6 +76,7 @@ class CashboxBitrixV2 extends CashboxBitrix
 		}
 
 		$checkTypeMap = $this->getCheckTypeMap();
+		$paymentObjectMap = $this->getPaymentObjectMap();
 		foreach ($data['items'] as $i => $item)
 		{
 			$vat = $this->getValueFromSettings('VAT', $item['vat']);
@@ -83,7 +91,7 @@ class CashboxBitrixV2 extends CashboxBitrix
 				'quantity' => $item['quantity'],
 				'amount' => (float)$item['sum'],
 				'paymentMethod' => $checkTypeMap[$check::getType()],
-				'paymentObject' => 'commodity',
+				'paymentObject' => $paymentObjectMap[$item['payment_object']],
 				'tax' => array(
 					'type' => $vat
 				),
@@ -91,6 +99,20 @@ class CashboxBitrixV2 extends CashboxBitrix
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @return array
+	 */
+	private function getPaymentObjectMap()
+	{
+		return [
+			Check::PAYMENT_OBJECT_COMMODITY => 'commodity',
+			Check::PAYMENT_OBJECT_SERVICE => 'service',
+			Check::PAYMENT_OBJECT_JOB => 'job',
+			Check::PAYMENT_OBJECT_EXCISE => 'excise',
+			Check::PAYMENT_OBJECT_PAYMENT => 'payment',
+		];
 	}
 
 	/**
@@ -234,6 +256,11 @@ class CashboxBitrixV2 extends CashboxBitrix
 
 		foreach ($result as $zn => $cashbox)
 		{
+			if (!isset($cashbox['ID']))
+			{
+				continue;
+			}
+
 			$current = Manager::getCashboxFromCache($cashbox['ID']);
 
 			if ($current['HANDLER'] !== '\\'.static::class)

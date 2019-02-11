@@ -393,6 +393,14 @@ if (!function_exists('yandexPrepareItems'))
 {
 	function yandexPrepareItems(array &$list, array $parents, array $options)
 	{
+		$descrField = 'PREVIEW_TEXT';
+		$descrTypeField = 'PREVIEW_TEXT_TYPE';
+		if (isset($options['DESCRIPTION']))
+		{
+			$descrField = $options['DESCRIPTION'];
+			$descrTypeField = $options['DESCRIPTION'].'_TYPE';
+		}
+
 		foreach (array_keys($list) as $index)
 		{
 			$row = &$list[$index];
@@ -461,13 +469,13 @@ if (!function_exists('yandexPrepareItems'))
 			}
 
 			$row['DESCRIPTION'] = '';
-			if ($row['PREVIEW_TEXT'] !== null)
+			if ($row[$descrField] !== null)
 			{
 				$row['DESCRIPTION'] = yandex_text2xml(
 					TruncateText(
-						$row['PREVIEW_TEXT_TYPE'] == 'html'
-						? strip_tags(preg_replace_callback("'&[^;]*;'", 'yandex_replace_special', $row['PREVIEW_TEXT']))
-						: preg_replace_callback("'&[^;]*;'", 'yandex_replace_special', $row['PREVIEW_TEXT']),
+						$row[$descrTypeField] == 'html'
+						? strip_tags(preg_replace_callback("'&[^;]*;'", 'yandex_replace_special', $row[$descrField]))
+						: preg_replace_callback("'&[^;]*;'", 'yandex_replace_special', $row[$descrField]),
 						$options['MAX_DESCRIPTION_LENGTH']
 					),
 					true
@@ -545,6 +553,13 @@ if ($parametricFieldsExist)
 		$yandexNeedPropertyIds[$id] = true;
 	unset($id);
 }
+
+$commonFields = [
+	'DESCRIPTION' => 'PREVIEW_TEXT'
+];
+if (!empty($XML_DATA['COMMON_FIELDS']) && is_array($XML_DATA['COMMON_FIELDS']))
+	$commonFields = array_merge($commonFields, $XML_DATA['COMMON_FIELDS']);
+$descrField = $commonFields['DESCRIPTION'];
 
 $propertyFields = array(
 	'ID', 'PROPERTY_TYPE', 'MULTIPLE', 'USER_TYPE'
@@ -920,6 +935,7 @@ $itemOptions = array(
 	'PROTOCOL' => $usedProtocol,
 	'SITE_NAME' => $site['SERVER_NAME'],
 	'SITE_DIR' => $site['DIR'],
+	'DESCRIPTION' => $descrField,
 	'MAX_DESCRIPTION_LENGTH' => 3000
 );
 
@@ -1177,12 +1193,12 @@ if (empty($arRunErrors))
 
 	$itemFields = array(
 		'ID', 'IBLOCK_ID', 'IBLOCK_SECTION_ID', 'NAME',
-		'PREVIEW_PICTURE', 'PREVIEW_TEXT', 'PREVIEW_TEXT_TYPE', 'DETAIL_PICTURE', 'DETAIL_PAGE_URL',
+		'PREVIEW_PICTURE', $descrField, $descrField.'_TYPE', 'DETAIL_PICTURE', 'DETAIL_PAGE_URL',
 		'CATALOG_AVAILABLE', 'CATALOG_TYPE'
 	);
 	$offerFields = array(
 		'ID', 'IBLOCK_ID', 'IBLOCK_SECTION_ID', 'NAME',
-		'PREVIEW_PICTURE', 'PREVIEW_TEXT', 'PREVIEW_TEXT_TYPE', 'DETAIL_PICTURE', 'DETAIL_PAGE_URL'
+		'PREVIEW_PICTURE', $descrField, $descrField.'_TYPE', 'DETAIL_PICTURE', 'DETAIL_PAGE_URL'
 	);
 
 	$allowedTypes = array();

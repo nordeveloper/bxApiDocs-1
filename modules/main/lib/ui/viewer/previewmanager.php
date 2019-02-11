@@ -11,6 +11,7 @@ use Bitrix\Main\Loader;
 use Bitrix\Main\SystemException;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\UI\Viewer\Transformation\TransformerManager;
+use Bitrix\Main\Web\MimeType;
 use Bitrix\Main\Web\Uri;
 use Bitrix\Main\Security;
 use Bitrix\Main\Engine\Response;
@@ -57,7 +58,9 @@ final class PreviewManager
 		$default = [
 			Renderer\Pdf::class,
 			Renderer\Video::class,
+			Renderer\Audio::class,
 			Renderer\Image::class,
+			Renderer\Code::class,
 		];
 
 		$event = new Event('main', 'onPreviewRendererBuildList');
@@ -435,14 +438,31 @@ final class PreviewManager
 	protected function buildRenderByFile($originalName, $contentType, Uri $sourceUri, array $options = [])
 	{
 		$options['contentType'] = $contentType;
-		$rendererClass = $this->getRenderClassByContentType($contentType);
+		$rendererClass = $this->getRenderClassByFile([
+			'contentType' => $contentType,
+			'originalName' => $originalName,
+		]);
 
 		$reflectionClass = new \ReflectionClass($rendererClass);
 		/** @see \Bitrix\Main\UI\Viewer\Renderer\Renderer::__construct */
 		return $reflectionClass->newInstance($originalName, $sourceUri, $options);
 	}
 
-	public function getRenderClassByContentType($contentType)
+	public function getRenderClassByFile(array $file)
+	{
+		$contentType = $file['contentType'];
+		$originalName = $file['originalName'];
+		$rendererClass = $this->findRenderClassByContentType($contentType);
+		if (!$rendererClass)
+		{
+			$contentTypeByName = MimeType::getByFilename($originalName);
+			$rendererClass = $this->findRenderClassByContentType($contentTypeByName);
+		}
+
+		return $rendererClass?: Renderer\Stub::class;
+	}
+
+	private function findRenderClassByContentType($contentType)
 	{
 		foreach ($this->rendererList as $rendererClass)
 		{
@@ -453,7 +473,7 @@ final class PreviewManager
 			}
 		}
 
-		return Renderer\Stub::class;
+		return null;
 	}
 
 	/**

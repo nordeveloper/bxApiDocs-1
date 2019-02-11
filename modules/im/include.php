@@ -145,7 +145,7 @@ CJSCore::RegisterExt('im_common', array(
 	'js' => '/bitrix/js/im/common.js',
 	'css' => '/bitrix/js/im/css/common.css',
 	'lang' => '/bitrix/modules/im/js_common.php',
-	'rel' => array('ls', 'ajax', 'date', 'fx', 'user', 'restclient', 'phone_number', 'loader', 'messenger.utils')
+	'rel' => array('ls', 'ajax', 'date', 'fx', 'user', 'restclient', 'phone_number', 'loader')
 ));
 
 CJSCore::RegisterExt('im_phone_call_view', array(

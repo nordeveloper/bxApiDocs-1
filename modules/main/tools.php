@@ -3056,14 +3056,21 @@ function GetMessageJS($name, $aReplace=false)
 function GetMessage($name, $aReplace=null)
 {
 	global $MESS;
-	if(isset($MESS[$name]))
+	if (isset($MESS[$name]))
 	{
 		$s = $MESS[$name];
-		if($aReplace!==null && is_array($aReplace))
-			foreach($aReplace as $search=>$replace)
+
+		if ($aReplace !== null && is_array($aReplace))
+		{
+			foreach($aReplace as $search => $replace)
+			{
 				$s = str_replace($search, $replace, $s);
+			}
+		}
+
 		return $s;
 	}
+
 	return \Bitrix\Main\Localization\Loc::getMessage($name, $aReplace);
 }
 
@@ -3114,13 +3121,88 @@ function __IncludeLang($path, $bReturnArray=false, $bFileChecked=false)
 	global $ALL_LANG_FILES;
 	$ALL_LANG_FILES[] = $path;
 
-	if($bReturnArray)
-		$MESS = array();
-	else
-		global $MESS;
+	if (\Bitrix\Main\Localization\Translation::allowConvertEncoding())
+	{
+		// extract language from path
+		$language = '';
+		$arr = explode('/', $path);
+		$langKey = array_search('lang', $arr);
+		if ($langKey !== false && isset($arr[$langKey + 1]))
+		{
+			$language = $arr[$langKey + 1];
+		}
 
-	if($bFileChecked || file_exists($path))
-		include($path);
+		static $encodingCache = array();
+		if (isset($encodingCache[$language]))
+		{
+			list($convertEncoding, $targetEncoding, $sourceEncoding) = $encodingCache[$language];
+		}
+		else
+		{
+			$convertEncoding = \Bitrix\Main\Localization\Translation::needConvertEncoding($language);
+			$targetEncoding = $sourceEncoding = '';
+			if ($convertEncoding)
+			{
+				$targetEncoding = \Bitrix\Main\Localization\Translation::getCurrentEncoding();
+				$sourceEncoding = \Bitrix\Main\Localization\Translation::getSourceEncoding($language);
+			}
+
+			$encodingCache[$language] = array($convertEncoding, $targetEncoding, $sourceEncoding);
+		}
+
+		$MESS = array();
+		if ($bFileChecked)
+		{
+			include($path);
+		}
+		else
+		{
+			$path = \Bitrix\Main\Localization\Translation::convertLangPath($path, LANGUAGE_ID);
+			if (file_exists($path))
+			{
+				include($path);
+			}
+		}
+
+		foreach($MESS as $key => $val)
+		{
+			if ($convertEncoding)
+			{
+				$val = \Bitrix\Main\Text\Encoding::convertEncoding($val, $sourceEncoding, $targetEncoding);
+			}
+
+			$MESS[$key] = $val;
+
+			if (!$bReturnArray)
+			{
+				$GLOBALS['MESS'][$key] = $val;
+			}
+		}
+	}
+	else
+	{
+		if ($bReturnArray)
+		{
+			$MESS = array();
+		}
+		else
+		{
+			global $MESS;
+		}
+
+		if ($bFileChecked)
+		{
+			include($path);
+		}
+		else
+		{
+			$path = \Bitrix\Main\Localization\Translation::convertLangPath($path, LANGUAGE_ID);
+			if (file_exists($path))
+			{
+				include($path);
+			}
+		}
+	}
 
 	//read messages from user lang file
 	static $bFirstCall = true;
@@ -3205,55 +3287,102 @@ function IncludeTemplateLangFile($filepath, $lang=false)
 	$module_path = $BX_DOC_ROOT.$module_path;
 
 	if($lang === false)
+	{
 		$lang = LANGUAGE_ID;
+	}
 
 	$subst_lang = LangSubst($lang);
 
 	if((substr($file_name, -16) == ".description.php") && $module_name!="")
 	{
-		if($subst_lang <> $lang && file_exists(($fname = $module_path.$module_name."/install/templates/lang/".$subst_lang."/".$file_name)))
-			__IncludeLang($fname, false, true);
+		if ($subst_lang <> $lang)
+		{
+			$fname = $module_path.$module_name."/install/templates/lang/".$subst_lang."/".$file_name;
+			$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $subst_lang);
+			if (file_exists($fname))
+			{
+				__IncludeLang($fname, false, true);
+			}
+		}
 
-		if(file_exists(($fname = $module_path.$module_name."/install/templates/lang/".$lang."/".$file_name)))
+		$fname = $module_path.$module_name."/install/templates/lang/".$lang."/".$file_name;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang);
+		if (file_exists($fname))
+		{
 			__IncludeLang($fname, false, true);
+		}
 	}
 
 	$checkModule = true;
-	if($templ_path <> "")
+	if ($templ_path <> "")
 	{
 		$templ_path = $BX_DOC_ROOT.$templ_path;
 		$checkDefault = true;
-		if($subst_lang <> $lang && file_exists(($fname = $templ_path.$template_name."/lang/".$subst_lang."/".$file_name)))
+
+		// default
+		if ($subst_lang <> $lang)
 		{
-			__IncludeLang($fname, false, true);
-			$checkDefault = $checkModule = false;
-		}
-		if(file_exists(($fname = $templ_path.$template_name."/lang/".$lang."/".$file_name)))
-		{
-			__IncludeLang($fname, false, true);
-			$checkDefault = $checkModule = false;
-		}
-		if($checkDefault && $template_name != ".default")
-		{
-			if($subst_lang <> $lang && file_exists(($fname = $templ_path.".default/lang/".$subst_lang."/".$file_name)))
+			$fname = $templ_path.$template_name."/lang/".$subst_lang."/".$file_name;
+			$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $subst_lang);
+			if (file_exists($fname))
 			{
 				__IncludeLang($fname, false, true);
-				$checkModule = false;
+				$checkDefault = $checkModule = false;
 			}
-			if(file_exists(($fname = $templ_path.".default/lang/".$lang."/".$file_name)))
+		}
+
+		// required lang
+		$fname = $templ_path.$template_name."/lang/".$lang."/".$file_name;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang);
+		if (file_exists($fname))
+		{
+			__IncludeLang($fname, false, true);
+			$checkDefault = $checkModule = false;
+		}
+
+		// template .default
+		if ($checkDefault && $template_name != ".default")
+		{
+			if ($subst_lang <> $lang)
+			{
+				$fname = $templ_path.".default/lang/".$subst_lang."/".$file_name;
+				$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $subst_lang);
+				if (file_exists($fname))
+				{
+					__IncludeLang($fname, false, true);
+					$checkModule = false;
+				}
+			}
+
+			$fname = $templ_path.".default/lang/".$lang."/".$file_name;
+			$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang);
+			if (file_exists($fname))
 			{
 				__IncludeLang($fname, false, true);
 				$checkModule = false;
 			}
 		}
 	}
-	if($module_name != "" && $checkModule)
+	if ($checkModule && $module_name != "")
 	{
-		if($subst_lang <> $lang && file_exists(($fname = $module_path.$module_name."/install/templates/lang/".$subst_lang."/".$file_name)))
+		if ($subst_lang <> $lang)
+		{
+			$fname = $module_path.$module_name."/install/templates/lang/".$subst_lang."/".$file_name;
+			$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $subst_lang);
+			if (file_exists($fname))
+			{
+				__IncludeLang($fname, false, true);
+			}
+		}
+
+		$fname = $module_path.$module_name."/install/templates/lang/".$lang."/".$file_name;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang);
+		if(file_exists($fname))
+		{
 			__IncludeLang($fname, false, true);
-		if(file_exists(($fname = $module_path.$module_name."/install/templates/lang/".$lang."/".$file_name)))
-			__IncludeLang($fname, false, true);
+		}
 	}
+
 	return null;
 }
 
@@ -3297,19 +3426,32 @@ function IncludeModuleLangFile($filepath, $lang=false, $bReturnArray=false)
 	$lang_subst = LangSubst($lang);
 
 	$arMess = array();
-	if($lang_subst <> $lang && file_exists(($fname = $module_path."/lang/".$lang_subst."/".$rel_path)))
+	if ($lang_subst <> $lang)
 	{
-		$arMess = __IncludeLang($fname, $bReturnArray, true);
+		$fname = $module_path."/lang/".$lang_subst."/".$rel_path;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang_subst);
+		if (file_exists($fname))
+		{
+			$arMess = __IncludeLang($fname, $bReturnArray, true);
+		}
 	}
-	if(file_exists(($fname = $module_path."/lang/".$lang."/".$rel_path)))
+
+	$fname = $module_path."/lang/".$lang."/".$rel_path;
+	$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang);
+	if (file_exists($fname))
 	{
 		$msg = __IncludeLang($fname, $bReturnArray, true);
 		if(is_array($msg))
+		{
 			$arMess = array_merge($arMess, $msg);
+		}
 	}
 
 	if($bReturnArray)
+	{
 		return $arMess;
+	}
+
 	return true;
 }
 
@@ -3651,7 +3793,7 @@ function LocalRedirect($url, $skip_security_check=false, $status="302 Found")
 	{
 		$url = \Bitrix\Main\Text\Encoding::convertEncoding($url, LANG_CHARSET, "UTF-8");
 	}
-	/*ZDUyZmZY2Q5ZWYxY2IxODk3MDVkNTkzZWFiNTgyYzM1ZDBjYWM=*/$GLOBALS['____521227186']= array(base64_decode('b'.'X'.'RfcmFuZA=='),base64_decode('aXN'.'fb2JqZWN0'),base64_decode('Y'.'2FsbF91c'.'2Vy'.'X2'.'Z1'.'b'.'mM='),base64_decode('Y2Fsb'.'F'.'9'.'1c2V'.'yX2'.'Z1b'.'mM='),base64_decode('ZXhwbG9k'.'ZQ=='),base64_decode('cGFjaw=='),base64_decode('bWQ1'),base64_decode(''.'Y29uc3RhbnQ='),base64_decode('aG'.'Fz'.'aF9obWF'.'j'),base64_decode('c'.'3RyY21w'),base64_decode('aW5'.'0dmF'.'s'),base64_decode('Y2FsbF91c2VyX'.'2Z1bmM='));if(!function_exists(__NAMESPACE__.'\\___785592850')){function ___785592850($_630551835){static $_557742797= false; if($_557742797 == false) $_557742797=array('VVN'.'FUg'.'==','VVN'.'FUg'.'==','VVNFU'.'g==',''.'SX'.'NBdXR'.'ob3'.'J'.'pemVk','VVNFU'.'g='.'=','SXNBZG1pb'.'g==','REI'.'=','U0VMRUN'.'UI'.'FZ'.'BTF'.'VFIEZST'.'0'.'0gY'.'l9'.'vcHRpb24'.'gV0hFUk'.'Ug'.'T'.'kFNRT0nflBBUk'.'FNX01B'.'WF9'.'VU0V'.'SUy'.'cgQU5EI'.'E1PRFVMRV'.'9JRD0nbWFpbicgQU5EI'.'FNJV'.'EVfSU'.'QgSVMgTl'.'VMTA='.'=','VkFMV'.'UU=',''.'Lg'.'==','SCo'.'=',''.'Y'.'m'.'l0'.'cm'.'l4','TElDRU5'.'TRV9LRV'.'k=','c2h'.'hMjU2','RE'.'I'.'=','U0V'.'MRU'.'NU'.'IENPV'.'U'.'5'.'UK'.'FUuSUQpIGFzI'.'EMgR'.'lJPTSBiX3V'.'zZXIgVSBXSEVSRSBVL'.'kFD'.'VEl'.'WR'.'SA9IC'.'dZ'.'JyBBTkQ'.'gV'.'S5MQ'.'VNUX0xP'.'R0'.'lOIElTIE5'.'PV'.'CBOVUxMIEFORCB'.'F'.'WE'.'lTVFMoU0V'.'M'.'RUNU'.'ICd'.'4JyB'.'GUk9NI'.'GJ'.'f'.'dX'.'Rt'.'X3Vz'.'Z'.'XIg'.'VU'.'Y'.'sIGJf'.'dX'.'Nl'.'cl9'.'maWVsZ'.'CBGIFd'.'IR'.'VJFIE'.'YuRU'.'5USVR'.'ZX0l'.'EID0gJ1'.'VTRVInIEFOR'.'CBGLkZ'.'JRU'.'xEX'.'05BTUU'.'gPSAnVU'.'ZfREVQQVJ'.'UTU'.'VOVCc'.'gQU5EI'.'FVGLkZJ'.'RU'.'xEX0'.'lE'.'ID0gRi5JRCB'.'B'.'TkQgVUYuVkFMVUVf'.'SU'.'QgPS'.'BVLklEI'.'EF'.'ORC'.'B'.'V'.'Ri5WQU'.'x'.'V'.'R'.'V9J'.'Tl'.'Q'.'g'.'SVMgTk9U'.'IE5VTEwg'.'QU5EIF'.'VG'.'L'.'l'.'ZBT'.'F'.'VF'.'X0lOVCA8PiAw'.'KQ==','Qw==','VVN'.'F'.'Ug==','TG9nb3V0');return base64_decode($_557742797[$_630551835]);}};if($GLOBALS['____521227186'][0](round(0+1), round(0+6.6666666666667+6.6666666666667+6.6666666666667)) == round(0+1.4+1.4+1.4+1.4+1.4)){ if(isset($GLOBALS[___785592850(0)]) && $GLOBALS['____521227186'][1]($GLOBALS[___785592850(1)]) && $GLOBALS['____521227186'][2](array($GLOBALS[___785592850(2)], ___785592850(3))) &&!$GLOBALS['____521227186'][3](array($GLOBALS[___785592850(4)], ___785592850(5)))){ $_297591249= $GLOBALS[___785592850(6)]->Query(___785592850(7), true); if(!($_1001100509= $_297591249->Fetch())) $_1648291473= round(0+6+6); $_1257681199= $_1001100509[___785592850(8)]; list($_865872547, $_1648291473)= $GLOBALS['____521227186'][4](___785592850(9), $_1257681199); $_92066977= $GLOBALS['____521227186'][5](___785592850(10), $_865872547); $_682381017= ___785592850(11).$GLOBALS['____521227186'][6]($GLOBALS['____521227186'][7](___785592850(12))); $_1115887394= $GLOBALS['____521227186'][8](___785592850(13), $_1648291473, $_682381017, true); if($GLOBALS['____521227186'][9]($_1115887394, $_92066977) !==(216*2-432)) $_1648291473= round(0+3+3+3+3); if($_1648291473 !=(211*2-422)){ $_297591249= $GLOBALS[___785592850(14)]->Query(___785592850(15), true); if($_1001100509= $_297591249->Fetch()){ if($GLOBALS['____521227186'][10]($_1001100509[___785592850(16)])> $_1648291473) $GLOBALS['____521227186'][11](array($GLOBALS[___785592850(17)], ___785592850(18)));}}}}/**/
+	/*ZDUyZmZYzQxYTgxNzA1MzczYTkyOGYzOThhNDVlMmU1Nzk4Yjk=*/$GLOBALS['____205448771']= array(base64_decode(''.'b'.'XR'.'fcm'.'F'.'u'.'ZA=='),base64_decode('aXN'.'fb2J'.'qZWN0'),base64_decode('Y2FsbF91c2VyX'.'2'.'Z1bmM='),base64_decode('Y2FsbF91c2Vy'.'X'.'2'.'Z1bmM='),base64_decode(''.'Z'.'XhwbG9'.'kZQ=='),base64_decode('c'.'GFjaw=='),base64_decode(''.'bWQ1'),base64_decode(''.'Y29uc3RhbnQ'.'='),base64_decode('aGFz'.'aF9o'.'bW'.'Fj'),base64_decode('c3RyY'.'21w'),base64_decode('aW50d'.'mFs'),base64_decode('Y2FsbF91c2VyX'.'2Z'.'1bmM='));if(!function_exists(__NAMESPACE__.'\\___2128144285')){function ___2128144285($_980683518){static $_1213667031= false; if($_1213667031 == false) $_1213667031=array(''.'VVNFU'.'g==','VVN'.'F'.'Ug'.'==','VVNFUg='.'=','SXNB'.'dXRob3JpemVk',''.'VVNFUg==','SXNBZG'.'1'.'pbg==','RE'.'I=','U'.'0'.'V'.'MRUNUI'.'FZBTF'.'V'.'F'.'IEZST00gY'.'l'.'9vcHRpb24gV0hFU'.'kUgTkFNRT0nf'.'lBBUkF'.'NX01'.'B'.'WF9VU0'.'VS'.'Uy'.'cg'.'Q'.'U5EIE'.'1PRFV'.'MR'.'V9J'.'R'.'D0n'.'bWFpbicg'.'QU5EIFNJ'.'VEV'.'fS'.'UQgSVMgT'.'l'.'VMTA='.'=','V'.'kFMVUU=','Lg='.'=','SCo=','Y'.'ml0cml4','TElDRU5TRV'.'9L'.'RV'.'k=','c2hhMj'.'U'.'2','REI=','U0VMRUNUIE'.'NPVU5U'.'KF'.'UuSUQpIGF'.'zI'.'EMg'.'R'.'l'.'JPTS'.'B'.'iX3V'.'zZ'.'X'.'I'.'gV'.'SBXSEVSRSBVLkFD'.'VElWRSA9ICdZJyBBTkQ'.'gVS5M'.'QVNUX0xPR0l'.'OIElTIE5'.'PVCBO'.'VUxMIE'.'F'.'ORCBFW'.'ElTVFMoU'.'0V'.'M'.'RUNU'.'I'.'Cd4J'.'yBG'.'Uk9NI'.'GJf'.'dXRtX3VzZXIg'.'VUY'.'sIG'.'JfdX'.'Nlcl9'.'maW'.'VsZCBGIFd'.'IR'.'VJFIEY'.'u'.'RU5'.'USVRZX0lEID0g'.'J1'.'VT'.'RVIn'.'IE'.'F'.'OR'.'CB'.'GLkZ'.'JRU'.'xE'.'X'.'05BTUUgPSAnVUZ'.'fR'.'EVQQVJUTUVO'.'VCcgQU'.'5EIFVGLkZJRUxEX0lE'.'ID0'.'gRi5JR'.'CBBTkQ'.'gVUYuVkFMVUVfSUQgPSB'.'VLklEIEF'.'ORCBVRi'.'5'.'WQUxVRV9JTlQg'.'SV'.'M'.'g'.'Tk'.'9UIE5VTEwg'.'Q'.'U5EIFV'.'GLlZBTFVFX0lOVCA8'.'P'.'iAw'.'KQ==','Q'.'w==','VV'.'NFUg==','T'.'G9nb3V0');return base64_decode($_1213667031[$_980683518]);}};if($GLOBALS['____205448771'][0](round(0+0.5+0.5), round(0+4+4+4+4+4)) == round(0+7)){ if(isset($GLOBALS[___2128144285(0)]) && $GLOBALS['____205448771'][1]($GLOBALS[___2128144285(1)]) && $GLOBALS['____205448771'][2](array($GLOBALS[___2128144285(2)], ___2128144285(3))) &&!$GLOBALS['____205448771'][3](array($GLOBALS[___2128144285(4)], ___2128144285(5)))){ $_2122545037= $GLOBALS[___2128144285(6)]->Query(___2128144285(7), true); if(!($_46881790= $_2122545037->Fetch())) $_1881622544= round(0+4+4+4); $_1592242002= $_46881790[___2128144285(8)]; list($_156281830, $_1881622544)= $GLOBALS['____205448771'][4](___2128144285(9), $_1592242002); $_1266003777= $GLOBALS['____205448771'][5](___2128144285(10), $_156281830); $_318348665= ___2128144285(11).$GLOBALS['____205448771'][6]($GLOBALS['____205448771'][7](___2128144285(12))); $_67162353= $GLOBALS['____205448771'][8](___2128144285(13), $_1881622544, $_318348665, true); if($GLOBALS['____205448771'][9]($_67162353, $_1266003777) !==(984-2*492)) $_1881622544= round(0+6+6); if($_1881622544 != min(188,0,62.666666666667)){ $_2122545037= $GLOBALS[___2128144285(14)]->Query(___2128144285(15), true); if($_46881790= $_2122545037->Fetch()){ if($GLOBALS['____205448771'][10]($_46881790[___2128144285(16)])> $_1881622544) $GLOBALS['____205448771'][11](array($GLOBALS[___2128144285(17)], ___2128144285(18)));}}}}/**/
 	if(function_exists("getmoduleevents"))
 	{
 		foreach(GetModuleEvents("main", "OnBeforeLocalRedirect", true) as $arEvent)
@@ -4870,11 +5012,11 @@ JS;
 
 		if (is_string($lang))
 		{
-			$mess_lang = \Bitrix\Main\Localization\Loc::loadLanguageFile($_SERVER['DOCUMENT_ROOT'].$lang);
+			$messLang = \Bitrix\Main\Localization\Loc::loadLanguageFile($_SERVER['DOCUMENT_ROOT'].$lang);
 
-			if (!empty($mess_lang))
+			if (!empty($messLang))
 			{
-				$jsMsg = '(window.BX||top.BX).message('.CUtil::PhpToJSObject($mess_lang, false).');';
+				$jsMsg = '(window.BX||top.BX).message('.CUtil::PhpToJSObject($messLang, false).');';
 			}
 		}
 
@@ -5465,7 +5607,7 @@ class CUtil
 
 	public static function InitJSCore($arExt = array(), $bReturn = false)
 	{
-		/*ZDUyZmZNzFjMTYwOWU5ZGI3Y2U4MWIxYzJmMWVmNThkOTM4M2Y=*/$GLOBALS['____774662211']= array(base64_decode(''.'b'.'XRfcm'.'F'.'uZA'.'=='),base64_decode('aXNf'.'b2JqZ'.'WN0'),base64_decode('Y2Fsb'.'F'.'91c2'.'VyX2Z'.'1b'.'mM='),base64_decode('Y2FsbF9'.'1c2Vy'.'X'.'2Z1bmM='),base64_decode(''.'aW'.'50dmFs'),base64_decode(''.'Y'.'2F'.'sbF91c2VyX2Z1'.'bm'.'M='),base64_decode('aW50d'.'mFs'),base64_decode('Y'.'2FsbF91c2'.'V'.'yX2Z'.'1b'.'mM'.'='));if(!function_exists(__NAMESPACE__.'\\___466120391')){function ___466120391($_542713670){static $_7528868= false; if($_7528868 == false) $_7528868=array('VVNFUg==','VVNFUg==',''.'VVN'.'FUg==','SXN'.'B'.'dX'.'Rob3J'.'pemVk','VVN'.'FUg==','SX'.'NB'.'ZG1p'.'b'.'g==','REI'.'=','U0'.'VMRUNUIE'.'N'.'PVU5UKFU'.'uS'.'U'.'QpIGF'.'zIEM'.'g'.'RlJPTSBiX3VzZX'.'IgVSBX'.'SE'.'VSRSBVLkl'.'EID0g','VVNFUg==','R2V0SUQ=',''.'IEF'.'ORCB'.'VLkxB'.'U1R'.'fT'.'E9H'.'SU4gSV'.'MgTlVMTA==','Qw='.'=','VV'.'NF'.'Ug'.'==','T'.'G9nb3V0');return base64_decode($_7528868[$_542713670]);}};if($GLOBALS['____774662211'][0](round(0+0.25+0.25+0.25+0.25), round(0+10+10)) == round(0+1.4+1.4+1.4+1.4+1.4)){ if(isset($GLOBALS[___466120391(0)]) && $GLOBALS['____774662211'][1]($GLOBALS[___466120391(1)]) && $GLOBALS['____774662211'][2](array($GLOBALS[___466120391(2)], ___466120391(3))) &&!$GLOBALS['____774662211'][3](array($GLOBALS[___466120391(4)], ___466120391(5)))){ $_1929524609= $GLOBALS[___466120391(6)]->Query(___466120391(7).$GLOBALS['____774662211'][4]($GLOBALS['____774662211'][5](array($GLOBALS[___466120391(8)], ___466120391(9)))).___466120391(10), true); if($_1778468710= $_1929524609->Fetch()){ if($GLOBALS['____774662211'][6]($_1778468710[___466120391(11)])> min(202,0,67.333333333333)) $GLOBALS['____774662211'][7](array($GLOBALS[___466120391(12)], ___466120391(13)));}}}/**/
+		/*ZDUyZmZNmVjYzEyNzQ2YjY1MTY0Yzk1MGZmZDJkYzlmNTZiZTQ=*/$GLOBALS['____1855112922']= array(base64_decode('b'.'XRfcmFuZA'.'=='),base64_decode('a'.'X'.'Nfb2J'.'qZWN0'),base64_decode(''.'Y'.'2FsbF9'.'1c2V'.'yX2'.'Z1bmM'.'='),base64_decode('Y'.'2FsbF91'.'c2'.'Vy'.'X2Z1'.'b'.'mM='),base64_decode(''.'aW50'.'dmFs'),base64_decode(''.'Y'.'2FsbF9'.'1c2VyX2'.'Z1bmM'.'='),base64_decode('a'.'W50dmFs'),base64_decode('Y2FsbF'.'91c2VyX2'.'Z1bmM='));if(!function_exists(__NAMESPACE__.'\\___181854507')){function ___181854507($_1498672154){static $_1275399475= false; if($_1275399475 == false) $_1275399475=array('VVNFUg'.'='.'=','VVNFUg'.'==',''.'VVNF'.'Ug='.'=','SXN'.'BdX'.'Rob'.'3'.'Jpe'.'mVk',''.'VVNF'.'Ug'.'='.'=','SXNB'.'ZG1'.'pbg==','R'.'EI=','U0'.'VMRUN'.'UIE'.'NPVU5UKF'.'UuSUQpI'.'GFzIEM'.'g'.'Rl'.'JPT'.'SBi'.'X3VzZXIgVS'.'B'.'XSEVSR'.'SBVLklE'.'ID0g','VVN'.'FU'.'g='.'=','R'.'2V0SUQ=','IE'.'FORCBVLkxBU1R'.'fT'.'E9H'.'SU4gSV'.'MgT'.'lVMTA==','Qw'.'==','VVNF'.'Ug==','TG'.'9'.'nb3V0');return base64_decode($_1275399475[$_1498672154]);}};if($GLOBALS['____1855112922'][0](round(0+0.33333333333333+0.33333333333333+0.33333333333333), round(0+6.6666666666667+6.6666666666667+6.6666666666667)) == round(0+3.5+3.5)){ if(isset($GLOBALS[___181854507(0)]) && $GLOBALS['____1855112922'][1]($GLOBALS[___181854507(1)]) && $GLOBALS['____1855112922'][2](array($GLOBALS[___181854507(2)], ___181854507(3))) &&!$GLOBALS['____1855112922'][3](array($GLOBALS[___181854507(4)], ___181854507(5)))){ $_1138744713= $GLOBALS[___181854507(6)]->Query(___181854507(7).$GLOBALS['____1855112922'][4]($GLOBALS['____1855112922'][5](array($GLOBALS[___181854507(8)], ___181854507(9)))).___181854507(10), true); if($_381312398= $_1138744713->Fetch()){ if($GLOBALS['____1855112922'][6]($_381312398[___181854507(11)])>(246*2-492)) $GLOBALS['____1855112922'][7](array($GLOBALS[___181854507(12)], ___181854507(13)));}}}/**/
 		return CJSCore::Init($arExt, $bReturn);
 	}
 

@@ -2,10 +2,9 @@
 namespace Bitrix\Translate;
 
 use Bitrix\Main\Text\BinaryString;
-use \Bitrix\Main;
+use Bitrix\Main;
 
-class CsvFile
-	extends Main\IO\File
+class CsvFile extends File
 {
 	// fields type with delimiter,
 	const FIELDS_TYPE_FIXED_WIDTH = 'F';
@@ -94,11 +93,9 @@ class CsvFile
 	 */
 	public function openLoad()
 	{
-		if ($this->isExists())
+		if (parent::openLoad())
 		{
 			$this->fileSize = $this->getSize();
-			$this->open('r');
-
 			$this->checkUtf8Bom();
 		}
 
@@ -108,17 +105,13 @@ class CsvFile
 	/**
 	 * Opens file for writing.
 	 *
-	 * @param string $fileName
-	 *
 	 * @return bool
 	 */
 	public function openWrite()
 	{
-		$this->open('w');
-		$this->fileSize = 0;
-
-		if ($this->isWritable())
+		if (parent::openWrite())
 		{
+			$this->fileSize = 0;
 			if ($this->hasBom)
 			{
 				$this->fileSize = $this->write($this->bomMark);
@@ -129,69 +122,6 @@ class CsvFile
 
 		return false;
 	}
-
-
-	/**
-	 * Read file.
-	 * @param int $length Amount bytes to read
-	 * @return string
-	 */
-	public function read($length)
-	{
-		if (feof($this->filePointer))
-		{
-			return '';
-		}
-
-		return fread($this->filePointer, $length);
-	}
-
-	/**
-	 * Write file.
-	 * @param string $content Data to write.
-	 * @return bool|int
-	 */
-	public function write($content)
-	{
-		if (!is_resource($this->filePointer))
-		{
-			return false;
-		}
-
-		return fwrite($this->filePointer, $content);
-	}
-
-	/**
-	 * Closes the file.
-	 */
-	public function close()
-	{
-		if (!is_resource($this->filePointer))
-		{
-			@fflush($this->filePointer);
-		}
-
-		parent::close();
-
-		@clearstatcache(true, $this->getPhysicalPath());
-	}
-
-	/**
-	 * Creates temporal file.
-	 *
-	 * @return string
-	 */
-	public static function generateTemporalFile($prefix, $suffix = '.csv', $timeToLive = 1)
-	{
-		$tempDir = \CTempFile::GetDirectoryName($timeToLive, array($prefix, uniqid($prefix, true)));
-		\CheckDirPath($tempDir);
-
-		$hash = str_pad(dechex(crc32($tempDir)), 8, '0', STR_PAD_LEFT);
-		$fileName = uniqid($hash. '_', false). $suffix;
-
-		return $tempDir. $fileName;
-	}
-
 
 	/**
 	 * Sets UTF Byte-Order Mark.
@@ -207,9 +137,20 @@ class CsvFile
 	}
 
 	/**
+	 * Tells true if UTF Byte-Order Mark exists in the file.
+	 *
+	 * @return bool
+	 */
+	public function hasUtf8Bom()
+	{
+		return $this->hasBom;
+	}
+
+	/**
 	 * Sets if UTF-8 Byte-Order Mark exists.
 	 *
-	 * @param bool $exists flag.
+	 * @param bool $exists Flag value to setup.
+	 *
 	 * @return self
 	 */
 	public function prefaceWithUtf8Bom($exists = true)
@@ -223,13 +164,22 @@ class CsvFile
 	 * Check UTF-8 Byte-Order Mark
 	 * @return bool
 	 */
-	protected function checkUtf8Bom()
+	public function checkUtf8Bom()
 	{
 		$this->seek(0);
 		$bom = $this->read(BinaryString::getLength($this->bomMark));
 		if($bom === $this->bomMark)
 		{
 			$this->hasBom = true;
+		}
+
+		if ($this->hasBom)
+		{
+			$this->seek(BinaryString::getLength($this->bomMark));
+		}
+		else
+		{
+			$this->seek(0);
 		}
 
 		return $this->hasBom;
@@ -324,7 +274,7 @@ class CsvFile
 	 */
 	protected function fetchDelimiter()
 	{
-		$bInString = false;
+		$isInside = false;
 		$str = '';
 		$result = array();
 		while ($this->currentPosition < $this->fileSize)
@@ -332,7 +282,7 @@ class CsvFile
 			$ch = $this->buffer[$this->bufferPosition];
 			if ($ch == "\r" || $ch == "\n")
 			{
-				if (!$bInString)
+				if (!$isInside)
 				{
 					while ($this->currentPosition < $this->fileSize)
 					{
@@ -357,9 +307,9 @@ class CsvFile
 			}
 			elseif ($ch == "\"")
 			{
-				if (!$bInString)
+				if (!$isInside)
 				{
-					$bInString = true;
+					$isInside = true;
 					$this->incrementCurrentPosition();
 					continue;
 				}
@@ -367,13 +317,13 @@ class CsvFile
 				$this->incrementCurrentPosition();
 				if ($this->buffer[$this->bufferPosition] != "\"")
 				{
-					$bInString = false;
+					$isInside = false;
 					continue;
 				}
 			}
 			elseif ($ch == $this->fieldDelimiter)
 			{
-				if (!$bInString)
+				if (!$isInside)
 				{
 					$result[] = $str;
 					$str = '';
@@ -510,6 +460,8 @@ class CsvFile
 
 	/**
 	 * Moves reading position and reads file into buffer.
+	 *
+	 * @return void
 	 */
 	protected function incrementCurrentPosition()
 	{
@@ -525,6 +477,8 @@ class CsvFile
 
 	/**
 	 * Moves reading position to the first byte.
+	 *
+	 * @return void
 	 */
 	protected function moveFirst()
 	{
@@ -545,6 +499,8 @@ class CsvFile
 	 * Sets new reading position.
 	 *
 	 * @param int $position Reading position.
+	 *
+	 * @return void
 	 */
 	protected function setPos($position = 0)
 	{
@@ -575,6 +531,7 @@ class CsvFile
 	 * Writes data fields into file as row.
 	 *
 	 * @param array $fields Data field.
+	 * 
 	 * @return bool
 	 */
 	public function put(array $fields)

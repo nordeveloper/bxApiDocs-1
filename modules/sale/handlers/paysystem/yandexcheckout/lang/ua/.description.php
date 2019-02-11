@@ -19,5 +19,4 @@ $MESS["SALE_HPS_YANDEX_CHECKOUT_RETURN"] = "Повернення платежі�
 $MESS["SALE_HPS_YANDEX_CHECKOUT_RESTRICTION"] = "Обмеження по сумі платежів залежить від способу оплати, який вибере покупець";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_COMMISSION"] = "Без комісії для покупця";
 $MESS["SALE_HPS_YANDEX_CHECKOUT_REFERRER"] = "<a href=\"https://money.yandex.ru/joinups/?source=bitrix24\" target=\"_blank\">Швидка реєстрація</a>";
-$MESS["SALE_HPS_YANDEX_CHECKOUT_PAYMENT_DESC"] = "Оплата №#PAYMENT_ID#";
 ?>

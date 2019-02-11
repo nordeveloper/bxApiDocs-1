@@ -411,11 +411,23 @@ class CPageTemplate
 		$file = basename($filepath);
 		$dir = dirname($filepath);
 
-		if(LANGUAGE_ID <> "en" && LANGUAGE_ID <> "ru" && file_exists(($fname = $dir."/lang/".LangSubst(LANGUAGE_ID)."/".$file)))
-			__IncludeLang($fname, false, true);
+		$langSubst = LangSubst(LANGUAGE_ID);
+		$fname = $dir."/lang/".$langSubst."/".$file;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $langSubst);
+		if(LANGUAGE_ID <> "en" && LANGUAGE_ID <> "ru")
+		{
+			if(file_exists($fname))
+			{
+				__IncludeLang($fname, false, true);
+			}
+		}
 
-		if(file_exists(($fname = $dir."/lang/".LANGUAGE_ID."/".$file)))
+		$fname = $dir."/lang/".LANGUAGE_ID."/".$file;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, LANGUAGE_ID);
+		if(file_exists($fname))
+		{
 			__IncludeLang($fname, false, true);
+		}
 	}
 }
 

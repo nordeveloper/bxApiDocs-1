@@ -711,6 +711,28 @@ class ShipmentItemCollection
 	}
 
 	/**
+	 * @param BasketItem $basketItem
+	 * @return Result
+	 * @throws Main\ArgumentNullException
+	 * @throws Main\ArgumentOutOfRangeException
+	 * @throws Main\NotSupportedException
+	 * @throws Main\ObjectNotFoundException
+	 * @throws Main\SystemException
+	 */
+	public function onBeforeBasketItemDelete(BasketItem $basketItem)
+	{
+		$result = new Result();
+
+		$r = $this->deleteByBasketItem($basketItem);
+		if (!$r->isSuccess())
+		{
+			$result->addErrors($r->getErrors());
+		}
+
+		return $result;
+	}
+
+	/**
 	 * @param $action
 	 * @param BasketItem $basketItem
 	 * @param null $name
@@ -727,15 +749,7 @@ class ShipmentItemCollection
 	{
 		$result = new Result();
 
-		if ($action === EventActions::DELETE)
-		{
-			$r = $this->deleteByBasketItem($basketItem);
-			if (!$r->isSuccess())
-			{
-				$result->addErrors($r->getErrors());
-			}
-		}
-		elseif ($action === EventActions::ADD)
+		if ($action === EventActions::ADD)
 		{
 			$shipmentItem = $this->createItem($basketItem);
 			if ($shipmentItem)
