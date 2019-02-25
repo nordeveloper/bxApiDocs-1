@@ -11,9 +11,8 @@ use Bitrix\Main;
 use Bitrix\Main\Application;
 use Bitrix\Main\ArgumentTypeException;
 use Bitrix\Main\Engine\ActionFilter\Authentication;
+use Bitrix\Main\Engine\Response;
 use Bitrix\Main\Localization\Loc;
-use Bitrix\Main\Type\DateTime;
-use Bitrix\Main\Web\Uri;
 
 class File extends BaseObject
 {
@@ -25,6 +24,7 @@ class File extends BaseObject
 		$configureActions['showPreview'] = [
 			'-prefilters' => [
 				Main\Engine\ActionFilter\Csrf::class,
+				Authentication::class,
 			],
 			'+prefilters' => [
 				new Authentication(true),
@@ -36,6 +36,7 @@ class File extends BaseObject
 		$configureActions['download'] = [
 			'-prefilters' => [
 				Main\Engine\ActionFilter\Csrf::class,
+				Authentication::class,
 			],
 			'+prefilters' => [
 				new Authentication(true),
@@ -69,6 +70,7 @@ class File extends BaseObject
 			'etag' => $file->getEtag(),
 			'extra' => [
 				'downloadUri' => $this->getActionUri('download', ['fileId' => $file->getId(),]),
+				'showInGridUri' => $this->getUriToShowObjectInGrid($file),
 			],
 		]);
 
@@ -78,6 +80,16 @@ class File extends BaseObject
 		}
 
 		return $data;
+	}
+
+	protected function getUriToShowObjectInGrid(Disk\File $file)
+	{
+		$urlManager = Driver::getInstance()->getUrlManager();
+		$urlShowObjectInGrid = $urlManager->getUrlFocusController('showObjectInGrid', array(
+			'objectId' => $file->getId(),
+		));
+
+		return new Main\Web\Uri($urlShowObjectInGrid);
 	}
 
 	public function renameAction(Disk\File $file, $newName, $autoCorrect = false)
@@ -90,6 +102,7 @@ class File extends BaseObject
 		$content->registerDelayedDeleteOnShutdown();
 		$currentUserId = $this->getCurrentUser()->getId();
 		$securityContext = $folder->getStorage()->getSecurityContext($currentUserId);
+		$contentType = $this->request->getHeader('X-Upload-Content-Type')?: $content->getContentType();
 
 		if (!$folder->canAdd($securityContext))
 		{
@@ -102,6 +115,7 @@ class File extends BaseObject
 		$previewFileData = $this->request->getFile('previewFile');
 		if ($previewFileData && \CFile::IsImage($previewFileData['name'], $previewFileData['type']))
 		{
+			$previewFileData['MODULE_ID'] = Driver::INTERNAL_MODULE_ID;
 			/** @noinspection PhpDynamicAsStaticMethodCallInspection */
 			$previewId = \CFile::saveFile($previewFileData, Driver::INTERNAL_MODULE_ID, true, true);
 		}
@@ -111,9 +125,10 @@ class File extends BaseObject
 			$fileId = \CFile::saveFile([
 				'name' => $content->getFilename(),
 				'tmp_name' => $content->getAbsolutePath(),
-				'type' => $content->getContentType(),
+				'type' => $contentType,
 				'width' => $content->getWidth(),
 				'height' => $content->getHeight(),
+				'MODULE_ID' => Driver::INTERNAL_MODULE_ID,
 				], Driver::INTERNAL_MODULE_ID, true, true);
 			/** @noinspection PhpDynamicAsStaticMethodCallInspection */
 			if (!$fileId)
@@ -136,6 +151,7 @@ class File extends BaseObject
 		else
 		{
 			$fileArray = \CFile::makeFileArray($content->getAbsolutePath());
+			$fileArray['type'] = $contentType;
 			$fileArray['name'] = $filename;
 			$file = $folder->uploadFile(
 				$fileArray,
@@ -159,7 +175,7 @@ class File extends BaseObject
 		return $this->getAction($file);
 	}
 
-	public function showImageAction(Disk\File $file, $width = 0, $height = 0)
+	public function showImageAction(Disk\File $file, $width = 0, $height = 0, $exact = null)
 	{
 		$fileName = $file->getName();
 		$fileData = $file->getFile();
@@ -167,6 +183,7 @@ class File extends BaseObject
 		if (empty($fileName) || empty($fileData) || !is_array($fileData))
 		{
 			Application::getInstance()->terminate();
+
 			return;
 		}
 
@@ -176,32 +193,22 @@ class File extends BaseObject
 			return $this->downloadAction($file);
 		}
 
-		if ($width > 0 || $height > 0)
-		{
-			/** @noinspection PhpDynamicAsStaticMethodCallInspection */
-			$tmpFile = \CFile::resizeImageGet(
-				$fileData,
-				['width' => $width, 'height' => $height],
-				($this->request->getQuery('exact') === 'Y' ? BX_RESIZE_IMAGE_EXACT : BX_RESIZE_IMAGE_PROPORTIONAL),
-				true,
-				false,
-				true
-			);
-			$fileData['FILE_SIZE'] = $tmpFile['size'];
-			$fileData['SRC'] = $tmpFile['src'];
-		}
-
-		\CFile::viewByUser(
+		$response = Response\ResizedImage::createByImageData(
 			$fileData,
-			[
-				'force_download' => false,
-			 	'cache_time' => 86400,
-				'attachment_name' => $fileName
-			]
+			$width,
+			$height
 		);
+
+		$response
+			->setResizeType($exact === 'Y' ? BX_RESIZE_IMAGE_EXACT : BX_RESIZE_IMAGE_PROPORTIONAL)
+			->setName($fileName)
+			->setCacheTime(86400)
+		;
+
+		return $response;
 	}
 
-	public function showPreviewAction(Disk\File $file, $width = 0, $height = 0)
+	public function showPreviewAction(Disk\File $file, $width = 0, $height = 0, $exact = null)
 	{
 		if (!$file->getPreviewId())
 		{
@@ -214,46 +221,28 @@ class File extends BaseObject
 		if (empty($fileName) || empty($fileData) || !is_array($fileData))
 		{
 			Application::getInstance()->terminate();
+
 			return;
 		}
 
-		if (TypeFile::isImage($fileData['ORIGINAL_NAME']) && ($width > 0 || $height > 0))
-		{
-			/** @noinspection PhpDynamicAsStaticMethodCallInspection */
-			$tmpFile = \CFile::resizeImageGet(
-				$fileData,
-				['width' => $width, 'height' => $height],
-				($this->request->getQuery('exact') === 'Y' ? BX_RESIZE_IMAGE_EXACT : BX_RESIZE_IMAGE_PROPORTIONAL),
-				true,
-				false,
-				true
-			);
-			$fileData['FILE_SIZE'] = $tmpFile['size'];
-			$fileData['SRC'] = $tmpFile['src'];
-		}
-
-		\CFile::viewByUser(
+		$response = Response\ResizedImage::createByImageData(
 			$fileData,
-			[
-				'force_download' => false,
-			 	'cache_time' => 86400,
-				'attachment_name' => $fileName
-			]
+			$width,
+			$height
 		);
+
+		$response
+			->setResizeType($exact === 'Y' ? BX_RESIZE_IMAGE_EXACT : BX_RESIZE_IMAGE_PROPORTIONAL)
+			->setName($file->getName())
+			->setCacheTime(86400)
+		;
+
+		return $response;
 	}
 
 	public function downloadAction(Disk\File $file)
 	{
-		$fileData = $file->getFile();
-
-		\CFile::viewByUser(
-			$fileData,
-			[
-				'force_download' => true,
-				'cache_time' => 0,
-				'attachment_name' => $file->getName()
-			]
-		);
+		return Response\BFile::createByFileId($file->getFileId(), $file->getName());
 	}
 
 	public function markDeletedAction(Disk\File $file)
@@ -403,5 +392,59 @@ class File extends BaseObject
 		}
 
 		return $entityList;
+	}
+
+	public function copyToMeAction(Disk\File $file)
+	{
+		$currentUserId = $this->getCurrentUser()->getId();
+		$userStorage = Driver::getInstance()->getStorageByUserId($currentUserId);
+		if (!$userStorage)
+		{
+			$this->addError(new Error('Could not find storage for current user'));
+
+			return;
+		}
+		$folder = $userStorage->getFolderForSavedFiles();
+		if (!$folder)
+		{
+			$this->addError(new Error('Could not find folder for created files'));
+
+			return;
+		}
+
+		//so, now we don't copy links in the method copyTo. But here we have to copy content.
+		//And after we set name to new object as it was on link.
+		$newFile = $file->getRealObject()->copyTo($folder, $currentUserId, true);
+		if ($file->getRealObject()->getName() != $file->getName())
+		{
+			$newFile->renameInternal($file->getName(), true);
+		}
+
+		if (!$newFile)
+		{
+			$this->addError(new Error('Could not copy file to storage for current user'));
+
+			return;
+		}
+
+		return $this->get($newFile);
+	}
+
+	public function showPropertiesAction(Disk\File $file)
+	{
+		$params = [
+			'STORAGE' => $file->getStorage(),
+			'FILE' => $file,
+			'FILE_ID' => $file->getId(),
+		];
+
+		return new Engine\ComponentResponse('bitrix:disk.file.view', 'properties', $params);
+	}
+
+	public function runPreviewGenerationAction(Disk\File $file)
+	{
+		return [
+			'previewGeneration' => $file->getView()->transformOnOpen($file),
+		];
 	}
 }

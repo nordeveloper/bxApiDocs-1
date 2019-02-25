@@ -305,40 +305,39 @@ class CBPDocument
 	 *
 	 * @param int $workflowTemplateId - Template id.
 	 * @param array $documentId - Document id array(MODULE_ID, ENTITY, DOCUMENT_ID).
-	 * @param array $arParameters - Workflow parameters.
+	 * @param array $parameters - Workflow parameters.
 	 * @param array $errors - Errors array(array("code" => error_code, "message" => message, "file" => file_path), ...).
 	 * @param array|null $parentWorkflow - Parent workflow information.
 	 * @return string - Workflow id.
 	 */
-	public static function StartWorkflow($workflowTemplateId, $documentId, $arParameters, &$errors, $parentWorkflow = null)
+	public static function StartWorkflow($workflowTemplateId, $documentId, $parameters, &$errors, $parentWorkflow = null)
 	{
 		$errors = [];
-
 		$runtime = CBPRuntime::GetRuntime();
 
-		if (!is_array($arParameters))
+		if (!is_array($parameters))
 		{
-			$arParameters = array($arParameters);
+			$parameters = [$parameters];
 		}
 
-		if (!array_key_exists(static::PARAM_TAGRET_USER, $arParameters))
+		if (!array_key_exists(static::PARAM_TAGRET_USER, $parameters))
 		{
-			$arParameters[static::PARAM_TAGRET_USER] = is_object($GLOBALS["USER"]) ? "user_".intval($GLOBALS["USER"]->GetID()) : null;
+			$parameters[static::PARAM_TAGRET_USER] = is_object($GLOBALS["USER"]) ? "user_".intval($GLOBALS["USER"]->GetID()) : null;
 		}
 
-		if (!isset($arParameters[static::PARAM_MODIFIED_DOCUMENT_FIELDS]))
+		if (!isset($parameters[static::PARAM_MODIFIED_DOCUMENT_FIELDS]))
 		{
-			$arParameters[static::PARAM_MODIFIED_DOCUMENT_FIELDS] = false;
+			$parameters[static::PARAM_MODIFIED_DOCUMENT_FIELDS] = false;
 		}
 
-		if (!isset($arParameters[static::PARAM_DOCUMENT_EVENT_TYPE]))
+		if (!isset($parameters[static::PARAM_DOCUMENT_EVENT_TYPE]))
 		{
-			$arParameters[static::PARAM_DOCUMENT_EVENT_TYPE] = CBPDocumentEventType::None;
+			$parameters[static::PARAM_DOCUMENT_EVENT_TYPE] = CBPDocumentEventType::None;
 		}
 
 		try
 		{
-			$wi = $runtime->CreateWorkflow($workflowTemplateId, $documentId, $arParameters, $parentWorkflow);
+			$wi = $runtime->CreateWorkflow($workflowTemplateId, $documentId, $parameters, $parentWorkflow);
 			$wi->Start();
 			return $wi->GetInstanceId();
 		}

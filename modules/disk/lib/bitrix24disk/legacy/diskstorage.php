@@ -632,6 +632,9 @@ class DiskStorage extends AbstractStorage
 				'name' => $tmpFile->getFilename(),
 				'tmp_name' => $tmpFile->getAbsolutePath(),
 				'type' => $tmpFile->getContentType(),
+				'width' => $tmpFile->getWidth(),
+				'height' => $tmpFile->getHeight(),
+				'MODULE_ID' => Driver::INTERNAL_MODULE_ID,
 			), Driver::INTERNAL_MODULE_ID, true, true);
 			if(!$fileId)
 			{
@@ -737,6 +740,7 @@ class DiskStorage extends AbstractStorage
 				'type' => $tmpFile->getContentType(),
 				'width' => $tmpFile->getWidth(),
 				'height' => $tmpFile->getHeight(),
+				'MODULE_ID' => Driver::INTERNAL_MODULE_ID,
 			), Driver::INTERNAL_MODULE_ID, true, true);
 			/** @noinspection PhpDynamicAsStaticMethodCallInspection */
 			$fileArray = \CFile::getFileArray($fileId);

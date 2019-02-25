@@ -134,10 +134,14 @@ class Crm extends Volume\Module\Module implements Volume\IVolumeIndicatorLink, V
 						0 as DISK_COUNT,
 						0 as VERSION_COUNT
 					FROM 
-						{$crmActivityElememtTable} elem 
-						INNER JOIN b_file f
+						b_file f
+						INNER JOIN (
+							SELECT ELEMENT_ID
+							FROM {$crmActivityElememtTable}
+							WHERE STORAGE_TYPE_ID = '".\Bitrix\Crm\Integration\StorageType::File."'
+							GROUP BY ELEMENT_ID  
+						) elem
 							ON elem.ELEMENT_ID = f.ID
-							AND elem.STORAGE_TYPE_ID = '".\Bitrix\Crm\Integration\StorageType::File."'
 				";
 				$connection->queryExecute($querySql);
 				unset($querySql);
@@ -198,7 +202,12 @@ class Crm extends Volume\Module\Module implements Volume\IVolumeIndicatorLink, V
 				$excludeFolderSql = '';
 				if (count($excludeFolderIds) > 0)
 				{
-					$excludeFolderSql = 'AND files.PARENT_ID NOT IN('. implode(',', $excludeFolderIds). ')';
+					$excludeFolderSql = '
+						AND files.PARENT_ID NOT IN(
+							SELECT object_id FROM b_disk_object_path 
+							WHERE PARENT_id IN('. implode(',', $excludeFolderIds). ')
+						)
+					';
 				}
 
 				$crmActivityElememtTable = \CCrmActivity::ELEMENT_TABLE_NAME;
@@ -227,15 +236,21 @@ class Crm extends Volume\Module\Module implements Volume\IVolumeIndicatorLink, V
 						COUNT(f.id) as DISK_COUNT,
 						COUNT(f.id) as VERSION_COUNT
 					FROM 
-						{$crmActivityElememtTable} elem
-						INNER JOIN b_disk_object files 
-							ON elem.ELEMENT_ID = files.ID 
-							AND elem.STORAGE_TYPE_ID = '".\Bitrix\Crm\Integration\StorageType::Disk."'
-							AND files.TYPE = '".\Bitrix\Disk\Internals\ObjectTable::TYPE_FILE."'
-							AND files.ID = files.REAL_OBJECT_ID
-							{$excludeFolderSql}
+						b_disk_object files 
 						INNER JOIN b_file f 
 							ON files.FILE_ID = f.ID 
+						INNER JOIN 
+						(
+							SELECT ELEMENT_ID 
+							FROM {$crmActivityElememtTable} 
+							WHERE STORAGE_TYPE_ID = '".\Bitrix\Crm\Integration\StorageType::Disk."'
+							GROUP BY ELEMENT_ID
+						) elem
+							ON files.ID = elem.ELEMENT_ID
+					WHERE
+						files.TYPE = '".\Bitrix\Disk\Internals\ObjectTable::TYPE_FILE."'
+						AND files.ID = files.REAL_OBJECT_ID
+						{$excludeFolderSql}
 				";
 				$connection->queryExecute($querySql);
 				unset($querySql);
@@ -536,10 +551,12 @@ class Crm extends Volume\Module\Module implements Volume\IVolumeIndicatorLink, V
 						$this->folderList[$storage->getId()][$xmlId] = $folder;
 					}
 				}
+
+				return $this->folderList[$storage->getId()];
 			}
 		}
 
-		return $this->folderList[$storage->getId()];
+		return array();
 	}
 
 	/**
@@ -554,8 +571,8 @@ class Crm extends Volume\Module\Module implements Volume\IVolumeIndicatorLink, V
 			\Bitrix\Main\Loader::includeModule(self::getModuleId());
 
 			$typeFolderXmlId = array(
-				IMS::getFolderXmlID(IMS::EmailAttachment),
-				IMS::getFolderXmlID(IMS::CallRecord),
+				//IMS::getFolderXmlID(IMS::EmailAttachment),
+				//IMS::getFolderXmlID(IMS::CallRecord),
 				IMS::getFolderXmlID(IMS::Rest),
 			);
 		}

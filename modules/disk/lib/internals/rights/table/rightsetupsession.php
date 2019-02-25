@@ -7,11 +7,12 @@ use Bitrix\Main\Type\DateTime;
 
 final class RightSetupSessionTable extends DataManager
 {
-	const STATUS_STARTED   = 2;
-	const STATUS_FINISHED  = 3;
-	const STATUS_FORKED    = 4;
-	const STATUS_BAD       = 5;
-	const STATUS_DUPLICATE = 6;
+	const STATUS_STARTED      = 2;
+	const STATUS_FINISHED     = 3;
+	const STATUS_FORKED       = 4;
+	const STATUS_BAD          = 5;
+	const STATUS_DUPLICATE    = 6;
+	const STATUS_BAD_PURIFIED = 7;
 
 	/**
 	 * In 5 minutes we decide to restart setup session and try again.
@@ -98,6 +99,7 @@ final class RightSetupSessionTable extends DataManager
 	public static function markAsBad()
 	{
 		$badStatus = self::STATUS_BAD;
+		$purifiedStatus = self::STATUS_BAD_PURIFIED;
 		$startedStatus = self::STATUS_STARTED;
 
 		$connection = Application::getConnection();
@@ -109,12 +111,19 @@ final class RightSetupSessionTable extends DataManager
 			WHERE s2.STATUS = {$startedStatus} 		
 		");
 
-		if ($connection->getAffectedRowsCount() > 0)
+		$badIds = $connection->query(
+			"SELECT ID FROM b_disk_right_setup_session WHERE STATUS = {$badStatus} ORDER BY CREATE_TIME LIMIT 50"
+		);
+
+		foreach ($badIds as $badId)
 		{
+			$badId = $badId['ID'];
+
 			$connection->queryExecute("
-				DELETE tmp_sright FROM b_disk_tmp_simple_right tmp_sright
-					INNER JOIN b_disk_right_setup_session s ON s.ID = tmp_sright.SESSION_ID
-				WHERE s.STATUS = {$badStatus}
+				DELETE FROM b_disk_tmp_simple_right WHERE SESSION_ID = {$badId}
+			");
+			$connection->queryExecute("
+				UPDATE b_disk_right_setup_session SET STATUS = {$purifiedStatus} WHERE ID = {$badId}
 			");
 		}
 	}

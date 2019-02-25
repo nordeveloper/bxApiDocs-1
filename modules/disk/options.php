@@ -11,7 +11,7 @@ IncludeModuleLangFile(__FILE__);
 include_once($_SERVER['DOCUMENT_ROOT'].BX_ROOT.'/modules/disk/default_option.php');
 $arDefaultValues['default'] = $disk_default_option;
 
-$notices = array();
+$notices = $noticeBlock = array();
 $socialServiceNotice = '';
 if(\Bitrix\Main\Loader::includeModule('disk'))
 {
@@ -34,7 +34,7 @@ if(\Bitrix\Main\Loader::includeModule('disk'))
 	}
 
 	$arDefaultValues['default']['default_viewer_service'] = \Bitrix\Disk\Configuration::getDefaultViewerServiceCode();
-
+	$noticeBlock['default_viewer_service'] = Loc::getMessage("DISK_TRANSFORM_FILES_EXTERNAL_SERVICES_NOTICE");
 
 	if(ZipNginx\Configuration::isEnabled() && !ZipNginx\Configuration::isModInstalled())
 	{
@@ -57,14 +57,6 @@ $arAllOptions = array(
 	array("disk_object_lock_enabled", GetMessage("DISK_ENABLE_OBJECT_LOCK_SUPPORT"), 'N', array("checkbox", "Y")),
 	array("disk_version_limit_per_file", GetMessage("DISK_VERSION_LIMIT_PER_FILE"), 0, Array("selectbox", array(0 => GetMessage('DISK_VERSION_LIMIT_PER_FILE_UNLIMITED'), 3  => 3, 10 => 10, 25  => 25, 50 => 50, 100 => 100, 500 => 500))),
 );
-if(\Bitrix\Main\Loader::includeModule('transformer'))
-{
-	$arAllOptions[] = array("disk_allow_document_transformation", GetMessage("DISK_ALLOW_DOCUMENT_TRANSFORMATION"), "N", Array("checkbox", "Y"));
-	$arAllOptions[] = array("disk_max_size_for_document_transformation", GetMessage("DISK_MAX_SIZE_FOR_DOCUMENT_TRANSFORMATION"), 40, Array("text", "20"));
-	$arAllOptions[] = array("disk_allow_video_transformation", GetMessage("DISK_ALLOW_VIDEO_TRANSFORMATION"), "N", Array("checkbox", "Y"));
-	$arAllOptions[] = array("disk_max_size_for_video_transformation", GetMessage("DISK_MAX_SIZE_FOR_VIDEO_TRANSFORMATION"), 300, Array("text", "20"));
-	$arAllOptions[] = array("disk_transform_files_on_open", GetMessage("DISK_TRANSFORM_FILES_ON_OPEN"), "N", Array("checkbox", "Y"));
-}
 $aTabs = array(
 	array("DIV" => "edit1", "TAB" => GetMessage("MAIN_TAB_SET"), "ICON" => "ib_settings", "TITLE" => GetMessage("MAIN_TAB_TITLE_SET")),
 );
@@ -130,6 +122,17 @@ $tabControl->Begin();
 			&nbsp;<? echo (empty($notices[$arOption[0]])? '' : $notices[$arOption[0]])  ?>
 		</td>
 	</tr>
+	<? if($noticeBlock[$arOption[0]]): ?>
+		<tr>
+			<td colspan="2" align="center">
+				<div class="adm-info-message-wrap" align="center">
+					<div class="adm-info-message">
+						<?= $noticeBlock[$arOption[0]] ?>
+					</div>
+				</div>
+			</td>
+		</tr>
+	<? endif; ?>
 	<?endforeach?>
 <?$tabControl->Buttons();?>
 	<input type="submit" name="Update" value="<?=GetMessage("MAIN_SAVE")?>" title="<?=GetMessage("MAIN_OPT_SAVE_TITLE")?>" class="adm-btn-save">

@@ -27,6 +27,7 @@ class CommonActions extends BaseObject
 		$configureActions['downloadArchive'] = [
 			'-prefilters' => [
 				ActionFilter\Csrf::class,
+				ActionFilter\Authentication::class,
 			],
 			'+prefilters' => [
 				new ActionFilter\Authentication(true),
@@ -115,7 +116,7 @@ class CommonActions extends BaseObject
 	{
 		return $this->getAllowedOperationsRights($object);
 	}
-	
+
 	public function getArchiveLinkAction(Disk\Type\ObjectCollection $objectCollection)
 	{
 		$uri = $this->getActionUri(

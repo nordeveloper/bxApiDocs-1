@@ -1,11 +1,21 @@
 <?
 IncludeModuleLangFile(__FILE__);
 
+use \Bitrix\Main;
+use \Bitrix\Bizproc;
 use \Bitrix\Bizproc\RestActivityTable;
 
-/**
-* Workflow runtime.
-*/
+ /**
+ * Workflow runtime.
+ *
+ * @method \CBPSchedulerService getSchedulerService()
+ * @method \CBPStateService getStateService()
+ * @method \CBPTrackingService getTrackingService()
+ * @method \CBPTaskService getTaskService()
+ * @method \CBPHistoryService getHistoryService()
+ * @method \CBPDocumentService getDocumentService()
+ * @method Bizproc\Service\Analytics getAnalyticsService()
+ */
 class CBPRuntime
 {
 	const EXCEPTION_CODE_INSTANCE_NOT_FOUND = 404;
@@ -16,22 +26,15 @@ class CBPRuntime
 	private $isStarted = false;
 	/** @var CBPRuntime $instance*/
 	private static $instance;
-	private static $featuresCache = array();
+	private static $featuresCache = [];
 
-	private $arServices = array(
-		"SchedulerService" => null,
-		"StateService" => null,
-		"TrackingService" => null,
-		"TaskService" => null,
-		"HistoryService" => null,
-		"DocumentService" => null,
-	);
-	private $arWorkflows = array();
+	private $arServices = [];
+	private $arWorkflows = [];
 
-	private $arLoadedActivities = array();
+	private $arLoadedActivities = [];
 
-	private $arActivityFolders = array();
-	private $workflowChains = array();
+	private $arActivityFolders = [];
+	private $workflowChains = [];
 
 	/*********************  SINGLETON PATTERN  **************************************************/
 
@@ -50,6 +53,7 @@ class CBPRuntime
 			"TaskService" => null,
 			"HistoryService" => null,
 			"DocumentService" => null,
+			"AnalyticsService" => null,
 		);
 		$this->arLoadedActivities = array();
 		$this->arActivityFolders = array(
@@ -100,6 +104,16 @@ class CBPRuntime
 		trigger_error('Clone in not allowed.', E_USER_ERROR);
 	}
 
+	public function __call($name, $arguments)
+	{
+		if (preg_match('|^get([a-z]+)service$|i', $name, $matches))
+		{
+			return $this->GetService($matches[1]. 'Service');
+		}
+
+		throw new Main\SystemException("Unknown method `{$name}`");
+	}
+
 	/**
 	 * Method checks if feature is enabled.
 	 * @param string $featureName Feature name. Checks default if empty.
@@ -132,21 +146,39 @@ class CBPRuntime
 		if ($this->isStarted)
 			return;
 
-		if ($this->arServices["SchedulerService"] == null)
+		if (!$this->arServices["SchedulerService"])
+		{
 			$this->arServices["SchedulerService"] = new CBPSchedulerService();
-		if ($this->arServices["StateService"] == null)
+		}
+		if (!$this->arServices["StateService"])
+		{
 			$this->arServices["StateService"] = new CBPStateService();
-		if ($this->arServices["TrackingService"] == null)
+		}
+		if (!$this->arServices["TrackingService"])
+		{
 			$this->arServices["TrackingService"] = new CBPTrackingService();
-		if ($this->arServices["TaskService"] == null)
+		}
+		if (!$this->arServices["TaskService"])
+		{
 			$this->arServices["TaskService"] = new CBPTaskService();
-		if ($this->arServices["HistoryService"] == null)
+		}
+		if (!$this->arServices["HistoryService"])
+		{
 			$this->arServices["HistoryService"] = new CBPHistoryService();
-		if ($this->arServices["DocumentService"] == null)
+		}
+		if (!$this->arServices["DocumentService"])
+		{
 			$this->arServices["DocumentService"] = new CBPDocumentService();
+		}
+		if (!$this->arServices["AnalyticsService"])
+		{
+			$this->arServices["AnalyticsService"] = new Bizproc\Service\Analytics();
+		}
 
 		foreach ($this->arServices as $serviceId => $service)
-			$service->Start($this);
+		{
+			$service->start($this);
+		}
 
 		$this->isStarted = true;
 	}
@@ -165,7 +197,9 @@ class CBPRuntime
 			$workflow->OnRuntimeStopped();
 
 		foreach ($this->arServices as $serviceId => $service)
-			$service->Stop();
+		{
+			$service->stop();
+		}
 
 		$this->isStarted = false;
 	}
@@ -292,12 +326,14 @@ class CBPRuntime
 	* Returns service instance by its code.
 	* 
 	* @param mixed $name - Service code.
-	* @return mixed|CBPSchedulerService|CBPStateService|CBPTrackingService|CBPTaskService|CBPHistoryService|CBPDocumentService - Service instance or null if service is not found.
+	* @return mixed|CBPSchedulerService|CBPStateService|CBPTrackingService|CBPTaskService|CBPHistoryService|CBPDocumentService|Bizproc\Service\Analytics - Service instance or null if service is not found.
 	*/
 	public function GetService($name)
 	{
 		if (array_key_exists($name, $this->arServices))
+		{
 			return $this->arServices[$name];
+		}
 
 		return null;
 	}

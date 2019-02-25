@@ -28,7 +28,7 @@ class BitrixHandler extends DocumentHandler implements IViewer
 	 */
 	public static function getName()
 	{
-		return Loc::getMessage('DISK_BITRIX_HANDLER_NAME');
+		return Loc::getMessage('DISK_BITRIX_HANDLER_NAME_2');
 	}
 
 	/**

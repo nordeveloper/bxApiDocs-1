@@ -715,6 +715,8 @@ class CAllMailBox
 		if(!$DB->Query($strSql, true))
 			return false;
 
+		$DB->query(sprintf('DELETE FROM b_mail_mailbox_access WHERE MAILBOX_ID = %u', $ID));
+
 		CMailbox::SMTPReload();
 		$strSql = "DELETE FROM b_mail_mailbox WHERE ID=".$ID;
 		return $DB->Query($strSql, true);
@@ -1168,8 +1170,8 @@ class CMailHeader
 		if(strpos(strtolower($this->content_type), "multipart/") === 0)
 		{
 			$this->bMultipart = true;
-			if (!preg_match("'boundary\s*=(.+?);'i", $full_content_type, $res))
-				preg_match("'boundary\s*=(.+)'i", $full_content_type, $res);
+			if (!preg_match("'boundary\s*=\s*(.+?);'i", $full_content_type, $res))
+				preg_match("'boundary\s*=\s*(.+)'i", $full_content_type, $res);
 
 			$this->boundary = trim($res[1], '"');
 			if($p = strpos($this->content_type, "/"))
@@ -1254,9 +1256,8 @@ class CMailMessageDBResult extends CDBResult
 		if ($item = parent::fetch())
 		{
 			$item['OPTIONS'] = (array) @unserialize($item['OPTIONS']);
+			$item['FOR_SPAM_TEST'] = sprintf('%s %s', $item['HEADER'], $item['BODY_HTML'] ?: $item['BODY']);
 		}
-
-		$item['FOR_SPAM_TEST'] = sprintf('%s %s', $item['HEADER'], $item['BODY_HTML'] ?: $item['BODY']);
 
 		return $item;
 	}
@@ -1662,6 +1663,10 @@ class CAllMailMessage
 			"BODY" => rtrim($message_body)
 		);
 
+		$datetime = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
+		$timestamp = strtotime($datetime) ?: $params['timestamp'] ?: time();
+		$arFields['FIELD_DATE'] = convertTimeStamp($timestamp + \CTimeZone::getOffset(), 'FULL');
+
 		if(COption::GetOptionString("mail", "save_src", B_MAIL_SAVE_SRC)=="Y")
 			$arFields["FULL_TEXT"] = $message;
 
@@ -1710,7 +1715,7 @@ class CAllMailMessage
 			if ($arFields['IN_REPLY_TO'])
 			{
 				$DB->query(sprintf(
-					"INSERT INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID)
+					"INSERT IGNORE INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID)
 					(
 						SELECT DISTINCT %u, C.PARENT_ID
 						FROM b_mail_message M INNER JOIN b_mail_message_closure C ON M.ID = C.MESSAGE_ID
@@ -1744,16 +1749,16 @@ class CAllMailMessage
 				'filter' => array('ID' => $mailbox_id, 'ACTIVE' => 'Y'),
 			))->fetch();
 
-			if ($mailbox['USER_ID'] > 0)
-			{
-				\Bitrix\Mail\Internals\MailContactTable::addContactsBatch(array_merge(
-					MailContact::getContactsData($arFields['FIELD_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_TO),
-					MailContact::getContactsData($arFields['FIELD_FROM'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_FROM),
-					MailContact::getContactsData($arFields['FIELD_CC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_CC),
-					MailContact::getContactsData($arFields['FIELD_REPLY_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_REPLY_TO),
-					MailContact::getContactsData($arFields['FIELD_BCC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_BCC)
-				));
-			}
+				if ($mailbox['USER_ID'] > 0)
+				{
+					\Bitrix\Mail\Internals\MailContactTable::addContactsBatch(array_merge(
+						MailContact::getContactsData($arFields['FIELD_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_TO),
+						MailContact::getContactsData($arFields['FIELD_FROM'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_FROM),
+						MailContact::getContactsData($arFields['FIELD_CC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_CC),
+						MailContact::getContactsData($arFields['FIELD_REPLY_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_REPLY_TO),
+						MailContact::getContactsData($arFields['FIELD_BCC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_BCC)
+					));
+				}
 
 			$atchCnt = 0;
 			if (\Bitrix\Main\Config\Option::get('mail', 'save_attachments', B_MAIL_SAVE_ATTACHMENTS) == 'Y')
@@ -1780,18 +1785,12 @@ class CAllMailMessage
 			}
 
 			$arFields['ATTACHMENTS'] = $atchCnt;
-			if (is_set($arFields, 'FIELD_DATE_ORIGINAL') && !is_set($arFields, 'FIELD_DATE'))
-			{
-				$date = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
-				$arFields['FIELD_DATE'] = $DB->formatDate(
-					date('d.m.Y H:i:s', strtotime($date) + \CTimeZone::getOffset()),
-					'DD.MM.YYYY HH:MI:SS', \CLang::getDateFormat('FULL')
-				);
-			}
 
 			$arFields['IS_OUTCOME'] = !empty($params['outcome']);
-			$arFields['IS_SEEN']    = !empty($params['seen']);
-			$arFields['MSG_HASH']   = $params['hash'];
+			$arFields['IS_TRASH'] = !empty($params['trash']);
+			$arFields['IS_SPAM'] = !empty($params['spam']);
+			$arFields['IS_SEEN'] = !empty($params['seen']);
+			$arFields['MSG_HASH'] = $params['hash'];
 			if ($message_body_html)
 			{
 				$msg = array(
@@ -1851,11 +1850,9 @@ class CAllMailMessage
 
 		if(is_set($arFields, "FIELD_DATE_ORIGINAL") && !is_set($arFields, "FIELD_DATE"))
 		{
-			$date = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
-			$arFields['FIELD_DATE'] = $DB->formatDate(
-				date('d.m.Y H:i:s', strtotime($date) + CTimeZone::getOffset()),
-				'DD.MM.YYYY HH:MI:SS', CLang::getDateFormat('FULL')
-			);
+			$datetime = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
+			$timestamp = strtotime($datetime) ?: time();
+			$arFields['FIELD_DATE'] = convertTimeStamp($timestamp + \CTimeZone::getOffset(), 'FULL');
 		}
 
 		if (array_key_exists('SUBJECT', $arFields))
@@ -1880,11 +1877,9 @@ class CAllMailMessage
 
 		if(is_set($arFields, "FIELD_DATE_ORIGINAL") && !is_set($arFields, "FIELD_DATE"))
 		{
-			$date = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
-			$arFields['FIELD_DATE'] = $DB->formatDate(
-				date('d.m.Y H:i:s', strtotime($date) + CTimeZone::getOffset()),
-				'DD.MM.YYYY HH:MI:SS', CLang::getDateFormat('FULL')
-			);
+			$datetime = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
+			$timestamp = strtotime($datetime) ?: time();
+			$arFields['FIELD_DATE'] = convertTimeStamp($timestamp + \CTimeZone::getOffset(), 'FULL');
 		}
 
 		if (array_key_exists('SUBJECT', $arFields))
@@ -1919,10 +1914,12 @@ class CAllMailMessage
 		$strSql = "DELETE FROM b_mail_msg_attachment WHERE MESSAGE_ID=".$id;
 		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 
-		$strSql = "DELETE FROM b_mail_message WHERE ID=".$id;
-		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+		$DB->query(sprintf('DELETE FROM b_mail_message_access WHERE MESSAGE_ID = %u', $id));
 
 		$DB->query(sprintf('DELETE FROM b_mail_message_closure WHERE MESSAGE_ID = %1$u OR PARENT_ID = %1$u', $id));
+
+		$strSql = "DELETE FROM b_mail_message WHERE ID=".$id;
+		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 
 		return true;
 	}

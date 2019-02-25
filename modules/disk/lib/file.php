@@ -24,6 +24,7 @@ use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\ObjectException;
 use Bitrix\Main\Type\DateTime;
+use Bitrix\Main\UI\Viewer\FilePreviewTable;
 use CFile;
 
 Loc::loadMessages(__FILE__);
@@ -381,20 +382,6 @@ class File extends BaseObject
 			return null;
 		}
 
-		$forkPreviewId = 0;
-		if ($this->getPreviewId())
-		{
-			/** @noinspection PhpDynamicAsStaticMethodCallInspection */
-			$forkPreviewId = \CFile::copyFile($this->getPreviewId(), true);
-		}
-
-		$forkViewId = 0;
-		if ($this->getViewId())
-		{
-			/** @noinspection PhpDynamicAsStaticMethodCallInspection */
-			$forkViewId = \CFile::copyFile($this->getViewId(), true);
-		}
-
 		/** @noinspection PhpDynamicAsStaticMethodCallInspection */
 		$fileArray = \CFile::getFileArray($forkFileId);
 		$fileModel = $targetFolder->addFile(array(
@@ -403,21 +390,12 @@ class File extends BaseObject
 			'ETAG' => $this->getEtag(),
 			'SIZE' => $fileArray['FILE_SIZE'],
 			'CREATED_BY' => $updatedBy,
-			'PREVIEW_ID' => (int)$forkPreviewId > 0? $forkPreviewId: 0,
-			'VIEW_ID' => (int)$forkViewId > 0? $forkViewId: 0
 		), array(), $generateUniqueName);
 		if(!$fileModel)
 		{
 			\CFile::delete($forkFileId);
-			if ($forkPreviewId)
-			{
-				\CFile::delete($forkPreviewId);
-			}
-			if ($forkViewId)
-			{
-				\CFile::delete($forkViewId);
-			}
 			$this->errorCollection->add($targetFolder->getErrors());
+
 			return null;
 		}
 
@@ -576,13 +554,6 @@ class File extends BaseObject
 			}
 		}
 
-		// delete old preview image here
-		// we delete old view in join versions
-		if ((int)$this->getGlobalContentVersion() > 1)
-		{
-			\CFile::Delete($this->previewId);
-		}
-
 		//todo inc in DB by expression
 		$updateData = array(
 			'GLOBAL_CONTENT_VERSION' => (int)$this->getGlobalContentVersion() + 1,
@@ -591,30 +562,18 @@ class File extends BaseObject
 			'SIZE' => $file['FILE_SIZE'],
 			'UPDATE_TIME' => empty($file['UPDATE_TIME'])? new DateTime() : $file['UPDATE_TIME'],
 			'UPDATED_BY' => $updatedBy,
-			'PREVIEW_ID' => (int)$this->getGlobalContentVersion() > 1? null : $this->getPreviewId(), //keep preview if it is first version
-			'VIEW_ID' => null,
 		);
 
 		$this->prevFileId = $this->fileId;
-		$this->prevViewId = $this->viewId;
 		$success = $this->update($updateData);
 
 		if(!$success)
 		{
 			$this->prevFileId = null;
-			$this->prevViewId = null;
 			return false;
 		}
 
-		if($this->getView()->isTransformationAllowed($this->size))
-		{
-			if(Loader::includeModule('transformer'))
-			{
-				TransformerManager::transformToView($this);
-			}
-		}
-
-		$this->changeParentUpdateTime(empty($file['UPDATE_TIME'])? new DateTime() : $file['UPDATE_TIME']);
+		$this->changeParentUpdateTime(empty($file['UPDATE_TIME'])? new DateTime() : $file['UPDATE_TIME'], $updatedBy);
 
 		$this->updateLinksAttributes(array(
 			'ETAG' => $this->getEtag(),
@@ -626,7 +585,11 @@ class File extends BaseObject
 		));
 
 		$driver = Driver::getInstance();
-		$driver->getRecentlyUsedManager()->push($updatedBy, $this->getId());
+		if ($this->getStorage()->isUseInternalRights())
+		{
+			$driver->getRecentlyUsedManager()->push($updatedBy, $this->getId());
+		}
+
 		$driver->getIndexManager()->indexFile($this);
 
 		//todo little hack...We don't synchronize file in folder with uploaded files. And we have not to send notify by pull
@@ -708,7 +671,6 @@ class File extends BaseObject
 			'FILE_ID' => $this->fileId,
 			'NAME' => $this->name,
 			'CREATED_BY' => $createdBy,
-			'VIEW_ID' => $this->viewId,
 		), $this->getHistoricalData()), $this->errorCollection);
 
 		if(!$versionModel)
@@ -843,11 +805,6 @@ class File extends BaseObject
 		if ($this->prevFileId && $this->prevFileId != $this->fileId)
 		{
 			CFile::delete($this->prevFileId);
-		}
-
-		if($this->prevViewId && $this->prevViewId != $this->viewId)
-		{
-			CFile::delete($this->prevViewId);
 		}
 
 		return $lastVersion;
@@ -1212,7 +1169,10 @@ class File extends BaseObject
 		if($status)
 		{
 			$driver = Driver::getInstance();
-			$driver->getRecentlyUsedManager()->push($restoredBy, $this->getId());
+			if ($this->getStorage()->isUseInternalRights())
+			{
+				$driver->getRecentlyUsedManager()->push($restoredBy, $this->getId());
+			}
 			$driver->getIndexManager()->indexFile($this);
 			$driver->sendChangeStatusToSubscribers($this);
 
@@ -1337,8 +1297,6 @@ class File extends BaseObject
 			DeletedLog::addFile($this, $deletedBy, $this->errorCollection);
 		}
 
-		\CFile::delete($this->previewId);
-		\CFile::delete($this->viewId);
 		\CFile::delete($this->fileId);
 		$deleteResult = FileTable::delete($this->id);
 		if(!$deleteResult->isSuccess())
@@ -1491,25 +1449,30 @@ class File extends BaseObject
 	 */
 	public function getView()
 	{
-		if(!$this->view)
+		if (!$this->view)
 		{
 			$isTransformationEnabledInStorage = true;
 			$storage = $this->getStorage();
-			if($storage)
+			if ($storage)
 			{
 				$isTransformationEnabledInStorage = $storage->isEnabledTransformation();
 			}
-			if(TypeFile::isDocument($this))
+
+			$previewData = FilePreviewTable::getList(['filter' => ['FILE_ID' => $this->getFileId(),],])->fetch();
+			$viewId = isset($previewData['PREVIEW_ID'])? $previewData['PREVIEW_ID'] : null;
+			$imageId = isset($previewData['PREVIEW_IMAGE_ID'])? $previewData['PREVIEW_IMAGE_ID'] : null;
+
+			if (TypeFile::isDocument($this))
 			{
-				$this->view = new View\Document($this->getName(), $this->getFileId(), $this->getViewId(), $this->getPreviewId(), $isTransformationEnabledInStorage);
+				$this->view = new View\Document($this->getName(), $this->getFileId(), $viewId, $imageId, $isTransformationEnabledInStorage);
 			}
-			elseif(TypeFile::isVideo($this))
+			elseif (TypeFile::isVideo($this))
 			{
-				$this->view = new View\Video($this->getName(), $this->getFileId(), $this->getViewId(), $this->getPreviewId(), $isTransformationEnabledInStorage);
+				$this->view = new View\Video($this->getName(), $this->getFileId(), $viewId, $imageId, $isTransformationEnabledInStorage);
 			}
 			else
 			{
-				$this->view = new View\Base($this->getName(), $this->getFileId(), $this->getViewId(), $this->getPreviewId(), $isTransformationEnabledInStorage);
+				$this->view = new View\Base($this->getName(), $this->getFileId(), $viewId, $imageId, $isTransformationEnabledInStorage);
 			}
 		}
 

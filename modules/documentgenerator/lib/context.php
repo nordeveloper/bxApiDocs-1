@@ -62,7 +62,16 @@ final class Context
 	{
 		$this->region = $region;
 		$culture = false;
-		if(is_string($region) && !empty($region))
+		if(is_numeric($region) && $region > 0)
+		{
+			$regionData = Driver::getInstance()->getRegionsList()[$region];
+			if($regionData)
+			{
+				$regionData['CHARSET'] = 'UTF-8';
+				$culture = new Culture($regionData);
+			}
+		}
+		elseif(is_string($region) && !empty($region))
 		{
 			$data = CultureTable::getList(['filter' => ['CODE' => $region]])->fetch();
 			if($data)

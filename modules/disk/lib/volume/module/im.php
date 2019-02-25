@@ -181,10 +181,12 @@ class Im extends Volume\Module\Module implements Volume\IVolumeIndicatorLink, Vo
 			if ($this->isMeasureAvailable())
 			{
 				$this->folderList[$storage->getId()][] = $storage->getRootObject();
+
+				return $this->folderList[$storage->getId()];
 			}
 		}
 
-		return $this->folderList[$storage->getId()];
+		return array();
 	}
 
 	/**

@@ -403,6 +403,10 @@ final class Document
 		{
 			$title = $this->externalValues['DocumentTitle'];
 		}
+		elseif(isset($this->data['TITLE']))
+		{
+			$title = $this->data['TITLE'];
+		}
 		else
 		{
 			$title = '';
@@ -859,8 +863,17 @@ final class Document
 		{
 			$this->values[$name] = $field['VALUE'];
 		}
+		$parentDataProvider = null;
+		if($name !== Template::MAIN_PROVIDER_PLACEHOLDER && $name !== Template::DOCUMENT_PROVIDER_PLACEHOLDER)
+		{
+			$parentDataProvider = $this->getProvider();
+			if(!$parentDataProvider)
+			{
+				$parentDataProvider = null;
+			}
+		}
 		$value = $this->getValue($name);
-		$dataProvider = DataProviderManager::getInstance()->createDataProvider($field, $value);
+		$dataProvider = DataProviderManager::getInstance()->createDataProvider($field, $value, $parentDataProvider);
 		if($dataProvider && $dataProvider->isLoaded())
 		{
 			if($this->isCheckAccess && !DataProviderManager::getInstance()->checkDataProviderAccess($dataProvider))

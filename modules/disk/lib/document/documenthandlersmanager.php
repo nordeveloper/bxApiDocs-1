@@ -134,11 +134,6 @@ class DocumentHandlersManager
 		$list = array();
 		foreach($this->getHandlers() as $code => $handler)
 		{
-			if($handler instanceof BitrixHandler)
-			{
-				continue;
-			}
-
 			if($handler instanceof IViewer)
 			{
 				$list[$code] = $handler;

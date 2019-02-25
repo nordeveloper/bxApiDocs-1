@@ -369,31 +369,6 @@ final class Template
 	}
 
 	/**
-	 * @return Uri
-	 */
-	public static function getUploadUrl()
-	{
-		return (new Uri('/bitrix/components/bitrix/documentgenerator.templates/slider.php'))->addParams(['UPLOAD' => 'Y']);
-	}
-
-	/**
-	 * @param int $templateId
-	 * @param string $module
-	 * @return Uri
-	 */
-	public static function getEditUrl($templateId, $module = '')
-	{
-		$templateId = intval($templateId);
-		$uri = static::getUploadUrl()->addParams(['ID' => $templateId]);
-		if($module)
-		{
-			$uri->addParams(['MODULE' => $module]);
-		}
-
-		return $uri;
-	}
-
-	/**
 	 * @return bool
 	 */
 	public function isDeleted()

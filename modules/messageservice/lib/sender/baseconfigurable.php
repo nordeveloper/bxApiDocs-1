@@ -22,7 +22,7 @@ abstract class BaseConfigurable extends Base
 	 */
 	public function isDemo()
 	{
-		return ($this->canUse() && $this->getOption('is_demo', true));
+		return ($this->getOption('is_demo') === true);
 	}
 
 	/**

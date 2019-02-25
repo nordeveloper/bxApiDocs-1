@@ -258,7 +258,7 @@ class Helper
 		};
 
 		$source = preg_replace_callback(
-			'/\{\{(?<mixed>.*?)\}\}/is',
+			'/\{\{(?<mixed>[^=].*?)\}\}/is',
 			$converter,
 			$source
 		);
@@ -277,11 +277,7 @@ class Helper
 		$key = implode('@', $documentType);
 		if (!isset(static::$documentFields[$key]))
 		{
-			$runtime = \CBPRuntime::GetRuntime();
-			$runtime->StartRuntime();
-
-			/** @var \CBPDocumentService $documentService */
-			$documentService = $runtime->GetService('DocumentService');
+			$documentService = \CBPRuntime::GetRuntime(true)->getDocumentService();
 			static::$documentFields[$key] = $documentService->GetDocumentFields($documentType);
 		}
 
@@ -305,6 +301,8 @@ class Helper
 
 				if ($typeFilter !== null && $field['Type'] !== $typeFilter)
 					continue;
+
+				$field['Name'] = trim($field['Name']);
 
 				$resultFields[$id] = array(
 					'Id' => $id,

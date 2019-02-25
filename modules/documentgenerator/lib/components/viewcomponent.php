@@ -158,13 +158,16 @@ abstract class ViewComponent extends \CBitrixComponent
 	}
 
 	/**
+	 * @deprecated
 	 * @return \Bitrix\Main\Web\Uri|false
 	 */
 	protected function getEditTemplateUrl()
 	{
 		if($this->template && !$this->template->isDeleted())
 		{
-			return Template::getEditUrl($this->template->ID, $this->getModule());
+			$uri = new \Bitrix\Main\Web\Uri('/bitrix/components/bitrix/documentgenerator.templates/slider.php');
+			$uri->addParams(['UPLOAD' => 'Y', 'ID' => $this->template->ID, 'MODULE' => $this->template->MODULE_ID]);
+			return $uri;
 		}
 
 		return false;

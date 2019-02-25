@@ -297,7 +297,12 @@ final class UserFieldManager implements IErrorable
 		}
 
 		/** @var \Bitrix\Disk\AttachedObject $attachedObject */
-		foreach(AttachedObject::getModelList(array("filter" => array("ID" => $ids), 'with' => array('OBJECT'))) as $attachedObject)
+		$modelList = AttachedObject::getModelList([
+			'filter' => ['ID' => $ids],
+			'with' => ['OBJECT'],
+			'extra' => ['FILE_CONTENT_TYPE' => 'OBJECT.FILE_CONTENT.CONTENT_TYPE'],
+		]);
+		foreach($modelList as $attachedObject)
 		{
 			$this->loadedAttachedObjects[$attachedObject->getId()] = $attachedObject;
 		}
@@ -343,21 +348,24 @@ final class UserFieldManager implements IErrorable
 
 		list($connectorClass, $moduleId) = $this->getConnectorDataByEntityType('BLOG_POST');
 
-		$with = array('OBJECT');
+		$with = ['OBJECT'];
 		if(Configuration::isEnabledObjectLock())
 		{
 			$with[] = 'OBJECT.LOCK';
 		}
 
-		foreach(AttachedObject::getModelList(
-			array(
+		$modelList = AttachedObject::getModelList(
+			[
 				'with' => $with,
-				'filter' => array(
+				'filter' => [
 					'=ENTITY_TYPE' => $connectorClass,
 					'ENTITY_ID' => $blogPostIds,
 					'=MODULE_ID' => $moduleId,
-			))
-		) as $attachedObject)
+				],
+				'extra' => ['FILE_CONTENT_TYPE' => 'OBJECT.FILE_CONTENT.CONTENT_TYPE'],
+			]
+		);
+		foreach($modelList as $attachedObject)
 		{
 			/** @var \Bitrix\Disk\AttachedObject $attachedObject */
 			$this->loadedAttachedObjects[$attachedObject->getId()] = $attachedObject;
@@ -384,7 +392,7 @@ final class UserFieldManager implements IErrorable
 	{
 		if(!isset($this->loadedAttachedObjects[$id]))
 		{
-			$this->loadedAttachedObjects[$id] = AttachedObject::loadById($id, array('OBJECT'));
+			$this->loadedAttachedObjects[$id] = AttachedObject::loadById($id, ['OBJECT']);
 		}
 		return $this->loadedAttachedObjects[$id];
 	}

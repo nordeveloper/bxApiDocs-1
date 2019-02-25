@@ -155,12 +155,14 @@ class Document extends Base
 	/**
 	 * @param \Bitrix\DocumentGenerator\Document $document
 	 * @param string $print
-	 * @param int $height
+	 * @param null $pdfUrl
 	 * @param int $width
+	 * @param int $height
 	 * @param \CRestServer|null $restServer
 	 * @return array|HttpResponse
+	 * @throws \Bitrix\Main\ArgumentTypeException
 	 */
-	public function showPdfAction(\Bitrix\DocumentGenerator\Document $document, $print = 'y', $width = 700, $height = 900, \CRestServer $restServer = null)
+	public function showPdfAction(\Bitrix\DocumentGenerator\Document $document, $print = 'y', $pdfUrl = null, $width = 700, $height = 900, \CRestServer $restServer = null)
 	{
 		$response = new HttpResponse();
 		if($document->PDF_ID > 0)
@@ -171,7 +173,7 @@ class Document extends Base
 				'bitrix:pdf.viewer',
 				'',
 				[
-					'PATH' => $document->getPdfUrl(),
+					'PATH' => $pdfUrl ? $pdfUrl : $document->getPdfUrl(),
 					'IFRAME' => ($print === 'y' ? 'Y' : 'N'),
 					'PRINT' => ($print === 'y' ? 'Y' : 'N'),
 					'TITLE' => $document->getTitle(),

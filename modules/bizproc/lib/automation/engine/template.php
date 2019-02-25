@@ -225,8 +225,8 @@ class Template
 		$key = implode('@', $documentType);
 		if (!isset(static::$availableActivities[$key]))
 		{
-			$runtime = \CBPRuntime::getRuntime();
-			static::$availableActivities[$key] = $runtime->searchActivitiesByType('robot_activity', $documentType);
+			static::$availableActivities[$key] = \CBPRuntime::getRuntime()
+				->searchActivitiesByType('robot_activity', $documentType);
 		}
 		return static::$availableActivities[$key];
 	}

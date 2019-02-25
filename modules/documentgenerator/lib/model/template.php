@@ -5,8 +5,10 @@ namespace Bitrix\DocumentGenerator\Model;
 use Bitrix\DocumentGenerator\Body;
 use Bitrix\DocumentGenerator\DataProvider\Filterable;
 use Bitrix\DocumentGenerator\DataProviderManager;
+use Bitrix\DocumentGenerator\Driver;
 use Bitrix\DocumentGenerator\Template;
 use Bitrix\Main;
+use Bitrix\Main\Loader;
 use Bitrix\Main\ORM\Event;
 use Bitrix\Main\Localization\Loc;
 
@@ -61,7 +63,9 @@ class TemplateTable extends FileModel
 			]),
 			new Main\Entity\IntegerField('CREATED_BY'),
 			new Main\Entity\IntegerField('UPDATED_BY'),
-			new Main\Entity\StringField('MODULE_ID'),
+			new Main\Entity\StringField('MODULE_ID', [
+				'required' => true,
+			]),
 			new Main\Entity\IntegerField('FILE_ID', [
 				'required' => true,
 			]),
@@ -170,6 +174,7 @@ class TemplateTable extends FileModel
 
 		TemplateProviderTable::deleteByTemplateId($id);
 		TemplateUserTable::delete($id);
+		static::addToStack();
 
 		return parent::onBeforeDelete($event);
 	}
@@ -182,6 +187,7 @@ class TemplateTable extends FileModel
 	{
 		parent::onAfterAdd($event);
 		static::normalizeBody($event->getParameter('primary')['ID']);
+		static::addToStack();
 
 		return new Main\Entity\EventResult();
 	}
@@ -197,6 +203,7 @@ class TemplateTable extends FileModel
 		{
 			static::normalizeBody($event->getParameter('primary')['ID']);
 		}
+		static::addToStack();
 		return parent::onAfterUpdate($event);
 	}
 
@@ -255,5 +262,48 @@ class TemplateTable extends FileModel
 		}
 
 		return $deleteResult;
+	}
+
+	protected static function addToStack()
+	{
+		if(Loader::includeModule("pull"))
+		{
+			\CPullWatch::AddToStack(static::getPullTagName(), [
+				'module_id' => Driver::MODULE_ID,
+				'command' => static::getPullTagCommand(),
+			]);
+		}
+	}
+
+	/**
+	 * @return string
+	 */
+	protected static function getPullTagName()
+	{
+		return 'DOCGENUPDATETEMPLATES';
+	}
+
+	/**
+	 * @return string
+	 */
+	protected static function getPullTagCommand()
+	{
+		return 'updateTemplate';
+	}
+
+	/**
+	 * @return bool|string
+	 * @throws Main\LoaderException
+	 */
+	public static function getPullTag()
+	{
+		if(Loader::includeModule("pull"))
+		{
+			$pullTag = static::getPullTagName();
+			\CPullWatch::Add(Driver::getInstance()->getUserId(), $pullTag, true);
+			return $pullTag;
+		}
+
+		return false;
 	}
 }

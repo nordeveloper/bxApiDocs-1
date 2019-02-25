@@ -125,7 +125,6 @@ CJSCore::RegisterExt('disk', array(
 					BX.message["disk_restriction"] = false;
 					BX.message["disk_revision_api"] = ' . (int)\Bitrix\Disk\Configuration::getRevisionApi() . ';
 					BX.message["disk_document_service"] = "' . (string)\Bitrix\Disk\UserConfiguration::getDocumentServiceCode() . '";
-					BX.message["wd_desktop_disk_is_installed"] = ' . (\Bitrix\Disk\Desktop::isDesktopDiskInstall()? 'true' : 'false') . ';
 				</script>    
 			');
 		}
@@ -136,7 +135,6 @@ CJSCore::RegisterExt('disk', array(
 					'disk_restriction' => false,
 					'disk_revision_api' => (int)\Bitrix\Disk\Configuration::getRevisionApi(),
 					'disk_document_service' => (string)\Bitrix\Disk\UserConfiguration::getDocumentServiceCode(),
-					'wd_desktop_disk_is_installed' => (bool)\Bitrix\Disk\Desktop::isDesktopDiskInstall(),
 				),
 			);
 		}
@@ -185,7 +183,7 @@ CJSCore::RegisterExt('disk_external_loader', array(
 CJSCore::RegisterExt('disk_information_popups', array(
 	'js' => '/bitrix/js/disk/information_popups.js',
 	'lang' => '/bitrix/modules/disk/lang/'.LANGUAGE_ID.'/install/js/information_popups.php',
-	'rel' => array('core', 'disk'),
+	'rel' => array('core', 'disk', 'helper'),
 ));
 
 \Bitrix\Disk\Internals\Engine\Binder::registerDefaultAutoWirings();

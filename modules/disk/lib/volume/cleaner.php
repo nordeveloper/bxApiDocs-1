@@ -1130,6 +1130,12 @@ class Cleaner implements IErrorable, Volume\IVolumeTimeLimit
 			return false;
 		}
 
+		// restrict delete root folder
+		if ($folder->getStorage()->getRootObjectId() == $folder->getId())
+		{
+			$emptyOnly = true;
+		}
+
 		if (!$emptyOnly && !$this->isAllowDeleteFolder($folder))
 		{
 			$this->collectError(

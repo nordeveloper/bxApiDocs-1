@@ -29,7 +29,7 @@ class CIBlockPropertySequence
 	{
 		$from_name = $strHTMLControlName["VALUE"].'_from';
 		$from = isset($_REQUEST[$from_name])? $_REQUEST[$from_name]: "";
-		if (Bitrix\Main\Grid\Context::isInternalRequest() && isset($strHTMLControlName["FILTER_ID"]))
+		if (isset($strHTMLControlName["FILTER_ID"]))
 		{
 			$filterOption = new \Bitrix\Main\UI\Filter\Options($strHTMLControlName["FILTER_ID"]);
 			$filterData = $filterOption->getFilter();
@@ -48,7 +48,7 @@ class CIBlockPropertySequence
 
 		$to_name = $strHTMLControlName["VALUE"].'_to';
 		$to = isset($_REQUEST[$to_name])? $_REQUEST[$to_name]: "";
-		if (Bitrix\Main\Grid\Context::isInternalRequest() && isset($strHTMLControlName["FILTER_ID"]))
+		if (isset($strHTMLControlName["FILTER_ID"]))
 		{
 			$filterOption = new \Bitrix\Main\UI\Filter\Options($strHTMLControlName["FILTER_ID"]);
 			$filterData = $filterOption->getFilter();

@@ -10,10 +10,5 @@ $disk_default_option = array(
 	"disk_allow_use_external_link" => "Y",
 	"disk_object_lock_enabled" => "N",
 	"disk_version_limit_per_file" => 0,
-	"disk_allow_document_transformation" => "N",
-	"disk_max_size_for_document_transformation" => 40,
-	"disk_allow_video_transformation" => "N",
-	"disk_max_size_for_video_transformation" => 300,
-	"disk_transform_files_on_open" => "N",
 );
 ?>

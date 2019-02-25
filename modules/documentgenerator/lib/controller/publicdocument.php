@@ -44,6 +44,6 @@ class PublicDocument extends Document
 
 	public function showPdfAction(\Bitrix\DocumentGenerator\Document $document, $print = 'y', \CRestServer $restServer = null, $hash = '')
 	{
-		return parent::showPdfAction($document, $print);
+		return parent::showPdfAction($document, $print, $this->getActionUri('getPdf', ['id' => $document->ID, 'hash' => $hash]));
 	}
 }

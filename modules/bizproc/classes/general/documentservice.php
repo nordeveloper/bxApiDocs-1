@@ -776,6 +776,7 @@ EOS;
 			if (defined('ADMIN_SECTION') && ADMIN_SECTION)
 			{
 				$renderMode |= FieldType::RENDER_MODE_ADMIN;
+				$renderMode ^= FieldType::RENDER_MODE_PUBLIC;
 			}
 
 			if (defined('BX_MOBILE') && BX_MOBILE)

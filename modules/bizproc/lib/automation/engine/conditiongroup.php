@@ -3,6 +3,7 @@ namespace Bitrix\Bizproc\Automation\Engine;
 
 use Bitrix\Bizproc\Automation\Target\BaseTarget;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Bizproc\Automation\Helper;
 
 Loc::loadMessages(__FILE__);
 
@@ -55,10 +56,7 @@ class ConditionGroup
 		$documentId = $documentType;
 		$documentId[2] = $target->getDocumentId();
 
-		$runtime = \CBPRuntime::getRuntime();
-		$runtime->startRuntime();
-
-		$documentService = $runtime->getService("DocumentService");
+		$documentService = \CBPRuntime::getRuntime(true)->getDocumentService();
 		$document = $documentService->getDocument($documentId, $documentType);
 		$documentFields = $documentService->getDocumentFields($documentType);
 
@@ -176,7 +174,7 @@ class ConditionGroup
 		$fieldCondition = [];
 		$bizprocJoiner = 0;
 
-		$documentService = \CBPRuntime::GetRuntime(true)->GetService("DocumentService");
+		$documentService = \CBPRuntime::GetRuntime(true)->getDocumentService();
 		$documentFields = $documentService->GetDocumentFields($documentType);
 
 		/** @var Condition $condition */
@@ -209,6 +207,8 @@ class ConditionGroup
 			];
 			$bizprocJoiner = ($joiner === static::JOINER_OR) ? 1 : 0;
 		}
+
+		Helper::unConvertExpressions($fieldCondition, $documentType);
 
 		$activity = array(
 			'Type' => 'IfElseActivity',
@@ -247,7 +247,7 @@ class ConditionGroup
 	public static function convertBizprocActivity(array &$activity, array $documentType)
 	{
 		$conditionGroup = false;
-		$documentService = \CBPRuntime::GetRuntime(true)->GetService("DocumentService");
+		$documentService = \CBPRuntime::GetRuntime(true)->getDocumentService();
 		$documentFields = $documentService->GetDocumentFields($documentType);
 
 		if (
@@ -278,7 +278,7 @@ class ConditionGroup
 				$conditionItem = new Condition(array(
 					'field' => $fieldCondition[0],
 					'operator' => $fieldCondition[1],
-					'value' => $fieldCondition[2],
+					'value' => Helper::convertExpressions($fieldCondition[2], $documentType),
 				));
 
 				$nextCondition = isset($bizprocConditions[$index + 1]) ? $bizprocConditions[$index + 1] : null;

@@ -44,6 +44,19 @@ class Helper
 		return '';
 	}
 
+	public static function cleanupMailboxAgent($id)
+	{
+		if ($mailboxHelper = Helper\Mailbox::createInstance($id, false))
+		{
+			if ($mailboxHelper->cleanup() === false)
+			{
+				return sprintf('Bitrix\Mail\Helper::cleanupMailboxAgent(%u);', $id);
+			}
+		}
+
+		return '';
+	}
+
 	/**
 	 * @deprecated
 	 */

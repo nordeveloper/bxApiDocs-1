@@ -171,7 +171,7 @@ class User extends Base
 				$config['groups'] = [];
 				foreach ($groups as $id => $groupName)
 				{
-					if (strpos($id, 'group_') === 0)
+					if (!$groupName || strpos($id, 'group_') === 0)
 					{
 						continue;
 					}

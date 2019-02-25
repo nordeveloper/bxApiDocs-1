@@ -3,12 +3,13 @@
 namespace Bitrix\DocumentGenerator\Value;
 
 use Bitrix\DocumentGenerator\DataProviderManager;
+use Bitrix\DocumentGenerator\Nameable;
 use Bitrix\DocumentGenerator\Value;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Type;
 
-class DateTime extends Value
+class DateTime extends Value implements Nameable
 {
 	/**
 	 * DateTime constructor.
@@ -106,5 +107,14 @@ class DateTime extends Value
 	public static function parseModifier($modifier)
 	{
 		return ['format' => $modifier];
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function getLangName()
+	{
+		Loc::loadLanguageFile(__FILE__);
+		return Loc::getMessage('DOCGEN_VALUE_DATETIME_TITLE');
 	}
 }

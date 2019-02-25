@@ -83,7 +83,8 @@ class Auth
 					{
 						\CRestUtil::updateAppStatus($tokenInfo);
 					}
-					else
+
+					if(!is_array($clientInfo) || $clientInfo['ACTIVE'] !== 'Y')
 					{
 						$tokenInfo = array('error' => 'APPLICATION_NOT_FOUND', 'error_description' => 'Application not found');
 						$error = true;

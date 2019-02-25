@@ -37,7 +37,7 @@ class CIBlockPropertyDateTime
 
 		$from = "";
 		$from_name = $strHTMLControlName["VALUE"].'_from';
-		if (Bitrix\Main\Grid\Context::isInternalRequest() && isset($strHTMLControlName["FILTER_ID"]))
+		if (isset($strHTMLControlName["FILTER_ID"]))
 		{
 			$filterOption = new \Bitrix\Main\UI\Filter\Options($strHTMLControlName["FILTER_ID"]);
 			$filterData = $filterOption->getFilter();
@@ -70,7 +70,7 @@ class CIBlockPropertyDateTime
 
 		$to = "";
 		$to_name = $strHTMLControlName["VALUE"].'_to';
-		if (Bitrix\Main\Grid\Context::isInternalRequest() && isset($strHTMLControlName["FILTER_ID"]))
+		if (isset($strHTMLControlName["FILTER_ID"]))
 		{
 			$filterOption = new \Bitrix\Main\UI\Filter\Options($strHTMLControlName["FILTER_ID"]);
 			$filterData = $filterOption->getFilter();

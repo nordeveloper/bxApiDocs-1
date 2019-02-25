@@ -109,13 +109,13 @@ class ArrayDataProvider extends DataProvider implements \Iterator
 
 		if(is_array($this->data))
 		{
-			if($name == static::NUMBER_PLACEHOLDER)
+			if($name === static::NUMBER_PLACEHOLDER)
 			{
-				return count($this->data);
+				$value = count($this->data);
 			}
-			elseif($name == static::INDEX_PLACEHOLDER)
+			elseif($name === static::INDEX_PLACEHOLDER)
 			{
-				return ($this->key() + 1);
+				$value = ($this->key() + 1);
 			}
 			elseif(isset($this->data[$name]))
 			{

@@ -172,7 +172,7 @@ class Imap
 
 		if (!$error)
 		{
-			if (stream_socket_enable_crypto($this->stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT))
+			if (stream_socket_enable_crypto($this->stream, true, STREAM_CRYPTO_METHOD_ANY_CLIENT))
 			{
 				if (!$this->capability($error))
 					return false;
@@ -289,7 +289,9 @@ class Imap
 			}
 
 			$response = $this->exchange(base64_encode(sprintf(
-				"\x00%s\x00%s", $this->options['login'], $this->options['password']
+				"\x00%s\x00%s",
+				Encoding::convertEncoding($this->options['login'], $this->options['encoding'], 'UTF-8'),
+				Encoding::convertEncoding($this->options['password'], $this->options['encoding'], 'UTF-8')
 			)), $error);
 		}
 		else // if ($mech == 'login')
@@ -1313,7 +1315,7 @@ class Imap
 			return $result->addError(new Main\Error($error));
 		}
 
-		$response = $this->expunge($id, $error);
+		$response = $this->expunge($error);
 		if ($error)
 		{
 			$error = $error == Imap::ERR_COMMAND_REJECTED ? null : $error;
@@ -1328,10 +1330,11 @@ class Imap
 	 * @param $error
 	 * @return bool|null|string|string[]
 	 */
-	private function expunge($ids, &$error)
+	private function expunge(&$error)
 	{
-		return $this->executeCommand(sprintf('UID EXPUNGE %s', $this->prepareIdsParam($ids)), $error);
+		return $this->executeCommand('EXPUNGE', $error);
 	}
+
 	/**
 	 * @param int|array $ids
 	 * @param $flags

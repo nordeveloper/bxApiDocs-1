@@ -32,9 +32,11 @@ class TestArchiveEntry extends ArchiveEntry
 	 * Creates test entry.
 	 *
 	 * @param File $file File.
+	 * @param null $name
+	 *
 	 * @return static
 	 */
-	public static function createFromFile(File $file)
+	public static function createFromFile(File $file, $name = null)
 	{
 		return new static;
 	}
@@ -43,9 +45,11 @@ class TestArchiveEntry extends ArchiveEntry
 	 * Creates test entry.
 	 *
 	 * @param AttachedObject $attachedObject Attached object.
+	 * @param null $name
+	 *
 	 * @return static
 	 */
-	public static function createFromAttachedObject(AttachedObject $attachedObject)
+	public static function createFromAttachedObject(AttachedObject $attachedObject, $name = null)
 	{
 		return new static;
 	}

@@ -5,6 +5,7 @@ return [
 			'namespaces' => [
 				'\\Bitrix\\Disk\\Controller' => 'api',
 			],
+			'defaultNamespace' => '\\Bitrix\\Disk\\Controller',
 		],
 		'readonly' => true,
 	]

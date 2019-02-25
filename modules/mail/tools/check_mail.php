@@ -8,7 +8,7 @@ define('NOT_CHECK_PERMISSIONS', true);
 define('BX_SECURITY_SESSION_READONLY', true);
 
 require_once($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php');
-$timeStart = time();
+
 if (!is_object($USER) || !$USER->IsAuthorized())
 {
 	return;
@@ -55,7 +55,7 @@ if (!empty($mailboxesReadyToSync))
 			{
 				$hasSuccessSync = true;
 			}
-			if (time() - $timeStart > Bitrix\Mail\Helper\Mailbox::SYNC_TIME_QUOTA)
+			if ($mailboxHelper->getMailbox()['SYNC_LOCK'] >= 0)
 			{
 				break;
 			}

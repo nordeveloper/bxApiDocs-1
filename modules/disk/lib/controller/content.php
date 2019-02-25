@@ -139,6 +139,11 @@ final class Content extends Controller
 		$file->putContents(file_get_contents("php://input"));
 
 		$tmpFileArray = \CFile::makeFileArray($tmpFilePath);
+		$contentType = $this->request->getHeader('X-Upload-Content-Type');
+		if ($contentType)
+		{
+			$tmpFileArray['type'] = $contentType;
+		}
 
 		return $tmpFileArray;
 	}

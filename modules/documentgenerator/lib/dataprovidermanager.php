@@ -6,8 +6,11 @@ use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\DocumentGenerator\DataProvider\HashDataProvider;
 use Bitrix\DocumentGenerator\DataProvider\Rest;
 use Bitrix\DocumentGenerator\DataProvider\User;
+use Bitrix\DocumentGenerator\Model\RegionPhraseTable;
 use Bitrix\DocumentGenerator\Value\DateTime;
+use Bitrix\DocumentGenerator\Value\Multiple;
 use Bitrix\DocumentGenerator\Value\Name;
+use Bitrix\DocumentGenerator\Value\PhoneNumber;
 use Bitrix\Main\Context\Culture;
 use Bitrix\Main\IO\File;
 use Bitrix\Main\Loader;
@@ -114,7 +117,7 @@ final class DataProviderManager
 	 */
 	public function getDataProviderValue(DataProvider $dataProvider, $placeholder)
 	{
-		if(empty($placeholder) || is_array($placeholder) || is_object($placeholder))
+		if(($placeholder !== 0 && empty($placeholder)) || is_array($placeholder) || is_object($placeholder))
 		{
 			return false;
 		}
@@ -320,17 +323,62 @@ final class DataProviderManager
 			return $value;
 		}
 
+		if(isset($fieldDescription['PROVIDER']) && !empty($fieldDescription['PROVIDER']))
+		{
+			return $value;
+		}
+
 		$type = null;
 		$format = [];
 		if(is_array($fieldDescription) && array_key_exists('TYPE', $fieldDescription) && !empty($fieldDescription['TYPE']))
 		{
 			$type = $fieldDescription['TYPE'];
 		}
-		if(isset($fieldDescription['FORMAT']) && is_array($format))
+		if(isset($fieldDescription['FORMAT']))
 		{
 			$format = $fieldDescription['FORMAT'];
 		}
 
+		if($type != DataProvider::FIELD_TYPE_NAME && is_array($value) || $value instanceof \Traversable)
+		{
+			$result = [];
+			foreach($value as $singleValue)
+			{
+				if(!empty($singleValue))
+				{
+					$result[] = $this->getValueByType($singleValue, $type, $format);
+				}
+			}
+			if(!empty($result))
+			{
+				// no need for Multiple if there is only one item.
+				if(count($result) == 1)
+				{
+					return reset($result);
+				}
+				return new Multiple($result, $format);
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		return $this->getValueByType($value, $type, $format);
+	}
+
+	/**
+	 * @param $value
+	 * @param $type
+	 * @param $format
+	 * @return Value
+	 */
+	protected function getValueByType($value, $type, $format)
+	{
+		if(empty($value))
+		{
+			return $value;
+		}
 		if($type === DataProvider::FIELD_TYPE_DATE || $value instanceof Date)
 		{
 			$value = new DateTime($value, $format);
@@ -338,6 +386,10 @@ final class DataProviderManager
 		elseif($type === DataProvider::FIELD_TYPE_NAME && is_array($value))
 		{
 			$value = new Name($value, $format);
+		}
+		elseif($type === DataProvider::FIELD_TYPE_PHONE)
+		{
+			$value = new PhoneNumber($value, $format);
 		}
 		elseif(is_a($type, Value::class, true))
 		{
@@ -414,11 +466,11 @@ final class DataProviderManager
 	public function getArray(DataProvider $dataProvider, array $params = [], array $stack = [])
 	{
 		$result = [];
-		if(in_array($dataProvider, $stack))
+		if(in_array(get_class($dataProvider), $stack))
 		{
 			return $result;
 		}
-		$stack[] = $dataProvider;
+		$stack[] = get_class($dataProvider);
 
 		foreach($dataProvider->getFields() as $placeholder => $field)
 		{
@@ -922,15 +974,30 @@ final class DataProviderManager
 		}
 
 		$this->loadedPhrasePath[$path][$region] = true;
-
-		$file = new File($path.'/phrase_'.$region.'.php');
-		if(!$file->isExists())
+		$phrases = [];
+		if(is_numeric($region))
 		{
-			return;
+			$phraseList = RegionPhraseTable::getList([
+				'filter' => [
+					'REGION_ID' => $region,
+				]
+			]);
+			while($phrase = $phraseList->fetch())
+			{
+				$phrases[$phrase['CODE']] = $phrase['PHRASE'];
+			}
 		}
+		else
+		{
+			$file = new File($path.'/phrase_'.$region.'.php');
+			if(!$file->isExists())
+			{
+				return;
+			}
 
-		/** @noinspection PhpIncludeInspection */
-		$phrases = include $file->getPath();
+			/** @noinspection PhpIncludeInspection */
+			$phrases = include $file->getPath();
+		}
 		if(!isset($this->phrases[$region]))
 		{
 			$this->phrases[$region] = [];
@@ -938,7 +1005,7 @@ final class DataProviderManager
 		if(is_array($phrases))
 		{
 			$phrases = [$region => $phrases];
-			$this->phrases = array_merge($this->phrases[$region], $phrases);
+			$this->phrases = array_merge($this->phrases, $phrases);
 		}
 	}
 
@@ -976,36 +1043,68 @@ final class DataProviderManager
 		return $this->accessCache[$providerHash][$userId];
 	}
 
-//	/**
-//	 * @param array $field
-//	 * @return array
-//	 */
-//	public function getDataProviderLangPhrases(array $field)
-//	{
-//		$phrases = [];
-//
-//		$provider = $this->createDataProvider($field, ' ');
-//		if($provider)
-//		{
-//			if($provider instanceof ArrayDataProvider)
-//			{
-//				$field = $provider->getFields()[$provider->getItemKey()];
-//				$provider = $this->createDataProvider($field, ' ');
-//				if(!$provider)
-//				{
-//					return $phrases;
-//				}
-//			}
-//			$phrases = $provider->getLangPhrases();
-//			foreach($provider->getFields() as $placeholder => $field)
-//			{
-//				if(isset($field['PROVIDER']))
-//				{
-//					$phrases = array_merge($phrases, $this->getDataProviderLangPhrases($field));
-//				}
-//			}
-//		}
-//
-//		return $phrases;
-//	}
+	/**
+	 * @param $region
+	 * @return array
+	 */
+	public function getRegionPhrases($region)
+	{
+		$providers = $this->getList();
+		$loadedProviders = $phrases = [];
+		foreach($providers as $providerDescription)
+		{
+			$this->getDataProviderRegionPhrases($providerDescription['CLASS'], $region, $loadedProviders);
+			$loadedProviders[strtolower($providerDescription['CLASS'])] = true;
+		}
+
+		return $this->phrases[$region];
+	}
+
+	/**
+	 * @param string $providerClassName
+	 * @param $region
+	 * @param array $loadedProviders
+	 * @param array $field
+	 */
+	public function getDataProviderRegionPhrases($providerClassName, $region, &$loadedProviders = [], array $field = [])
+	{
+		$providerClassName = strtolower($providerClassName);
+		if(isset($loadedProviders[$providerClassName]))
+		{
+			return;
+		}
+		if(!empty($field))
+		{
+			$provider = $this->createDataProvider($field, ' ');
+		}
+		else
+		{
+			$provider = $this->getDataProvider($providerClassName, ' ');
+		}
+		if($provider)
+		{
+			if($provider instanceof ArrayDataProvider)
+			{
+				$field = $provider->getFields()[$provider->getItemKey()];
+				$provider = $this->createDataProvider($field, ' ');
+				if(!$provider)
+				{
+					return;
+				}
+			}
+			$phrasesPath = $provider->getLangPhrasesPath();
+			if($phrasesPath)
+			{
+				$this->loadLangPhrases($phrasesPath, $region);
+			}
+			$loadedProviders[$providerClassName] = true;
+			foreach($provider->getFields() as $placeholder => $field)
+			{
+				if(isset($field['PROVIDER']) && !empty($field['PROVIDER']) && !isset($loadedProviders[strtolower($field['PROVIDER'])]))
+				{
+					$this->getDataProviderRegionPhrases($field['PROVIDER'], $region, $loadedProviders, $field);
+				}
+			}
+		}
+	}
 }

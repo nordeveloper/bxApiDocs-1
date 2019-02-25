@@ -136,13 +136,17 @@ class TransformerManager implements InterfaceCallback
 			}
 		}
 
-		Application::getInstance()->getTaggedCache()->clearByTag("disk_file_".$file->getId());
-		BlogPostConnector::clearCacheByObjectId($file->getId());
-		BlogPostCommentConnector::clearCacheByObjectId($file->getId());
-
+		static::clearCacheByFile($file);
 		static::addToStack($file, $viewId, $previewId);
 
 		return true;
+	}
+
+	protected static function clearCacheByFile(File $file)
+	{
+		Application::getInstance()->getTaggedCache()->clearByTag("disk_file_{$file->getId()}");
+		BlogPostConnector::clearCacheByObjectId($file->getId());
+		BlogPostCommentConnector::clearCacheByObjectId($file->getId());
 	}
 
 	/**
@@ -160,6 +164,23 @@ class TransformerManager implements InterfaceCallback
 			return $fileId;
 		}
 		return false;
+	}
+
+	public static function resetCacheInUfAfterTransformation(\Bitrix\Main\Event $event)
+	{
+		$bfileId = $event->getParameter('fileId');
+		if (!$bfileId)
+		{
+			return;
+		}
+
+		$file = File::load(['=FILE_ID' => $bfileId,]);
+		if (!$file)
+		{
+			return;
+		}
+
+		static::clearCacheByFile($file);
 	}
 
 	/**

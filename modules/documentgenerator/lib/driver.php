@@ -4,6 +4,7 @@ namespace Bitrix\DocumentGenerator;
 
 use Bitrix\DocumentGenerator\DataProvider\Filterable;
 use Bitrix\DocumentGenerator\Integration\Bitrix24Manager;
+use Bitrix\DocumentGenerator\Model\RegionTable;
 use Bitrix\DocumentGenerator\Model\TemplateProviderTable;
 use Bitrix\DocumentGenerator\Model\TemplateTable;
 use Bitrix\DocumentGenerator\Storage\BFile;
@@ -183,6 +184,22 @@ final class Driver
 	public function getRegionsList()
 	{
 		Loc::loadLanguageFile(__FILE__);
+		$regions = $this->getDefaultRegions();
+		$userRegionsList = RegionTable::getList();
+		while($userRegion = $userRegionsList->fetch())
+		{
+			$userRegion['CODE'] = $userRegion['ID'];
+			$regions[$userRegion['ID']] = $userRegion;
+		}
+
+		return $regions;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getDefaultRegions()
+	{
 		return [
 			'ru' => [
 				'CODE' => 'ru',
@@ -209,11 +226,6 @@ final class Driver
 				'TITLE' => Loc::getMessage('DOCUMENTGENERATOR_REGIONS_DE'),
 				'LANGUAGE_ID' => 'de',
 			],
-//			'en' => [
-//				'CODE' => 'en',
-//				'TITLE' => Loc::getMessage('DOCUMENTGENERATOR_REGIONS_EN'),
-//				'LANGUAGE_ID' => 'en',
-//			],
 			'uk' => [
 				'CODE' => 'uk',
 				'TITLE' => Loc::getMessage('DOCUMENTGENERATOR_REGIONS_UK'),
@@ -361,6 +373,22 @@ final class Driver
 		while($template = $templates->fetch())
 		{
 			TemplateTable::normalizeBody($template['ID']);
+		}
+	}
+
+	public static function deleteTemplatesWithEmptyModuleId()
+	{
+		global $DB;
+		if(!$DB->TableExists(TemplateTable::getTableName()))
+		{
+			return '';
+		}
+		$templates = TemplateTable::getList(['select' => ['ID'], 'filter' => [
+			'MODULE_ID' => 'delete',
+		]]);
+		while($template = $templates->fetch())
+		{
+			TemplateTable::delete($template['ID'], true);
 		}
 	}
 }

@@ -4,14 +4,15 @@
 namespace Bitrix\Disk;
 
 
-use Bitrix\Disk\Document\GoogleViewerHandler;
-use Bitrix\Disk\Integration\Bitrix24Manager;
+use Bitrix\Disk\Document\BitrixHandler;
+use Bitrix\Disk\Document\LocalDocumentController;
 use Bitrix\Main\Config\Option;
-use Bitrix\Main\Loader;
+use Bitrix\Main\UI\Viewer\Transformation\Document;
+use Bitrix\Main\UI\Viewer\Transformation\Video;
 
 final class Configuration
 {
-	const REVISION_API = 6;
+	const REVISION_API = 7;
 
 	public static function isEnabledDefaultEditInUf()
 	{
@@ -49,7 +50,7 @@ final class Configuration
 
 		return $value?: null;
 	}
-	
+
 	public static function isEnabledExternalLink()
 	{
 		static $isAllow = null;
@@ -141,7 +142,7 @@ final class Configuration
 		return Option::get(
 			Driver::INTERNAL_MODULE_ID,
 			'disk_max_index_size',
-			10
+			1
 		) * 1024 * 1024;
 	}
 
@@ -167,11 +168,17 @@ final class Configuration
 			return $service;
 		}
 
-		$service = Option::get(Driver::INTERNAL_MODULE_ID, 'default_viewer_service', GoogleViewerHandler::getCode());
+		$service = Option::get(Driver::INTERNAL_MODULE_ID, 'default_viewer_service', BitrixHandler::getCode());
 
 		return $service;
 	}
 
+	/**
+	 * @deprecated
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 */
 	public static function allowDocumentTransformation()
 	{
 		return Option::get(
@@ -183,9 +190,17 @@ final class Configuration
 
 	public static function getMaxSizeForDocumentTransformation()
 	{
-		return intval(Option::get(Driver::INTERNAL_MODULE_ID, 'disk_max_size_for_document_transformation', 40)) * 1024 * 1024;
+		$documentTransformation = new Document();
+
+		return $documentTransformation->getInputMaxSize();
 	}
 
+	/**
+	 * @deprecated
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 */
 	public static function allowVideoTransformation()
 	{
 		return Option::get(
@@ -202,11 +217,9 @@ final class Configuration
 	 */
 	public static function getMaxSizeForVideoTransformation()
 	{
-		if(Bitrix24Manager::isEnabled() && Bitrix24Manager::isLicensePaid())
-		{
-			return intval(Option::get(Driver::INTERNAL_MODULE_ID, 'disk_max_size_for_video_transformation_paid', 3072)) * 1024 * 1024;
-		}
-		return intval(Option::get(Driver::INTERNAL_MODULE_ID, 'disk_max_size_for_video_transformation', 300)) * 1024 * 1024;
+		$videoTransformation = new Video();
+
+		return $videoTransformation->getInputMaxSize();
 	}
 
 	public static function allowTransformFilesOnOpen()
@@ -256,5 +269,10 @@ final class UserConfiguration
 		$service = $userSettings['default'];
 
 		return $userSettings['default'];
+	}
+
+	public static function isSetLocalDocumentService()
+	{
+		return LocalDocumentController::isLocalService(self::getDocumentServiceCode());
 	}
 }

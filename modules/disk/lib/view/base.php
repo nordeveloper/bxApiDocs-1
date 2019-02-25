@@ -2,6 +2,7 @@
 
 namespace Bitrix\Disk\View;
 
+use Bitrix\Disk\Integration\TransformerManager;
 use Bitrix\Disk\TypeFile;
 use Bitrix\Disk\Uf\BlogPostConnector;
 use Bitrix\Main\ArgumentNullException;
@@ -9,6 +10,7 @@ use Bitrix\Disk\Configuration;
 use Bitrix\Disk\File;
 use Bitrix\Main\Loader;
 use Bitrix\Main\ModuleManager;
+use Bitrix\Main\UI\Viewer\PreviewManager;
 
 class Base
 {
@@ -143,6 +145,7 @@ class Base
 	 */
 	protected function getFileData($fileId, $cacheCleaned = false)
 	{
+		$fileId = (int)$fileId;
 		if($fileId > 0)
 		{
 			$fileData = \CFile::getByID($fileId)->fetch();
@@ -453,32 +456,39 @@ class Base
 	 */
 	public function transformOnOpen(File $file)
 	{
-		if($this->isTransformationAllowedOnOpen($file->getSize()))
+		if (!$this->isTransformationAllowedOnOpen($file->getSize()))
 		{
-			if(Loader::includeModule('transformer'))
-			{
-				if(!\Bitrix\Disk\Integration\TransformerManager::checkTransformationAttempts($file))
-				{
-					\Bitrix\Disk\Integration\TransformerManager::transformToView($file);
-					$success = self::TRANSFORM_STATUS_SUCCESS;
-				}
-				else
-				{
-					$success = self::TRANSFORM_STATUS_WAS_TRANSFORMED;
-				}
-				BlogPostConnector::clearCacheByObjectId($file->getId());
-			}
-			else
-			{
-				$success = self::TRANSFORM_STATUS_NO_MODULE;
-			}
+			return [
+				'status' => self::TRANSFORM_STATUS_NOT_ALLOWED,
+			];
+		}
+
+		if (!Loader::includeModule('transformer'))
+		{
+			return [
+				'status' => self::TRANSFORM_STATUS_NO_MODULE,
+			];
+		}
+
+		$data = null;
+		if (!TransformerManager::checkTransformationAttempts($file))
+		{
+			$previewManager = new PreviewManager();
+			$data = $previewManager->generatePreview($file->getFileId())->getData();
+
+			$status = self::TRANSFORM_STATUS_SUCCESS;
 		}
 		else
 		{
-			$success = self::TRANSFORM_STATUS_NOT_ALLOWED;
+			$status = self::TRANSFORM_STATUS_WAS_TRANSFORMED;
 		}
 
-		return array('success' => $success);
+		BlogPostConnector::clearCacheByObjectId($file->getId());
+
+		return [
+			'status' => $status,
+			'data' => $data,
+		];
 	}
 
 	/**

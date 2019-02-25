@@ -4,23 +4,23 @@ namespace Bitrix\Disk\Controller;
 
 use Bitrix\Disk;
 use Bitrix\Disk\Internals\Engine;
-use Bitrix\Disk\Internals\Error\Error;
-use Bitrix\Main\Localization\Loc;
 
 final class TrashCan extends Engine\Controller
 {
+	/**
+	 * Returns default pre-filters for action.
+	 * @return array
+	 */
+	protected function getDefaultPreFilters()
+	{
+		$defaultPreFilters = parent::getDefaultPreFilters();
+		$defaultPreFilters[] = new Engine\ActionFilter\CheckReadPermission();
+
+		return $defaultPreFilters;
+	}
+
 	public function emptyAction(Disk\Storage $storage)
 	{
-		$securityContext = $storage->getSecurityContext($this->getCurrentUser()->getId());
-		if (!$storage->getRootObject()->canRead($securityContext))
-		{
-			$this->errorCollection[] = new Error(
-				Loc::getMessage("DISK_CHECK_READ_PERMISSION_ERROR_MESSAGE")
-			);
-
-			return;
-		}
-
 		$indicator = new Disk\Volume\Storage\TrashCan();
 		$indicator
 			->setOwner($this->getCurrentUser()->getId())

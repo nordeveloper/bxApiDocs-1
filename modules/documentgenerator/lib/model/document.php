@@ -4,7 +4,6 @@ namespace Bitrix\DocumentGenerator\Model;
 
 use Bitrix\DocumentGenerator\DataProvider;
 use Bitrix\DocumentGenerator\DataProviderManager;
-use Bitrix\DocumentGenerator\Driver;
 use Bitrix\DocumentGenerator\Integration\Bitrix24Manager;
 use Bitrix\Main;
 use Bitrix\Main\Entity\Event;

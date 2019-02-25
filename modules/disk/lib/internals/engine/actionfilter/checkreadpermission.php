@@ -2,6 +2,7 @@
 
 namespace Bitrix\Disk\Internals\Engine\ActionFilter;
 
+use Bitrix\Disk\AttachedObject;
 use Bitrix\Disk\BaseObject;
 use Bitrix\Disk\Internals\Error\Error;
 use Bitrix\Disk\Storage;
@@ -39,6 +40,15 @@ class CheckReadPermission extends ActionFilter\Base
 			elseif ($argument instanceof Storage)
 			{
 				if (!$argument->canRead($argument->getSecurityContext($this->currentUser->getId())))
+				{
+					$this->addReadError();
+
+					return new EventResult(EventResult::ERROR, null, null, $this);
+				}
+			}
+			elseif ($argument instanceof AttachedObject)
+			{
+				if (!$argument->canRead($this->currentUser->getId()))
 				{
 					$this->addReadError();
 

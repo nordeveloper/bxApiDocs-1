@@ -641,7 +641,7 @@ class CIBlockPropertySectionAutoComplete extends CIBlockPropertyElementAutoCompl
 
 		$arFilterValues = array();
 
-		if (Bitrix\Main\Grid\Context::isInternalRequest() && isset($strHTMLControlName["FILTER_ID"]))
+		if (isset($strHTMLControlName["FILTER_ID"]))
 		{
 			$filterOption = new \Bitrix\Main\UI\Filter\Options($strHTMLControlName["FILTER_ID"]);
 			$filterData = $filterOption->getFilter();

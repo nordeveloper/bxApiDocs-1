@@ -128,7 +128,10 @@ final class FileLink extends File
 			$driver = Driver::getInstance();
 
 			$driver->sendChangeStatusToSubscribers($file);
-			$driver->getRecentlyUsedManager()->push($file->getCreatedBy(), $file->getId());
+			if ($file->getStorage()->isUseInternalRights())
+			{
+				$driver->getRecentlyUsedManager()->push($file->getCreatedBy(), $file->getId());
+			}
 		}
 
 		if($file)

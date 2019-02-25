@@ -225,26 +225,20 @@ class Video extends Base
 		return false;
 	}
 
-	/**
-	 * Returns html of the dummy view.
-	 *
-	 * @param array $params
-	 * @return string
-	 */
-	public function renderTransformationInProcessMessage($params = array())
+	public function renderTransformationInProcessMessage($params = [])
 	{
-		$dummyParams = array(
-			'FILE' => $this->fileId,
-			'TRANSFORM_URL' => $params['TRANSFORM_URL'],
-			'TYPE' => 'video',
-			'REFRESH_URL' => $params['REFRESH_URL'],
-		);
 		ob_start();
 		global $APPLICATION;
 		$APPLICATION->IncludeComponent(
-			'bitrix:transformer.dummy',
+			'bitrix:disk.file.transform.video',
 			'',
-			$dummyParams);
+			[
+				'BFILE_ID' => $this->fileId,
+				'ATTACHED_OBJECT' => $params['ATTACHED_OBJECT'],
+				'FILE' => $params['FILE'],
+			]
+		);
+
 		return ob_get_clean();
 	}
 
@@ -428,11 +422,13 @@ class Video extends Base
 		{
 			?> style="width: <?=$params['WIDTH'];?>px; height: <?=$params['HEIGHT'];?>px;"<?
 		}
-		if(isset($params['TRANSFORM_INFO_URL']) && !empty($params['TRANSFORM_INFO_URL']))
-		{
-			?> data-bx-transform-info-url="<?=$params['TRANSFORM_INFO_URL'];?>"<?
-		}
-		?>><?
+		?>>
+			<div class="main-ui-loader">
+				<svg class="main-ui-loader-svg" viewBox="25 25 50 50">
+					<circle class="main-ui-loader-svg-circle" cx="50" cy="50" r="20" fill="none" stroke-miterlimit="10"/>
+				</svg>
+			</div>
+		<?
 		global $APPLICATION;
 		$APPLICATION->IncludeComponent(
 		'bitrix:player',

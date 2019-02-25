@@ -184,6 +184,11 @@ abstract class BaseComponent extends \CBitrixComponent implements Errorable
 		return false;
 	}
 
+	public function isWrappedAsSidepanelContent()
+	{
+		return self::$alreadyWrappedForSidepanel;
+	}
+
 	public function executeComponent()
 	{
 		try

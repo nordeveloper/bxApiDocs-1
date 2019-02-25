@@ -2,16 +2,8 @@
 
 namespace Bitrix\Disk;
 
-use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use CBPArgumentNullException;
-
-Loc::loadMessages(__FILE__);
-
-if (!Integration\BizProcManager::isAvailable())
-{
-	return;
-}
 
 class BizProcDocumentCompatible extends BizProcDocument
 {

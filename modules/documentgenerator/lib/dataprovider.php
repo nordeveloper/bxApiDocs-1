@@ -9,6 +9,7 @@ abstract class DataProvider
 	const FIELD_TYPE_DATE = 'DATE';
 	const FIELD_TYPE_TEXT = 'TEXT';
 	const FIELD_TYPE_NAME = 'NAME';
+	const FIELD_TYPE_PHONE = 'PHONE';
 
 	protected $source;
 	protected $data;

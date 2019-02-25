@@ -202,6 +202,13 @@ class ObjectTable extends DataManager
 			'FILE_ID' => array(
 				'data_type' => 'integer',
 			),
+			'FILE_CONTENT' => array(
+				'data_type' => Main\FileTable::class,
+				'reference' => array(
+					'=this.FILE_ID' => 'ref.ID'
+				),
+				'join_type' => 'LEFT',
+			),
 			'SIZE' => array(
 				'data_type' => 'integer',
 			),

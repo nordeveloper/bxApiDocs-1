@@ -2,7 +2,9 @@
 
 namespace Bitrix\DocumentGenerator;
 
+use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\DocumentGenerator\Model\FileTable;
+use Bitrix\DocumentGenerator\Value\Multiple;
 use Bitrix\Main\Entity\AddResult;
 use Bitrix\Main\Result;
 use Bitrix\Main\Text\BinaryString;
@@ -15,6 +17,7 @@ abstract class Body
 	protected $fields = [];
 	protected $storage;
 	protected $excludedPlaceholders = [];
+	protected $arrayValuePlaceholders = [];
 
 	const BLOCK_START_PLACEHOLDER = 'BLOCK_START';
 	const BLOCK_END_PLACEHOLDER = 'BLOCK_END';
@@ -124,6 +127,11 @@ abstract class Body
 	abstract public function getFileExtension();
 
 	/**
+	 * @return string
+	 */
+	abstract public function getFileMimeType();
+
+	/**
 	 * @return bool
 	 */
 	public function isFileProcessable()
@@ -181,6 +189,13 @@ abstract class Body
 	public function setValues(array $values)
 	{
 		$this->values = array_merge($this->values, $values);
+		foreach($values as $placeholder => $value)
+		{
+			if($value instanceof ArrayDataProvider)
+			{
+				$this->arrayValuePlaceholders[$placeholder] = $placeholder;
+			}
+		}
 
 		return $this;
 	}
@@ -314,14 +329,95 @@ abstract class Body
 		{
 			return '';
 		}
+		elseif($this->isArrayValue($value, $placeholder))
+		{
+			$valueNameParts = explode('.', $value);
+			$name = implode('.', array_slice($valueNameParts, 2));
+			$modifierData = Value::parseModifier($modifier);
+			$index = 0;
+			/** @var ArrayDataProvider $innerProvider */
+			$arrayProvider = $this->values[$valueNameParts[0]];
+			if(isset($modifierData['all']))
+			{
+				$value = $this->printAllArrayValues($arrayProvider, $placeholder, $name, $modifier);
+			}
+			else
+			{
+				if(isset($modifierData['index']))
+				{
+					$index = intval($modifierData['index']);
+				}
+				$value = $this->printArrayValueByIndex($arrayProvider, $placeholder, $name, $index, $modifier);
+			}
+		}
 
 		return $value;
 	}
 
 	/**
+	 * @param ArrayDataProvider $arrayDataProvider
+	 * @param $placeholder
+	 * @param $name
+	 * @param int $index
+	 * @param string $modifier
 	 * @return string
 	 */
-	abstract public function getFileMimeType();
+	protected function printArrayValueByIndex(ArrayDataProvider $arrayDataProvider, $placeholder, $name, $index = 0, $modifier = '')
+	{
+		$innerProvider = $arrayDataProvider->getValue($index);
+		if($innerProvider instanceof DataProvider)
+		{
+			$value = $this->printValue($innerProvider->getValue($name), $placeholder, $modifier);
+		}
+		else
+		{
+			$value = '';
+		}
+
+		return $value;
+	}
+
+	/**
+	 * @param ArrayDataProvider $arrayDataProvider
+	 * @param $placeholder
+	 * @param $name
+	 * @param string $modifier
+	 * @return string
+	 */
+	protected function printAllArrayValues(ArrayDataProvider $arrayDataProvider, $placeholder, $name, $modifier = '')
+	{
+		$value = [];
+		list($outerModifier, $innerModifier) = explode('all', $modifier, 2);
+		/** @var DataProvider $innerProvider */
+		foreach($arrayDataProvider as $innerProvider)
+		{
+			$value[] = $this->printValue($innerProvider->getValue($name), $placeholder, $innerModifier);
+		}
+
+		$value = new Multiple($value);
+		return $this->printValue($value, $placeholder, $outerModifier);
+	}
+
+	/**
+	 * @param string $value
+	 * @param string $placeholder
+	 * @return bool
+	 */
+	protected function isArrayValue($value, $placeholder)
+	{
+		if(!is_string($value) || !is_string($placeholder) || empty($value))
+		{
+			return false;
+		}
+		$valueParts = explode('.', $value);
+		if(count($valueParts) == 1)
+		{
+			return false;
+		}
+		$providerName = $valueParts[0];
+
+		return isset($this->arrayValuePlaceholders[$providerName]);
+	}
 
 	/**
 	 * Returns array of placeholders that starts with $providerName.'.'

@@ -18,34 +18,28 @@
 	{
 		if(window.opener)
 		{
-			if((BX.browser.IsIE() || BX.browser.IsIE11() || /Edge\/./i.test(navigator.userAgent)) && window.opener._ie_elementViewer && (window.opener._ie_elementViewer.bVisible || window.opener._ie_elementViewer.createDoc))
-			{
-				window.opener._ie_elementViewer.closeConfirm();
-				if(window.opener._ie_elementViewer.createDoc)
-					window.opener.BX.CViewer.unlockScroll();
-				return true;
-			}
-			else if(window.elementViewer && (window.elementViewer.bVisible || window.elementViewer.createDoc))
-			{
-				window.elementViewer.closeConfirm();
-				if(window.elementViewer.createDoc)
-					window.opener.BX.CViewer.unlockScroll();
-				return true;
-			}
+			window.opener.postMessage({
+				reason: 'disk-work-close-edit-document'
+			}, '*');
+			window.opener.top.postMessage({
+				reason: 'disk-work-close-edit-document'
+			}, '*');
 		}
-		return false;
 	}
 
 	BX.ready(function(){
 		window.successLoadCommitData = false;
 		window.runAuthAction = false;
 		window.onbeforeunload = function (e) {
-			try {
-				if (!window.successLoadCommitData && !window.runAuthAction) {
+			try
+			{
+				if (!window.successLoadCommitData && !window.runAuthAction)
+				{
 					closeConfirm();
 				}
-			} catch (e) {
 			}
+			catch (e)
+			{}
 		};
 
 		BX.ajax({
@@ -92,49 +86,16 @@
 					if(data.link)
 					{
 						window.successLoadCommitData = true;
-						if(window.opener) {
-							if (
-								(BX.browser.IsIE() || BX.browser.IsIE11() || /Edge\/./i.test(navigator.userAgent)) &&
-								window.opener._ie_elementViewer &&
-								(window.opener._ie_elementViewer.createDoc || window.opener._ie_elementViewer.bVisible && window.opener._ie_elementViewer.isCurrent(window.opener.window._ie_currentElement))) {
-								var link = data.link;
-								var editSessionId = data.editSessionId;
-								var id = data.id;
-								var iframeSrc = data.iframeSrc;
-								var uriToDoc = data.uriToDoc;
-								var idDoc = data.idDoc;
-								window.opener._ie_currentElement.setDataForCommit(
-									iframeSrc,
-									uriToDoc,
-									idDoc,
-									editSessionId,
-									id,
-									link
-								);
-							}
-							else if (window.elementViewer && window.elementViewer.bVisible) {
-								if (window.elementViewer.isCurrent(window.currentElement)) {
-									window.currentElement.setDataForCommit(data);
-								}
-							}
-							else if (window.opener._ie_elementViewer && window.opener._ie_elementViewer.bVisible) {
-								if (window.opener._ie_elementViewer.isCurrent(window.opener.window._ie_currentElement)) {
-									window.opener._ie_currentElement.setDataForCommit(data);
-								}
-							}
-							else if (window.elementViewer && window.elementViewer.createDoc) {
-								window.currentElement.setDataForCommit(data);
-							}
-							else if (window.opener._ie_elementViewer && window.opener._ie_elementViewer.createDoc) {
-								window.opener._ie_currentElement.setDataForCommit(data);
-							}
+						if(window.opener)
+						{
+							data.reason = 'disk-work-with-document';
+							window.opener.postMessage(data, '*');
+							window.opener.top.postMessage(data, '*');
 						}
 
 						window.location.href = data.link;
 					}
 				}
-
-
 			}
 		});
 	});

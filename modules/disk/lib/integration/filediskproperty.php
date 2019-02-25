@@ -463,9 +463,13 @@ class FileDiskProperty
 						'=ENTITY_ID' => $property['IBLOCK_ID'],
 						'=MODULE_ID' => $moduleId
 					));
-					if($attachedModel)
+					if ($attachedModel)
 					{
 						$value['VALUE'][$idKey] = $attachedModel->getId();
+					}
+					else
+					{
+						$value['VALUE'][$idKey] = FileUserType::NEW_FILE_PREFIX.$id;
 					}
 				}
 			}

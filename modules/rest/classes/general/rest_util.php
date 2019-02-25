@@ -930,7 +930,7 @@ class CRestUtil
 			$scope = '';
 		}
 
-		$signature = $server->getTokenCheckSignature($method, $query);
+		$signature = $server->getTokenCheckSignature(ToLower($method), $query);
 
 		$token = $scope
 			.static::TOKEN_DELIMITER.$query

@@ -383,7 +383,7 @@ class CRestServer
 
 		$key = \Bitrix\Rest\OAuthService::getEngine()->getClientSecret();
 
-		$signatureState = $method
+		$signatureState = ToLower($method)
 			.\CRestUtil::TOKEN_DELIMITER.($this->scope === \CRestUtil::GLOBAL_SCOPE ? '' : $this->scope)
 			.\CRestUtil::TOKEN_DELIMITER.$queryString
 			.\CRestUtil::TOKEN_DELIMITER.implode(\CRestUtil::TOKEN_DELIMITER, $this->auth);

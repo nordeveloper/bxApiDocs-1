@@ -432,7 +432,7 @@ class UrlManager implements IErrorable
 
 	/**
 	 * Gets url for start edit file by cloud services.
-	 * @param int $fileId File id.
+	 * @param mixed $fileId File id.
 	 * @param string $service Service which will use to create file. See in subclasses \Bitrix\Disk\Document\DocumentHandler::getCodeName, and event subscribers 'onDocumentHandlerBuildList'.
 	 * @return string
 	 */
@@ -441,7 +441,7 @@ class UrlManager implements IErrorable
 		return static::getUrlDocumentController('', array(
 			'document_action' => 'start',
 			'primaryAction' => 'publish',
-			'objectId' => (int)$fileId,
+			'objectId' => $fileId,
 			'service' => $service,
 		));
 	}
@@ -544,7 +544,7 @@ class UrlManager implements IErrorable
 		return static::getUrlUfController('', array(
 			'document_action' => 'start',
 			'primaryAction' => 'publish',
-			'attachedId' => (int)$attachedId,
+			'attachedId' => $attachedId,
 			'service' => $service,
 		));
 	}

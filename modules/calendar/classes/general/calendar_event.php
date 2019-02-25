@@ -169,7 +169,7 @@ class CCalendarEvent
 				}
 
 				$attendeesCodes = $entryFields['ATTENDEES_CODES'];
-				if (is_array($entryFields['ATTENDEES_CODES']) && !empty($entryFields['ATTENDEES_CODES']))
+				if (is_array($entryFields['ATTENDEES_CODES']))
 				{
 					$entryFields['ATTENDEES_CODES'] = implode(',', $entryFields['ATTENDEES_CODES']);
 				}
@@ -2025,6 +2025,219 @@ class CCalendarEvent
 		$strRes = trim($strRes, ', ');
 		return $strRes;
 	}
+//
+//	public static function CreateChildEvents($parentId, $arFields, $params)
+//	{
+//		global $DB, $CACHE_MANAGER;
+//		$parentId = intVal($parentId);
+//		$attendees = $arFields['ATTENDEES'];
+//		$bCalDav = CCalendar::IsCalDAVEnabled();
+//		$involvedAttendees = array();
+//
+//		if ($parentId)
+//		{
+//			// It's new event
+//			$isNewEvent = !isset($arFields['ID']) || $arFields['ID'] <= 0;
+//
+//			$curAttendeesIndex = array();
+//			$deletedAttendees = array();
+//			if (!$isNewEvent)
+//			{
+//				$attendeeListData = self::getAttendeeList($parentId);
+//				if (isset($attendeeListData['attendeeList']) && is_array($attendeeListData['attendeeList'][$parentId]))
+//				{
+//					foreach($attendeeListData['attendeeList'][$parentId] as $user)
+//					{
+//						$curAttendeesIndex[$user['id']] = $user;
+//						if ($user['id'] !== $arFields['MEETING_HOST'] &&
+//							($user['id'] !== $arFields['OWNER_ID'] || $arFields['CAL_TYPE'] !== 'user'))
+//						{
+//							$deletedAttendees[$user['id']] = $user['id'];
+//							$involvedAttendees[] = $user['id'];
+//						}
+//					}
+//				}
+//			}
+//
+//			if (is_array($attendees))
+//			{
+//				foreach($attendees as $userKey)
+//				{
+//					$attendeeId = intVal($userKey);
+//					$CACHE_MANAGER->ClearByTag('calendar_user_'.$attendeeId);
+//					if ($attendeeId)
+//					{
+//						// Skip creation of child event if it's event inside his own user calendar
+//						if ($arFields['CAL_TYPE'] == 'user' && $arFields['OWNER_ID'] == $attendeeId)
+//						{
+//							continue;
+//						}
+//
+//						$childParams = $params;
+//						$childParams['arFields']['CAL_TYPE'] = 'user';
+//						$childParams['arFields']['PARENT_ID'] = $parentId;
+//						$childParams['arFields']['OWNER_ID'] = $attendeeId;
+//						$childParams['arFields']['CREATED_BY'] = $attendeeId;
+//
+//						if (intVal($arFields['CREATED_BY']) == $attendeeId)
+//						{
+//							$childParams['arFields']['MEETING_STATUS'] = 'Y';
+//						}
+//						elseif ($isNewEvent && $arFields['~MEETING']['MEETING_CREATOR'] == $attendeeId)
+//						{
+//							$childParams['arFields']['MEETING_STATUS'] = 'Y';
+//						}
+//						else
+//						{
+//							if ($params['saveAttendeesStatus'] && $params['currentEvent'] && is_array($params['currentEvent']['ATTENDEE_LIST']))
+//							{
+//								foreach($params['currentEvent']['ATTENDEE_LIST'] as $currentAttendee)
+//								{
+//									if ($currentAttendee['id'] == $attendeeId)
+//									{
+//										$childParams['arFields']['MEETING_STATUS'] = $currentAttendee['status'];
+//										break;
+//									}
+//								}
+//							}
+//							else
+//							{
+//								$childParams['arFields']['MEETING_STATUS'] = 'Q';
+//							}
+//						}
+//
+//						unset($childParams['arFields']['SECTIONS']);
+//						unset($childParams['currentEvent']);
+//						unset($childParams['arFields']['ID']);
+//						unset($childParams['arFields']['DAV_XML_ID']);
+//
+//						$bExchange = CCalendar::IsExchangeEnabled($attendeeId);
+//
+//						if ($isNewEvent || !$curAttendeesIndex[$attendeeId])
+//						{
+//							$childSectId = CCalendar::GetMeetingSection($attendeeId, true);
+//							if ($childSectId)
+//							{
+//								$childParams['arFields']['SECTIONS'] = array($childSectId);
+//							}
+//
+//							// CalDav & Exchange
+//							if ($bExchange || $bCalDav)
+//							{
+//								CCalendarSync::DoSaveToDav(array(
+//									'bCalDav' => $bCalDav,
+//									'bExchange' => $bExchange,
+//									'sectionId' => $childSectId
+//								), $childParams['arFields']);
+//							}
+//						}
+//
+//						$childParams['sendInvitations'] = $params['sendInvitations'];
+//
+//						if (!$isNewEvent && $curAttendeesIndex[$attendeeId])
+//						{
+//							$childParams['arFields']['ID'] = $curAttendeesIndex[$attendeeId]['entryId'];
+//
+//							if (!$arFields['~MEETING']['REINVITE'])
+//							{
+//								$childParams['arFields']['MEETING_STATUS'] = $curAttendeesIndex[$attendeeId]['status'];
+//
+//								$childParams['sendInvitations'] = $childParams['sendInvitations'] &&  $curAttendeesIndex[$attendeeId]['status'] != 'Q';
+//							}
+//
+//							if ($bExchange || $bCalDav)
+//							{
+//								$childParams['currentEvent'] = CCalendarEvent::GetById($childParams['arFields']['ID'], false);
+//								CCalendarSync::DoSaveToDav(array(
+//									'bCalDav' => $bCalDav,
+//									'bExchange' => $bExchange,
+//									'sectionId' => $childParams['currentEvent']['SECT_ID']
+//								), $childParams['arFields'], $childParams['currentEvent']);
+//							}
+//						}
+//
+//						self::Edit($childParams);
+//						$involvedAttendees[] = $attendeeId;
+//						unset($deletedAttendees[$attendeeId]);
+//					}
+//				}
+//			}
+//
+//			// Delete
+//			$delIdStr = '';
+//			if (!$isNewEvent && count($deletedAttendees) > 0)
+//			{
+//				foreach($deletedAttendees as $attendeeId)
+//				{
+//					$att = $curAttendeesIndex[$attendeeId];
+//					if ($params['sendInvitations'] !== false && $att['status'] == 'Y')
+//					{
+//						$CACHE_MANAGER->ClearByTag('calendar_user_'.$att["id"]);
+//						$fromTo = CCalendarEvent::GetEventFromToForUser($arFields, $att["id"]);
+//						CCalendarNotify::Send(array(
+//							"mode" => 'cancel',
+//							"name" => $arFields['NAME'],
+//							"from" => $fromTo['DATE_FROM'],
+//							"to" => $fromTo['DATE_TO'],
+//							"location" => CCalendar::GetTextLocation($arFields["LOCATION"]),
+//							"guestId" => $att["id"],
+//							"eventId" => $parentId,
+//							"userId" => $arFields['MEETING_HOST'],
+//							"fields" => $arFields
+//						));
+//					}
+//					$delIdStr .= ','.intVal($att['id']);
+//
+//					$bExchange = CCalendar::IsExchangeEnabled($attendeeId);
+//					if ($bExchange || $bCalDav)
+//					{
+//						$currentEvent = CCalendarEvent::GetList(
+//							array(
+//								'arFilter' => array(
+//									"PARENT_ID" => $parentId,
+//									"OWNER_ID" => $attendeeId,
+//									"IS_MEETING" => 1,
+//									"DELETED" => "N"
+//								),
+//								'parseRecursion' => false,
+//								'fetchAttendees' => true,
+//								'fetchMeetings' => true,
+//								'checkPermissions' => false,
+//								'setDefaultLimit' => false
+//							)
+//						);
+//						$currentEvent = $currentEvent[0];
+//
+//						if ($currentEvent)
+//						{
+//							CCalendarSync::DoDeleteToDav(array(
+//									'bCalDav' => $bCalDav,
+//									'bExchangeEnabled' => $bExchange,
+//									'sectionId' => $currentEvent['SECT_ID']
+//							), $currentEvent);
+//						}
+//					}
+//				}
+//			}
+//
+//			$delIdStr = trim($delIdStr, ', ');
+//
+//			if ($delIdStr != '')
+//			{
+//				$strSql =
+//					"UPDATE b_calendar_event SET ".
+//					$DB->PrepareUpdate("b_calendar_event", array("DELETED" => "Y")).
+//					" WHERE PARENT_ID=".intval($parentId)." AND ID IN(".$delIdStr.")";
+//				$DB->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
+//			}
+//
+//			if (count($involvedAttendees) > 0)
+//			{
+//				$involvedAttendees = array_unique($involvedAttendees);
+//				CCalendar::UpdateCounter($involvedAttendees);
+//			}
+//		}
+//	}
 
 	public static function CreateChildEvents($parentId, $arFields, $params)
 	{
@@ -2213,9 +2426,9 @@ class CCalendarEvent
 						if ($currentEvent)
 						{
 							CCalendarSync::DoDeleteToDav(array(
-									'bCalDav' => $bCalDav,
-									'bExchangeEnabled' => $bExchange,
-									'sectionId' => $currentEvent['SECT_ID']
+								'bCalDav' => $bCalDav,
+								'bExchangeEnabled' => $bExchange,
+								'sectionId' => $currentEvent['SECT_ID']
 							), $currentEvent);
 						}
 					}

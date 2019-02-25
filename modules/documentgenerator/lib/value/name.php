@@ -3,13 +3,15 @@ namespace Bitrix\DocumentGenerator\Value;
 
 use Bitrix\DocumentGenerator\Controller\Template;
 use Bitrix\DocumentGenerator\DataProviderManager;
+use Bitrix\DocumentGenerator\Nameable;
 use Bitrix\DocumentGenerator\Value;
 use Bitrix\Main\Application;
 use Bitrix\Main\IO\File;
 use Bitrix\Main\IO\Path;
+use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Text\Encoding;
 
-class Name extends Value
+class Name extends Value implements Nameable
 {
 	protected $gender;
 
@@ -41,7 +43,7 @@ class Name extends Value
 	public function toString($modifier = null)
 	{
 		$options = $this->getOptions($modifier);
-		if(DataProviderManager::getInstance()->getRegion() == 'ru' && isset($options['case']))
+		if(isset($options['case']))
 		{
 			$fields = $this->changeCase($options['case']);
 		}
@@ -258,5 +260,14 @@ class Name extends Value
 			'Format' => 'format',
 			'Case' => 'case',
 		];
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function getLangName()
+	{
+		Loc::loadLanguageFile(__FILE__);
+		return Loc::getMessage('DOCGEN_VALUE_NAME_TITLE');
 	}
 }

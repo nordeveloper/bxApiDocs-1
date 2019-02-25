@@ -6,11 +6,21 @@ use Bitrix\DocumentGenerator\DataProvider;
 use Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider;
 use Bitrix\Main\Result;
 use Bitrix\Main\Text\Encoding;
-use Html2Text\Html2Text;
 
 final class DocxXml extends Xml
 {
 	const EMPTY_IMAGE_PLACEHOLDER = '{__SystemEmptyImage}';
+
+	const HTML_NODE_DISPLAY_HIDDEN = 'hidden';
+	const HTML_NODE_DISPLAY_BLOCK = 'block';
+	const HTML_NODE_DISPLAY_INLINE = 'inline';
+
+	const HTML_NODE_FONT_NORMAL = 'normal';
+	const HTML_NODE_FONT_BOLD = 'bold';
+	const HTML_NODE_FONT_ITALIC = 'italic';
+	const HTML_NODE_FONT_UNDERLINED = 'underlined';
+	const HTML_NODE_FONT_DELETED = 'deleted';
+
 	protected $arrayImageValues = [];
 
 	/**
@@ -692,7 +702,6 @@ final class DocxXml extends Xml
 	 */
 	protected function printValue($value, $placeholder, $modifier = '')
 	{
-		global $APPLICATION;
 		$value = parent::printValue($value, $placeholder, $modifier);
 		if(empty($value))
 		{
@@ -710,7 +719,7 @@ final class DocxXml extends Xml
 			}
 			else
 			{
-				$value = $APPLICATION->ConvertCharsetArray($value, SITE_CHARSET, 'UTF-8');
+				$value = Encoding::convertEncoding($value, SITE_CHARSET, 'UTF-8');
 			}
 		}
 		if(is_string($value))
@@ -723,9 +732,12 @@ final class DocxXml extends Xml
 			{
 				if($this->isHtml($value))
 				{
-					$value = $this->htmlToText($value);
+					$value = $this->htmlToXml($value);
 				}
-				$value = '<![CDATA['.$value.']]>';
+				else
+				{
+					$value = $this->prepareTextValue($value);
+				}
 			}
 		}
 
@@ -754,22 +766,397 @@ final class DocxXml extends Xml
 	}
 
 	/**
+	 * @param string $text
+	 * @param bool $saveBreakLines
+	 * @return string
+	 */
+	protected function prepareTextValue($text, $saveBreakLines = false)
+	{
+		if($saveBreakLines)
+		{
+			$text = str_replace(PHP_EOL, '{__SystemBreakLine}', $text);
+		}
+		$text = html_entity_decode($text);
+		$text = strtr(
+			$text,
+			array(
+				'<' => '&lt;',
+				'>' => '&gt;',
+				'"' => '&quot;',
+				'\'' => '&apos;',
+				'&' => '&amp;',
+			)
+		);
+		$text = preg_replace('/[\x01-\x08\x0B-\x0C\x0E-\x1F]/', '', $text);
+		if($saveBreakLines)
+		{
+			$text = str_replace('{__SystemBreakLine}', '</w:t><w:br/><w:t>', $text);
+		}
+		return $text;
+	}
+
+	/**
 	 * @param $string
 	 * @return bool
 	 */
 	protected function isHtml($string)
 	{
-		return (preg_match('/<\s?[^\>]*\/?\s?>/i', $string) !== false);
+		return (preg_match('/<\s?[^\>]*\/?\s?>/i', $string) != false);
 	}
 
 	/**
+	 * Converts html to xml with the same rendering.
+	 *
 	 * @param string $html
 	 * @return string
 	 */
-	protected function htmlToText($html)
+	protected function htmlToXml($html)
 	{
-		$html2Text = new Html2Text($html, ['do_links' => 'none', 'width' => 0]);
-		return $html2Text->getText();
+		$htmlDocument = new \Bitrix\Main\Web\DOM\Document();
+		$htmlDocument->loadHTML($html);
+		$result = $this->htmlNodeToXml($htmlDocument);
+		if(!empty($result))
+		{
+			$result = '</w:t></w:r>'.$result.'<w:r><w:t>';
+		}
+		return $result;
+	}
+
+	/**
+	 * Returns true if this node should be rendered.
+	 *
+	 * @param \Bitrix\Main\Web\DOM\Node $node
+	 * @return bool
+	 */
+	protected function isDisplayableNode(\Bitrix\Main\Web\DOM\Node $node)
+	{
+		$hiddenNodeNames = [
+			'#comment' => true, 'STYLE' => true, 'SCRIPT' => true,
+		];
+		if(isset($hiddenNodeNames[$node->getNodeName()]))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Returns array with rendering properties - display type and font params.
+	 *
+	 * @param \Bitrix\Main\Web\DOM\Node $node
+	 * @return array
+	 */
+	protected function getDisplayProperties(\Bitrix\Main\Web\DOM\Node $node)
+	{
+		$result = ['display' => 'inline', 'font' => [],];
+		if(!$this->isDisplayableNode($node))
+		{
+			$result['display'] = static::HTML_NODE_DISPLAY_HIDDEN;
+			return $result;
+		}
+		if($node instanceof \Bitrix\Main\Web\DOM\Element)
+		{
+			$styles = $node->getStyle();
+			$display = false;
+			$font = [];
+			if($styles)
+			{
+				$stylePairs = explode(';', $styles);
+				foreach($stylePairs as $pair)
+				{
+					list($name, $value) = explode(':', $pair);
+					if($name && $value)
+					{
+						if($name == 'display')
+						{
+							if($value == 'none')
+							{
+								$display = static::HTML_NODE_DISPLAY_HIDDEN;
+							}
+							elseif($value == 'block')
+							{
+								$display = static::HTML_NODE_DISPLAY_BLOCK;
+							}
+						}
+						elseif($name == 'font-weight')
+						{
+							if(intval($value) > 500 || $value == 'bold')
+							{
+								$font[static::HTML_NODE_FONT_BOLD] = static::HTML_NODE_FONT_BOLD;
+							}
+							elseif(intval($value) < 500 || $value == 'normal')
+							{
+								$font[static::HTML_NODE_FONT_NORMAL] = static::HTML_NODE_FONT_NORMAL;
+							}
+						}
+						elseif($name == 'font-style' && $value == 'italic' || strpos($value, 'oblique') === 0)
+						{
+							$font[static::HTML_NODE_FONT_ITALIC] = static::HTML_NODE_FONT_ITALIC;
+						}
+						elseif($name == 'text-decoration' && strpos($value, 'underline') !== false)
+						{
+							$font[static::HTML_NODE_FONT_UNDERLINED] = static::HTML_NODE_FONT_UNDERLINED;
+						}
+					}
+				}
+			}
+			if($display == static::HTML_NODE_DISPLAY_HIDDEN)
+			{
+				$result['display'] = $display;
+				return $result;
+			}
+			if(!$display && $this->isBlockTag($node->getTagName()))
+			{
+				$display = static::HTML_NODE_DISPLAY_BLOCK;
+			}
+			if(!$display)
+			{
+				$display = static::HTML_NODE_DISPLAY_INLINE;
+			}
+
+			if(!isset($font[static::HTML_NODE_FONT_BOLD]) && $this->isBoldTag($node->getTagName()))
+			{
+				$font[static::HTML_NODE_FONT_BOLD] = static::HTML_NODE_FONT_BOLD;
+			}
+			if(!isset($font[static::HTML_NODE_FONT_ITALIC]) && $this->isItalicTag($node->getTagName()))
+			{
+				$font[static::HTML_NODE_FONT_ITALIC] = static::HTML_NODE_FONT_ITALIC;
+			}
+			if(!isset($font[static::HTML_NODE_FONT_UNDERLINED]) && $this->isUnderlinedTag($node->getTagName()))
+			{
+				$font[static::HTML_NODE_FONT_UNDERLINED] = static::HTML_NODE_FONT_UNDERLINED;
+			}
+			if($this->isDeletedTag($node->getTagName()))
+			{
+				$font[static::HTML_NODE_FONT_DELETED] = static::HTML_NODE_FONT_DELETED;
+			}
+
+			$result['display'] = $display;
+			$result['font'] = $font;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Recursively converts html node to xml.
+	 *
+	 * @param \Bitrix\Main\Web\DOM\Node $node
+	 * @param array $context
+	 * @return string
+	 */
+	protected function htmlNodeToXml(\Bitrix\Main\Web\DOM\Node $node, array &$context = [])
+	{
+		$result = '';
+
+		$displayProperties = $this->getDisplayProperties($node);
+
+		if(isset($displayProperties['display']) && $displayProperties['display'] == static::HTML_NODE_DISPLAY_HIDDEN)
+		{
+			return $result;
+		}
+		$nodes = $node->getChildNodes();
+		$nodeName = strtolower($node->getNodeName());
+		if($nodeName == 'ul')
+		{
+			$context['currentList'] = 'ul';
+		}
+		elseif($nodeName == 'ol')
+		{
+			$context['currentList'] = 'ol';
+			$context['currentNumber'] = 1;
+		}
+		elseif($nodeName == 'li')
+		{
+			$context['showNumber'] = true;
+		}
+
+		if($displayProperties['display'] == static::HTML_NODE_DISPLAY_BLOCK)
+		{
+			$context['display'] = $displayProperties['display'];
+		}
+		if(!isset($context['font']) || !is_array($context['font']))
+		{
+			$context['font'] = [];
+		}
+		$context['font'] = array_merge($context['font'], $displayProperties['font']);
+		/** @var \Bitrix\Main\Web\DOM\Node $childNode */
+		foreach($nodes as $childNode)
+		{
+			$nodeValue = str_replace("\n", '', $childNode->getNodeValue());
+			if($displayProperties['display'] == static::HTML_NODE_DISPLAY_BLOCK || $context['display'] == static::HTML_NODE_DISPLAY_BLOCK)
+			{
+				$nodeValue = trim($nodeValue);
+			}
+			$childNodeName = strtolower($childNode->getNodeName());
+			if($childNodeName == 'br')
+			{
+				$result .= '<w:r>';
+				$result .= '<w:br/>';
+				$result .= '</w:r>';
+			}
+			elseif($childNode instanceof \Bitrix\Main\Web\DOM\Text && !empty($nodeValue))
+			{
+				$result .= '<w:r>';
+				if($context['display'] == static::HTML_NODE_DISPLAY_BLOCK)
+				{
+					$result .= '<w:br/>';
+					$context['display'] = $displayProperties['display'];
+				}
+				if(isset($context['showNumber']) && $context['showNumber'])
+				{
+					unset($context['showNumber']);
+					if(isset($context['currentList']) && $context['currentList'] == 'ol' && isset($context['currentNumber']) && $context['currentNumber'] > 0)
+					{
+						$result .= '<w:t xml:space="preserve">';
+						$result .= '    '.$context['currentNumber'].'. ';
+						$context['currentNumber']++;
+						$result .= '</w:t>';
+						$result .= '</w:r>';
+						$result .= '<w:r>';
+					}
+					elseif(isset($context['currentList']) && $context['currentList'] == 'ul')
+					{
+						$result .= '<w:t xml:space="preserve">';
+						$result .= '     - ';
+						$result .= '</w:t>';
+						$result .= '</w:r>';
+						$result .= '<w:r>';
+					}
+				}
+				$result .= $this->addRowPropertiesTag($context['font']);
+				$result .= '<w:t xml:space="preserve">';
+				$result .= $this->prepareTextValue($childNode->getNodeValue());
+				$result .= '</w:t>';
+				$result .= '</w:r>';
+			}
+			else
+			{
+				$result .= $this->htmlNodeToXml($childNode, $context);
+			}
+		}
+
+		if($nodeName == 'ul')
+		{
+			unset($context['currentList']);
+		}
+		elseif($nodeName == 'ol')
+		{
+			unset($context['currentList']);
+			unset($context['currentNumber']);
+		}
+		elseif($nodeName == 'li')
+		{
+			unset($context['showNumber']);
+		}
+		$context['font'] = array_diff_assoc($context['font'], $displayProperties['font']);
+
+		return $result;
+	}
+
+	/**
+	 * Returns true if html-tag with this $tagName displays as block by default.
+	 *
+	 * @param string $tagName
+	 * @return bool
+	 */
+	protected function isBlockTag($tagName)
+	{
+		$blockTagNames = [
+			'address' => true, 'article' => true, 'aside' => true, 'blockquote' => true, 'details' => true,
+			'dialog' => true, 'dd' => true, 'div' => true, 'dl' => true, 'dt' => true, 'fieldset' => true,
+			'figcaption' => true, 'figure' => true, 'footer' => true, 'form' => true, 'h1' => true, 'h2' => true,
+			'h3' => true, 'h4' => true, 'h5' => true, 'h6' => true, 'header' => true, 'hgroup' => true, 'hr' => true,
+			'li' => true, 'main' => true, 'nav' => true, 'ol' => true, 'p' => true, 'pre' => true, 'section' => true, 'table' => true,
+			'ul' => true,
+		];
+
+		return isset($blockTagNames[strtolower($tagName)]);
+	}
+
+	/**
+	 * Returns true if html-tag with this $tagName has bold font-weight by default.
+	 *
+	 * @param string $tagName
+	 * @return bool
+	 */
+	protected function isBoldTag($tagName)
+	{
+		$boldTagNames = [
+			'b' => true, 'mark' => true, 'em' => true, 'strong' => true, 'h1' => true, 'h2' => true, 'h3' => true,
+			'h4' => true, 'h5' => true, 'h6' => true,
+		];
+
+		return isset($boldTagNames[strtolower($tagName)]);
+	}
+
+	/**
+	 * Returns true if html-tag with this $tagName has italic font-style by default.
+	 *
+	 * @param string $tagName
+	 * @return bool
+	 */
+	protected function isItalicTag($tagName)
+	{
+		$italicTagNames = [
+			'i' => true, 'cite' => true, 'dfn' => true,
+		];
+
+		return isset($italicTagNames[strtolower($tagName)]);
+	}
+
+	/**
+	 * Returns true if html-tag with this $tagName has underlined font-decoration by default.
+	 *
+	 * @param string $tagName
+	 * @return bool
+	 */
+	protected function isUnderlinedTag($tagName)
+	{
+		return strtolower($tagName) == 'u';
+	}
+
+	/**
+	 * Returns true if html-tag with this $tagName renders as 'deleted' by default.
+	 *
+	 * @param string $tagName
+	 * @return bool
+	 */
+	protected function isDeletedTag($tagName)
+	{
+		return strtolower($tagName) == 'del';
+	}
+
+	/**
+	 * Returns row-properties xml-tag based on font properties.
+	 *
+	 * @param array $font
+	 * @return string
+	 */
+	protected function addRowPropertiesTag(array $font)
+	{
+		$result = '<w:rPr>';
+		$result .= '<w:rStyle w:val="Del" />';
+		if(isset($font[static::HTML_NODE_FONT_BOLD]))
+		{
+			$result .= '<w:b/>';
+		}
+		if(isset($font[static::HTML_NODE_FONT_ITALIC]))
+		{
+			$result .= '<w:i/>';
+		}
+		if(isset($font[static::HTML_NODE_FONT_DELETED]))
+		{
+			$result .= '<w:strike/>';
+		}
+		if(isset($font[static::HTML_NODE_FONT_UNDERLINED]))
+		{
+			$result .= '<w:u w:val="single" />';
+		}
+		$result .= '</w:rPr>';
+
+		return $result;
 	}
 
 //	/**

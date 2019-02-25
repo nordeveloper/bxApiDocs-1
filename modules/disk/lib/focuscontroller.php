@@ -262,10 +262,25 @@ final class FocusController extends Internals\Controller
 
 		$urlManager = Driver::getInstance()->getUrlManager();
 		$pathDetail = $urlManager->getPathFileDetail($file);
+		$additionalParameters = [];
 		if($this->request->getQuery('back'))
 		{
-			$pathDetail .= '?&' . http_build_query(array('back' => $this->request->getQuery('back')));
+			$additionalParameters['back'] = $this->request->getQuery('back');
 		}
+		if($this->request->getQuery('show'))
+		{
+			$additionalParameters['show'] = $this->request->getQuery('show');
+		}
+		if ($this->request->get('IFRAME') === 'Y' || $this->request->getPost('IFRAME') === 'Y')
+		{
+			$additionalParameters['IFRAME'] = 'Y';
+		}
+
+		if ($additionalParameters)
+		{
+			$pathDetail .= '?&' . http_build_query($additionalParameters);
+		}
+
 		LocalRedirect(
 			$urlManager->encodeUrn($pathDetail)
 		);

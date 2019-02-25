@@ -13,6 +13,7 @@ use Bitrix\Main\ArgumentTypeException;
 use Bitrix\Main\Entity\AddResult;
 use Bitrix\Main\Entity\Result;
 use Bitrix\Main\Event;
+use Bitrix\Main\InvalidOperationException;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Type\Collection;
@@ -659,16 +660,24 @@ abstract class BaseObject extends Internals\Model implements \JsonSerializable
 	 * @param DateTime|null $datetime Datetime.
 	 * @return bool
 	 */
-	protected function changeParentUpdateTime(DateTime $datetime = null)
+	protected function changeParentUpdateTime(DateTime $datetime = null, $updatedBy = null)
 	{
 		$parent = $this->getParent();
-		if(!$parent)
+		if (!$parent)
 		{
 			return false;
 		}
-		return $parent->update(array(
-			'UPDATE_TIME' => $datetime?: new DateTime(),
-		));
+
+		$data = [
+			'UPDATE_TIME' => $datetime ? : new DateTime(),
+		];
+
+		if ($updatedBy)
+		{
+			$data['UPDATED_BY'] = $updatedBy;
+		}
+
+		return $parent->update($data);
 	}
 
 	/**
@@ -1333,9 +1342,19 @@ abstract class BaseObject extends Internals\Model implements \JsonSerializable
 		{
 			$count++;
 			list($newName) = static::getNextGeneratedName($mainPartName, $suffix, $underObjectId);
+
+			static::alarmIfNeeded($count, $potentialName);
 		}
 
 		return $newName;
+	}
+
+	private static function alarmIfNeeded($countStepsToGenerateName, $potentialName)
+	{
+		if ($countStepsToGenerateName > 10)
+		{
+			throw new InvalidOperationException("Too many attempts ({$countStepsToGenerateName}) to generate unique name {$potentialName}");
+		}
 	}
 
 	private static function getNextGeneratedName($mainPartName, $suffix, $underObjectId)
@@ -1361,7 +1380,7 @@ abstract class BaseObject extends Internals\Model implements \JsonSerializable
 				PARENT_ID = {$underObjectId} AND 
 				NAME LIKE '" . $sqlHelper->forSql($left) . "%' AND
 				LEFT(NAME, {$lengthL}) = '" . $sqlHelper->forSql($left) . "' AND
-				MID(NAME, {$lengthL} + 1, CHAR_LENGTH(NAME) - {$lengthL} - {$lengthR}) regexp '^[[:digit:]]+$' AND
+				MID(NAME, {$lengthL} + 1, CHAR_LENGTH(NAME) - {$lengthL} - {$lengthR}) regexp '^[1-9][[:digit:]]*$' AND
 				RIGHT(NAME, {$lengthR}) = '" . $sqlHelper->forSql($right) . "'
 			ORDER BY CHAR_LENGTH(NAME) DESC, NAME DESC
 			LIMIT 1;

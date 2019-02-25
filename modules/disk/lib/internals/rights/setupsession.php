@@ -22,11 +22,12 @@ final class SetupSession extends Internals\Entity\Model
 	const REF_OBJECT = 'object';
 	const REF_PARENT = 'parent';
 
-	const STATUS_STARTED   = Table\RightSetupSessionTable::STATUS_STARTED;
-	const STATUS_FINISHED  = Table\RightSetupSessionTable::STATUS_FINISHED;
-	const STATUS_FORKED    = Table\RightSetupSessionTable::STATUS_FORKED;
-	const STATUS_BAD       = Table\RightSetupSessionTable::STATUS_BAD;
-	const STATUS_DUPLICATE = Table\RightSetupSessionTable::STATUS_DUPLICATE;
+	const STATUS_STARTED      = Table\RightSetupSessionTable::STATUS_STARTED;
+	const STATUS_FINISHED     = Table\RightSetupSessionTable::STATUS_FINISHED;
+	const STATUS_FORKED       = Table\RightSetupSessionTable::STATUS_FORKED;
+	const STATUS_BAD          = Table\RightSetupSessionTable::STATUS_BAD;
+	const STATUS_DUPLICATE    = Table\RightSetupSessionTable::STATUS_DUPLICATE;
+	const STATUS_BAD_PURIFIED = Table\RightSetupSessionTable::STATUS_BAD_PURIFIED;
 
 	/** @var int */
 	protected $objectId;

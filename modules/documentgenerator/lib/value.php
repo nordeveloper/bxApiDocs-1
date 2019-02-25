@@ -15,14 +15,8 @@ abstract class Value
 	public function __construct($value, array $options = [])
 	{
 		$this->value = $value;
-		if(!empty($options))
-		{
-			$this->options = $options;
-		}
-		else
-		{
-			$this->options = static::getDefaultOptions();
-		}
+		$this->options = static::getDefaultOptions();
+		$this->options = $this->getOptions($options);
 	}
 
 	/**
@@ -98,11 +92,11 @@ abstract class Value
 			list($name, $value) = explode('=', $pair);
 			if($name !== null && $value !== null)
 			{
-				if($value === 'Y')
+				if(strtoupper($value )=== 'Y')
 				{
 					$value = true;
 				}
-				if($value === 'N')
+				if(strtoupper($value) === 'N')
 				{
 					$value = false;
 				}

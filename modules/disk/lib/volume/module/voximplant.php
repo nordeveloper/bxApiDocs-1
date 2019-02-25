@@ -234,10 +234,11 @@ class Voximplant extends Volume\Module\Module implements Volume\IVolumeIndicator
 
 					$this->folderList[$storage->getId()][$code] = $folder;
 				}
+				return $this->folderList[$storage->getId()];
 			}
 		}
 
-		return $this->folderList[$storage->getId()];
+		return array();
 	}
 
 	/**

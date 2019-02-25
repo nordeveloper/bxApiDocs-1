@@ -31,22 +31,6 @@ class MailsFoldersManager extends SyncInternalManager
 		{
 			return $result;
 		}
-		if ($folderToMoveName === $this->getFolderNameByType(MessageFolder::SPAM))
-		{
-			return $this->sendMailsToSpam();
-		}
-		elseif ($folderToMoveName === $this->getFolderNameByType(MessageFolder::TRASH))
-		{
-			return $this->deleteMails();
-		}
-
-		$disabled = !empty($this->mailbox['OPTIONS']['imap']['disabled']) ? $this->mailbox['OPTIONS']['imap']['disabled'] : [];
-		if (in_array($folderToMoveName, $disabled, true))
-		{
-			return $result->addError(new Main\Error(Loc::getMessage('MAIL_CLIENT_FOLDER_IS_DISABLED', ['#FOLDER#' => $folderToMoveName]),
-				'MAIL_CLIENT_FOLDER_IS_DISABLED'));
-		}
-
 		$folders = [];
 		foreach ($this->messages as $index => $message)
 		{
@@ -63,6 +47,26 @@ class MailsFoldersManager extends SyncInternalManager
 					'MAIL_CLIENT_MOVE_TO_SELF_FOLDER'));
 			}
 		}
+		$disabled = !empty($this->mailbox['OPTIONS']['imap']['disabled']) ? $this->mailbox['OPTIONS']['imap']['disabled'] : [];
+		if (in_array($folderToMoveName, $disabled, true))
+		{
+			return $result->addError(new Main\Error(Loc::getMessage('MAIL_CLIENT_FOLDER_IS_DISABLED', ['#FOLDER#' => $folderToMoveName]),
+				'MAIL_CLIENT_FOLDER_IS_DISABLED'));
+		}
+
+		if ($folderToMoveName === $this->getFolderNameByType(MessageFolder::SPAM))
+		{
+			return $this->sendMailsToSpam();
+		}
+		elseif ($folderToMoveName === $this->getFolderNameByType(MessageFolder::TRASH))
+		{
+			return $this->deleteMails();
+		}
+		elseif ($folderToMoveName === $this->getFolderNameByType(MessageFolder::INCOME))
+		{
+			return $this->restoreMailsFromSpam();
+		}
+
 		$result = $this->moveMailsToFolder($folderToMoveName);
 		if (!$result->isSuccess())
 		{
@@ -85,7 +89,11 @@ class MailsFoldersManager extends SyncInternalManager
 		{
 			return (new Main\Result())->addError(new Main\Error(Loc::getMessage('MAIL_CLIENT_SYNC_ERROR'), 'MAIL_CLIENT_SYNC_ERROR'));
 		}
-		// todo delete from blackmails if no mails in spam with same email address?
+		$filter = Mail\BlacklistTable::getUserAddressesListQuery($this->userId, false)->getFilter();
+		$filter[] = ['@ITEM_VALUE' => array_column($this->messages, 'EMAIL')];
+		$filter[] = ['=ITEM_TYPE' => Mail\Blacklist\ItemType::EMAIL];
+		\Bitrix\Mail\BlacklistTable::deleteList($filter);
+
 		return $result;
 	}
 
@@ -229,8 +237,9 @@ class MailsFoldersManager extends SyncInternalManager
 			$count = $helper->syncDir($folderCurrentName);
 			Mail\MailMessageUidTable::deleteList(
 				[
-					'DIR_MD5' => md5($folderCurrentName),
-					'MSG_UID' => 0
+					'=MAILBOX_ID' => $this->mailboxId,
+					'=DIR_MD5' => md5($folderCurrentName),
+					'=MSG_UID' => 0,
 				]
 			);
 		}

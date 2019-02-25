@@ -463,6 +463,7 @@ class Template extends Base
 			if($template)
 			{
 				unset($templateData['CREATED_BY']);
+				unset($templateData['ID']);
 				$templateData['UPDATE_TIME'] = new DateTime();
 				$templateData['UPDATED_BY'] = Driver::getInstance()->getUserId();
 				$result = TemplateTable::update($id, $templateData);
@@ -732,5 +733,34 @@ class Template extends Base
 			$updateTime = time();
 		}
 		return new ContentUri(UrlManager::getInstance()->create('documentgenerator.api.template.download', ['id' => $templateId, 'ts' => $updateTime])->getUri());
+	}
+
+	/**
+	 * @param $provider
+	 * @param $value
+	 * @return array
+	 */
+	public function getButtonTemplatesAction($provider, $value)
+	{
+		return [
+			'documentList' => $this->getDocumentListUrl(),
+			'canEditTemplate' => true,
+			'templates' => TemplateTable::getListByClassName($provider, Driver::getInstance()->getUserId(), $value)
+		];
+	}
+
+	/**
+	 * @return bool|string
+	 */
+	protected function getDocumentListUrl()
+	{
+		$componentPath = \CComponentEngine::makeComponentPath('bitrix:documentgenerator.documents');
+		$componentPath = getLocalPath('components'.$componentPath.'/slider.php');
+		if(!empty($componentPath))
+		{
+			return $componentPath;
+		}
+
+		return false;
 	}
 }

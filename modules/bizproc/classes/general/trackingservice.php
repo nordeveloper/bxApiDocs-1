@@ -176,9 +176,14 @@ class CBPAllTrackingService
 		return $this;
 	}
 
+	public function isForcedMode($workflowId)
+	{
+		return in_array($workflowId, $this->forcedModeWorkflows);
+	}
+
 	public function canWrite($type, $workflowId)
 	{
-		return (in_array($workflowId, $this->forcedModeWorkflows) || !in_array($type, $this->skipTypes));
+		return (!in_array($type, $this->skipTypes) || $this->isForcedMode($workflowId));
 	}
 
 	public function Write($workflowId, $type, $actionName, $executionStatus, $executionResult, $actionTitle = "", $actionNote = "", $modifiedBy = 0)

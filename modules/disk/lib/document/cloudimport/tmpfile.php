@@ -33,9 +33,10 @@ final class TmpFile extends Bitrix24Disk\TmpFile
 		return array_merge(array(
 			'TOKEN' => static::generateTokenByPath($relativePath),
 			'FILENAME' => $fileData['name'],
+			'CONTENT_TYPE' => empty($fileData['type'])? \CFile::getContentType($absolutePath) : $fileData['type'],
 			'PATH' => $relativePath,
 			'BUCKET_ID' => '',
-			'SIZE' => '',
+			'SIZE' => empty($fileData['size'])? '' : $fileData['size'],
 			'WIDTH' => empty($fileData['width'])? '' : $fileData['width'],
 			'HEIGHT' => empty($fileData['height'])? '' : $fileData['height'],
 		), $data);

@@ -2,12 +2,16 @@
 
 namespace Bitrix\DocumentGenerator\DataProvider;
 
+use Bitrix\DocumentGenerator\DataProviderManager;
+use Bitrix\Iblock\SectionTable;
+use Bitrix\Main\Loader;
 use Bitrix\Main\ModuleManager;
 use Bitrix\Main\UserTable;
 
 final class User extends EntityDataProvider
 {
 	protected $nameData = [];
+	protected $workDepartment;
 
 	/**
 	 * @return array
@@ -46,6 +50,15 @@ final class User extends EntityDataProvider
 			$this->fields['LAST_NAME']['VALUE'] = [$this, 'getNameData'];
 			$this->fields['LAST_NAME']['TYPE'] = static::FIELD_TYPE_NAME;
 			$this->fields['LAST_NAME']['FORMAT'] = ['format' => '#LAST_NAME#'];
+
+			$this->fields['PERSONAL_PHONE']['TYPE'] = static::FIELD_TYPE_PHONE;
+			$this->fields['WORK_PHONE']['TYPE'] = static::FIELD_TYPE_PHONE;
+
+			$this->fields['WORK_DEPARTMENT']['VALUE'] = [$this, 'getDepartment'];
+			if(isset($this->fields['UF_DEPARTMENT']))
+			{
+				unset($this->fields['UF_DEPARTMENT']);
+			}
 		}
 
 		return $this->fields;
@@ -71,6 +84,8 @@ final class User extends EntityDataProvider
 		unset($this->data['NAME']);
 		unset($this->data['SECOND_NAME']);
 		unset($this->data['LAST_NAME']);
+		$this->workDepartment = $this->data['WORK_DEPARTMENT'];
+		unset($this->data['WORK_DEPARTMENT']);
 	}
 
 	/**
@@ -135,6 +150,7 @@ final class User extends EntityDataProvider
 			if(ModuleManager::isModuleInstalled('intranet'))
 			{
 				$result['select'][] = 'UF_PHONE_INNER';
+				$result['select'][] = 'UF_DEPARTMENT';
 			}
 		}
 
@@ -155,5 +171,72 @@ final class User extends EntityDataProvider
 	public function isRootProvider()
 	{
 		return false;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getDepartment()
+	{
+		$department = null;
+		if(isset($this->data['UF_DEPARTMENT']) && !empty($this->data['UF_DEPARTMENT']))
+		{
+			$departmentNames = $this->loadDepartmentNames();
+			if(!empty($departmentNames))
+			{
+				if(is_array($this->data['UF_DEPARTMENT']))
+				{
+					$department = [];
+					foreach($this->data['UF_DEPARTMENT'] as $id)
+					{
+						$department[] = $departmentNames[$id];
+					}
+				}
+				else
+				{
+					$department = $departmentNames[$department];
+				}
+			}
+		}
+
+		if(!$department)
+		{
+			$department = $this->workDepartment;
+		}
+
+		return $department;
+	}
+
+	/**
+	 * @return array|null
+	 */
+	protected function loadDepartmentNames()
+	{
+		static $departmentNames;
+		if($departmentNames === null)
+		{
+			$departmentNames = [];
+
+			$departmentIblockIds = $this->getUfDepartmentIblockId();
+			if($departmentIblockIds > 0 && Loader::includeModule('iblock'))
+			{
+				$departments = SectionTable::getList(['select' => ['ID', 'NAME']]);
+				while($department = $departments->fetch())
+				{
+					$departmentNames[$department['ID']] = $department['NAME'];
+				}
+			}
+		}
+
+		return $departmentNames;
+	}
+
+	/**
+	 * @return int|null
+	 */
+	protected function getUfDepartmentIblockId()
+	{
+		$arUserFields = $GLOBALS['USER_FIELD_MANAGER']->GetUserFields('USER', 0, DataProviderManager::getInstance()->getContext()->getRegionLanguageId());
+		return $arUserFields["UF_DEPARTMENT"]["SETTINGS"]["IBLOCK_ID"];
 	}
 }

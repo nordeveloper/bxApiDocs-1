@@ -307,7 +307,7 @@ class User
 					continue;
 				}
 
-				$uploadFile = $tmpDir.basename($file['name']);
+				$uploadFile = $tmpDir.bx_basename($file['name']);
 				if(move_uploaded_file($file['tmp_name'], $uploadFile))
 				{
 					$attachments[$key] = $uploadFile;
@@ -408,7 +408,14 @@ class User
 					{
 						foreach($tmpAttachments as $key => $uploadFile)
 						{
-							$attachments[$key] = \CFile::makeFileArray($uploadFile);
+							$file = \CFile::makeFileArray($uploadFile);
+							if (
+								is_array($file)
+								&& !empty($file)
+							)
+							{
+								$attachments[$key] = $file;
+							}
 						}
 					}
 				}
@@ -431,6 +438,9 @@ class User
 					if ($eventResult->getType() == \Bitrix\Main\EventResult::ERROR)
 					{
 						$cnt++;
+
+						global $pPERIOD;
+						$pPERIOD = 10 + (60 * $cnt);
 						return "\\Bitrix\\Mail\\User::sendEventAgent(".$messageId.", ".$cnt.");";
 					}
 				}

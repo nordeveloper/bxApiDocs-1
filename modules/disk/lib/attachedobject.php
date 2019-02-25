@@ -369,6 +369,38 @@ final class AttachedObject extends Internals\Model
 		return isset($this->versionId);
 	}
 
+	public function getName()
+	{
+		if ($this->isSpecificVersion())
+		{
+			$version = $this->getVersion();
+
+			return $version? $version->getName() : '';
+		}
+
+		$file = $this->getFile();
+
+		return $file? $file->getName() : '';
+	}
+
+	/**
+	 * Returns file id of attached object. If attached object is version, then it's file id of this version.
+	 * @return int|null
+	 */
+	public function getFileId()
+	{
+		if ($this->isSpecificVersion())
+		{
+			$version = $this->getVersion();
+
+			return $version? $version->getFileId() : null;
+		}
+
+		$file = $this->getFile();
+
+		return $file? $file->getFileId() : null;
+	}
+
 	/**
 	 * Returns connector instance for attached object.
 	 * @return Connector|null

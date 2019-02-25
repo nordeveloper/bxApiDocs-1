@@ -15,6 +15,7 @@ final class Desktop
 	/**
 	 * Checks status of disk install.
 	 * @return bool
+	 * @deprecated
 	 */
 	public static function isDesktopDiskInstall()
 	{
@@ -24,6 +25,7 @@ final class Desktop
 	/**
 	 * Checks online status of disk.
 	 * @return bool
+	 * @deprecated
 	 */
 	public static function isDesktopDiskOnline()
 	{
@@ -70,6 +72,7 @@ final class Desktop
 
 	/**
 	 * Sets option for current user for disk install.
+	 * @deprecated
 	 */
 	public static function setDesktopDiskInstalled()
 	{
@@ -86,6 +89,7 @@ final class Desktop
 
 	/**
 	 * Sets option for current user for disk uninstall.
+	 * @deprecated
 	 */
 	public static function setDesktopDiskUninstalled()
 	{

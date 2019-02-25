@@ -66,6 +66,9 @@ class DocumentController extends Internals\Controller
 			'saveBlank' => array(
 				'method' => array('POST'),
 			),
+			'discardBlank' => array(
+				'method' => array('POST'),
+			),
 			'rename' => array(
 				'method' => array('POST'),
 			),
@@ -96,6 +99,7 @@ class DocumentController extends Internals\Controller
 			'publish' => 'publish',
 			'commit' => 'commit',
 			'rename' => 'rename',
+			'discard' => 'discard',
 			'getlastversionuri' => 'getlastversionuri',
 		));
 	}
@@ -273,20 +277,6 @@ class DocumentController extends Internals\Controller
 	{
 		$fileData = $this->prepareFileData();
 
-		$bitrixHandler = new BitrixHandler($this->getUser()->getId());
-		$dataForView = $bitrixHandler->getDataForViewFile($fileData);
-		if ($dataForView && !$bitrixHandler->getErrors())
-		{
-			$this->sendJsonSuccessResponse($dataForView);
-		}
-
-		if (in_array(Configuration::getDocumentServiceCodeForCurrentUser(), array('local', 'l'), true))
-		{
-			$this->sendJsonSuccessResponse(array(
-				'viewerType' => 'local',
-			));
-		}
-
 		$dataForView = $this->documentHandler->getDataForViewFile($fileData);
 		if (!$dataForView)
 		{
@@ -299,10 +289,17 @@ class DocumentController extends Internals\Controller
 			}
 		}
 
+
 		if ($this->documentHandler->getErrors())
 		{
 			$this->errorCollection->add($this->documentHandler->getErrors());
 			$this->sendJsonErrorResponse($dataForView?: array());
+		}
+
+		if (!$dataForView)
+		{
+			$this->errorCollection[] = new Error(Loc::getMessage('DISK_DOC_CONTROLLER_ERROR_PLEASE_RELOAD_PAGE'));
+			$this->sendJsonErrorResponse();
 		}
 
 		$this->sendJsonSuccessResponse($dataForView);
@@ -541,7 +538,10 @@ class DocumentController extends Internals\Controller
 			$this->errorCollection->add($this->file->getErrors());
 			$this->sendJsonErrorResponse();
 		}
-		$this->sendJsonSuccessResponse(array('newName' => $this->file->getName()));
+		$this->sendJsonSuccessResponse([
+			'objectId' => $this->file->getId(),
+			'newName' => $this->file->getName(),
+		]);
 	}
 
 	/**
@@ -765,7 +765,7 @@ class DocumentController extends Internals\Controller
 
 		return $documentHandler->downloadFile($fileData);
 	}
-	
+
 	protected function processActionCommit()
 	{
 		$this->checkRequiredPostParams(array(
@@ -918,6 +918,11 @@ class DocumentController extends Internals\Controller
 		$this->sendJsonSuccessResponse($result);
 	}
 
+	protected function processActionDiscardBlank()
+	{
+		$this->processActionDiscard();
+	}
+
 	protected function processActionDiscard()
 	{
 		$this->checkRequiredPostParams(array(
@@ -999,7 +1004,7 @@ class DocumentController extends Internals\Controller
 
 	private function isViewAction()
 	{
-		return $this->getAction() === 'show';
+		return $this->getAction() === 'show' || $this->getAction() === 'checkView';
 	}
 
 	protected function initializeDocumentService()

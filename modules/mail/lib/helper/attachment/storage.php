@@ -9,6 +9,11 @@ use Bitrix\Mail;
 class Storage
 {
 
+	/**
+	 * Returns attachments disk storage
+	 *
+	 * @return \Bitrix\Disk\Storage|false
+	 */
 	public static function getStorage()
 	{
 		static $storage;
@@ -59,6 +64,11 @@ class Storage
 		return $storage;
 	}
 
+	/**
+	 * Returns disk url manager
+	 *
+	 * @return \Bitrix\Disk\UrlManager|false
+	 */
 	public static function getUrlManager()
 	{
 		static $urlManager;
@@ -80,6 +90,13 @@ class Storage
 		return $urlManager;
 	}
 
+	/**
+	 * Returns disk object by attachment file data
+	 *
+	 * @param array $attachment Attachment file data.
+	 * @param boolean $create Create object if not exists.
+	 * @return \Bitrix\Disk\File|false|null
+	 */
 	public static function getObjectByAttachment(array $attachment, $create = false)
 	{
 		if (!Main\Loader::includeModule('disk'))
@@ -109,6 +126,12 @@ class Storage
 		return $object;
 	}
 
+	/**
+	 * Creates disk object for attachment file
+	 *
+	 * @param array $attachment Attachment file data.
+	 * @return \Bitrix\Disk\File|false|null
+	 */
 	public static function registerAttachment(array $attachment)
 	{
 		if (!Main\Loader::includeModule('disk'))
@@ -118,7 +141,25 @@ class Storage
 
 		$storage = static::getStorage();
 
-		return $storage->addFile(
+		$folder = $storage->getChild(array(
+			'=NAME' => date('Y-m'),
+			'=TYPE' => \Bitrix\Disk\Internals\FolderTable::TYPE,
+		));
+
+		if (!$folder)
+		{
+			$folder = $storage->addFolder(array(
+				'NAME' => date('Y-m'),
+				'CREATED_BY' => 1, // @TODO
+			));
+		}
+
+		if (!$folder)
+		{
+			$folder = $storage;
+		}
+
+		return $folder->addFile(
 			array(
 				'NAME' => \Bitrix\Disk\Ui\Text::correctFilename($attachment['FILE_NAME']) ?: sprintf('%x', rand(0, 0xffffff)),
 				'FILE_ID' => $attachment['FILE_ID'],
