@@ -104,10 +104,59 @@ class DocumentTable extends FileModel
 
 	public static function onAfterAdd(Event $event)
 	{
-		$eventData = $event->getParameters();
-		if($eventData['fields']['ACTIVE'] === 'Y')
+		Bitrix24Manager::increaseDocumentsCount();
+	}
+
+	/**
+	 * @param $oldProvider
+	 * @param $oldValue
+	 * @param $newProvider
+	 * @param $newValue
+	 */
+	public static function transferOwnership($oldProvider, $oldValue, $newProvider, $newValue)
+	{
+		if(!DataProviderManager::checkProviderName($oldProvider) || !DataProviderManager::checkProviderName($newProvider))
 		{
-			Bitrix24Manager::increaseDocumentsCount();
+			return;
 		}
+
+		$filter = [
+			'=PROVIDER' => $oldProvider,
+			'=VALUE' => $oldValue,
+		];
+
+		$entity = static::getEntity();
+		$connection = $entity->getConnection();
+
+		$connection->query(sprintf(
+			'UPDATE %s SET %s WHERE %s',
+			$connection->getSqlHelper()->quote($entity->getDbTableName()),
+			$connection->getSqlHelper()->prepareUpdate($entity->getDbTableName(), [
+				'PROVIDER' => strtolower($newProvider),
+				'VALUE' => $newValue,
+			])[0],
+			Main\ORM\Query\Query::buildFilterSql($entity, $filter)
+		));
+	}
+
+	/**
+	 * @internal
+	 * @param array $filter
+	 * @return Main\Result
+	 */
+	public static function deleteList(array $filter)
+	{
+		$result = new Main\Result();
+		$documents = static::getList(['select' => ['ID'], 'filter' => $filter]);
+		while($document = $documents->fetch())
+		{
+			$deleteResult = static::delete($document['ID']);
+			if(!$deleteResult->isSuccess())
+			{
+				$result->addErrors($deleteResult->getErrors());
+			}
+		}
+
+		return $result;
 	}
 }

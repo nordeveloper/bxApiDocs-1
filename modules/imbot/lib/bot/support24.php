@@ -325,10 +325,9 @@ class Support24 extends Network
 		}
 
 		global $USER;
-
 		if (\Bitrix\Main\Loader::includeModule('bitrix24'))
 		{
-			if ($USER->GetId() > 0 && $USER->GetId() == $userId && $USER->IsAdmin())
+			if (is_object($USER) && $USER->GetId() > 0 && $USER->GetId() == $userId && $USER->IsAdmin())
 			{
 				$result = true;
 			}
@@ -339,7 +338,7 @@ class Support24 extends Network
 		}
 		else
 		{
-			if ($USER->GetId() > 0 && $USER->GetId() == $userId)
+			if (is_object($USER) && $USER->GetId() > 0 && $USER->GetId() == $userId)
 			{
 				$result = $USER->IsAdmin();
 			}

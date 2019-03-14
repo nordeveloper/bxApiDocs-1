@@ -59,9 +59,9 @@ class Twilio extends Sender\BaseConfigurable
 		$fromList = $this->getFromList();
 		if (count($fromList) > 0)
 		{
-			$from = $fromList[0]['id'];
+			return $fromList[0]['id'];
 		}
-		return $from;
+		return null;
 	}
 
 	public function setDefaultFrom($from)

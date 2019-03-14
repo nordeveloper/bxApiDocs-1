@@ -222,7 +222,7 @@ class CExtranetWizardServices
 		return $arThemes;
 	}
 
-	function SetFilePermission($path, $permissions)
+	public static function SetFilePermission($path, $permissions)
 	{
 		$originalPath = $path;
 

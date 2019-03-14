@@ -42,7 +42,7 @@ abstract class BaseConfigurable extends Base
 
 	/**
 	 * Get default From.
-	 * @return string
+	 * @return null|string
 	 */
 	abstract public function getDefaultFrom();
 

@@ -339,7 +339,7 @@ final class DataProviderManager
 			$format = $fieldDescription['FORMAT'];
 		}
 
-		if($type != DataProvider::FIELD_TYPE_NAME && is_array($value) || $value instanceof \Traversable)
+		if($type != DataProvider::FIELD_TYPE_NAME && (is_array($value) && !is_array_assoc($value) || $value instanceof \Traversable))
 		{
 			$result = [];
 			foreach($value as $singleValue)

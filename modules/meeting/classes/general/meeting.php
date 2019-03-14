@@ -23,7 +23,7 @@ abstract class CAllMeeting
 			return false;
 
 		$query = "
-SELECT ins.*, ".$DB->DateToCharFunction("ins.DEADLINE", "SHORT")." as DEADLINE, it.TITLE, it.DESCRIPTION
+SELECT ins.*, ".$DB->DateToCharFunction("ins.DEADLINE", "FULL")." as DEADLINE, it.TITLE, it.DESCRIPTION
 FROM b_meeting_instance ins
 LEFT JOIN b_meeting_item it ON ins.ITEM_ID=it.ID
 WHERE ins.MEETING_ID='".$ID."'

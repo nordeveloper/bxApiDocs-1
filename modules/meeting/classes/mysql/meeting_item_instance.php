@@ -18,7 +18,7 @@ class CMeetingInstance extends CAllMeetingInstance
 			"INSTANCE_TYPE" => array("FIELD" => "I.INSTANCE_TYPE", "TYPE" => "char"),
 			"SORT" => array("FIELD" => "I.SORT", "TYPE" => "int"),
 			"DURATION" => array("FIELD" => "I.DURATION", "TYPE" => "int"),
-			"DEADLINE" => array("FIELD" => "I.DEADLINE", "TYPE" => "date"),
+			"DEADLINE" => array("FIELD" => "I.DEADLINE", "TYPE" => "datetime"),
 			"TASK_ID" => array("FIELD" => "I.TASK_ID", "TYPE" => "int"),
 		);
 

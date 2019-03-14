@@ -55,7 +55,7 @@ class SmsAssistentBy extends Sender\BaseConfigurable
 	public function getDefaultFrom()
 	{
 		$fromList = $this->getFromList();
-		$from = $fromList[0]['id'];
+		$from = isset($fromList[0]) ? $fromList[0]['id'] : null;
 		//Try to find alphanumeric from
 		foreach ($fromList as $item)
 		{
