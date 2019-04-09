@@ -17,8 +17,8 @@ switch ($page)
 			'ACTIVITY_EDIT_URL_TEMPLATE' => SITE_DIR.'mobile/crm/activity/?page=edit&activity_id=#activity_id#',
 			'ACTIVITY_CREATE_URL_TEMPLATE' => SITE_DIR.'mobile/crm/activity/?page=edit',
 
-			'TASK_SHOW_URL_TEMPLATE' => '#SITE_DIR#mobile/tasks/snmrouter/index.php?routePage=view&USER_ID=#user_id#&TASK_ID=#task_id#',
-			'USER_PROFILE_URL_TEMPLATE' => '#SITE_DIR#mobile/users/?user_id=#user_id#'
+			'TASK_SHOW_URL_TEMPLATE' => '/mobile/tasks/snmrouter/index.php?routePage=view&USER_ID=#user_id#&TASK_ID=#task_id#',
+			'USER_PROFILE_URL_TEMPLATE' => '/mobile/users/?user_id=#user_id#'
 		));
 		break;
 	case "fields":

@@ -190,8 +190,8 @@ class CIBlockParameters
 			return array(
 				array(
 					"TEXT" => Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
-					"TITLE" => "#SITE_DIR# - ".Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
-					"ONCLICK" => "$action_function('#SITE_DIR#', '$menuID', '$inputID')",
+					"TITLE" => "/ - ".Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
+					"ONCLICK" => "$action_function('/', '$menuID', '$inputID')",
 				),
 				array(
 					"TEXT" => Loc::getMessage("IB_COMPLIB_POPUP_SERVER_NAME"),
@@ -266,8 +266,8 @@ class CIBlockParameters
 			return array(
 				array(
 					"TEXT" => Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
-					"TITLE" => "#SITE_DIR# - ".Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
-					"ONCLICK" => "$action_function('#SITE_DIR#', '$menuID', '$inputID')",
+					"TITLE" => "/ - ".Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
+					"ONCLICK" => "$action_function('/', '$menuID', '$inputID')",
 				),
 				array(
 					"TEXT" => Loc::getMessage("IB_COMPLIB_POPUP_SERVER_NAME"),
@@ -331,8 +331,8 @@ class CIBlockParameters
 			return array(
 				array(
 					"TEXT" => Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
-					"ONCLICK" => "$action_function('#SITE_DIR#', '$menuID', '$inputID')",
-					"TITLE"=> "#SITE_DIR# - ".Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
+					"ONCLICK" => "$action_function('/', '$menuID', '$inputID')",
+					"TITLE"=> "/ - ".Loc::getMessage("IB_COMPLIB_POPUP_SITE_DIR"),
 				),
 				array(
 					"TEXT" => Loc::getMessage("IB_COMPLIB_POPUP_SERVER_NAME"),

@@ -19,7 +19,7 @@ if (
 		array(
 			"CHECKWORD_VARNAME"=>"checkword",
 			"USERID_VARNAME"=>"user_id",
-			"AUTH_URL"=>"#SITE_DIR#auth.php",
+			"AUTH_URL"=>"/auth.php",
 		),
 		false
 	);
@@ -596,7 +596,7 @@ $licensePrefix = CModule::IncludeModule("bitrix24") ? \CBitrix24::getLicensePref
 					$mess = "INTEGRATOR";
 
 				$arResult = array(
-					'MESSAGE' => GetMessage("BX24_INVITE_DIALOG_".$mess, array("#SITE_DIR#" => $SITE_DIR))
+					'MESSAGE' => GetMessage("BX24_INVITE_DIALOG_".$mess, array("/" => $SITE_DIR))
 				);
 				if ($strWarning)
 				{

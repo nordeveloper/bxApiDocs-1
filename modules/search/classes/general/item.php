@@ -191,7 +191,7 @@ class CSearchItem extends CDBResult
 			}
 
 			$r["URL"] = str_replace(
-				array("#LANG#", "#SITE_DIR#", "#SERVER_NAME#"),
+				array("#LANG#", "/", "#SERVER_NAME#"),
 				array($r["DIR"], $r["DIR"], $r["SERVER_NAME"]),
 				$r["URL"]
 			);

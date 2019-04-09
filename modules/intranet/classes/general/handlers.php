@@ -229,7 +229,7 @@ class CIntranetEventHandlers
 								if (in_array($arIBlock["CODE"], $arIBCode))
 								{
 									$entity_url = str_replace(
-										"#SITE_DIR#",
+										"/",
 										$arSite["DIR"],
 										$arIBlock["LIST_PAGE_URL"]
 									);
@@ -237,7 +237,7 @@ class CIntranetEventHandlers
 										$entity_url = "/".ltrim($entity_url, "/");
 
 									$url = str_replace(
-										array("#SITE_DIR#", "#ID#", "#CODE#"),
+										array("/", "#ID#", "#CODE#"),
 										array($arSite["DIR"], $arFields["ID"], $arFields["CODE"]),
 										$arIBlock["DETAIL_PAGE_URL"]
 									);

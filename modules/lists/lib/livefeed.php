@@ -86,7 +86,7 @@ class CListsLiveFeed
 				'ENABLE_COMMENTS' => 'Y',
 				'RATING_TYPE_ID' => 'LISTS_NEW_ELEMENT',
 				'RATING_ENTITY_ID' => $sourceId,
-				'URL' => '#SITE_DIR#'.COption::GetOptionString('socialnetwork', 'user_page', false, SITE_ID).'log/'
+				'URL' => '/'.COption::GetOptionString('socialnetwork', 'user_page', false, SITE_ID).'log/'
 			);
 
 			$logObject = CSocNetLog::getList(array(), array(
@@ -273,7 +273,7 @@ class CListsLiveFeed
 
 				$siteDir = rtrim(SITE_DIR, '/');
 				$url = CSocNetLogTools::formatEvent_GetURL($fields, true);
-				$url = str_replace('#SITE_DIR#', $siteDir, $url);
+				$url = str_replace('/', $siteDir, $url);
 				$url .= ''.$fields['ID'].'/';
 
 				$element = array(
@@ -784,7 +784,7 @@ class CListsLiveFeed
 			return;
 
 		$siteDir = rtrim(SITE_DIR, '/');
-		$url = str_replace('#SITE_DIR#', $siteDir, $comment["URL"]);
+		$url = str_replace('/', $siteDir, $comment["URL"]);
 		$url .= ''.$comment['LOG_ID'].'/';
 
 		$messageAddComment = Loc::getMessage("LISTS_LF_COMMENT_MESSAGE_ADD",

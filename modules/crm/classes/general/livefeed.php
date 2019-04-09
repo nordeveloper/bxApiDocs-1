@@ -3657,7 +3657,7 @@ class CCrmLiveFeed
 	public static function GetShowUrl($logEventID)
 	{
 		return CComponentEngine::MakePathFromTemplate(
-			'#SITE_DIR#crm/stream/?log_id=#log_id#',
+			'/crm/stream/?log_id=#log_id#',
 			array('log_id' => $logEventID)
 		);
 	}

@@ -7,7 +7,7 @@ $GLOBALS['APPLICATION']->IncludeComponent(
 	'',
 	array(
 		'UID' => 'mobile_crm_config_user_email',
-		'SERVICE_URL_TEMPLATE' => '#SITE_DIR#mobile/ajax.php?mobile_action=crm_config_user_email&site_id=#SITE#&sessid=#SID#',
+		'SERVICE_URL_TEMPLATE' => '/mobile/ajax.php?mobile_action=crm_config_user_email&site_id=#SITE#&sessid=#SID#',
 	)
 );
 

@@ -1081,7 +1081,7 @@ UPDATE_TYPE:
 
 	static function ShowIBlockByID($arEntityDesc, $strEntityURL, $arParams)
 	{
-		$url = str_replace("#SITE_DIR#", SITE_DIR, $arEntityDesc["LIST_PAGE_URL"]);
+		$url = str_replace("/", SITE_DIR, $arEntityDesc["LIST_PAGE_URL"]);
 		if (strpos($url, "/") === 0)
 			$url = "/".ltrim($url, "/");
 

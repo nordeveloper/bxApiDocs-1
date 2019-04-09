@@ -261,7 +261,7 @@ class CAllSiteMap extends CDBResult
 					$r["URL"] = ExecuteModuleEventEx($arEvent, array($r));
 			}
 			$r["URL"] = str_replace(
-				array("#LANG#", "#SITE_DIR#", "#SERVER_NAME#"),
+				array("#LANG#", "/", "#SERVER_NAME#"),
 				array($r["DIR"], $r["DIR"], $r["SERVER_NAME"]),
 				$r["URL"]
 			);

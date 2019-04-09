@@ -396,8 +396,8 @@ class CWebDavIblock extends CWebDavBase
 			$arSection = array(); $arElement = array();
 		}
 		// Params for socialnetwork /
-		if (strpos($params["path"], "#SITE_DIR#") !== false)
-			$params["path"] = str_replace("#SITE_DIR#", SITE_DIR, $params["path"]);
+		if (strpos($params["path"], "/") !== false)
+			$params["path"] = str_replace("/", SITE_DIR, $params["path"]);
 		else if (array_key_exists("SITE_ID", $params) && CModule::IncludeModule('extranet') && (CExtranet::GetExtranetSiteID() == $params["SITE_ID"]))
 		{
 			if($arExtranetSite === false)

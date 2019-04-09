@@ -2024,7 +2024,7 @@ class CAllIBlockElement
 					, '#IBLOCK_ID#', BE#i#.IBLOCK_ID)
 					, '#IBLOCK_CODE#', ".$DB->IsNull("B#i#.CODE", "''").")
 					, '#IBLOCK_EXTERNAL_ID#', ".$DB->IsNull("B#i#.XML_ID", "''").")
-					, '#SITE_DIR#', '".$DB->ForSQL(SITE_DIR)."')
+					, '/', '".$DB->ForSQL(SITE_DIR)."')
 					, '#SERVER_NAME#', '".$DB->ForSQL(SITE_SERVER_NAME)."')
 					, '#SECTION_ID#', ".$DB->IsNull("BE#i#.IBLOCK_SECTION_ID", "''").")
 					, '#SECTION_CODE#', ".$DB->IsNull("BS#i#.CODE", "''").")
@@ -2039,7 +2039,7 @@ class CAllIBlockElement
 					, '#IBLOCK_ID#', BE#i#.IBLOCK_ID)
 					, '#IBLOCK_CODE#', ".$DB->IsNull("B#i#.CODE", "''").")
 					, '#IBLOCK_EXTERNAL_ID#', ".$DB->IsNull("B#i#.XML_ID", "''").")
-					, '#SITE_DIR#', '".$DB->ForSQL(SITE_DIR)."')
+					, '/', '".$DB->ForSQL(SITE_DIR)."')
 					, '#SERVER_NAME#', '".$DB->ForSQL(SITE_SERVER_NAME)."')
 				",
 			);

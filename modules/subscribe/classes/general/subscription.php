@@ -574,7 +574,7 @@ class CSubscriptionGeneral
 				"USER_NAME" => $subscr_arr["USER_NAME"]." ".$subscr_arr["USER_LAST_NAME"],
 				"DATE_SUBSCR" => ($subscr_arr["DATE_UPDATE"] <> ""? $subscr_arr["DATE_UPDATE"]: $subscr_arr["DATE_INSERT"]),
 				"SUBSCR_SECTION" => str_replace(
-					array("#SITE_DIR#", "#LANG_DIR#"),
+					array("/", "#LANG_DIR#"),
 					array($SITE_DIR_CACHE[$SITE_ID], $SITE_DIR_CACHE[$SITE_ID]),
 					COption::GetOptionString("subscribe", "subscribe_section")
 				),

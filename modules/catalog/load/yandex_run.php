@@ -428,7 +428,7 @@ if (!function_exists('yandexPrepareItems'))
 				if (isset($row['PARENT_ID']) && isset($parents[$row['PARENT_ID']]))
 				{
 					$safeRow['~DETAIL_PAGE_URL'] = str_replace(
-						array('#SERVER_NAME#', '#SITE_DIR#', '#PRODUCT_URL#'),
+						array('#SERVER_NAME#', '/', '#PRODUCT_URL#'),
 						array($options['SITE_NAME'], $options['SITE_DIR'], $parents[$row['PARENT_ID']]),
 						$safeRow['~DETAIL_PAGE_URL']
 					);
@@ -436,7 +436,7 @@ if (!function_exists('yandexPrepareItems'))
 				else
 				{
 					$safeRow['~DETAIL_PAGE_URL'] = str_replace(
-						array('#SERVER_NAME#', '#SITE_DIR#'),
+						array('#SERVER_NAME#', '/'),
 						array($options['SITE_NAME'], $options['SITE_DIR']),
 						$safeRow['~DETAIL_PAGE_URL']
 					);

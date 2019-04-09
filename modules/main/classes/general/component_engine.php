@@ -354,7 +354,7 @@ class CComponentEngine
 	 */
 	public static function makePathFromTemplate($template, $arParams = array())
 	{
-		$arPatterns = array("#SITE_DIR#", "#SITE#", "#SERVER_NAME#");
+		$arPatterns = array("/", "#SITE#", "#SERVER_NAME#");
 		$arReplace = array(SITE_DIR, SITE_ID, SITE_SERVER_NAME);
 		foreach ($arParams as $key => $value)
 		{

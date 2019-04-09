@@ -2011,7 +2011,7 @@ class CAllTicket
 		{
 			$peurl = COption::GetOptionString("support", "SUPPORT_DIR");
 			$peurl = str_replace("#LANG_DIR#", $v->arrSite["DIR"], $peurl); // סמגלוסעטלמסעü
-			$peurl = str_replace("#SITE_DIR#", $v->arrSite["DIR"], $peurl);
+			$peurl = str_replace("/", $v->arrSite["DIR"], $peurl);
 			$peurl = str_replace("\\", "/", $peurl);
 			$peurl = str_replace("//", "/", $peurl);
 			$peurl = TrimEx($peurl, "/");

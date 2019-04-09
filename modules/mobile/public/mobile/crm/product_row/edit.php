@@ -6,7 +6,7 @@ $GLOBALS['APPLICATION']->IncludeComponent(
 	'bitrix:mobile.crm.product_row.edit',
 	'',
 	array(
-		'SERVICE_URL_TEMPLATE' => '#SITE_DIR#mobile/ajax.php?mobile_action=crm_product_row_edit&site_id=#SITE#&#SID#',
+		'SERVICE_URL_TEMPLATE' => '/mobile/ajax.php?mobile_action=crm_product_row_edit&site_id=#SITE#&#SID#',
 		'UID' => 'mobile_crm_product_row_edit'
 	)
 );

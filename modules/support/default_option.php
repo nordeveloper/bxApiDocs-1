@@ -1,6 +1,6 @@
 <?
 $support_default_option = array(
-	"SUPPORT_DIR"					=> "#SITE_DIR#support/",
+	"SUPPORT_DIR"					=> "/support/",
 	"SUPPORT_EDIT"					=> "",
 	"SUPPORT_MAX_FILESIZE"			=> "300",
 	"ONLINE_INTERVAL"				=> "300",

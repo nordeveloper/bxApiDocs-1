@@ -7,8 +7,8 @@ $GLOBALS['APPLICATION']->IncludeComponent(
 	'',
 	array(
 		'UID' => 'mobile_crm_comm_list',
-		'CONTACT_SHOW_URL_TEMPLATE' => '#SITE_DIR#mobile/crm/contact/?page=view&contact_id=#contact_id#',
-		'COMPANY_SHOW_URL_TEMPLATE' => '#SITE_DIR#mobile/crm/company/?page=view&company_id=#company_id#'
+		'CONTACT_SHOW_URL_TEMPLATE' => '/mobile/crm/contact/?page=view&contact_id=#contact_id#',
+		'COMPANY_SHOW_URL_TEMPLATE' => '/mobile/crm/company/?page=view&company_id=#company_id#'
 	)
 );
 

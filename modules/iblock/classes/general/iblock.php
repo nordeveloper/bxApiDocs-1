@@ -2736,12 +2736,12 @@ REQ
 					$cache[$arr["LID"]] = $arLang;
 				}
 				$arLang = $cache[$arr["LID"]];
-				$url = str_replace("#SITE_DIR#", $arLang["DIR"], $url);
+				$url = str_replace("/", $arLang["DIR"], $url);
 				$url = str_replace("#SERVER_NAME#", $arLang["SERVER_NAME"], $url);
 			}
 			else
 			{
-				$url = str_replace("#SITE_DIR#", SITE_DIR, $url);
+				$url = str_replace("/", SITE_DIR, $url);
 				$url = str_replace("#SERVER_NAME#", SITE_SERVER_NAME, $url);
 			}
 		}
@@ -2754,7 +2754,7 @@ REQ
 
 		static $arSearch = array(
 			/*Thees come from GetNext*/
-			"#SITE_DIR#",
+			"/",
 			"#ID#",
 			"#CODE#",
 			"#EXTERNAL_ID#",
