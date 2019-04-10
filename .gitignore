@@ -8,3 +8,4 @@
 /modules/.htaccess
 !/LICENSE
 !/README.md
+!/composer.json

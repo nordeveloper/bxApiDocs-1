@@ -1,0 +1,22 @@
+{
+  "name": "prominado/bxapidocs",
+  "description": "phpDoc for bitrix framework",
+  "license": "MIT",
+  "keywords": [
+    "bitrix",
+    "api",
+    "phpDoc",
+    "autocomplete",
+    "ide-helper"
+  ],
+  "support": {
+    "issues": "https://github.com/Prominado-ru/bxApiDocs/issues",
+    "source": "https://github.com/Prominado-ru/bxApiDocs"
+  },
+  "authors": [
+    {
+      "name": "Sergey Panteleev",
+      "email": "sergey@s-panteleev.ru"
+    }
+  ]
+}
